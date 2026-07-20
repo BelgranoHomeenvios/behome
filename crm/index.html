@@ -1575,6 +1575,33 @@ textarea{resize:vertical;min-height:60px}
         <div id="cheadBox"></div>
         <div id="filasBox"></div>
       </div>
+      <div class="card" id="verMasBox" style="text-align:center">
+        <p class="muted" style="margin:0 0 10px;font-size:13px">
+          Estás viendo los últimos <b>2 meses</b><span id="verMasDesde"></span>, más todas tus consultas activas.
+        </p>
+        <button class="btn btn-outline" id="verMasBtn" onclick="abrirVerMas()">Ver otro período…</button>
+        <div class="hidden" id="verMasPanel" style="margin-top:14px;text-align:left">
+          <div class="row">
+            <div class="field" style="margin-bottom:0">
+              <label>Desde</label><input type="date" id="vmDesde">
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label>Hasta</label><input type="date" id="vmHasta">
+            </div>
+          </div>
+          <div class="result-pick" style="margin-top:10px">
+            <button type="button" onclick="vmPreset('mesPasado')">Mes pasado</button>
+            <button type="button" onclick="vmPreset('3meses')">Últimos 3 meses</button>
+            <button type="button" onclick="vmPreset('6meses')">Últimos 6 meses</button>
+            <button type="button" onclick="vmPreset('anio')">Este año</button>
+            <button type="button" onclick="vmPreset('todo')">Todo el histórico</button>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" onclick="aplicarVerMas()">Cargar ese período</button>
+            <button class="btn btn-outline" onclick="cerrarVerMas()">Cancelar</button>
+          </div>
+        </div>
+      </div>
       <div class="row hidden" id="exportRow" style="margin-top:14px">
         <button class="btn btn-outline" onclick="exportarJSON()">Exportar JSON</button>
         <button class="btn btn-outline" onclick="copiarJSON()">Copiar</button>
@@ -1619,7 +1646,8 @@ try{ sb = window.supabase.createClient(SB_URL, SB_KEY, {
   global:{ headers:{ apikey:SB_KEY } }
 }); }catch(e){ console.error('No se pudo iniciar Supabase',e); }
 
-/* window.storage real: cada clave del CRM (contactos, attentions-index, etc.) es una fila
+/* window.storage: claves de configuración del CRM (contactos, locales, etc.). Las
+   consultas NO pasan por acá — tienen su propia tabla, una fila por consulta.
    en la tabla crm_kv (clave text PK, data jsonb). Todas las llamadas del CRM pasan shared=true,
    así que no hace falta distinguir — todo es compartido por el equipo. */
 window.storage={
@@ -1906,6 +1934,10 @@ function entrarApp(){
   $('screen-app').classList.remove('hidden');
   $('tabConfig').classList.toggle('hidden', !esAdmin());
   pintarAdminViewBar();
+  actualizarLeyendaVerMas();
+  /* Cintia y dirección trabajan sobre lo que falta evaluar: se les suma esa
+     cola aunque alguna consulta quede fuera de la ventana de 2 meses. */
+  if(esAuditora()||esAdmin()) cargarPendientesEvaluacion().then(()=>render());
 
   if(esAdmin()){
     $('whoRol').textContent='Administrador';
@@ -2253,12 +2285,202 @@ async function loadState(){
   await loadNotasSinAccion();
   await loadRecordatorios();
   pintarConfigLocales();
-  try{
-    const r=await window.storage.get('attentions-index',true);
-    if(r&&r.value) atenciones=JSON.parse(r.value);
-    migrarSeguimientoLocal();
-  }catch(e){atenciones=[];}
+  await cargarConsultas();
   if(YO) render();
+}
+
+/* ═══════════════ CONSULTAS: una fila por consulta en Supabase ═══════════════
+   Antes todas las consultas viajaban juntas en un solo bloque JSON. Con el
+   equipo completo trabajando eso tenía dos problemas: cada apertura se bajaba
+   la base entera, y si dos personas guardaban a la vez la última pisaba a la
+   primera. Ahora cada consulta es su propia fila: se carga solo la ventana que
+   hace falta y cada uno guarda lo suyo sin tocar lo del otro. */
+
+const VENTANA_MESES = 2;        // cuánto se carga al abrir
+let consultasDesde = null;      // desde qué fecha está cargado (para el "ver más")
+let _snapConsultas = {};        // último estado guardado de cada consulta, para detectar cambios
+let _colaGuardado = new Set();  // ids pendientes de subir
+let _aplicandoRemoto = false;   // cuando llega un cambio de otro usuario, no lo reenviamos
+
+function fechaCorteVentana(){
+  const d = new Date();
+  d.setMonth(d.getMonth() - VENTANA_MESES);
+  return d.toISOString();
+}
+
+/* Convierte una fila de la base al objeto que usa el CRM por dentro */
+function filaAConsulta(f){
+  const a = Object.assign({}, f.data || {});
+  a.id = f.id;
+  return a;
+}
+
+/* Carga inicial: la ventana de los últimos meses + TODAS las activas.
+   Lo segundo es el seguro: una consulta abierta hace 5 meses tiene que
+   seguir apareciendo en la lista del vendedor, no desaparecer por vieja. */
+async function cargarConsultas(desde){
+  if(!sb) return;
+  const corte = desde || fechaCorteVentana();
+  try{
+    const [rec, act] = await Promise.all([
+      sb.from('consultas').select('id,data').gte('fecha', corte),
+      sb.from('consultas').select('id,data').eq('estado','En seguimiento')
+    ]);
+    if(rec.error) throw rec.error;
+    if(act.error) throw act.error;
+    const mapa = new Map();
+    (rec.data||[]).forEach(f => mapa.set(f.id, f));
+    (act.data||[]).forEach(f => mapa.set(f.id, f));
+    atenciones = [...mapa.values()].map(filaAConsulta);
+    consultasDesde = corte;
+    migrarSeguimientoLocal();
+    _snapConsultas = {};
+    atenciones.forEach(a => _snapConsultas[a.id] = JSON.stringify(a));
+    suscribirConsultas();
+  }catch(e){
+    console.error('cargarConsultas', e);
+    toast('No se pudieron cargar las consultas');
+    atenciones = [];
+  }
+}
+
+/* "Ver más": trae un rango de fechas elegido a mano y lo suma a lo ya cargado */
+async function cargarConsultasRango(desde, hasta){
+  if(!sb) return 0;
+  try{
+    const {data, error} = await sb.from('consultas').select('id,data')
+      .gte('fecha', desde).lte('fecha', hasta);
+    if(error) throw error;
+    const conocidas = new Set(atenciones.map(a => a.id));
+    let nuevas = 0;
+    (data||[]).forEach(f => {
+      if(conocidas.has(f.id)) return;
+      const a = filaAConsulta(f);
+      atenciones.push(a);
+      _snapConsultas[a.id] = JSON.stringify(a);
+      nuevas++;
+    });
+    if(desde < consultasDesde) consultasDesde = desde;
+    render();
+    return nuevas;
+  }catch(e){ console.error('cargarConsultasRango', e); toast('No se pudo cargar ese período'); return 0; }
+}
+
+/* Cola de Cintia: lo que le falta evaluar. Trae solo las evaluables sin evaluar,
+   sin importar si entran en la ventana cargada. */
+async function cargarPendientesEvaluacion(){
+  if(!sb) return;
+  try{
+    const {data, error} = await sb.from('consultas').select('id,data')
+      .eq('evaluable', true).eq('evaluada', false)
+      .gte('fecha', fechaCorteVentana());
+    if(error) throw error;
+    const conocidas = new Set(atenciones.map(a => a.id));
+    (data||[]).forEach(f => {
+      if(conocidas.has(f.id)) return;
+      const a = filaAConsulta(f);
+      atenciones.push(a);
+      _snapConsultas[a.id] = JSON.stringify(a);
+    });
+  }catch(e){ console.error('cargarPendientesEvaluacion', e); }
+}
+
+/* Busca un cliente por teléfono en TODA la base, sin cargarla entera */
+async function buscarClienteEnBase(telefono){
+  if(!sb || !telefono) return [];
+  try{
+    const {data, error} = await sb.from('consultas').select('id,data')
+      .eq('telefono', String(telefono).replace(/\D/g,''));
+    if(error) throw error;
+    return (data||[]).map(filaAConsulta);
+  }catch(e){ console.error('buscarClienteEnBase', e); return []; }
+}
+
+/* Las columnas sueltas de la fila son las que se usan para filtrar y paginar.
+   El registro completo va en 'data'. */
+function consultaAFila(a){
+  const estado = ({concretado:'Concretado', rechazado:'Rechazado',
+                   seguimiento:'En seguimiento'})[a.status] || a.resultado || null;
+  const tel = String(a.clienteTelefono||'').replace(/\D/g,'');
+  return {
+    id: a.id,
+    telefono: tel || null,
+    cliente_nombre: a.clienteNombre || null,
+    fecha: new Date(a.ts || Date.now()).toISOString(),
+    vendedor_id: a.vendedorId || null,
+    canal: a.canal || null,
+    local_id: a.localId || null,
+    estado,
+    percepcion: a.percepcion || null,
+    monto: (a.muebles||[]).reduce((s,m)=>s+(+m.monto||0),0) || null,
+    proxima_accion: a.proximaAccionTs ? new Date(a.proximaAccionTs).toISOString() : null,
+    motivo_rechazo: a.resultadoMotivo || null,
+    evaluable: a.evaluable !== false,
+    evaluada: !!a.evaluada,
+    nunca_respondio: !!a.nuncaRespondio,
+    origen: a.origen || 'crm',
+    solo_volumen: !!a.soloVolumen,
+    data: a,
+    actualizado_por: usuarioActualEmail || null,
+    actualizado_en: new Date().toISOString()
+  };
+}
+
+/* Guarda SOLO lo que cambió desde la última vez. Se llama igual que antes
+   (saveAtenciones) así que las 32 llamadas del resto del código no cambian. */
+let _timerGuardado = null;
+async function saveAtenciones(){
+  if(!sb || _aplicandoRemoto) return;
+  for(const a of atenciones){
+    const j = JSON.stringify(a);
+    if(_snapConsultas[a.id] !== j){ _colaGuardado.add(a.id); _snapConsultas[a.id] = j; }
+  }
+  if(!_colaGuardado.size) return;
+  clearTimeout(_timerGuardado);
+  _timerGuardado = setTimeout(async () => {
+    const ids = [..._colaGuardado]; _colaGuardado.clear();
+    const filas = ids.map(id => {
+      const a = atenciones.find(x => x.id === id);
+      return a ? consultaAFila(a) : null;
+    }).filter(Boolean);
+    if(!filas.length) return;
+    try{
+      const {error} = await sb.from('consultas').upsert(filas, {onConflict:'id'});
+      if(error){
+        console.error('guardar consultas', error);
+        toast('No se pudo guardar (reintentá)');
+        ids.forEach(id => _colaGuardado.add(id));
+      }
+    }catch(e){
+      console.error(e);
+      ids.forEach(id => _colaGuardado.add(id));
+    }
+  }, 400);
+}
+
+/* Cambios de otros usuarios: se reflejan sin recargar la página */
+let _canalConsultas = null;
+function suscribirConsultas(){
+  if(!sb || _canalConsultas) return;
+  _canalConsultas = sb.channel('consultas-cambios')
+    .on('postgres_changes', {event:'*', schema:'public', table:'consultas'}, p => {
+      _aplicandoRemoto = true;
+      try{
+        if(p.eventType === 'DELETE'){
+          const i = atenciones.findIndex(a => a.id === p.old.id);
+          if(i > -1) atenciones.splice(i, 1);
+          delete _snapConsultas[p.old.id];
+        }else{
+          const a = filaAConsulta(p.new);
+          const i = atenciones.findIndex(x => x.id === a.id);
+          if(i > -1) atenciones[i] = a; else atenciones.push(a);
+          _snapConsultas[a.id] = JSON.stringify(a);
+        }
+        if(YO) render();
+      }catch(e){ console.error('realtime consultas', e); }
+      _aplicandoRemoto = false;
+    })
+    .subscribe();
 }
 /* 'Seguimiento Local' quedó unificado dentro de 'Local'. Los registros viejos que lo
    tenían pasan a 'Local' + presencial. El localId de esos no se puede recuperar
@@ -2358,14 +2580,22 @@ async function generarEjemplosDemo(soloVendedor){
   await saveAtenciones();
   await saveContactos();
 }
+/* Los ejemplos existían para probar el CRM vacío. Ahora que hay datos reales,
+   quedan bloqueados: mezclar consultas inventadas con las del equipo ensucia
+   las estadísticas y nadie sabría después cuáles eran de mentira. */
+function hayDatosReales(){
+  return atenciones.some(a => a.origen === 'migracion' || (a.origen !== 'demo' && a.clienteTelefono));
+}
 async function cargarEjemplosA(v){
   if(!esAdmin())return;
+  if(hayDatosReales()){ toast('No se pueden cargar ejemplos: ya hay consultas reales'); return; }
   await generarEjemplosDemo(v);
   render();
   toast('10 consultas cargadas a '+nombreDe(v));
 }
 async function recargarEjemplos(){
   if(!esAdmin())return;
+  if(hayDatosReales()){ toast('No se pueden cargar ejemplos: ya hay consultas reales'); return; }
   if(!confirm('Esto borra todo lo cargado y genera 50 consultas de ejemplo. ¿Seguir?'))return;
   atenciones=[];
   CONTACTOS={};
@@ -2374,8 +2604,49 @@ async function recargarEjemplos(){
   toast('50 consultas de ejemplo cargadas');
 }
 
-async function saveAtenciones(){
-  try{await window.storage.set('attentions-index',JSON.stringify(atenciones),true);}catch(e){toast('Error guardando historial');}
+/* ── "Ver otro período": trae un rango elegido a mano ────────────────── */
+function abrirVerMas(){
+  $('verMasPanel').classList.remove('hidden');
+  $('verMasBtn').classList.add('hidden');
+  if(!$('vmHasta').value){
+    const c=new Date(consultasDesde||Date.now());
+    $('vmHasta').value=isoFecha(new Date(c.getTime()-86400000));
+    const d=new Date(c); d.setMonth(d.getMonth()-2);
+    $('vmDesde').value=isoFecha(d);
+  }
+}
+function cerrarVerMas(){
+  $('verMasPanel').classList.add('hidden');
+  $('verMasBtn').classList.remove('hidden');
+}
+function isoFecha(d){ return d.toISOString().slice(0,10); }
+function vmPreset(p){
+  const hoy=new Date(); let d=new Date(), h=new Date();
+  if(p==='mesPasado'){ d=new Date(hoy.getFullYear(),hoy.getMonth()-1,1); h=new Date(hoy.getFullYear(),hoy.getMonth(),0); }
+  else if(p==='3meses'){ d.setMonth(hoy.getMonth()-3); }
+  else if(p==='6meses'){ d.setMonth(hoy.getMonth()-6); }
+  else if(p==='anio'){ d=new Date(hoy.getFullYear(),0,1); }
+  else if(p==='todo'){ d=new Date(2025,0,1); }
+  $('vmDesde').value=isoFecha(d);
+  $('vmHasta').value=isoFecha(h);
+}
+async function aplicarVerMas(){
+  const d=$('vmDesde').value, h=$('vmHasta').value;
+  if(!d||!h){ toast('Elegí las dos fechas'); return; }
+  if(d>h){ toast('La fecha "desde" tiene que ser anterior a "hasta"'); return; }
+  const btn=document.querySelector('#verMasPanel .btn');
+  if(btn){ btn.disabled=true; btn.textContent='Cargando…'; }
+  const n=await cargarConsultasRango(d+'T00:00:00.000Z', h+'T23:59:59.999Z');
+  if(btn){ btn.disabled=false; btn.textContent='Cargar ese período'; }
+  cerrarVerMas();
+  actualizarLeyendaVerMas();
+  toast(n?`${n} consultas más cargadas`:'No había consultas nuevas en ese período');
+}
+function actualizarLeyendaVerMas(){
+  const el=$('verMasDesde'); if(!el||!consultasDesde) return;
+  const d=new Date(consultasDesde), hoy=new Date();
+  const meses=(hoy.getFullYear()-d.getFullYear())*12+(hoy.getMonth()-d.getMonth());
+  el.textContent = meses>2 ? ` (ampliado desde ${d.toLocaleDateString('es-AR')})` : '';
 }
 
 function ciclosEfectivoHoy(localId){
@@ -5088,11 +5359,15 @@ function estFmtRango(r){
 
 // ---------- tarjetas ----------
 function estCardResultado(base, baseCmp){
+  /* Las que nunca respondieron se cuentan APARTE: siguen visibles como volumen,
+     pero no entran en rechazadas ni en la tasa de cierre — nunca fueron una
+     oportunidad real, y contarlas ensuciaría la comparación entre vendedores. */
   const cnt=l=>({
     conc:l.filter(a=>estadoDe(a)==='Concretado').length,
     seg:l.filter(a=>estadoDe(a)==='En seguimiento').length,
-    rech:l.filter(a=>estadoDe(a)==='Rechazado').length,
-    sin:l.filter(a=>!estadoDe(a)).length,
+    rech:l.filter(a=>estadoDe(a)==='Rechazado'&&!a.nuncaRespondio).length,
+    nr:l.filter(a=>a.nuncaRespondio).length,
+    sin:l.filter(a=>!estadoDe(a)&&!a.nuncaRespondio).length,
     total:l.length
   });
   const c=cnt(base);
@@ -5105,7 +5380,7 @@ function estCardResultado(base, baseCmp){
     const kc=k.conc+k.rech, kt=kc?Math.round(k.conc/kc*100):null;
     filasCmp=`<tr style="color:var(--muted);background:#fbfcfd">
       <td>${estFmtRango(estRangoCmp())} <span class="tiny">(referencia)</span></td>
-      <td class="r">${k.conc}</td><td class="r">${k.seg}</td><td class="r">${k.rech}</td><td class="r">${k.sin}</td><td class="r">${k.total}</td><td class="r">${kt===null?'—':kt+'%'}</td>
+      <td class="r">${k.conc}</td><td class="r">${k.seg}</td><td class="r">${k.rech}</td><td class="r">${k.nr}</td><td class="r">${k.sin}</td><td class="r">${k.total}</td><td class="r">${kt===null?'—':kt+'%'}</td>
     </tr>`;
   }
   return `<div class="est-card">
@@ -5115,17 +5390,18 @@ function estCardResultado(base, baseCmp){
       <div class="est-tot"><div class="n ${tasa===null?'neutro':(tasa>=50?'':'mal')}">${tasa===null?'—':tasa+'%'}</div><div class="l">tasa de cierre</div></div>
     </div>
     <div class="est-scroll"><table class="est-tabla" style="min-width:620px">
-      <tr><th>Período</th><th class="r">Concretadas</th><th class="r">En seguimiento</th><th class="r">Rechazadas</th><th class="r">Sin clasificar</th><th class="r">Total</th><th class="r">Tasa de cierre</th></tr>
+      <tr><th>Período</th><th class="r">Concretadas</th><th class="r">En seguimiento</th><th class="r">Rechazadas</th><th class="r">Nunca respondió</th><th class="r">Sin clasificar</th><th class="r">Total</th><th class="r">Tasa de cierre</th></tr>
       <tr><td><b>${estFmtRango(estRango())}</b></td>
         <td class="r"><b class="epos">${c.conc}</b> <span class="tiny">${pct(c.conc)}</span></td>
         <td class="r">${c.seg} <span class="tiny">${pct(c.seg)}</span></td>
         <td class="r"><b class="eneg">${c.rech}</b> <span class="tiny">${pct(c.rech)}</span></td>
+        <td class="r" title="Nunca fueron una oportunidad real — no cuentan para la tasa de cierre">${c.nr} <span class="tiny">${pct(c.nr)}</span></td>
         <td class="r">${c.sin} <span class="tiny">${pct(c.sin)}</span></td>
         <td class="r"><b>${c.total}</b></td>
         <td class="r"><b>${tasa===null?'—':tasa+'%'}</b></td></tr>
       ${filasCmp}
     </table></div>
-    <div class="est-note"><b>La tasa de cierre se calcula solo sobre las cerradas</b> (${c.conc} concretadas de ${cerradas} definidas). Las ${c.seg} en seguimiento todavía no votaron.</div>
+    <div class="est-note"><b>La tasa de cierre se calcula solo sobre las cerradas</b> (${c.conc} concretadas de ${cerradas} definidas). Las ${c.seg} en seguimiento todavía no votaron${c.nr?`, y las ${c.nr} que nunca respondieron quedan aparte: se cuentan como volumen pero no como venta perdida`:''}.</div>
   </div>`;
 }
 
