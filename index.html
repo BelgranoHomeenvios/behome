@@ -42,6 +42,8 @@ a.mod:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(15,26,42,.12);
 .mod .warn-tag{position:absolute;top:16px;right:16px;font-size:10.5px;font-weight:700;color:#b45309;background:#fff7e6;border-radius:6px;padding:3px 7px}
 .foot{color:var(--muted);font-size:11.5px;margin-top:48px}
 .hidden{display:none!important}
+.salir-btn{margin-top:28px;background:none;border:1px solid var(--line);color:var(--sec);font:inherit;font-size:13px;font-weight:600;padding:9px 18px;border-radius:8px;cursor:pointer}
+.salir-btn:hover{border-color:var(--red);color:var(--red)}
 </style>
 </head>
 <body>
@@ -78,6 +80,7 @@ a.mod:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(15,26,42,.12);
         <div class="go">Entrar →</div>
       </a>
     </div>
+    <button class="salir-btn" onclick="hacerLogout()">Cerrar sesión</button>
   </div>
 
   <div class="foot">Belgrano Soft · uso interno</div>
@@ -109,6 +112,17 @@ function mostrarModulos(okCrm,okLog){
     sub.innerHTML='Quedaste logueado en '+(okCrm?'CRM':'Logística')+'. En <b>'+falta+'</b> te va a pedir el usuario de nuevo (esa cuenta todavía no coincide en los dos sistemas).';
     document.getElementById(okCrm?'cardLog':'cardCrm').insertAdjacentHTML('beforeend','<span class="warn-tag">Pide login</span>');
   }
+}
+
+async function hacerLogout(){
+  await Promise.all([sbCRM.auth.signOut(),sbLOG.auth.signOut()]);
+  document.getElementById('lg_email').value='';
+  document.getElementById('lg_pass').value='';
+  document.getElementById('lg_err').classList.add('hidden');
+  document.getElementById('cardCrm').querySelector('.warn-tag')?.remove();
+  document.getElementById('cardLog').querySelector('.warn-tag')?.remove();
+  document.getElementById('pantallaModulos').classList.add('hidden');
+  document.getElementById('pantallaLogin').classList.remove('hidden');
 }
 
 async function hacerLogin(){
