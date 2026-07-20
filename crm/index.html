@@ -127,10 +127,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .btn-guardar{background:var(--green);color:#fff;border:none;width:100%}
 .btn-guardar:hover{filter:brightness(1.06)}
 .container{max-width:560px;margin:0 auto;padding:18px 16px 60px}
-.crow{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:13px}
+.crow{display:flex;align-items:center;gap:12px;padding:6px 4px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:13px;line-height:1.3}
 .crow:last-child{border-bottom:none}
 .crow:hover{background:#fafbfc}
-.chead{display:flex;align-items:center;gap:12px;padding:8px 4px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.chead{display:flex;align-items:center;gap:12px;padding:6px 4px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 .c-nom,.chead .h-nom{flex:2.2;min-width:0}
 .c-monto,.chead .h-monto{flex:1;font-weight:700;color:var(--navy)}
 .c-oport,.chead .h-oport{flex:1.4}
@@ -143,9 +143,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-canal,.chead .h-canal{flex:1.1;min-width:0;color:var(--sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .c-vendedor,.chead .h-vendedor{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* ===== Columnas fusionadas: Situación (estado+oportunidad) y Origen (vendedor+canal) ===== */
-.c-situacion,.chead .h-situacion{flex:1.5;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.c-situacion,.chead .h-situacion{flex:1.5;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
 .c-situacion .sit-op{font-size:11.5px;color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.c-origen,.chead .h-origen{flex:1.3;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.c-origen,.chead .h-origen{flex:1.3;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
 .c-origen .or-vend{color:var(--sec);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .c-origen .or-canal{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .chead .h-situacion,.chead .h-origen{gap:2px}
@@ -974,6 +974,7 @@ textarea{resize:vertical;min-height:60px}
 .tabla-cintia{width:100%;border-collapse:collapse;font-size:12.5px}
 .aviso-ventana{background:var(--amber-l,#fff7e6);border:1px solid #f2d9a8;color:#8a5a00;border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.5;margin:-4px 0 12px}
 .aviso-ventana .btn-link{background:none;border:none;color:var(--blue,#1e5fce);font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:0;margin-left:4px;text-decoration:underline}
+.cargando-periodo{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;background:#16324f;color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:10px;box-shadow:0 8px 24px rgba(15,26,42,.25)}
 .tabla-cintia th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.02em;color:var(--muted);font-weight:700;padding:8px 4px;border-bottom:1px solid var(--line);white-space:nowrap}
 .tabla-cintia td{padding:10px 4px;border-bottom:1px solid var(--line2);white-space:nowrap}
 .tabla-cintia tr th:last-child,.tabla-cintia tr td:last-child{border-left:1px solid var(--line);padding-left:9px}
@@ -1083,8 +1084,8 @@ textarea{resize:vertical;min-height:60px}
 .gridbtn .gb:nth-child(8){--gbc:var(--amber);--gbl:var(--amber-l)}
 
 /* --- ETAPA 4 · Tabla -> lista priorizada --- */
-.chead{padding:11px 14px 12px!important;border-bottom:1px solid var(--line2)!important;letter-spacing:.06em!important}
-.crow{padding:14px!important;border-bottom:1px solid var(--line2)!important;border-radius:10px;transition:background .12s,box-shadow .12s!important}
+.chead{padding:7px 14px 8px!important;border-bottom:1px solid var(--line2)!important;letter-spacing:.06em!important}
+.crow{padding:7px 14px!important;border-bottom:1px solid var(--line2)!important;border-radius:10px;transition:background .12s,box-shadow .12s!important}
 .crow:hover{background:var(--blue-l)!important}
 .seg-badge{border-radius:999px!important;padding:4px 11px!important;font-size:11.5px!important;letter-spacing:0!important}
 .cierre-chip{border-radius:999px!important}
@@ -4848,6 +4849,7 @@ function dentroDePeriodoCintia(iso){
 }
 function setCintiaFecha(campo,valor){
   if(campo==='desde') cintiaFechaDesde=valor||null; else cintiaFechaHasta=valor||null;
+  asegurarPeriodoCargado();
   renderCintiaBotones(); renderCintiaMain(); renderHistorial();
 }
 function aplicarPresetCintiaFecha(preset){
@@ -4860,7 +4862,41 @@ function aplicarPresetCintiaFecha(preset){
     cintiaFechaDesde=formatDateInput(desde);
     cintiaFechaHasta=formatDateInput(new Date());
   }
+  asegurarPeriodoCargado();
   renderCintiaBotones(); renderCintiaFecha(); renderCintiaMain(); renderHistorial();
+}
+
+/* El navegador arranca con una ventana de 2 meses para que la app abra rápido.
+   Si el período elegido va más atrás, se traen esas consultas de Supabase — así
+   "Todo" muestra todo de verdad y no solo lo que ya estaba cargado. */
+let _cargandoPeriodo=false;
+async function asegurarPeriodoCargado(){
+  if(!sb || _cargandoPeriodo) return;
+  const desde = cintiaFechaDesde ? new Date(cintiaFechaDesde+'T00:00:00') : new Date(2025,0,1);
+  const yaCargadoDesde = consultasDesde ? new Date(consultasDesde) : new Date();
+  if(desde >= yaCargadoDesde) return;   // ya está todo lo que hace falta
+  _cargandoPeriodo=true;
+  mostrarCargandoPeriodo(true);
+  try{
+    const hasta = new Date(yaCargadoDesde.getTime()-1);
+    await cargarConsultasRango(desde.toISOString(), hasta.toISOString());
+  } finally {
+    _cargandoPeriodo=false;
+    mostrarCargandoPeriodo(false);
+    renderCintiaBotones(); renderCintiaMain(); renderHistorial();
+  }
+}
+function mostrarCargandoPeriodo(activo){
+  let el=document.getElementById('cargandoPeriodo');
+  if(activo){
+    if(!el){
+      el=document.createElement('div');
+      el.id='cargandoPeriodo';
+      el.className='cargando-periodo';
+      el.textContent='Trayendo las consultas de ese período…';
+      document.body.appendChild(el);
+    }
+  } else if(el) el.remove();
 }
 function renderCintiaFecha(){
   const sinFiltro = !cintiaFechaDesde && !cintiaFechaHasta;
@@ -5119,12 +5155,19 @@ function htmlCintiaResumen(){
   const base=baseResumenReal();
   const per=periodoAnteriorEquivalente();
   const actual=base.filter(a=>dentroDePeriodoCintia(a.ts));
+  // El DETALLE responde al período elegido: sirve para analizar un tramo de tiempo.
   const filas=vendedores.map(uid=>{
     const cs=actual.filter(a=>a.vendedorId===uid);
     const m=metricasVendedor(cs);
     const csPrev=per?base.filter(a=>a.vendedorId===uid && enPeriodoAnterior(a.ts,per)):[];
     return {uid, m, prev:per?metricasVendedor(csPrev):null};
   }).sort((a,b)=>b.m.carga-a.m.carga);
+  // El RANKING de carga NO usa el período: muestra qué tiene cada uno encima HOY.
+  // Una consulta de hace tres meses que sigue abierta le pesa igual, y filtrarla
+  // por fecha la escondería justo a quien más necesita que la vean.
+  const filasCarga=vendedores.map(uid=>({
+    uid, m: metricasVendedor(base.filter(a=>a.vendedorId===uid))
+  })).sort((a,b)=>b.m.carga-a.m.carga);
 
   const etiquetaCarga=c=>{
     if(c>=70) return {t:'Sobrecargado', col:'red'};
@@ -5133,9 +5176,9 @@ function htmlCintiaResumen(){
   };
 
   const rankingHtml=`<div class="cin-card">
-    <h3>Quién necesita una mano <span class="cnt-pill">ordenado por carga</span></h3>
-    <p class="tiny" style="margin-top:-8px;margin-bottom:8px">Consultas que todavía tiene abiertas, sobre el total que le entró en el período. Tocá un vendedor para ver el detalle.</p>
-    ${filas.map(({uid,m})=>{
+    <h3>Quién necesita una mano <span class="cnt-pill">estado actual</span></h3>
+    <p class="tiny" style="margin-top:-8px;margin-bottom:8px">Lo que cada uno tiene abierto <b>hoy</b>, sin importar cuándo entró — una consulta vieja sin cerrar le pesa igual. No cambia con el período de abajo. Tocá un vendedor para ver el detalle.</p>
+    ${filasCarga.map(({uid,m})=>{
       const et=etiquetaCarga(m.carga);
       const info=estadoVivoVendedor(uid);
       const dotCol = info.estado==='Activo' ? 'var(--green)' : (info.estado==='Pausado' ? 'var(--amber)' : 'var(--muted)');
@@ -5163,9 +5206,7 @@ function htmlCintiaResumen(){
   const detalleHtml=`<div class="cin-card">
     <h3>Detalle por vendedor <span class="cnt-pill">${tot.total} consulta${tot.total===1?'':'s'} real${tot.total===1?'':'es'}</span></h3>
     <div class="aviso-ventana">
-      Estos números salen de las consultas <b>cargadas ahora</b>: los últimos ${VENTANA_MESES} meses más todas las que siguen abiertas.
-      El histórico completo está guardado, pero no se baja entero para que la app no se vuelva lenta.
-      <button class="btn-link" onclick="cambiarVista('cola');setTimeout(abrirVerMas,100)">Cargar otro período →</button>
+      Responde al <b>período de arriba</b>. Si elegís uno que va más atrás de lo cargado, las consultas se traen solas de la base — puede tardar unos segundos la primera vez.
     </div>
     ${per?`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Las flechas comparan contra el período anterior de igual duración (${per.desde.toLocaleDateString('es-AR')} – ${per.hasta.toLocaleDateString('es-AR')}).</p>`:`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Elegí un período arriba para ver la comparación contra el período anterior.</p>`}
     <table class="tabla-cintia">
