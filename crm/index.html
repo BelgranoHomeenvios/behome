@@ -974,6 +974,21 @@ textarea{resize:vertical;min-height:60px}
 .tabla-cintia{width:100%;border-collapse:collapse;font-size:12.5px}
 .aviso-ventana{background:var(--amber-l,#fff7e6);border:1px solid #f2d9a8;color:#8a5a00;border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.5;margin:-4px 0 12px}
 .aviso-ventana .btn-link{background:none;border:none;color:var(--blue,#1e5fce);font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:0;margin-left:4px;text-decoration:underline}
+.periodo-barra{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:8px 14px;margin-bottom:8px;background:var(--surface-1,#f4f6f8);border:1px solid var(--line,#e3e8ee);border-radius:10px}
+.periodo-barra .pb-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#8a94a3)}
+.periodo-barra .pb-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.periodo-barra .pb-chip{background:#fff;border:1px solid var(--line,#d0d7e2);color:var(--sec,#5b6675);font:inherit;font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;cursor:pointer;white-space:nowrap}
+.periodo-barra .pb-chip:hover{border-color:var(--navy,#16324f);color:var(--navy,#16324f)}
+.periodo-barra .pb-chip.on{background:var(--navy,#16324f);border-color:var(--navy,#16324f);color:#fff}
+.gr-leyenda{display:flex;flex-wrap:wrap;gap:12px;margin:-4px 0 10px}
+.gr-leg{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--sec,#5b6675)}
+.gr-leg i{width:16px;height:3px;border-radius:2px;display:inline-block}
+.gr-leg b{color:var(--navy,#16324f);font-weight:700}
+.mas-filas{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:14px 4px 6px}
+.mas-filas .mf-txt{font-size:12px;color:var(--muted,#8a94a3)}
+.mas-filas .mf-btn{background:#fff;border:1px solid var(--line,#d0d7e2);color:var(--navy,#16324f);font:inherit;font-size:12.5px;font-weight:700;padding:7px 16px;border-radius:8px;cursor:pointer}
+.mas-filas .mf-btn:hover{border-color:var(--navy,#16324f);background:var(--surface-1,#f4f6f8)}
+.mas-filas .mf-todo{color:var(--sec,#5b6675);font-weight:600}
 .cargando-periodo{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;background:#16324f;color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:10px;box-shadow:0 8px 24px rgba(15,26,42,.25)}
 .tabla-cintia th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.02em;color:var(--muted);font-weight:700;padding:8px 4px;border-bottom:1px solid var(--line);white-space:nowrap}
 .tabla-cintia td{padding:10px 4px;border-bottom:1px solid var(--line2);white-space:nowrap}
@@ -1575,16 +1590,10 @@ textarea{resize:vertical;min-height:60px}
       </div>
       <div class="card hidden" id="statsTurnosBox"></div>
       <div class="filtros-activos hidden" id="filtrosActivosBox"></div>
-      <div class="card" id="historialBox" style="padding:4px 18px">
-        <div id="cheadBox"></div>
-        <div id="filasBox"></div>
-      </div>
-      <div class="card" id="verMasBox" style="text-align:center">
-        <p class="muted" style="margin:0 0 10px;font-size:13px">
-          Estás viendo los últimos <b>2 meses</b><span id="verMasDesde"></span>, más todas tus consultas activas.
-        </p>
-        <button class="btn btn-outline" id="verMasBtn" onclick="abrirVerMas()">Ver otro período…</button>
-        <div class="hidden" id="verMasPanel" style="margin-top:14px;text-align:left">
+      <div id="verMasBox" class="periodo-barra">
+        <span class="pb-lbl">Período</span>
+        <div class="pb-chips" id="pbChips"></div>
+        <div class="hidden" id="verMasPanel" style="width:100%;margin-top:10px;text-align:left">
           <div class="row">
             <div class="field" style="margin-bottom:0">
               <label>Desde</label><input type="date" id="vmDesde">
@@ -1593,18 +1602,15 @@ textarea{resize:vertical;min-height:60px}
               <label>Hasta</label><input type="date" id="vmHasta">
             </div>
           </div>
-          <div class="result-pick" style="margin-top:10px">
-            <button type="button" onclick="vmPreset('mesPasado')">Mes pasado</button>
-            <button type="button" onclick="vmPreset('3meses')">Últimos 3 meses</button>
-            <button type="button" onclick="vmPreset('6meses')">Últimos 6 meses</button>
-            <button type="button" onclick="vmPreset('anio')">Este año</button>
-            <button type="button" onclick="vmPreset('todo')">Todo el histórico</button>
-          </div>
           <div class="row" style="margin-top:12px">
-            <button class="btn" onclick="aplicarVerMas()">Cargar ese período</button>
+            <button class="btn" onclick="aplicarVerMas()">Aplicar</button>
             <button class="btn btn-outline" onclick="cerrarVerMas()">Cancelar</button>
           </div>
         </div>
+      </div>
+      <div class="card" id="historialBox" style="padding:4px 18px">
+        <div id="cheadBox"></div>
+        <div id="filasBox"></div>
       </div>
       <div class="row hidden" id="exportRow" style="margin-top:14px">
         <button class="btn btn-outline" onclick="exportarJSON()">Exportar JSON</button>
@@ -1939,6 +1945,9 @@ function entrarApp(){
   $('tabConfig').classList.toggle('hidden', !esAdmin());
   pintarAdminViewBar();
   actualizarLeyendaVerMas();
+  /* El histórico completo se baja después de que la pantalla ya está usable:
+     así abre rápido y "Todas" termina mostrando todo sin que nadie espere. */
+  setTimeout(()=>completarHistoricoEnSegundoPlano(), 1200);
   /* Cintia y dirección trabajan sobre lo que falta evaluar: se les suma esa
      cola aunque alguna consulta quede fuera de la ventana de 2 meses. */
   if(esAuditora()||esAdmin()) cargarPendientesEvaluacion().then(()=>render());
@@ -2608,50 +2617,91 @@ async function recargarEjemplos(){
   toast('50 consultas de ejemplo cargadas');
 }
 
-/* ── "Ver otro período": trae un rango elegido a mano ────────────────── */
+/* ── Barra de período: atajos rápidos + fechas a mano ─────────────────
+   Cada atajo fija el rango y, si va más atrás de lo que hay cargado en el
+   navegador, trae esas consultas de la base. Así "Todas" muestra todo el
+   histórico de verdad, no solo la ventana inicial. */
+const PB_PRESETS=[
+  ['hoy',   'Hoy',      0],
+  ['ayer',  'Ayer',     1],
+  ['7',     '7 días',   7],
+  ['15',    '15 días',  15],
+  ['30',    '30 días',  30],
+  ['todas', 'Todas',    null]
+];
+let pbActivo='todas';   // por defecto se muestra todo el histórico
+
+/* La app abre con la ventana corta para que arranque rápido, y completa el resto
+   por detrás. El vendedor ya puede trabajar mientras el histórico termina de bajar;
+   cuando llega, la pantalla se actualiza sola. */
+let _historicoCompleto=false;
+async function completarHistoricoEnSegundoPlano(){
+  if(!sb || _historicoCompleto) return;
+  _historicoCompleto=true;
+  try{
+    const hasta=new Date(new Date(consultasDesde||Date.now()).getTime()-1).toISOString();
+    await cargarConsultasRango('2025-01-01T00:00:00.000Z', hasta);
+  }catch(e){ console.error('historico en segundo plano', e); _historicoCompleto=false; }
+}
+
+function renderBarraPeriodo(){
+  const box=$('pbChips'); if(!box) return;
+  box.innerHTML = PB_PRESETS.map(([id,lbl])=>
+    `<button type="button" class="pb-chip${pbActivo===id?' on':''}" onclick="pbSet('${id}')">${lbl}</button>`
+  ).join('') + `<button type="button" class="pb-chip${pbActivo==='custom'?' on':''}" onclick="abrirVerMas()">Fecha exacta</button>`;
+}
+
+function pbSet(id){
+  reiniciarPaginado();
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  pbActivo=id;
+  if(id==='todas'){ cintiaFechaDesde=null; cintiaFechaHasta=null; }
+  else if(id==='ayer'){
+    const d=new Date(hoy); d.setDate(d.getDate()-1);
+    cintiaFechaDesde=formatDateInput(d); cintiaFechaHasta=formatDateInput(d);
+  }else{
+    const dias=PB_PRESETS.find(p=>p[0]===id)[2];
+    const d=new Date(hoy); d.setDate(d.getDate()-dias);
+    cintiaFechaDesde=formatDateInput(d); cintiaFechaHasta=formatDateInput(hoy);
+  }
+  cerrarVerMas();
+  asegurarPeriodoCargado();
+  renderBarraPeriodo();
+  if(typeof renderCintiaBotones==='function') renderCintiaBotones();
+  if(typeof renderCintiaFecha==='function') renderCintiaFecha();
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+  renderHistorial();
+}
+
 function abrirVerMas(){
+  pbActivo='custom';
   $('verMasPanel').classList.remove('hidden');
-  $('verMasBtn').classList.add('hidden');
-  if(!$('vmHasta').value){
-    const c=new Date(consultasDesde||Date.now());
-    $('vmHasta').value=isoFecha(new Date(c.getTime()-86400000));
-    const d=new Date(c); d.setMonth(d.getMonth()-2);
+  renderBarraPeriodo();
+  if(!$('vmDesde').value){
+    const d=new Date(); d.setMonth(d.getMonth()-2);
     $('vmDesde').value=isoFecha(d);
+    $('vmHasta').value=isoFecha(new Date());
   }
 }
 function cerrarVerMas(){
-  $('verMasPanel').classList.add('hidden');
-  $('verMasBtn').classList.remove('hidden');
+  const p=$('verMasPanel'); if(p) p.classList.add('hidden');
 }
 function isoFecha(d){ return d.toISOString().slice(0,10); }
-function vmPreset(p){
-  const hoy=new Date(); let d=new Date(), h=new Date();
-  if(p==='mesPasado'){ d=new Date(hoy.getFullYear(),hoy.getMonth()-1,1); h=new Date(hoy.getFullYear(),hoy.getMonth(),0); }
-  else if(p==='3meses'){ d.setMonth(hoy.getMonth()-3); }
-  else if(p==='6meses'){ d.setMonth(hoy.getMonth()-6); }
-  else if(p==='anio'){ d=new Date(hoy.getFullYear(),0,1); }
-  else if(p==='todo'){ d=new Date(2025,0,1); }
-  $('vmDesde').value=isoFecha(d);
-  $('vmHasta').value=isoFecha(h);
-}
+
 async function aplicarVerMas(){
   const d=$('vmDesde').value, h=$('vmHasta').value;
   if(!d||!h){ toast('Elegí las dos fechas'); return; }
   if(d>h){ toast('La fecha "desde" tiene que ser anterior a "hasta"'); return; }
-  const btn=document.querySelector('#verMasPanel .btn');
-  if(btn){ btn.disabled=true; btn.textContent='Cargando…'; }
-  const n=await cargarConsultasRango(d+'T00:00:00.000Z', h+'T23:59:59.999Z');
-  if(btn){ btn.disabled=false; btn.textContent='Cargar ese período'; }
+  cintiaFechaDesde=d; cintiaFechaHasta=h; pbActivo='custom';
   cerrarVerMas();
-  actualizarLeyendaVerMas();
-  toast(n?`${n} consultas más cargadas`:'No había consultas nuevas en ese período');
+  await asegurarPeriodoCargado();
+  renderBarraPeriodo();
+  if(typeof renderCintiaBotones==='function') renderCintiaBotones();
+  if(typeof renderCintiaFecha==='function') renderCintiaFecha();
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+  renderHistorial();
 }
-function actualizarLeyendaVerMas(){
-  const el=$('verMasDesde'); if(!el||!consultasDesde) return;
-  const d=new Date(consultasDesde), hoy=new Date();
-  const meses=(hoy.getFullYear()-d.getFullYear())*12+(hoy.getMonth()-d.getMonth());
-  el.textContent = meses>2 ? ` (ampliado desde ${d.toLocaleDateString('es-AR')})` : '';
-}
+function actualizarLeyendaVerMas(){ renderBarraPeriodo(); }
 
 function ciclosEfectivoHoy(localId){
   const loc=LOCALES[localId];
@@ -3832,6 +3882,7 @@ function cheadHtml(){
   </div>`;
 }
 function setFiltroHeader(campo,valor){
+  reiniciarPaginado();
   if(campo==='estado') filtroEstado=valor;
   else if(campo==='plazo') filtroPlazo=valor;
   else if(campo==='oport') filtroOportunidad=valor;
@@ -3871,6 +3922,7 @@ function filtrosActivos(){
 }
 
 function limpiarFiltro(k){
+  reiniciarPaginado();
   if(k==='zona') zonaActiva=null;
   else if(k==='estado') filtroEstado='activas';
   else if(k==='busqueda'){ filtroBusqueda=''; const i=$('filtroBusquedaInput'); if(i) i.value=''; }
@@ -3885,6 +3937,7 @@ function limpiarFiltro(k){
   renderHistorial();
 }
 function limpiarTodosLosFiltros(){
+  reiniciarPaginado();
   zonaActiva=null; filtroEstado='activas'; filtroPlazo='todos'; filtroOportunidad='todos';
   filtroComentario='todos'; filtroBusqueda=''; ordenFecha=null; filtroRecordatorio='todos';
   filtroVendedorCintia='todos'; filtroCanalCintia='todos'; filtroEvaluacion='todos';
@@ -3903,6 +3956,7 @@ function renderFiltrosActivos(){
 }
 
 function setFiltroBusqueda(valor){
+  reiniciarPaginado();
   // Solo repinta las filas — si regenerara también el encabezado en cada tecla,
   // el input de búsqueda se recrearía y perdería el foco a cada letra.
   filtroBusqueda=valor;
@@ -4005,9 +4059,32 @@ function cheadEstaticoHtml(){
     <span class="h-eval">Evaluación</span>
   </div>`;
 }
+/* La lista se muestra de a tandas: con miles de consultas cargadas, pintarlas todas
+   de una traba el navegador y nadie va a scrollear 2.000 filas igual. */
+const FILAS_POR_TANDA = 50;
+let filasVisibles = FILAS_POR_TANDA;
+
 function renderFilas(l){
-  $('filasBox').innerHTML = l.length? l.map(logItemHtml).join('') : `<div class="empty">No hay atenciones para este filtro.</div>`;
+  const box=$('filasBox');
+  if(!l.length){ box.innerHTML=`<div class="empty">No hay atenciones para este filtro.</div>`; return; }
+  const muestra = l.slice(0, filasVisibles);
+  const quedan = l.length - muestra.length;
+  box.innerHTML = muestra.map(logItemHtml).join('') + (quedan
+    ? `<div class="mas-filas">
+         <span class="mf-txt">Mostrando ${muestra.length} de ${l.length}</span>
+         <button class="mf-btn" onclick="mostrarMasFilas()">Ver ${Math.min(quedan,FILAS_POR_TANDA)} más</button>
+         ${quedan>FILAS_POR_TANDA?`<button class="mf-btn mf-todo" onclick="mostrarMasFilas(${l.length})">Ver las ${l.length}</button>`:''}
+       </div>`
+    : (l.length>FILAS_POR_TANDA?`<div class="mas-filas"><span class="mf-txt">${l.length} consultas</span></div>`:''));
 }
+function mostrarMasFilas(todas){
+  filasVisibles = todas || (filasVisibles + FILAS_POR_TANDA);
+  renderHistorial();
+}
+/* Cualquier cambio de filtro vuelve a arrancar desde la primera tanda: si no, al
+   pasar de un filtro con 800 resultados a uno con 12 quedaría pidiendo "ver más"
+   sobre una lista que ya se ve entera. */
+function reiniciarPaginado(){ filasVisibles = FILAS_POR_TANDA; }
 
 function renderHistorial(){
   let l = construirListaFiltrada();
@@ -4063,6 +4140,7 @@ function formatDateInput(d){
   return `${yyyy}-${mm}-${dd}`;
 }
 function setFiltro(f){
+  reiniciarPaginado();
   filtroActual=f;
   if(f==='personalizado' && !$('filtroDesde').value && !$('filtroHasta').value){
     const hoy=formatDateInput(new Date());
@@ -4211,6 +4289,7 @@ function abrirSeccionVendedor(id){
 }
 function setZona(z){
   zonaActiva = (zonaActiva===z) ? null : z;
+  reiniciarPaginado();
   // Tocar una tarjeta de zona cierra la solapa abierta (Recordatorio/Estadísticas/Evaluación/Oportunidad):
   // si no, la solapa quedaba pegada y parecía que el botón no hacía nada.
   seccionVendedor = null;
@@ -5235,7 +5314,8 @@ function htmlCintiaResumen(){
     <p class="tiny" style="margin-top:10px"><b>Abiertas</b> = seguimiento + sin clasificar, lo que todavía tiene encima. <b>Atrasadas</b> son un subconjunto de esas, fuera de plazo: marcan urgencia, no suman aparte. Seguimiento + sin clasificar + concretadas + rechazadas dan el <b>Total</b>.<br>No cuenta las cerradas como "No era un cliente" ni "Dejó de responder" — nunca fueron una oportunidad real, y contarlas ensuciaría la comparación entre vendedores.</p>
   </div>`;
 
-  return activosBar + canalPills + rankingHtml + detalleHtml;
+  return activosBar + canalPills + rankingHtml + detalleHtml
+       + graficoContactosPorTiempo(actual) + graficoContactosPorCanal(actual);
 }
 
 /* -------- Detalle de un vendedor: para entrar a ver qué le está frenando el trabajo -------- */
@@ -5408,9 +5488,12 @@ function estRangoCmp(){
 function estEnRango(a,r){ const t=new Date(a.ts).getTime(); return t>=r.d1.getTime() && t<=r.d2.getTime(); }
 
 // Base filtrada por canal + vendedor + reales (excluye "nunca respondió" etc.)
-function estBase(rango){
+function estBase(rango, incluirFantasmas){
   return atenciones.filter(a=>{
-    if(!cuentaParaVendedor(a)) return false;
+    // Las que nunca respondieron se excluyen de casi todo (no fueron una oportunidad
+    // real), pero la tarjeta de Resultado sí las muestra en su propia columna: tienen
+    // que verse en algún lado, aunque no cuenten para la tasa de cierre.
+    if(!incluirFantasmas && !cuentaParaVendedor(a)) return false;
     if(!estEnRango(a,rango)) return false;
     if(estVer!=='equipo' && a.vendedorId!==estVer) return false;
     if(estCanal!=='todos'){
@@ -5467,8 +5550,8 @@ function estCardResultado(base, baseCmp){
   return `<div class="est-card">
     <div class="est-hd">
       <div><h3>Resultado de las consultas</h3>
-      <p class="cap">En qué termina todo lo que entra${estVer!=='equipo'?' de '+nombreDe(estVer):''}.</p></div>
-      <div class="est-tot"><div class="n ${tasa===null?'neutro':(tasa>=50?'':'mal')}">${tasa===null?'—':tasa+'%'}</div><div class="l">tasa de cierre</div></div>
+      <p class="cap">En qué termina todo lo que entra${estVer!=='equipo'?' de '+nombreDe(estVer):''}. El % chico de cada columna es sobre el <b>total</b>.</p></div>
+      <div class="est-tot"><div class="n ${tasa===null?'neutro':(tasa>=50?'':'mal')}">${tasa===null?'—':tasa+'%'}</div><div class="l">cierre sobre cerradas</div></div>
     </div>
     <div class="est-scroll"><table class="est-tabla" style="min-width:620px">
       <tr><th>Período</th><th class="r">Concretadas</th><th class="r">En seguimiento</th><th class="r">Rechazadas</th><th class="r">Nunca respondió</th><th class="r">Sin clasificar</th><th class="r">Total</th><th class="r">Tasa de cierre</th></tr>
@@ -5482,7 +5565,7 @@ function estCardResultado(base, baseCmp){
         <td class="r"><b>${tasa===null?'—':tasa+'%'}</b></td></tr>
       ${filasCmp}
     </table></div>
-    <div class="est-note"><b>La tasa de cierre se calcula solo sobre las cerradas</b> (${c.conc} concretadas de ${cerradas} definidas). Las ${c.seg} en seguimiento todavía no votaron${c.nr?`, y las ${c.nr} que nunca respondieron quedan aparte: se cuentan como volumen pero no como venta perdida`:''}.</div>
+    <div class="est-note">Cada columna muestra su <b>% sobre el total</b> (${c.conc} concretadas son el ${pct(c.conc)} de ${c.total}). La <b>tasa de cierre</b> usa otro denominador: solo las cerradas — ${c.conc} de ${cerradas} definidas dan ${tasa===null?'—':tasa+'%'}. Las ${c.seg} en seguimiento todavía no votaron${c.nr?`, y las ${c.nr} que nunca respondieron quedan aparte: se cuentan como volumen pero no como venta perdida`:''}.</div>
   </div>`;
 }
 
@@ -5761,6 +5844,9 @@ function htmlCintiaEstadisticas(){
   const base=estBase(rango);
   const conCmp = estCmp!=='no';
   const baseCmp = conCmp ? estBase(estRangoCmp()) : null;
+  // La tarjeta de Resultado las muestra en su propia columna; el resto las excluye.
+  const baseConFantasmas=estBase(rango, true);
+  const baseCmpConFantasmas = conCmp ? estBase(estRangoCmp(), true) : null;
 
   const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
   const canalesExistentes=[...new Set(atenciones.filter(cuentaParaVendedor).map(estCanalDe))].sort();
@@ -5785,7 +5871,7 @@ function htmlCintiaEstadisticas(){
   const notaCmp = conCmp ? `<div class="est-note alerta" style="margin:0 0 12px"><b>Comparando contra ${estFmtRango(estRangoCmp())}, medido a la misma altura:</b> del período de referencia solo cuento las evaluaciones que ya existían a esta misma distancia del cierre. Sin esta corrección, todo período en curso parece un desastre contra uno ya cerrado.</div>` : '';
 
   return controles + notaCmp +
-    estCardResultado(base, baseCmp) +
+    estCardResultado(baseConFantasmas, baseCmpConFantasmas) +
     estCardCobertura(base, baseCmp) +
     estCardPlata(base) +
     estCard2daOportunidad(rango) +
@@ -5901,6 +5987,44 @@ function htmlCintiaMisPendientes(){
    ============================================================ */
 let clienteFichaId=null;
 
+/* La base de clientes se arma desde las CONSULTAS, agrupando por teléfono.
+   Antes salía de la tabla de contactos, y todo lo que entró por la migración
+   (o cualquier consulta que nunca se vinculó a mano) quedaba afuera aunque
+   tuviera teléfono cargado. Agrupar por teléfono no depende de que alguien
+   haya hecho la vinculación. */
+function baseClientes(){
+  const porTel=new Map();
+  for(const a of atenciones){
+    const tel=normTel(a.clienteTelefono||'');
+    if(!tel) continue;                       // sin teléfono no hay a quién agrupar
+    if(!porTel.has(tel)) porTel.set(tel,[]);
+    porTel.get(tel).push(a);
+  }
+  const contactoPorTel={};
+  Object.values(CONTACTOS).forEach(c=>{ if(c.telefono) contactoPorTel[normTel(c.telefono)]=c; });
+
+  return [...porTel.entries()].map(([tel,cs])=>{
+    cs.sort((x,y)=>new Date(y.ts)-new Date(x.ts));
+    const c=contactoPorTel[tel];
+    const conc=cs.filter(a=>estadoDe(a)==='Concretado');
+    const rech=cs.filter(a=>estadoDe(a)==='Rechazado').length;
+    const seg=cs.filter(a=>{const e=estadoDe(a);return e!=='Concretado'&&e!=='Rechazado';}).length;
+    // El vendedor que muestra la fila es el de la consulta más reciente: es quien
+    // lo tiene hoy, que es lo que sirve cuando el cliente vuelve a escribir.
+    const vend=cs.find(a=>a.vendedorId)?.vendedorId||null;
+    const nombre=(c&&c.nombre)||cs.find(a=>a.clienteNombre)?.clienteNombre||'';
+    return {
+      id: c? c.id : 'tel:'+tel,
+      tel, nombre, vend, cs,
+      cant: cs.length,
+      ventas: conc.length,
+      rech, seg,
+      comprado: conc.reduce((s,a)=>s+(montoRepresentativo(a.muebles)||0),0),
+      ultima: cs[0]?.ts || null
+    };
+  });
+}
+
 function consultasDeContacto(c){
   return atenciones.filter(a=> a.contactoId===c.id ||
     (a.clienteTelefono && normTel(a.clienteTelefono)===c.telefono))
@@ -5924,38 +6048,172 @@ function filtrarClientes(txt){
   });
 }
 
+/* ── Gráficos de contactos: por día y por canal ───────────────────────
+   SVG armado a mano, sin librerías: son dos series simples y traer una
+   librería entera para esto haría la app más pesada de cargar en el local. */
+const GRAF_COLORES=['#1e5fce','#b45309','#c2255c','#7048e8','#0ca678','#e8590c','#5c7cfa','#2f9e44'];
+
+function diasDelRango(base){
+  if(!base.length) return [];
+  const ts=base.map(a=>new Date(a.ts).getTime()).filter(t=>!isNaN(t));
+  if(!ts.length) return [];
+  let d0=new Date(cintiaFechaDesde||Math.min(...ts));
+  let d1=new Date(cintiaFechaHasta||Math.max(...ts));
+  d0.setHours(0,0,0,0); d1.setHours(0,0,0,0);
+  const dias=[];
+  for(let d=new Date(d0); d<=d1 && dias.length<400; d.setDate(d.getDate()+1)){
+    dias.push(new Date(d));
+  }
+  return dias;
+}
+const claveDia=d=>d.toISOString().slice(0,10);
+const rotuloDia=d=>d.getDate()+' '+['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()];
+
+/* Cuando el rango es largo, un punto por día se vuelve ilegible: se agrupa por semana. */
+function agruparSiHaceFalta(dias){
+  if(dias.length<=45) return {dias, paso:1, unidad:'día'};
+  const paso = dias.length<=200 ? 7 : 30;
+  const out=[];
+  for(let i=0;i<dias.length;i+=paso) out.push(dias[i]);
+  return {dias:out, paso, unidad: paso===7?'semana':'mes'};
+}
+
+function ejesSVG(w,h,pad,maxY,puntos,unidad){
+  const pasos=4, lineas=[];
+  for(let i=0;i<=pasos;i++){
+    const v=Math.round(maxY*i/pasos), y=h-pad.b-(h-pad.t-pad.b)*(i/pasos);
+    lineas.push(`<line x1="${pad.l}" y1="${y}" x2="${w-pad.r}" y2="${y}" stroke="var(--line2,#eef1f5)" stroke-width="1"/>
+      <text x="${pad.l-6}" y="${y+4}" text-anchor="end" font-size="10" fill="var(--muted,#8a94a3)">${v}</text>`);
+  }
+  const cada=Math.max(1,Math.ceil(puntos.length/8));
+  const etiq=puntos.map((p,i)=> i%cada===0 || i===puntos.length-1
+    ? `<text x="${p.x}" y="${h-pad.b+15}" text-anchor="middle" font-size="10" fill="var(--muted,#8a94a3)">${p.lbl}</text>` : '').join('');
+  return lineas.join('')+etiq;
+}
+
+function graficoContactosPorTiempo(base){
+  const todos=diasDelRango(base);
+  if(!todos.length) return '';
+  const {dias,unidad}=agruparSiHaceFalta(todos);
+  const conteo={};
+  base.forEach(a=>{ const k=claveDia(new Date(a.ts)); conteo[k]=(conteo[k]||0)+1; });
+  // Con agrupación, cada punto suma los días que representa
+  const paso = dias.length>1 ? Math.round((dias[1]-dias[0])/86400000) : 1;
+  const serie=dias.map(d=>{
+    let n=0;
+    for(let i=0;i<paso;i++){ const x=new Date(d); x.setDate(x.getDate()+i); n+=conteo[claveDia(x)]||0; }
+    return {d, n};
+  });
+  const w=680,h=210,pad={l:34,r:12,t:12,b:26};
+  const maxY=Math.max(4,...serie.map(s=>s.n));
+  const px=i=>pad.l+(w-pad.l-pad.r)*(serie.length>1?i/(serie.length-1):0.5);
+  const py=n=>h-pad.b-(h-pad.t-pad.b)*(n/maxY);
+  const puntos=serie.map((s,i)=>({x:px(i),y:py(s.n),lbl:rotuloDia(s.d),n:s.n}));
+  const linea=puntos.map((p,i)=>(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' ');
+  const area=`${linea} L ${puntos[puntos.length-1].x.toFixed(1)} ${h-pad.b} L ${puntos[0].x.toFixed(1)} ${h-pad.b} Z`;
+  const total=serie.reduce((s,x)=>s+x.n,0);
+  const prom=serie.length?Math.round(total/serie.length):0;
+  return `<div class="cin-card">
+    <div class="est-hd">
+      <div><h3>Contactos por tiempo</h3>
+      <p class="cap">Cuántas consultas entraron por ${unidad}. Sigue el período elegido arriba.</p></div>
+      <div class="est-tot"><div class="n">${total}</div><div class="l">${prom} por ${unidad} en promedio</div></div>
+    </div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
+      ${ejesSVG(w,h,pad,maxY,puntos,unidad)}
+      <path d="${area}" fill="${GRAF_COLORES[0]}" opacity=".12"/>
+      <path d="${linea}" fill="none" stroke="${GRAF_COLORES[0]}" stroke-width="2" stroke-linejoin="round"/>
+      ${puntos.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${GRAF_COLORES[0]}"><title>${p.lbl}: ${p.n}</title></circle>`).join('')}
+    </svg>
+  </div>`;
+}
+
+function graficoContactosPorCanal(base){
+  const todos=diasDelRango(base);
+  if(!todos.length) return '';
+  const {dias,unidad}=agruparSiHaceFalta(todos);
+  const paso = dias.length>1 ? Math.round((dias[1]-dias[0])/86400000) : 1;
+  // Solo los canales con volumen real: con 10 líneas no se entiende nada
+  const totPorCanal={};
+  base.forEach(a=>{ const c=estCanalDe(a)||'Sin canal'; totPorCanal[c]=(totPorCanal[c]||0)+1; });
+  const canales=Object.entries(totPorCanal).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]);
+  if(!canales.length) return '';
+  const conteo={};
+  base.forEach(a=>{
+    const c=estCanalDe(a)||'Sin canal';
+    if(!canales.includes(c)) return;
+    const k=c+'|'+claveDia(new Date(a.ts));
+    conteo[k]=(conteo[k]||0)+1;
+  });
+  const series=canales.map(c=>dias.map(d=>{
+    let n=0;
+    for(let i=0;i<paso;i++){ const x=new Date(d); x.setDate(x.getDate()+i); n+=conteo[c+'|'+claveDia(x)]||0; }
+    return n;
+  }));
+  const w=680,h=210,pad={l:34,r:12,t:12,b:26};
+  const maxY=Math.max(4,...series.flat());
+  const px=i=>pad.l+(w-pad.l-pad.r)*(dias.length>1?i/(dias.length-1):0.5);
+  const py=n=>h-pad.b-(h-pad.t-pad.b)*(n/maxY);
+  const refs=dias.map((d,i)=>({x:px(i),lbl:rotuloDia(d)}));
+  const paths=series.map((s,ci)=>{
+    const d=s.map((n,i)=>(i?'L':'M')+px(i).toFixed(1)+' '+py(n).toFixed(1)).join(' ');
+    return `<path d="${d}" fill="none" stroke="${GRAF_COLORES[ci%GRAF_COLORES.length]}" stroke-width="1.8" stroke-linejoin="round"/>`;
+  }).join('');
+  const leyenda=canales.map((c,i)=>
+    `<span class="gr-leg"><i style="background:${GRAF_COLORES[i%GRAF_COLORES.length]}"></i>${escapeHtml(c)} <b>${totPorCanal[c]}</b></span>`).join('');
+  return `<div class="cin-card">
+    <div class="est-hd">
+      <div><h3>Contactos por canal</h3>
+      <p class="cap">De dónde vienen las consultas, por ${unidad}. Los 6 canales con más volumen.</p></div>
+    </div>
+    <div class="gr-leyenda">${leyenda}</div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
+      ${ejesSVG(w,h,pad,maxY,refs,unidad)}
+      ${paths}
+    </svg>
+  </div>`;
+}
+
 function htmlCintiaClientes(){
   if(clienteFichaId) return htmlFichaCliente(clienteFichaId);
-  const todos=Object.values(CONTACTOS);
-  if(!todos.length) return `<div class="cin-card"><p class="cin-empty">Todavía no hay clientes en la base. Se cargan solos cuando una consulta trae teléfono, o cuando vinculás una desde Mis pendientes.</p></div>`;
-  const filas=todos.map(c=>({c, ...resumenContacto(c)}))
-    .sort((a,b)=> b.comprado-a.comprado || new Date(b.c.ultimaActividad||0)-new Date(a.c.ultimaActividad||0));
+  const filas=baseClientes()
+    .sort((a,b)=> b.comprado-a.comprado || new Date(b.ultima||0)-new Date(a.ultima||0));
+  if(!filas.length) return `<div class="cin-card"><p class="cin-empty">Todavía no hay clientes en la base. Aparecen solos apenas una consulta trae teléfono.</p></div>`;
   const totComprado=filas.reduce((s,f)=>s+f.comprado,0);
+  const conVenta=filas.filter(f=>f.ventas>0).length;
   return `<div class="cin-card">
     <div class="est-hd">
       <div><h3>Clientes</h3>
-      <p class="cap">La persona y todo su historial. Un cliente = un contacto único; acá vive lo que pasó con cada uno, pensado para la recompra.</p></div>
-      <div class="est-tot"><div class="n">${filas.length}</div><div class="l">en la base · $ ${miles(totComprado)} comprado</div></div>
+      <p class="cap">Una fila por teléfono, con todo su historial. Pensada para la recompra: cuando el cliente vuelve, acá está lo que ya pasó con él y quién lo tiene.</p></div>
+      <div class="est-tot"><div class="n">${filas.length}</div><div class="l">${conVenta} ya compraron · $ ${miles(totComprado)}</div></div>
     </div>
-    <input type="text" class="cli-buscar" placeholder="Buscar por nombre, teléfono o IG..." oninput="filtrarClientes(this.value)">
-    <div class="est-scroll"><table class="est-tabla" style="min-width:700px">
-      <tr><th>Cliente</th><th>Contacto</th><th class="r">Consultas</th><th class="r">Ventas</th><th class="r">Comprado</th><th class="r">Activas</th><th class="r">Última actividad</th></tr>
-      ${filas.map(({c,cant,ventas,comprado,activas})=>`<tr class="cli-row" data-buscar="${escAttr(((c.nombre||'')+' '+(c.telefono||'')).toLowerCase())}" onclick="abrirFichaCliente('${c.id}')">
-        <td><b>${escapeHtml(c.nombre||'Sin nombre')}</b>${ventas>0?' <span class="cli-star" title="Ya nos compró">⭐</span>':''}</td>
-        <td class="tiny">${escapeHtml(c.telefono||'—')}</td>
-        <td class="r">${cant}</td>
-        <td class="r"><b class="${ventas?'epos':''}">${ventas}</b></td>
-        <td class="r emoney">${comprado?'$ '+miles(comprado):'<span class="ena">—</span>'}</td>
-        <td class="r"><b>${activas||''}</b>${!activas?'<span class="ena">—</span>':''}</td>
-        <td class="r tiny">${c.ultimaActividad?formatFechaRelativa(c.ultimaActividad):'—'}</td>
+    <input type="text" class="cli-buscar" placeholder="Buscar por nombre o teléfono..." oninput="filtrarClientes(this.value)">
+    <div class="est-scroll"><table class="est-tabla" style="min-width:760px">
+      <tr><th>Cliente</th><th>Teléfono</th><th>Vendedor</th><th class="r">Consultas</th><th class="r">Concret.</th><th class="r">Rechaz.</th><th class="r">Seguim.</th><th class="r">Comprado</th><th class="r">Última</th></tr>
+      ${filas.slice(0,300).map(f=>`<tr class="cli-row" data-buscar="${escAttr(((f.nombre||'')+' '+f.tel).toLowerCase())}" onclick="abrirFichaCliente('${f.id}')">
+        <td><b>${escapeHtml(f.nombre||'Sin nombre')}</b>${f.ventas>0?' <span class="cli-star" title="Ya nos compró">⭐</span>':''}</td>
+        <td class="tiny">${escapeHtml(f.tel)}</td>
+        <td class="tiny">${f.vend?escapeHtml(nombreDe(f.vend)):'<span class="ena">—</span>'}</td>
+        <td class="r">${f.cant}</td>
+        <td class="r"><b class="${f.ventas?'epos':''}">${f.ventas||''}</b>${!f.ventas?'<span class="ena">—</span>':''}</td>
+        <td class="r">${f.rech||'<span class="ena">—</span>'}</td>
+        <td class="r"><b>${f.seg||''}</b>${!f.seg?'<span class="ena">—</span>':''}</td>
+        <td class="r emoney">${f.comprado?'$ '+miles(f.comprado):'<span class="ena">—</span>'}</td>
+        <td class="r tiny">${f.ultima?formatFechaRelativa(f.ultima):'—'}</td>
       </tr>`).join('')}
     </table></div>
-    <p class="tiny" style="margin-top:10px">⭐ = cliente que ya compró. Tocá una fila para abrir la ficha completa.</p>
+    <p class="tiny" style="margin-top:10px">⭐ = ya compró. <b>Vendedor</b> es quien lo atendió la última vez. Tocá una fila para ver la ficha completa.${filas.length>300?` Mostrando los 300 primeros de ${filas.length} — usá el buscador para encontrar uno puntual.`:''}</p>
   </div>`;
 }
 
 function htmlFichaCliente(id){
-  const c=contactoPorId(id);
+  // El id puede ser el de un contacto de la base o "tel:NUMERO" para los clientes
+  // que salen de las consultas migradas, que nunca tuvieron ficha de contacto.
+  let c=contactoPorId(id);
+  if(!c && String(id).startsWith('tel:')){
+    const f=baseClientes().find(x=>x.id===id);
+    if(f) c={id:f.id, nombre:f.nombre, telefono:f.tel, ultimaActividad:f.ultima};
+  }
   if(!c) { clienteFichaId=null; return htmlCintiaClientes(); }
   const r=resumenContacto(c);
   const evChip=(campo,val)=>{
