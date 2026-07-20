@@ -4104,16 +4104,39 @@ function renderSemaforoMisConsultas(){
 
 /* Zona de una consulta: define su color en la lista y en qué tarjeta del tablero cuenta.
    Se calcula igual arriba y abajo, así los números siempre cuadran con las filas. */
+/* Días que una consulta puede quedarse sin clasificar antes de considerarse atrasada.
+   Una consulta que nadie tocó en una semana ya es un problema, aunque nunca se le
+   haya puesto un plazo. */
+const DIAS_SIN_CLASIFICAR_ATRASA = 5;
+
+function diasDesde(ts){
+  if(!ts) return 0;
+  const t = new Date(ts).getTime();
+  if(isNaN(t)) return 0;
+  return Math.floor((Date.now() - t) / 86400000);
+}
+
 function zonaDe(a){
-  if(a.status==='pendiente') return 'sinclas';
+  const est=estadoDe(a);
+  const cerradaPorResultado = est==='Concretado' || est==='Rechazado';
+  // Sin clasificar: si además lleva días parada, pasa a atrasada — es lo que
+  // necesita atención, no una lista donde envejece sin que nadie la mire.
+  if(a.status==='pendiente'){
+    return diasDesde(a.ts) > DIAS_SIN_CLASIFICAR_ATRASA ? 'atrasada' : 'sinclas';
+  }
   // El cliente nunca contestó: para el vendedor la consulta está cerrada. No se la seguimos
   // marcando como atrasada ni le pedimos un próximo contacto — no hay a quién contactar.
   if(a.nuncaRespondio) return 'cerrada';
-  const est=estadoDe(a);
-  if(est==='Concretado'||est==='Rechazado') return 'cerrada';
+  if(cerradaPorResultado) return 'cerrada';
+  // La próxima acción puede estar en el contacto (consultas cargadas en el CRM) o
+  // en la consulta misma (las que vienen de las planillas viejas).
   const c=a.contactoId?contactoPorId(a.contactoId):null;
-  if(!c || !c.proximaAccionTs) return 'sinplazo';
-  const prox=new Date(c.proximaAccionTs);
+  const proxTs = (c && c.proximaAccionTs) || a.proximaAccionTs || null;
+  if(!proxTs){
+    // Abierta y sin plazo: se le da el mismo margen que a las sin clasificar.
+    return diasDesde(a.ts) > DIAS_SIN_CLASIFICAR_ATRASA ? 'atrasada' : 'sinplazo';
+  }
+  const prox=new Date(proxTs);
   const hoy0=new Date(); hoy0.setHours(0,0,0,0);
   const manana0=new Date(hoy0.getTime()+86400000);
   const en7=new Date(hoy0.getTime()+7*86400000);
