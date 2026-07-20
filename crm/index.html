@@ -5034,14 +5034,20 @@ function enPeriodoAnterior(iso, per){
 }
 function metricasVendedor(cs){
   const total=cs.length;
+  const cerrada=a=>{const e=estadoDe(a);return e==='Concretado'||e==='Rechazado';};
   const seg=cs.filter(a=>estadoDe(a)==='En seguimiento').length;
-  const sinClas=cs.filter(a=>!a.percepcion).length;
+  // Sin clasificar = todavía abierta y sin percepción cargada. Una consulta ya
+  // concretada o rechazada NO está sin clasificar: su resultado la clasifica.
+  const sinClas=cs.filter(a=>!cerrada(a) && !a.nuncaRespondio && !a.percepcion).length;
   const atras=cs.filter(a=>zonaDe(a)==='atrasada').length;
   const conc=cs.filter(a=>estadoDe(a)==='Concretado').length;
   const rech=cs.filter(a=>estadoDe(a)==='Rechazado').length;
   const cerradas=conc+rech;
-  // Carga = todo lo que todavía le queda por hacer, sobre el total que le entró.
-  const pendiente=seg+sinClas+atras;
+  // Carga = cuántas consultas DISTINTAS le quedan por trabajar, sobre el total que
+  // le entró. Se cuenta por consulta y no sumando seguimiento + sin clasificar +
+  // atrasadas, porque una misma consulta cae en varias de esas categorías a la vez
+  // y la suma daba más del 100%.
+  const pendiente=cs.filter(a=>!cerrada(a) && !a.nuncaRespondio).length;
   const carga = total ? Math.round(pendiente/total*100) : 0;
   return {total,seg,sinClas,atras,conc,rech,cerradas,pendiente,carga};
 }
@@ -5101,7 +5107,7 @@ function htmlCintiaResumen(){
 
   const rankingHtml=`<div class="cin-card">
     <h3>Quién necesita una mano <span class="cnt-pill">ordenado por carga</span></h3>
-    <p class="tiny" style="margin-top:-8px;margin-bottom:8px">En seguimiento + sin clasificar + atrasadas, sobre el total que le entró en el período. Tocá un vendedor para ver el detalle.</p>
+    <p class="tiny" style="margin-top:-8px;margin-bottom:8px">Consultas que todavía tiene abiertas, sobre el total que le entró en el período. Tocá un vendedor para ver el detalle.</p>
     ${filas.map(({uid,m})=>{
       const et=etiquetaCarga(m.carga);
       const info=estadoVivoVendedor(uid);
