@@ -2258,7 +2258,6 @@ async function loadState(){
     if(r&&r.value) atenciones=JSON.parse(r.value);
     migrarSeguimientoLocal();
   }catch(e){atenciones=[];}
-  if(!atenciones.length) await generarEjemplosDemo();
   if(YO) render();
 }
 /* 'Seguimiento Local' quedó unificado dentro de 'Local'. Los registros viejos que lo
