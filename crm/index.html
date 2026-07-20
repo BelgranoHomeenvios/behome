@@ -971,9 +971,10 @@ textarea{resize:vertical;min-height:60px}
 .cin-mini-row:first-child{border-top:none}
 .cin-mini-row .nom{font-weight:700;font-size:13px;color:var(--ink)}
 .cin-mini-row .estado-badge{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px}
-.tabla-cintia{width:100%;border-collapse:collapse;font-size:13px}
-.tabla-cintia th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;padding:8px 6px;border-bottom:1px solid var(--line)}
-.tabla-cintia td{padding:11px 6px;border-bottom:1px solid var(--line2)}
+.tabla-cintia{width:100%;border-collapse:collapse;font-size:12.5px}
+.tabla-cintia th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.02em;color:var(--muted);font-weight:700;padding:8px 4px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tabla-cintia td{padding:10px 4px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.tabla-cintia tr th:last-child,.tabla-cintia tr td:last-child{border-left:1px solid var(--line);padding-left:9px}
 .tabla-cintia tr:last-child td{border-bottom:none}
 .pct-ok{color:var(--green);font-weight:800}
 .pct-bad{color:var(--red);font-weight:800}
@@ -3105,6 +3106,8 @@ const MOTIVOS_RECHAZO=[
   {t:'Pospone la compra',        ic:'⏳'},
   {t:'No teníamos stock',        ic:'📦'},
   {t:'Se le fue el precio',      ic:'💰'},
+  {t:'Tiempo de entrega',        ic:'📅'},
+  {t:'Costo de logística',       ic:'🚚'},
   {t:'Cerró con otro vendedor',  ic:'🤝'},
   {t:'Ya lo resolvió',           ic:'✅', noCuenta:true},
   {t:'Mueble que no hacíamos',   ic:'🪑', noCuenta:true},
@@ -5056,23 +5059,22 @@ function enPeriodoAnterior(iso, per){
   return t>=per.desde.getTime() && t<=per.hasta.getTime();
 }
 function metricasVendedor(cs){
-  const total=cs.length;
-  const cerrada=a=>{const e=estadoDe(a);return e==='Concretado'||e==='Rechazado';};
-  const seg=cs.filter(a=>estadoDe(a)==='En seguimiento').length;
-  // Sin clasificar = todavía abierta y sin percepción cargada. Una consulta ya
-  // concretada o rechazada NO está sin clasificar: su resultado la clasifica.
-  const sinClas=cs.filter(a=>!cerrada(a) && !a.nuncaRespondio && !a.percepcion).length;
-  const atras=cs.filter(a=>zonaDe(a)==='atrasada').length;
+  // Las cuatro categorías son EXCLUYENTES entre sí y suman el total: cada consulta
+  // cae en una sola. Antes "sin clasificar" contaba también a las que estaban en
+  // seguimiento (tenían estado pero no percepción) y la suma daba más que el total.
   const conc=cs.filter(a=>estadoDe(a)==='Concretado').length;
   const rech=cs.filter(a=>estadoDe(a)==='Rechazado').length;
+  const seg=cs.filter(a=>estadoDe(a)==='En seguimiento').length;
+  const sinClas=cs.filter(a=>!estadoDe(a)).length;
+  // Atrasadas NO suma aparte: es un subconjunto de las abiertas que está fuera de
+  // plazo. Marca urgencia, no volumen.
+  const atras=cs.filter(a=>zonaDe(a)==='atrasada').length;
   const cerradas=conc+rech;
-  // Carga = cuántas consultas DISTINTAS le quedan por trabajar, sobre el total que
-  // le entró. Se cuenta por consulta y no sumando seguimiento + sin clasificar +
-  // atrasadas, porque una misma consulta cae en varias de esas categorías a la vez
-  // y la suma daba más del 100%.
-  const pendiente=cs.filter(a=>!cerrada(a) && !a.nuncaRespondio).length;
-  const carga = total ? Math.round(pendiente/total*100) : 0;
-  return {total,seg,sinClas,atras,conc,rech,cerradas,pendiente,carga};
+  // Consultas = lo que tiene abierto encima. El total incluye además lo ya cerrado.
+  const abiertas=seg+sinClas;
+  const total=cs.length;
+  const carga = total ? Math.round(abiertas/total*100) : 0;
+  return {total,abiertas,seg,sinClas,atras,conc,rech,cerradas,pendiente:abiertas,carga};
 }
 function deltaHtml(actual, anterior){
   if(anterior===null||anterior===undefined||!anterior) return '';
@@ -5160,27 +5162,29 @@ function htmlCintiaResumen(){
     <h3>Detalle por vendedor <span class="cnt-pill">${tot.total} consulta${tot.total===1?'':'s'} real${tot.total===1?'':'es'}</span></h3>
     ${per?`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Las flechas comparan contra el período anterior de igual duración (${per.desde.toLocaleDateString('es-AR')} – ${per.hasta.toLocaleDateString('es-AR')}).</p>`:`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Elegí un período arriba para ver la comparación contra el período anterior.</p>`}
     <table class="tabla-cintia">
-      <tr><th>Vendedor</th><th>Consultas</th><th>Seguim.</th><th>Sin clasif.</th><th>Atrasadas</th><th>Concret.</th><th>Rechaz.</th></tr>
+      <tr><th>Vendedor</th><th>Abiertas</th><th>Seguim.</th><th>Sin clasif.</th><th>Atrasadas</th><th>Concret.</th><th>Rechaz.</th><th>Total</th></tr>
       ${filas.map(({uid,m,prev})=>`<tr style="cursor:pointer" onclick="abrirResumenVendedor('${uid}')">
         <td><b>${nombreDe(uid)}</b></td>
-        <td><span class="cel-n">${m.total}</span>${prev?deltaHtml(m.total,prev.total):''}</td>
+        <td><span class="cel-n">${m.abiertas}</span><span class="cel-p">${m.total?Math.round(m.abiertas/m.total*100)+'%':'—'}</span></td>
         ${cel(m.seg, m.total)}
         ${cel(m.sinClas, m.total)}
         ${cel(m.atras, m.total, 'alerta')}
         ${cel(m.conc, m.total, 'ok')}
         ${cel(m.rech, m.total)}
+        <td><span class="cel-n">${m.total}</span>${prev?deltaHtml(m.total,prev.total):''}</td>
       </tr>`).join('')}
       <tr style="border-top:2px solid var(--line)">
         <td><b>Total</b></td>
-        <td><span class="cel-n">${tot.total}</span>${totPrev?deltaHtml(tot.total,totPrev.total):''}</td>
+        <td><span class="cel-n">${tot.abiertas}</span><span class="cel-p">${tot.total?Math.round(tot.abiertas/tot.total*100)+'%':'—'}</span></td>
         ${cel(tot.seg, tot.total)}
         ${cel(tot.sinClas, tot.total)}
         ${cel(tot.atras, tot.total, 'alerta')}
         ${cel(tot.conc, tot.total, 'ok')}
         ${cel(tot.rech, tot.total)}
+        <td><span class="cel-n">${tot.total}</span>${totPrev?deltaHtml(tot.total,totPrev.total):''}</td>
       </tr>
     </table>
-    <p class="tiny" style="margin-top:10px">No cuenta las cerradas como "No era un cliente" ni "Dejó de responder" — nunca fueron una oportunidad real, y contarlas ensuciaría la comparación entre vendedores.</p>
+    <p class="tiny" style="margin-top:10px"><b>Abiertas</b> = seguimiento + sin clasificar, lo que todavía tiene encima. <b>Atrasadas</b> son un subconjunto de esas, fuera de plazo: marcan urgencia, no suman aparte. Seguimiento + sin clasificar + concretadas + rechazadas dan el <b>Total</b>.<br>No cuenta las cerradas como "No era un cliente" ni "Dejó de responder" — nunca fueron una oportunidad real, y contarlas ensuciaría la comparación entre vendedores.</p>
   </div>`;
 
   return activosBar + canalPills + rankingHtml + detalleHtml;
