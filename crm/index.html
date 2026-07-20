@@ -984,6 +984,9 @@ textarea{resize:vertical;min-height:60px}
 .periodo-barra .pb-chip{background:#fff;border:1px solid var(--line,#d0d7e2);color:var(--sec,#5b6675);font:inherit;font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;cursor:pointer;white-space:nowrap}
 .periodo-barra .pb-chip:hover{border-color:var(--navy,#16324f);color:var(--navy,#16324f)}
 .periodo-barra .pb-chip.on{background:var(--navy,#16324f);border-color:var(--navy,#16324f);color:#fff}
+.graf-tip{position:absolute;z-index:9000;display:none;transform:translate(-50%,-100%);background:#16324f;color:#fff;font-size:12px;padding:7px 11px;border-radius:8px;pointer-events:none;box-shadow:0 6px 18px rgba(15,26,42,.28);white-space:nowrap;max-width:280px}
+.graf-tip .gt-lbl{display:block;font-size:10.5px;color:#9fb3cc;margin-bottom:2px}
+.graf-tip b{font-weight:800}
 .gr-leyenda{display:flex;flex-wrap:wrap;gap:12px;margin:-4px 0 10px}
 .gr-leg{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--sec,#5b6675)}
 .gr-leg i{width:16px;height:3px;border-radius:2px;display:inline-block}
@@ -4235,6 +4238,9 @@ function diasDesde(ts){
 }
 
 function zonaDe(a){
+  // Histórico viejo: solo sabemos que la consulta entró. No hay nada que hacer con
+  // ella, así que no puede aparecer como pendiente ni como atrasada.
+  if(a.soloVolumen) return 'cerrada';
   const est=estadoDe(a);
   const cerradaPorResultado = est==='Concretado' || est==='Rechazado';
   // Sin clasificar: si además lleva días parada, pasa a atrasada — es lo que
@@ -5216,25 +5222,27 @@ function metricasVendedor(cs){
   const conc=cs.filter(a=>estadoDe(a)==='Concretado').length;
   const rech=cs.filter(a=>estadoDe(a)==='Rechazado').length;
   const seg=cs.filter(a=>estadoDe(a)==='En seguimiento').length;
-  const sinClas=cs.filter(a=>!estadoDe(a)).length;
+  // El histórico viejo (ago-nov 2025) no tiene estado porque nunca se registró:
+  // de esas consultas solo sabemos que entraron. Contarlas como "sin clasificar"
+  // le inventaba a cada vendedor cientos de tareas pendientes de hace un año.
+  const hist=cs.filter(a=>a.soloVolumen).length;
+  const sinClas=cs.filter(a=>!estadoDe(a) && !a.soloVolumen).length;
   // Atrasadas NO suma aparte: es un subconjunto de las abiertas que está fuera de
   // plazo. Marca urgencia, no volumen.
   const atras=cs.filter(a=>zonaDe(a)==='atrasada').length;
   const cerradas=conc+rech;
-  // Consultas = lo que tiene abierto encima. El total incluye además lo ya cerrado.
+  // Consultas = lo que tiene abierto encima. El total incluye lo cerrado y el histórico.
   const abiertas=seg+sinClas;
   const total=cs.length;
   // "Quién necesita una mano" = de lo que tiene abierto, cuánto está atrasado.
   // NO se mide sobre el total: ese denominador crece con el histórico cargado y
   // el mismo vendedor pasaría de verde a rojo solo por cambiar el período mirado.
-  // Sobre las abiertas la lectura es siempre la misma: de lo que tenés encima,
-  // cuánto se está enfriando. Límite acordado: hasta 25% está bien.
   const carga = abiertas ? Math.round(atras/abiertas*100) : 0;
   // El semáforo se decide por CANTIDAD, no por el % redondeado: con 15 abiertas el
   // tope es 4 (25% de 15 = 3,75 → 4), y 4/15 redondea a 27%, que por porcentaje
   // habría dado alerta cuando en realidad está dentro de lo permitido.
   const topeAtrasadas = Math.ceil(abiertas*TOPE_ATRASADAS/100);
-  return {total,abiertas,seg,sinClas,atras,conc,rech,cerradas,pendiente:abiertas,carga,topeAtrasadas};
+  return {total,abiertas,seg,sinClas,hist,atras,conc,rech,cerradas,pendiente:abiertas,carga,topeAtrasadas};
 }
 const TOPE_ATRASADAS = 25;   // % de atrasadas sobre abiertas que se considera aceptable
 function deltaHtml(actual, anterior){
@@ -5348,7 +5356,7 @@ function htmlCintiaResumen(){
     <p class="tiny" style="margin:0 0 8px;color:var(--muted)">El detalle y los gráficos de abajo responden a este período. Si elegís uno más largo de lo cargado, las consultas se traen solas de la base.</p>
     ${per?`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Las flechas comparan contra el período anterior de igual duración (${per.desde.toLocaleDateString('es-AR')} – ${per.hasta.toLocaleDateString('es-AR')}).</p>`:`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Elegí un período arriba para ver la comparación contra el período anterior.</p>`}
     <table class="tabla-cintia">
-      <tr><th>Vendedor</th><th>Abiertas</th><th>Seguim.</th><th>Sin clasif.</th><th>Atrasadas</th><th>Concret.</th><th>Rechaz.</th><th>Total</th></tr>
+      <tr><th>Vendedor</th><th>Abiertas</th><th>Seguim.</th><th>Sin clasif.</th><th>Atrasadas</th><th>Concret.</th><th>Rechaz.</th><th>Histórico</th><th>Total</th></tr>
       ${filas.map(({uid,m,prev})=>`<tr style="cursor:pointer" onclick="abrirResumenVendedor('${uid}')">
         <td><b>${nombreDe(uid)}</b></td>
         <td><span class="cel-n">${m.abiertas}</span><span class="cel-p">${m.total?Math.round(m.abiertas/m.total*100)+'%':'—'}</span></td>
@@ -5357,6 +5365,7 @@ function htmlCintiaResumen(){
         ${cel(m.atras, m.total, 'alerta')}
         ${cel(m.conc, m.total, 'ok')}
         ${cel(m.rech, m.total)}
+        <td><span class="cel-n" style="color:var(--muted)">${m.hist||'—'}</span></td>
         <td><span class="cel-n">${m.total}</span>${prev?deltaHtml(m.total,prev.total):''}</td>
       </tr>`).join('')}
       <tr style="border-top:2px solid var(--line)">
@@ -5367,10 +5376,11 @@ function htmlCintiaResumen(){
         ${cel(tot.atras, tot.total, 'alerta')}
         ${cel(tot.conc, tot.total, 'ok')}
         ${cel(tot.rech, tot.total)}
+        <td><span class="cel-n" style="color:var(--muted)">${tot.hist||'—'}</span></td>
         <td><span class="cel-n">${tot.total}</span>${totPrev?deltaHtml(tot.total,totPrev.total):''}</td>
       </tr>
     </table>
-    <p class="tiny" style="margin-top:10px"><b>Abiertas</b> = seguimiento + sin clasificar, lo que todavía tiene encima. <b>Atrasadas</b> son un subconjunto de esas, fuera de plazo: marcan urgencia, no suman aparte. Seguimiento + sin clasificar + concretadas + rechazadas dan el <b>Total</b>.<br>No cuenta las cerradas como "No era un cliente" ni "Dejó de responder" — nunca fueron una oportunidad real, y contarlas ensuciaría la comparación entre vendedores.</p>
+    <p class="tiny" style="margin-top:10px"><b>Abiertas</b> = seguimiento + sin clasificar, lo que todavía tiene encima. <b>Atrasadas</b> son un subconjunto de esas, fuera de plazo: marcan urgencia, no suman aparte. <b>Histórico</b> son las de ago–nov 2025, que llegaron sin estado registrado: cuentan como volumen pero no como trabajo pendiente. Seguimiento + sin clasificar + concretadas + rechazadas + histórico dan el <b>Total</b>.<br>No cuenta las cerradas como "No era un cliente" ni "Dejó de responder" — nunca fueron una oportunidad real, y contarlas ensuciaría la comparación entre vendedores.</p>
   </div>`;
 
   return activosBar + canalPills + rankingHtml + detalleHtml
@@ -5386,12 +5396,18 @@ function htmlResumenDetalleVendedor(uid){
   const info=estadoVivoVendedor(uid);
   const estadoTxt = info.estado==='Activo' ? `Trabajando en ${nombreLocal(info.local)}` : (info.estado==='Pausado' ? 'En pausa' : 'Sin conectar');
 
-  // Lo que realmente le está frenando el laburo, ordenado por urgencia.
-  const trabadas=base.filter(a=>zonaDe(a)==='atrasada' || !a.percepcion || estadoDe(a)==='En seguimiento')
+  /* "Lo que tiene trabado" tiene que dar EXACTAMENTE lo mismo que la tarjeta
+     "Quién necesita una mano": sin filtro de período (es su estado de hoy) y con
+     el mismo criterio de qué está abierto. Antes cada una contaba a su manera
+     —una por atrasadas, la otra por "sin percepción"— y los números no cerraban. */
+  const baseActual=baseResumenReal().filter(a=>a.vendedorId===uid);
+  const mActual=metricasVendedor(baseActual);
+  const cerrada=a=>{const e=estadoDe(a);return e==='Concretado'||e==='Rechazado';};
+  const trabadas=baseActual.filter(a=>!cerrada(a) && !a.soloVolumen && !a.nuncaRespondio)
     .sort((a,b)=>{
-      const ra=zonaDe(a)==='atrasada'?0:(!a.percepcion?1:2);
-      const rb=zonaDe(b)==='atrasada'?0:(!b.percepcion?1:2);
-      return ra-rb;
+      const ra=zonaDe(a)==='atrasada'?0:(!estadoDe(a)?1:2);
+      const rb=zonaDe(b)==='atrasada'?0:(!estadoDe(b)?1:2);
+      return ra-rb || new Date(a.ts)-new Date(b.ts);
     });
 
   const kpi=(n,l,color)=>{
@@ -5405,7 +5421,7 @@ function htmlResumenDetalleVendedor(uid){
     <div class="cin-card">
       <div class="drill-head">
         <div>
-          <h3 style="margin:0">${nombreDe(uid)} <span class="cnt-pill">${m.carga}% de carga</span></h3>
+          <h3 style="margin:0">${nombreDe(uid)} <span class="cnt-pill">${mActual.carga}% de carga</span></h3>
           <p class="tiny" style="margin:3px 0 0">${estadoTxt}${etiquetaCanal?` · filtrando canal: ${etiquetaCanal}`:''}</p>
         </div>
         <span class="drill-back" onclick="volverResumen()">‹ Volver al resumen</span>
@@ -5421,8 +5437,8 @@ function htmlResumenDetalleVendedor(uid){
       <button class="btn btn-outline btn-sm" onclick="abrirRecordar('${uid}')">Enviar recordatorio a ${nombreDe(uid)}</button>
     </div>
     ${trabadas.length?`<div class="cin-card" style="padding:4px 18px">
-      <h3 style="padding-top:10px">Lo que tiene trabado <span class="cnt-pill">${trabadas.length}</span></h3>
-      <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Atrasadas primero, después sin clasificar, después en seguimiento. Podés reasignar o mandarle un recordatorio desde el menú de cada fila.</p>
+      <h3 style="padding-top:10px">Lo que tiene trabado <span class="cnt-pill">${mActual.atras} atrasadas de ${trabadas.length} abiertas</span></h3>
+      <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Todo lo que tiene abierto <b>hoy</b> — no cambia con el período, igual que la tarjeta de arriba. Atrasadas primero, después sin clasificar, después en seguimiento. Podés reasignar o mandarle un recordatorio desde el menú de cada fila.</p>
       ${cheadEstaticoHtml()}
       ${trabadas.map(logItemHtml).join('')}
     </div>`:`<div class="cin-card"><p class="cin-empty">No tiene nada trabado en este período.</p></div>`}
@@ -6183,6 +6199,21 @@ function ejesSVG(w,h,pad,maxY,puntos){
   return lineas.join('')+etiq;
 }
 
+/* Al tocar un punto del gráfico, el período pasa a ser ese tramo: la tabla de
+   arriba y el listado quedan filtrados a ese día. Es la forma de pasar de "el 16
+   entraron 19" a "¿quiénes fueron y qué pasó con ellas?". */
+function zoomTramo(desdeISO, hastaISO){
+  cintiaFechaDesde=desdeISO; cintiaFechaHasta=hastaISO; pbActivo='custom';
+  asegurarPeriodoCargado();
+  renderBarraPeriodo();
+  if(typeof renderCintiaBotones==='function') renderCintiaBotones();
+  if(typeof renderCintiaFecha==='function') renderCintiaFecha();
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+  renderHistorial();
+  toast('Filtrado — tocá "Todas" para volver');
+}
+const fISO=d=>new Date(d).toISOString().slice(0,10);
+
 function graficoContactosPorTiempo(base){
   const r=tramosDelRango(base);
   if(!r) return '';
@@ -6192,22 +6223,30 @@ function graficoContactosPorTiempo(base){
   const maxY=Math.max(4,...serie);
   const px=i=>pad.l+(w-pad.l-pad.r)*(tramos.length>1?i/(tramos.length-1):0.5);
   const py=n=>h-pad.b-(h-pad.t-pad.b)*(n/maxY);
-  const puntos=serie.map((n,i)=>({x:px(i),y:py(n),lbl:tramos[i].lbl,n}));
+  const puntos=serie.map((n,i)=>({x:px(i),y:py(n),lbl:tramos[i].lbl,n,t:tramos[i]}));
   const linea=puntos.map((p,i)=>(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' ');
   const area=`${linea} L ${puntos[puntos.length-1].x.toFixed(1)} ${h-pad.b} L ${puntos[0].x.toFixed(1)} ${h-pad.b} Z`;
   const total=serie.reduce((s,x)=>s+x,0);
   const prom=serie.length?Math.round(total/serie.length):0;
+  const ancho=tramos.length>1?(w-pad.l-pad.r)/(tramos.length-1):40;
+  // Zona de clic ancha e invisible por tramo: apuntarle a un círculo de 3px es
+  // imposible en el celular.
+  const zonas=puntos.map(p=>`<rect x="${(p.x-ancho/2).toFixed(1)}" y="${pad.t}" width="${ancho.toFixed(1)}" height="${h-pad.t-pad.b}"
+      fill="transparent" style="cursor:pointer"
+      onmouseenter="grafTip(event,'${escAttr(p.lbl)}',${p.n},'${unidad}')" onmouseleave="grafTipOff()"
+      onclick="zoomTramo('${fISO(p.t.ini)}','${fISO(p.t.fin)}')"></rect>`).join('');
   return `<div class="cin-card">
     <div class="est-hd">
       <div><h3>Contactos por tiempo</h3>
-      <p class="cap">Cuántas consultas entraron por ${unidad}. Sigue el período elegido arriba.</p></div>
+      <p class="cap">Cuántas consultas entraron por ${unidad}. Tocá un punto para filtrar todo a ese ${unidad}.</p></div>
       <div class="est-tot"><div class="n">${total}</div><div class="l">${prom} por ${unidad} en promedio</div></div>
     </div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
       ${ejesSVG(w,h,pad,maxY,puntos)}
       <path d="${area}" fill="${GRAF_COLORES[0]}" opacity=".12"/>
       <path d="${linea}" fill="none" stroke="${GRAF_COLORES[0]}" stroke-width="2" stroke-linejoin="round"/>
-      ${puntos.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${GRAF_COLORES[0]}"><title>${p.lbl}: ${p.n}</title></circle>`).join('')}
+      ${puntos.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${GRAF_COLORES[0]}"/>`).join('')}
+      ${zonas}
     </svg>
   </div>`;
 }
@@ -6232,18 +6271,42 @@ function graficoContactosPorCanal(base){
   }).join('');
   const leyenda=canales.map((c,i)=>
     `<span class="gr-leg"><i style="background:${GRAF_COLORES[i%GRAF_COLORES.length]}"></i>${escapeHtml(c)} <b>${totPorCanal[c]}</b></span>`).join('');
+  const ancho=tramos.length>1?(w-pad.l-pad.r)/(tramos.length-1):40;
+  const zonas=tramos.map((t,i)=>{
+    const detalle=canales.map((c,ci)=>`${c}: ${series[ci][i]}`).filter((_,ci)=>series[ci][i]>0).join(' · ');
+    return `<rect x="${(px(i)-ancho/2).toFixed(1)}" y="${pad.t}" width="${ancho.toFixed(1)}" height="${h-pad.t-pad.b}"
+      fill="transparent" style="cursor:pointer"
+      onmouseenter="grafTipTexto(event,'${escAttr(t.lbl)}','${escAttr(detalle||'sin consultas')}')" onmouseleave="grafTipOff()"
+      onclick="zoomTramo('${fISO(t.ini)}','${fISO(t.fin)}')"></rect>`;
+  }).join('');
   return `<div class="cin-card">
     <div class="est-hd">
       <div><h3>Contactos por canal</h3>
-      <p class="cap">De dónde vienen las consultas, por ${unidad}. Los 6 canales con más volumen.</p></div>
+      <p class="cap">De dónde vienen las consultas, por ${unidad}. Los 6 canales con más volumen. Tocá para filtrar.</p></div>
     </div>
     <div class="gr-leyenda">${leyenda}</div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
       ${ejesSVG(w,h,pad,maxY,refs)}
       ${paths}
+      ${zonas}
     </svg>
   </div>`;
 }
+
+/* Tooltip propio: el <title> nativo del SVG tarda casi un segundo en aparecer. */
+function grafTip(ev,lbl,n,unidad){
+  grafTipTexto(ev,lbl,`<b>${n}</b> consulta${n===1?'':'s'}`);
+}
+function grafTipTexto(ev,lbl,html){
+  let t=document.getElementById('grafTip');
+  if(!t){ t=document.createElement('div'); t.id='grafTip'; t.className='graf-tip'; document.body.appendChild(t); }
+  t.innerHTML=`<span class="gt-lbl">${lbl}</span>${html}`;
+  const r=ev.target.getBoundingClientRect();
+  t.style.left=Math.min(window.innerWidth-180, r.left+r.width/2)+'px';
+  t.style.top=(r.top+window.scrollY-10)+'px';
+  t.style.display='block';
+}
+function grafTipOff(){ const t=document.getElementById('grafTip'); if(t) t.style.display='none'; }
 
 function htmlCintiaClientes(){
   if(clienteFichaId) return htmlFichaCliente(clienteFichaId);
