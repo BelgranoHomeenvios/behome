@@ -6,7 +6,7 @@
 <title>Belgrano Soft</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--navy:#16324f;--ink:#0f1a2a;--blue:#1e5fce;--muted:#8a94a3;--sec:#5b6675;--line:#d9e0e8;--bg:#f4f6f8;--card:#fff;--shadow:0 1px 2px rgba(15,26,42,.06),0 1px 3px rgba(15,26,42,.04)}
+:root{--navy:#16324f;--ink:#0f1a2a;--blue:#1e5fce;--muted:#8a94a3;--sec:#5b6675;--line:#d9e0e8;--bg:#f4f6f8;--card:#fff;--red:#b42318;--red-l:#fdecea;--shadow:0 1px 2px rgba(15,26,42,.06),0 1px 3px rgba(15,26,42,.04)}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;align-items:center}
 .top{width:100%;background:var(--navy);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:12px}
@@ -15,9 +15,23 @@ body{margin:0;min-height:100vh;font-family:'Public Sans',-apple-system,BlinkMacS
 .wrap{flex:1;width:100%;max-width:720px;padding:56px 24px;display:flex;flex-direction:column;align-items:center}
 h1{font-size:24px;font-weight:800;color:var(--navy);margin:0 0 6px;text-align:center}
 p.sub{color:var(--sec);font-size:14.5px;margin:0 0 40px;text-align:center}
+
+/* ---- login ---- */
+.login-card{background:var(--card);border:1px solid #e6eaef;border-radius:14px;padding:30px 28px;box-shadow:var(--shadow);width:100%;max-width:380px}
+.login-lbl{display:block;font-size:12.5px;font-weight:700;color:#3a4453;margin:14px 0 5px}
+.login-lbl:first-of-type{margin-top:0}
+.login-card input{width:100%;height:44px;padding:0 12px;border:1px solid #d0d7e2;border-radius:9px;font:inherit;font-size:15px;box-sizing:border-box}
+.login-card input:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(22,50,79,.1)}
+.login-btn{width:100%;height:46px;margin-top:22px;background:var(--navy);color:#fff;border:none;border-radius:9px;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+.login-btn:hover{background:#1e3f5f}
+.login-btn:disabled{opacity:.7;cursor:default}
+.login-err{background:var(--red-l);color:var(--red);font-size:13px;border-radius:8px;padding:9px 12px;margin-bottom:2px;text-align:left}
+.login-warn{background:#fff7e6;color:#b45309;font-size:12.5px;border-radius:8px;padding:9px 12px;margin-top:14px;text-align:left;line-height:1.5}
+
+/* ---- módulos ---- */
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;width:100%}
 @media(max-width:560px){.grid{grid-template-columns:1fr}}
-a.mod{display:block;background:var(--card);border:1px solid #e6eaef;border-radius:14px;padding:26px 24px;text-decoration:none;color:inherit;box-shadow:var(--shadow);transition:transform .12s,box-shadow .12s,border-color .12s}
+a.mod{display:block;background:var(--card);border:1px solid #e6eaef;border-radius:14px;padding:26px 24px;text-decoration:none;color:inherit;box-shadow:var(--shadow);transition:transform .12s,box-shadow .12s,border-color .12s;position:relative}
 a.mod:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(15,26,42,.12);border-color:var(--blue)}
 .mod .ic{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800;color:#fff;margin-bottom:16px}
 .mod.crm .ic{background:#1e5fce}
@@ -25,29 +39,104 @@ a.mod:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(15,26,42,.12);
 .mod h2{font-size:16.5px;font-weight:800;color:var(--navy);margin:0 0 5px}
 .mod p{font-size:13px;color:var(--sec);margin:0;line-height:1.5}
 .mod .go{margin-top:16px;font-size:12.5px;font-weight:700;color:var(--blue)}
+.mod .warn-tag{position:absolute;top:16px;right:16px;font-size:10.5px;font-weight:700;color:#b45309;background:#fff7e6;border-radius:6px;padding:3px 7px}
 .foot{color:var(--muted);font-size:11.5px;margin-top:48px}
+.hidden{display:none!important}
 </style>
 </head>
 <body>
 <div class="top"><div class="mark">BH</div><b>BELGRANO SOFT</b></div>
 <div class="wrap">
-  <h1>¿A qué módulo querés entrar?</h1>
-  <p class="sub">Cada módulo tiene su propio usuario y contraseña.</p>
-  <div class="grid">
-    <a class="mod crm" href="./crm/">
-      <div class="ic">C</div>
-      <h2>CRM · Atención en piso</h2>
-      <p>Registro de consultas, seguimiento de clientes y evaluación de vendedores.</p>
-      <div class="go">Entrar →</div>
-    </a>
-    <a class="mod log" href="./logistica/">
-      <div class="ic">L</div>
-      <h2>Logística</h2>
-      <p>Órdenes, distribución, rutas de flete y rendición de cobros.</p>
-      <div class="go">Entrar →</div>
-    </a>
+
+  <div id="pantallaLogin">
+    <h1>Ingresar</h1>
+    <p class="sub">Una sola cuenta para entrar a los dos sistemas.</p>
+    <div class="login-card">
+      <div id="lg_err" class="login-err hidden"></div>
+      <label class="login-lbl">Email</label>
+      <input id="lg_email" type="email" autocomplete="username" placeholder="tucuenta@gmail.com" onkeydown="if(event.key==='Enter')document.getElementById('lg_pass').focus()">
+      <label class="login-lbl">Contraseña</label>
+      <input id="lg_pass" type="password" autocomplete="current-password" placeholder="Tu contraseña" onkeydown="if(event.key==='Enter')hacerLogin()">
+      <button id="lg_btn" class="login-btn" onclick="hacerLogin()">Entrar</button>
+    </div>
   </div>
+
+  <div id="pantallaModulos" class="hidden">
+    <h1>¿A qué módulo querés entrar?</h1>
+    <p class="sub" id="subModulos">Elegí uno.</p>
+    <div class="grid">
+      <a class="mod crm" href="./crm/" id="cardCrm">
+        <div class="ic">C</div>
+        <h2>CRM · Atención en piso</h2>
+        <p>Registro de consultas, seguimiento de clientes y evaluación de vendedores.</p>
+        <div class="go">Entrar →</div>
+      </a>
+      <a class="mod log" href="https://belgranohomeenvios.github.io/logistica/" id="cardLog">
+        <div class="ic">L</div>
+        <h2>Logística</h2>
+        <p>Órdenes, distribución, rutas de flete y rendición de cobros.</p>
+        <div class="go">Entrar →</div>
+      </a>
+    </div>
+  </div>
+
   <div class="foot">Belgrano Soft · uso interno</div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* Un solo formulario de login que autentica contra los dos proyectos Supabase
+   (CRM y Logística). Cada uno guarda su propia sesión (Supabase la persiste
+   por proyecto en localStorage), así que al entrar a cada módulo ya lo
+   encuentra logueado — no hace falta tocar el código interno de cada app.
+   IMPORTANTE: para que esto funcione, cada persona necesita el MISMO email
+   y la MISMA contraseña cargados en los dos proyectos Supabase. */
+const CRM_URL='https://lbfucdevdeenpbextrpo.supabase.co';
+const CRM_KEY='sb_publishable_cN7gwnXKNNYWHWTfUf6FnA_feUphxLY';
+const LOG_URL='https://iwrgivmqvzalzbfsnxvv.supabase.co';
+const LOG_KEY='sb_publishable_700uBDWuIvX4swFDi5WXuw_iKEIbCzq';
+
+const sbCRM=window.supabase.createClient(CRM_URL,CRM_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+const sbLOG=window.supabase.createClient(LOG_URL,LOG_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+
+function mostrarModulos(okCrm,okLog){
+  document.getElementById('pantallaLogin').classList.add('hidden');
+  document.getElementById('pantallaModulos').classList.remove('hidden');
+  const sub=document.getElementById('subModulos');
+  if(okCrm&&okLog){ sub.textContent='Elegí uno — ya quedaste logueado en los dos.'; }
+  else{
+    const falta=!okCrm?'CRM':'Logística';
+    sub.innerHTML='Quedaste logueado en '+(okCrm?'CRM':'Logística')+'. En <b>'+falta+'</b> te va a pedir el usuario de nuevo (esa cuenta todavía no coincide en los dos sistemas).';
+    document.getElementById(okCrm?'cardLog':'cardCrm').insertAdjacentHTML('beforeend','<span class="warn-tag">Pide login</span>');
+  }
+}
+
+async function hacerLogin(){
+  const email=(document.getElementById('lg_email').value||'').trim().toLowerCase();
+  const pass=document.getElementById('lg_pass').value||'';
+  const btn=document.getElementById('lg_btn'); const err=document.getElementById('lg_err');
+  if(!email||!pass){ err.textContent='Escribí tu email y tu contraseña.'; err.classList.remove('hidden'); return; }
+  btn.disabled=true; btn.textContent='Entrando…'; err.classList.add('hidden');
+  const [rCrm,rLog]=await Promise.all([
+    sbCRM.auth.signInWithPassword({email,password:pass}),
+    sbLOG.auth.signInWithPassword({email,password:pass})
+  ]);
+  const okCrm=!rCrm.error, okLog=!rLog.error;
+  if(!okCrm&&!okLog){
+    err.textContent='Email o contraseña incorrectos.';
+    err.classList.remove('hidden');
+    btn.disabled=false; btn.textContent='Entrar';
+    return;
+  }
+  mostrarModulos(okCrm,okLog);
+}
+
+/* Si ya había sesión guardada de una visita anterior, saltar directo a los módulos */
+(async function(){
+  const [sCrm,sLog]=await Promise.all([sbCRM.auth.getSession(),sbLOG.auth.getSession()]);
+  const okCrm=!!(sCrm.data&&sCrm.data.session), okLog=!!(sLog.data&&sLog.data.session);
+  if(okCrm||okLog) mostrarModulos(okCrm,okLog);
+})();
+</script>
 </body>
 </html>
