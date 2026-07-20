@@ -19,6 +19,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .app-header{background:var(--navy);color:#fff;height:54px;display:flex;align-items:center;gap:12px;padding:0 18px}
 .app-header .logo{width:30px;height:30px;border-radius:6px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
 .app-header .title{font-weight:800;font-size:15px}
+.mod-switch{display:flex;gap:6px;margin-left:14px}
+.mod-switch-item{font-size:12.5px;font-weight:700;color:rgba(255,255,255,.7);text-decoration:none;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.08)}
+.mod-switch-item:hover{background:rgba(255,255,255,.16);color:#fff}
+.mod-switch-active{background:rgba(255,255,255,.22);color:#fff}
 .app-header .spacer{flex:1}
 .app-header .who{font-size:13px;opacity:.85;text-align:right;line-height:1.25}
 .app-header .who b{display:block;font-size:13px}
@@ -1185,7 +1189,13 @@ textarea{resize:vertical;min-height:60px}
 </head>
 <body>
 
-<div id="screen-login" class="center-wrap">
+<div id="screen-cargando" class="center-wrap">
+  <div class="card auth-card" style="text-align:center">
+    <div class="logo-big" style="justify-content:center"><span class="l">BH</span><b style="font-size:16px;color:var(--navy)">Belgrano Soft · CRM</b></div>
+    <p class="muted" style="margin:14px 0 0;font-size:13.5px">Cargando…</p>
+  </div>
+</div>
+<div id="screen-login" class="center-wrap hidden">
   <div class="card auth-card">
     <div class="logo-big"><span class="l">BH</span><b style="font-size:16px;color:var(--navy)">Belgrano Soft · CRM</b></div>
     <h2>Ingresar</h2>
@@ -1231,7 +1241,11 @@ textarea{resize:vertical;min-height:60px}
   </div>
   <div class="app-header">
     <span class="logo">BH</span>
-    <span class="title">CRM</span>
+    <span class="title">Belgrano Soft</span>
+    <nav class="mod-switch">
+      <span class="mod-switch-item mod-switch-active">CRM</span>
+      <a class="mod-switch-item" href="https://belgranohomeenvios.github.io/logistica/">Logística</a>
+    </nav>
     <span class="spacer"></span>
     <select id="filtroLocalAdmin" class="hidden" onchange="cambiarFiltroLocalAdmin(this.value)"></select>
     <span class="who"><b id="who"></b><small id="whoRol"></small></span>
@@ -1664,6 +1678,7 @@ async function entrarConUsuarioCRM(user){
     const {data,error}=await sb.from('crm_usuarios_roles').select('uid').eq('email',email).maybeSingle();
     if(error) throw error;
     if(!data||!data.uid||!USUARIOS[data.uid]){
+      mostrarFormularioLoginCRM();
       err.textContent='Tu usuario ('+email+') no tiene un rol asignado en el CRM. Avisale a Brian.';
       err.style.display='';
       await sb.auth.signOut();
@@ -1678,16 +1693,22 @@ async function entrarConUsuarioCRM(user){
     sbSuscribirCRMRealtime();
   }catch(e){
     console.error('entrarConUsuarioCRM',e);
+    mostrarFormularioLoginCRM();
     err.textContent='No se pudo leer tu rol. Probá de nuevo en un momento.';
     err.style.display='';
   }
 }
 async function iniciarConLoginCRM(){
-  if(!sb) return;
+  if(!sb){ mostrarFormularioLoginCRM(); return; }
   try{
     const {data:{session}}=await sb.auth.getSession();
     if(session&&session.user){ await entrarConUsuarioCRM(session.user); }
-  }catch(e){ console.error('getSession',e); }
+    else{ mostrarFormularioLoginCRM(); }
+  }catch(e){ console.error('getSession',e); mostrarFormularioLoginCRM(); }
+}
+function mostrarFormularioLoginCRM(){
+  const c=document.getElementById('screen-cargando'); if(c) c.classList.add('hidden');
+  const l=document.getElementById('screen-login'); if(l) l.classList.remove('hidden');
 }
 </script>
 <script>
@@ -1880,6 +1901,7 @@ async function conectarEnLocal(localId){
 function entrarApp(){
   $('who').textContent=USUARIOS[YO].n;
   $('avatar').textContent=USUARIOS[YO].n.slice(0,2).toUpperCase();
+  const cg=document.getElementById('screen-cargando'); if(cg) cg.classList.add('hidden');
   $('screen-login').classList.add('hidden');
   $('screen-app').classList.remove('hidden');
   $('tabConfig').classList.toggle('hidden', !esAdmin());
