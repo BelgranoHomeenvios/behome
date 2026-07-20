@@ -174,7 +174,11 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .rank-row:last-child{border-bottom:none}
 .rank-row:hover{background:#fafbfc}
 .rank-nom{width:100px;font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;flex-shrink:0}
-.rank-track{flex:1;background:var(--line2);border-radius:6px;height:16px;overflow:hidden;min-width:60px}
+.rank-track{flex:1;background:var(--line2);border-radius:6px;height:16px;overflow:hidden;min-width:60px;position:relative}
+.rank-tope{position:absolute;top:0;bottom:0;width:2px;background:var(--sec,#5b6675);opacity:.45}
+.rank-det{width:120px;text-align:right;font-size:11.5px;color:var(--sec,#5b6675);flex-shrink:0}
+.rank-tope-n{color:var(--muted,#8a94a3);font-size:10.5px}
+.rank-det b{color:var(--navy,#16324f);font-weight:800}
 .rank-fill{height:100%}
 .rank-pct{width:42px;text-align:right;font-size:12px;font-weight:800;flex-shrink:0}
 .rank-tag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;flex-shrink:0;white-space:nowrap}
@@ -2328,6 +2332,22 @@ function filaAConsulta(f){
   return a;
 }
 
+/* Supabase devuelve como máximo 1.000 filas por pedido. Sin paginar, cualquier
+   consulta que traiga más se corta en silencio: los totales quedan mal y nadie
+   se entera. Esta función pide de a tandas hasta que no quede nada. */
+const TANDA_SUPABASE = 1000;
+async function traerTodo(armarQuery){
+  const filas=[];
+  for(let desde=0; ; desde+=TANDA_SUPABASE){
+    const {data,error}=await armarQuery().range(desde, desde+TANDA_SUPABASE-1);
+    if(error) throw error;
+    filas.push(...(data||[]));
+    if(!data || data.length < TANDA_SUPABASE) break;
+    if(desde > 100000) break;   // cortafuegos, por si algo devuelve siempre lleno
+  }
+  return filas;
+}
+
 /* Carga inicial: la ventana de los últimos meses + TODAS las activas.
    Lo segundo es el seguro: una consulta abierta hace 5 meses tiene que
    seguir apareciendo en la lista del vendedor, no desaparecer por vieja. */
@@ -2336,14 +2356,12 @@ async function cargarConsultas(desde){
   const corte = desde || fechaCorteVentana();
   try{
     const [rec, act] = await Promise.all([
-      sb.from('consultas').select('id,data').gte('fecha', corte),
-      sb.from('consultas').select('id,data').eq('estado','En seguimiento')
+      traerTodo(()=>sb.from('consultas').select('id,data').gte('fecha', corte)),
+      traerTodo(()=>sb.from('consultas').select('id,data').eq('estado','En seguimiento'))
     ]);
-    if(rec.error) throw rec.error;
-    if(act.error) throw act.error;
     const mapa = new Map();
-    (rec.data||[]).forEach(f => mapa.set(f.id, f));
-    (act.data||[]).forEach(f => mapa.set(f.id, f));
+    rec.forEach(f => mapa.set(f.id, f));
+    act.forEach(f => mapa.set(f.id, f));
     atenciones = [...mapa.values()].map(filaAConsulta);
     consultasDesde = corte;
     migrarSeguimientoLocal();
@@ -2361,12 +2379,11 @@ async function cargarConsultas(desde){
 async function cargarConsultasRango(desde, hasta){
   if(!sb) return 0;
   try{
-    const {data, error} = await sb.from('consultas').select('id,data')
-      .gte('fecha', desde).lte('fecha', hasta);
-    if(error) throw error;
+    const data = await traerTodo(()=>sb.from('consultas').select('id,data')
+      .gte('fecha', desde).lte('fecha', hasta));
     const conocidas = new Set(atenciones.map(a => a.id));
     let nuevas = 0;
-    (data||[]).forEach(f => {
+    data.forEach(f => {
       if(conocidas.has(f.id)) return;
       const a = filaAConsulta(f);
       atenciones.push(a);
@@ -2384,12 +2401,11 @@ async function cargarConsultasRango(desde, hasta){
 async function cargarPendientesEvaluacion(){
   if(!sb) return;
   try{
-    const {data, error} = await sb.from('consultas').select('id,data')
+    const data = await traerTodo(()=>sb.from('consultas').select('id,data')
       .eq('evaluable', true).eq('evaluada', false)
-      .gte('fecha', fechaCorteVentana());
-    if(error) throw error;
+      .gte('fecha', fechaCorteVentana()));
     const conocidas = new Set(atenciones.map(a => a.id));
-    (data||[]).forEach(f => {
+    data.forEach(f => {
       if(conocidas.has(f.id)) return;
       const a = filaAConsulta(f);
       atenciones.push(a);
@@ -2402,10 +2418,9 @@ async function cargarPendientesEvaluacion(){
 async function buscarClienteEnBase(telefono){
   if(!sb || !telefono) return [];
   try{
-    const {data, error} = await sb.from('consultas').select('id,data')
-      .eq('telefono', String(telefono).replace(/\D/g,''));
-    if(error) throw error;
-    return (data||[]).map(filaAConsulta);
+    const data = await traerTodo(()=>sb.from('consultas').select('id,data')
+      .eq('telefono', String(telefono).replace(/\D/g,'')));
+    return data.map(filaAConsulta);
   }catch(e){ console.error('buscarClienteEnBase', e); return []; }
 }
 
@@ -2702,6 +2717,25 @@ async function aplicarVerMas(){
   renderHistorial();
 }
 function actualizarLeyendaVerMas(){ renderBarraPeriodo(); }
+
+/* Selector de período dentro del Resumen: usa las mismas variables que la barra
+   de arriba, así los dos lugares muestran siempre lo mismo. */
+function abrirPeriodoResumen(){
+  pbActivo='custom';
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+}
+async function aplicarPeriodoResumen(){
+  const d=$('prDesde')?.value, h=$('prHasta')?.value;
+  if(!d||!h) return;
+  if(d>h){ toast('La fecha "desde" tiene que ser anterior a "hasta"'); return; }
+  cintiaFechaDesde=d; cintiaFechaHasta=h; pbActivo='custom';
+  await asegurarPeriodoCargado();
+  renderBarraPeriodo();
+  if(typeof renderCintiaBotones==='function') renderCintiaBotones();
+  if(typeof renderCintiaFecha==='function') renderCintiaFecha();
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+  renderHistorial();
+}
 
 function ciclosEfectivoHoy(localId){
   const loc=LOCALES[localId];
@@ -5190,9 +5224,19 @@ function metricasVendedor(cs){
   // Consultas = lo que tiene abierto encima. El total incluye además lo ya cerrado.
   const abiertas=seg+sinClas;
   const total=cs.length;
-  const carga = total ? Math.round(abiertas/total*100) : 0;
-  return {total,abiertas,seg,sinClas,atras,conc,rech,cerradas,pendiente:abiertas,carga};
+  // "Quién necesita una mano" = de lo que tiene abierto, cuánto está atrasado.
+  // NO se mide sobre el total: ese denominador crece con el histórico cargado y
+  // el mismo vendedor pasaría de verde a rojo solo por cambiar el período mirado.
+  // Sobre las abiertas la lectura es siempre la misma: de lo que tenés encima,
+  // cuánto se está enfriando. Límite acordado: hasta 25% está bien.
+  const carga = abiertas ? Math.round(atras/abiertas*100) : 0;
+  // El semáforo se decide por CANTIDAD, no por el % redondeado: con 15 abiertas el
+  // tope es 4 (25% de 15 = 3,75 → 4), y 4/15 redondea a 27%, que por porcentaje
+  // habría dado alerta cuando en realidad está dentro de lo permitido.
+  const topeAtrasadas = Math.ceil(abiertas*TOPE_ATRASADAS/100);
+  return {total,abiertas,seg,sinClas,atras,conc,rech,cerradas,pendiente:abiertas,carga,topeAtrasadas};
 }
+const TOPE_ATRASADAS = 25;   // % de atrasadas sobre abiertas que se considera aceptable
 function deltaHtml(actual, anterior){
   if(anterior===null||anterior===undefined||!anterior) return '';
   const dif=Math.round((actual-anterior)/anterior*100);
@@ -5248,24 +5292,26 @@ function htmlCintiaResumen(){
     uid, m: metricasVendedor(base.filter(a=>a.vendedorId===uid))
   })).sort((a,b)=>b.m.carga-a.m.carga);
 
-  const etiquetaCarga=c=>{
-    if(c>=70) return {t:'Sobrecargado', col:'red'};
-    if(c>=40) return {t:'Al día', col:'amber'};
-    return {t:'Con lugar', col:'green'};
+  const etiquetaCarga=m=>{
+    if(!m.abiertas) return {t:'Sin abiertas', col:'green'};
+    if(m.atras<=m.topeAtrasadas)     return {t:'Al día',         col:'green'};
+    if(m.atras<=m.topeAtrasadas*2)   return {t:'Se le acumula',  col:'amber'};
+    return {t:'Necesita ayuda', col:'red'};
   };
 
   const rankingHtml=`<div class="cin-card">
     <h3>Quién necesita una mano <span class="cnt-pill">estado actual</span></h3>
-    <p class="tiny" style="margin-top:-8px;margin-bottom:8px">Lo que cada uno tiene abierto <b>hoy</b>, sin importar cuándo entró — una consulta vieja sin cerrar le pesa igual. No cambia con el período de abajo. Tocá un vendedor para ver el detalle.</p>
+    <p class="tiny" style="margin-top:-8px;margin-bottom:8px">De lo que cada uno tiene <b>abierto hoy</b>, cuánto está atrasado. El límite sano es <b>${TOPE_ATRASADAS}%</b> — más que eso significa que se le están enfriando consultas. No cambia con el período de abajo.</p>
     ${filasCarga.map(({uid,m})=>{
-      const et=etiquetaCarga(m.carga);
+      const et=etiquetaCarga(m);
       const info=estadoVivoVendedor(uid);
       const dotCol = info.estado==='Activo' ? 'var(--green)' : (info.estado==='Pausado' ? 'var(--amber)' : 'var(--muted)');
       return `<div class="rank-row" onclick="abrirResumenVendedor('${uid}')">
         <span class="rank-nom"><span class="av-dot" style="background:${dotCol}"></span>${nombreDe(uid)}</span>
-        <div class="rank-track"><div class="rank-fill" style="width:${m.carga}%;background:var(--${et.col})"></div></div>
-        <span class="rank-pct" style="color:var(--${et.col})">${m.total?m.carga+'%':'—'}</span>
-        <span class="rank-tag" style="background:var(--${et.col}-l);color:var(--${et.col})">${m.total?et.t:'Sin consultas'}</span>
+        <div class="rank-track"><div class="rank-fill" style="width:${Math.min(100,m.carga)}%;background:var(--${et.col})"></div><div class="rank-tope" style="left:${TOPE_ATRASADAS}%"></div></div>
+        <span class="rank-det">${m.abiertas?`<b>${m.atras}</b> de ${m.abiertas} <span class="rank-tope-n">(máx ${m.topeAtrasadas})</span>`:'—'}</span>
+        <span class="rank-pct" style="color:var(--${et.col})">${m.abiertas?m.carga+'%':'—'}</span>
+        <span class="rank-tag" style="background:var(--${et.col}-l);color:var(--${et.col})">${m.abiertas?et.t:'Sin abiertas'}</span>
         <span class="rank-abrir">Ver ›</span>
       </div>`;
     }).join('')}
@@ -5284,9 +5330,22 @@ function htmlCintiaResumen(){
   };
   const detalleHtml=`<div class="cin-card">
     <h3>Detalle por vendedor <span class="cnt-pill">${tot.total} consulta${tot.total===1?'':'s'} real${tot.total===1?'':'es'}</span></h3>
-    <div class="aviso-ventana">
-      Responde al <b>período de arriba</b>. Si elegís uno que va más atrás de lo cargado, las consultas se traen solas de la base — puede tardar unos segundos la primera vez.
+    <div class="periodo-barra" style="margin:6px 0 12px">
+      <span class="pb-lbl">Período</span>
+      <div class="pb-chips">${PB_PRESETS.map(([id,lbl])=>
+        `<button type="button" class="pb-chip${pbActivo===id?' on':''}" onclick="pbSet('${id}')">${lbl}</button>`).join('')}
+        <button type="button" class="pb-chip${pbActivo==='custom'?' on':''}" onclick="abrirPeriodoResumen()">Fecha exacta</button>
+      </div>
+      <div class="${pbActivo==='custom'?'':'hidden'}" id="periodoResumenPanel" style="width:100%;margin-top:8px">
+        <div class="row">
+          <div class="field" style="margin-bottom:0"><label>Desde</label>
+            <input type="date" id="prDesde" value="${cintiaFechaDesde||''}" onchange="aplicarPeriodoResumen()"></div>
+          <div class="field" style="margin-bottom:0"><label>Hasta</label>
+            <input type="date" id="prHasta" value="${cintiaFechaHasta||''}" onchange="aplicarPeriodoResumen()"></div>
+        </div>
+      </div>
     </div>
+    <p class="tiny" style="margin:0 0 8px;color:var(--muted)">El detalle y los gráficos de abajo responden a este período. Si elegís uno más largo de lo cargado, las consultas se traen solas de la base.</p>
     ${per?`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Las flechas comparan contra el período anterior de igual duración (${per.desde.toLocaleDateString('es-AR')} – ${per.hasta.toLocaleDateString('es-AR')}).</p>`:`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Elegí un período arriba para ver la comparación contra el período anterior.</p>`}
     <table class="tabla-cintia">
       <tr><th>Vendedor</th><th>Abiertas</th><th>Seguim.</th><th>Sin clasif.</th><th>Atrasadas</th><th>Concret.</th><th>Rechaz.</th><th>Total</th></tr>
@@ -5460,7 +5519,13 @@ function setEst(campo,valor){
   renderCintiaMain();
 }
 
-function estCanalDe(a){ return a.canal==='presencial' ? 'Local' : (a.canalDetalle||'Sin definir'); }
+/* El canal puede venir en 'canalDetalle' (consultas cargadas en el CRM) o en 'canal'
+   (las que vienen de las planillas viejas). Leer solo el primero mandaba todo el
+   histórico a "Sin definir". */
+function estCanalDe(a){
+  if(a.canal==='presencial') return 'Local';
+  return a.canalDetalle || (a.canal && a.canal!=='virtual' ? a.canal : null) || 'Sin definir';
+}
 
 function estRango(){
   const hoy=new Date();
