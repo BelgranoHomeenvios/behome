@@ -6117,33 +6117,60 @@ function filtrarClientes(txt){
    SVG armado a mano, sin librerías: son dos series simples y traer una
    librería entera para esto haría la app más pesada de cargar en el local. */
 const GRAF_COLORES=['#1e5fce','#b45309','#c2255c','#7048e8','#0ca678','#e8590c','#5c7cfa','#2f9e44'];
+const MESES_CORTO=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
-function diasDelRango(base){
-  if(!base.length) return [];
-  const ts=base.map(a=>new Date(a.ts).getTime()).filter(t=>!isNaN(t));
-  if(!ts.length) return [];
-  let d0=new Date(cintiaFechaDesde||Math.min(...ts));
-  let d1=new Date(cintiaFechaHasta||Math.max(...ts));
+/* Arma los tramos del eje X. Agrupa por día, semana o mes según cuánto abarque
+   el período, usando semanas y meses de CALENDARIO — así los rótulos caen en
+   fechas que uno reconoce ("ago 2025") y no en cortes arbitrarios cada 30 días. */
+function tramosDelRango(base){
+  const ts=base.map(a=>new Date(a.ts).getTime()).filter(t=>!isNaN(t)).sort((a,b)=>a-b);
+  if(!ts.length) return null;
+  // Un dato suelto muy viejo (típico error de tipeo en la planilla) estiraba el eje
+  // y dejaba medio gráfico en cero. Si no hay filtro de fecha, se arranca desde el
+  // percentil 1: se pierde algún caso aislado, pero el gráfico muestra la realidad.
+  const minReal = cintiaFechaDesde ? new Date(cintiaFechaDesde+'T00:00:00').getTime()
+                                   : ts[Math.floor(ts.length*0.01)];
+  const maxReal = cintiaFechaHasta ? new Date(cintiaFechaHasta+'T23:59:59').getTime()
+                                   : ts[ts.length-1];
+  let d0=new Date(minReal), d1=new Date(maxReal);
   d0.setHours(0,0,0,0); d1.setHours(0,0,0,0);
-  const dias=[];
-  for(let d=new Date(d0); d<=d1 && dias.length<400; d.setDate(d.getDate()+1)){
-    dias.push(new Date(d));
+  const dias=Math.round((d1-d0)/86400000)+1;
+  const unidad = dias<=45 ? 'día' : (dias<=250 ? 'semana' : 'mes');
+
+  const tramos=[];
+  if(unidad==='día'){
+    for(let d=new Date(d0); d<=d1; d.setDate(d.getDate()+1))
+      tramos.push({ini:new Date(d), fin:new Date(d), lbl:d.getDate()+' '+MESES_CORTO[d.getMonth()]});
+  }else if(unidad==='semana'){
+    const ini=new Date(d0); ini.setDate(ini.getDate()-((ini.getDay()+6)%7));  // lunes
+    for(let d=new Date(ini); d<=d1; d.setDate(d.getDate()+7)){
+      const f=new Date(d); f.setDate(f.getDate()+6);
+      tramos.push({ini:new Date(d), fin:f, lbl:d.getDate()+' '+MESES_CORTO[d.getMonth()]});
+    }
+  }else{
+    const ini=new Date(d0.getFullYear(), d0.getMonth(), 1);
+    for(let d=new Date(ini); d<=d1; d.setMonth(d.getMonth()+1)){
+      const f=new Date(d.getFullYear(), d.getMonth()+1, 0);
+      tramos.push({ini:new Date(d), fin:f,
+        lbl:MESES_CORTO[d.getMonth()]+(d.getMonth()===0?' '+String(d.getFullYear()).slice(2):'')});
+    }
   }
-  return dias;
-}
-const claveDia=d=>d.toISOString().slice(0,10);
-const rotuloDia=d=>d.getDate()+' '+['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()];
-
-/* Cuando el rango es largo, un punto por día se vuelve ilegible: se agrupa por semana. */
-function agruparSiHaceFalta(dias){
-  if(dias.length<=45) return {dias, paso:1, unidad:'día'};
-  const paso = dias.length<=200 ? 7 : 30;
-  const out=[];
-  for(let i=0;i<dias.length;i+=paso) out.push(dias[i]);
-  return {dias:out, paso, unidad: paso===7?'semana':'mes'};
+  return {tramos, unidad};
 }
 
-function ejesSVG(w,h,pad,maxY,puntos,unidad){
+function contarPorTramo(base, tramos, filtro){
+  const n=new Array(tramos.length).fill(0);
+  const limites=tramos.map(t=>t.fin.getTime()+86399999);
+  for(const a of base){
+    if(filtro && !filtro(a)) continue;
+    const t=new Date(a.ts).getTime();
+    if(isNaN(t) || t<tramos[0].ini.getTime()) continue;
+    for(let i=0;i<limites.length;i++){ if(t<=limites[i]){ n[i]++; break; } }
+  }
+  return n;
+}
+
+function ejesSVG(w,h,pad,maxY,puntos){
   const pasos=4, lineas=[];
   for(let i=0;i<=pasos;i++){
     const v=Math.round(maxY*i/pasos), y=h-pad.b-(h-pad.t-pad.b)*(i/pasos);
@@ -6157,26 +6184,18 @@ function ejesSVG(w,h,pad,maxY,puntos,unidad){
 }
 
 function graficoContactosPorTiempo(base){
-  const todos=diasDelRango(base);
-  if(!todos.length) return '';
-  const {dias,unidad}=agruparSiHaceFalta(todos);
-  const conteo={};
-  base.forEach(a=>{ const k=claveDia(new Date(a.ts)); conteo[k]=(conteo[k]||0)+1; });
-  // Con agrupación, cada punto suma los días que representa
-  const paso = dias.length>1 ? Math.round((dias[1]-dias[0])/86400000) : 1;
-  const serie=dias.map(d=>{
-    let n=0;
-    for(let i=0;i<paso;i++){ const x=new Date(d); x.setDate(x.getDate()+i); n+=conteo[claveDia(x)]||0; }
-    return {d, n};
-  });
+  const r=tramosDelRango(base);
+  if(!r) return '';
+  const {tramos,unidad}=r;
+  const serie=contarPorTramo(base, tramos);
   const w=680,h=210,pad={l:34,r:12,t:12,b:26};
-  const maxY=Math.max(4,...serie.map(s=>s.n));
-  const px=i=>pad.l+(w-pad.l-pad.r)*(serie.length>1?i/(serie.length-1):0.5);
+  const maxY=Math.max(4,...serie);
+  const px=i=>pad.l+(w-pad.l-pad.r)*(tramos.length>1?i/(tramos.length-1):0.5);
   const py=n=>h-pad.b-(h-pad.t-pad.b)*(n/maxY);
-  const puntos=serie.map((s,i)=>({x:px(i),y:py(s.n),lbl:rotuloDia(s.d),n:s.n}));
+  const puntos=serie.map((n,i)=>({x:px(i),y:py(n),lbl:tramos[i].lbl,n}));
   const linea=puntos.map((p,i)=>(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' ');
   const area=`${linea} L ${puntos[puntos.length-1].x.toFixed(1)} ${h-pad.b} L ${puntos[0].x.toFixed(1)} ${h-pad.b} Z`;
-  const total=serie.reduce((s,x)=>s+x.n,0);
+  const total=serie.reduce((s,x)=>s+x,0);
   const prom=serie.length?Math.round(total/serie.length):0;
   return `<div class="cin-card">
     <div class="est-hd">
@@ -6185,7 +6204,7 @@ function graficoContactosPorTiempo(base){
       <div class="est-tot"><div class="n">${total}</div><div class="l">${prom} por ${unidad} en promedio</div></div>
     </div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
-      ${ejesSVG(w,h,pad,maxY,puntos,unidad)}
+      ${ejesSVG(w,h,pad,maxY,puntos)}
       <path d="${area}" fill="${GRAF_COLORES[0]}" opacity=".12"/>
       <path d="${linea}" fill="none" stroke="${GRAF_COLORES[0]}" stroke-width="2" stroke-linejoin="round"/>
       ${puntos.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${GRAF_COLORES[0]}"><title>${p.lbl}: ${p.n}</title></circle>`).join('')}
@@ -6194,32 +6213,19 @@ function graficoContactosPorTiempo(base){
 }
 
 function graficoContactosPorCanal(base){
-  const todos=diasDelRango(base);
-  if(!todos.length) return '';
-  const {dias,unidad}=agruparSiHaceFalta(todos);
-  const paso = dias.length>1 ? Math.round((dias[1]-dias[0])/86400000) : 1;
-  // Solo los canales con volumen real: con 10 líneas no se entiende nada
+  const r=tramosDelRango(base);
+  if(!r) return '';
+  const {tramos,unidad}=r;
   const totPorCanal={};
   base.forEach(a=>{ const c=estCanalDe(a)||'Sin canal'; totPorCanal[c]=(totPorCanal[c]||0)+1; });
   const canales=Object.entries(totPorCanal).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]);
   if(!canales.length) return '';
-  const conteo={};
-  base.forEach(a=>{
-    const c=estCanalDe(a)||'Sin canal';
-    if(!canales.includes(c)) return;
-    const k=c+'|'+claveDia(new Date(a.ts));
-    conteo[k]=(conteo[k]||0)+1;
-  });
-  const series=canales.map(c=>dias.map(d=>{
-    let n=0;
-    for(let i=0;i<paso;i++){ const x=new Date(d); x.setDate(x.getDate()+i); n+=conteo[c+'|'+claveDia(x)]||0; }
-    return n;
-  }));
+  const series=canales.map(c=>contarPorTramo(base, tramos, a=>(estCanalDe(a)||'Sin canal')===c));
   const w=680,h=210,pad={l:34,r:12,t:12,b:26};
   const maxY=Math.max(4,...series.flat());
-  const px=i=>pad.l+(w-pad.l-pad.r)*(dias.length>1?i/(dias.length-1):0.5);
+  const px=i=>pad.l+(w-pad.l-pad.r)*(tramos.length>1?i/(tramos.length-1):0.5);
   const py=n=>h-pad.b-(h-pad.t-pad.b)*(n/maxY);
-  const refs=dias.map((d,i)=>({x:px(i),lbl:rotuloDia(d)}));
+  const refs=tramos.map((t,i)=>({x:px(i),lbl:t.lbl}));
   const paths=series.map((s,ci)=>{
     const d=s.map((n,i)=>(i?'L':'M')+px(i).toFixed(1)+' '+py(n).toFixed(1)).join(' ');
     return `<path d="${d}" fill="none" stroke="${GRAF_COLORES[ci%GRAF_COLORES.length]}" stroke-width="1.8" stroke-linejoin="round"/>`;
@@ -6233,7 +6239,7 @@ function graficoContactosPorCanal(base){
     </div>
     <div class="gr-leyenda">${leyenda}</div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
-      ${ejesSVG(w,h,pad,maxY,refs,unidad)}
+      ${ejesSVG(w,h,pad,maxY,refs)}
       ${paths}
     </svg>
   </div>`;
