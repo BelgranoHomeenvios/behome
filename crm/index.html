@@ -972,6 +972,8 @@ textarea{resize:vertical;min-height:60px}
 .cin-mini-row .nom{font-weight:700;font-size:13px;color:var(--ink)}
 .cin-mini-row .estado-badge{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px}
 .tabla-cintia{width:100%;border-collapse:collapse;font-size:12.5px}
+.aviso-ventana{background:var(--amber-l,#fff7e6);border:1px solid #f2d9a8;color:#8a5a00;border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.5;margin:-4px 0 12px}
+.aviso-ventana .btn-link{background:none;border:none;color:var(--blue,#1e5fce);font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:0;margin-left:4px;text-decoration:underline}
 .tabla-cintia th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.02em;color:var(--muted);font-weight:700;padding:8px 4px;border-bottom:1px solid var(--line);white-space:nowrap}
 .tabla-cintia td{padding:10px 4px;border-bottom:1px solid var(--line2);white-space:nowrap}
 .tabla-cintia tr th:last-child,.tabla-cintia tr td:last-child{border-left:1px solid var(--line);padding-left:9px}
@@ -5160,6 +5162,11 @@ function htmlCintiaResumen(){
   };
   const detalleHtml=`<div class="cin-card">
     <h3>Detalle por vendedor <span class="cnt-pill">${tot.total} consulta${tot.total===1?'':'s'} real${tot.total===1?'':'es'}</span></h3>
+    <div class="aviso-ventana">
+      Estos números salen de las consultas <b>cargadas ahora</b>: los últimos ${VENTANA_MESES} meses más todas las que siguen abiertas.
+      El histórico completo está guardado, pero no se baja entero para que la app no se vuelva lenta.
+      <button class="btn-link" onclick="cambiarVista('cola');setTimeout(abrirVerMas,100)">Cargar otro período →</button>
+    </div>
     ${per?`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Las flechas comparan contra el período anterior de igual duración (${per.desde.toLocaleDateString('es-AR')} – ${per.hasta.toLocaleDateString('es-AR')}).</p>`:`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Elegí un período arriba para ver la comparación contra el período anterior.</p>`}
     <table class="tabla-cintia">
       <tr><th>Vendedor</th><th>Abiertas</th><th>Seguim.</th><th>Sin clasif.</th><th>Atrasadas</th><th>Concret.</th><th>Rechaz.</th><th>Total</th></tr>
