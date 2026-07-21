@@ -1035,11 +1035,13 @@ textarea{resize:vertical;min-height:60px}
 .gr-leg{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--sec,#5b6675)}
 .gr-leg i{width:16px;height:3px;border-radius:2px;display:inline-block}
 .gr-leg b{color:var(--navy,#16324f);font-weight:700}
-.mas-filas{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:14px 4px 6px}
-.mas-filas .mf-txt{font-size:12px;color:var(--muted,#8a94a3)}
-.mas-filas .mf-btn{background:#fff;border:1px solid var(--line,#d0d7e2);color:var(--navy,#16324f);font:inherit;font-size:12.5px;font-weight:700;padding:7px 16px;border-radius:8px;cursor:pointer}
-.mas-filas .mf-btn:hover{border-color:var(--navy,#16324f);background:var(--surface-1,#f4f6f8)}
-.mas-filas .mf-todo{color:var(--sec,#5b6675);font-weight:600}
+.paginado{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap;padding:14px 4px 8px}
+.paginado .pg-n,.paginado .pg-f{background:#fff;border:1px solid var(--line,#d0d7e2);color:var(--navy,#16324f);font:inherit;font-size:12.5px;font-weight:700;min-width:32px;height:32px;padding:0 9px;border-radius:7px;cursor:pointer}
+.paginado .pg-n:hover,.paginado .pg-f:hover:not([disabled]){border-color:var(--navy,#16324f);background:var(--surface-1,#f4f6f8)}
+.paginado .pg-n.on{background:var(--navy,#16324f);border-color:var(--navy,#16324f);color:#fff}
+.paginado .pg-f[disabled]{opacity:.35;cursor:default}
+.paginado .pg-p{color:var(--muted,#8a94a3);padding:0 2px}
+.paginado .pg-txt{font-size:11.5px;color:var(--muted,#8a94a3);margin-left:8px}
 .cargando-periodo{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;background:#16324f;color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:10px;box-shadow:0 8px 24px rgba(15,26,42,.25)}
 .tabla-cintia th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.02em;color:var(--muted);font-weight:700;padding:8px 4px;border-bottom:1px solid var(--line);white-space:nowrap}
 .tabla-cintia td{padding:10px 4px;border-bottom:1px solid var(--line2);white-space:nowrap}
@@ -2360,12 +2362,36 @@ function fechaCorteVentana(){
   return d.toISOString();
 }
 
-/* Convierte una fila de la base al objeto que usa el CRM por dentro */
+/* Convierte una fila de la base al objeto que usa el CRM por dentro.
+   Los campos que tienen columna propia NO se repiten dentro del JSON: se arman
+   acá. Eso bajó los datos que se descargan de 5,4 MB a 1,6 MB. */
 function filaAConsulta(f){
   const a = Object.assign({}, f.data || {});
   a.id = f.id;
+  const ponerSi = (campo, valor) => { if(valor !== undefined && valor !== null && a[campo] === undefined) a[campo] = valor; };
+  ponerSi('clienteTelefono', f.telefono);
+  ponerSi('clienteNombre',   f.cliente_nombre);
+  ponerSi('vendedorId',      f.vendedor_id);
+  ponerSi('canal',           f.canal);
+  ponerSi('localId',         f.local_id);
+  ponerSi('estadoManual',    f.estado);
+  ponerSi('percepcion',      f.percepcion);
+  ponerSi('resultadoMotivo', f.motivo_rechazo);
+  ponerSi('origen',          f.origen);
+  if(f.fecha && a.ts === undefined) a.ts = new Date(f.fecha).getTime();
+  if(f.proxima_accion && a.proximaAccionTs === undefined) a.proximaAccionTs = new Date(f.proxima_accion).getTime();
+  if(a.evaluable === undefined)       a.evaluable       = f.evaluable !== false;
+  if(a.evaluada === undefined)        a.evaluada        = !!f.evaluada;
+  if(a.nuncaRespondio === undefined)  a.nuncaRespondio  = !!f.nunca_respondio;
+  if(a.soloVolumen === undefined)     a.soloVolumen     = !!f.solo_volumen;
+  if(a.registradoPor === undefined)   a.registradoPor   = a.vendedorId || null;
   return a;
 }
+
+/* Las columnas que hay que traer para poder reconstruir la consulta completa. */
+const COLS_CONSULTA = 'id,data,telefono,cliente_nombre,fecha,vendedor_id,canal,local_id,'
+                    + 'estado,percepcion,proxima_accion,motivo_rechazo,evaluable,evaluada,'
+                    + 'nunca_respondio,origen,solo_volumen';
 
 /* Supabase devuelve como máximo 1.000 filas por pedido. Sin paginar, cualquier
    consulta que traiga más se corta en silencio: los totales quedan mal y nadie
@@ -2391,8 +2417,8 @@ async function cargarConsultas(desde){
   const corte = desde || fechaCorteVentana();
   try{
     const [rec, act] = await Promise.all([
-      traerTodo(()=>sb.from('consultas').select('id,data').gte('fecha', corte)),
-      traerTodo(()=>sb.from('consultas').select('id,data').eq('estado','En seguimiento'))
+      traerTodo(()=>sb.from('consultas').select(COLS_CONSULTA).gte('fecha', corte)),
+      traerTodo(()=>sb.from('consultas').select(COLS_CONSULTA).eq('estado','En seguimiento'))
     ]);
     const mapa = new Map();
     rec.forEach(f => mapa.set(f.id, f));
@@ -2414,7 +2440,7 @@ async function cargarConsultas(desde){
 async function cargarConsultasRango(desde, hasta){
   if(!sb) return 0;
   try{
-    const data = await traerTodo(()=>sb.from('consultas').select('id,data')
+    const data = await traerTodo(()=>sb.from('consultas').select(COLS_CONSULTA)
       .gte('fecha', desde).lte('fecha', hasta));
     const conocidas = new Set(atenciones.map(a => a.id));
     let nuevas = 0;
@@ -2436,7 +2462,7 @@ async function cargarConsultasRango(desde, hasta){
 async function cargarPendientesEvaluacion(){
   if(!sb) return;
   try{
-    const data = await traerTodo(()=>sb.from('consultas').select('id,data')
+    const data = await traerTodo(()=>sb.from('consultas').select(COLS_CONSULTA)
       .eq('evaluable', true).eq('evaluada', false)
       .gte('fecha', fechaCorteVentana()));
     const conocidas = new Set(atenciones.map(a => a.id));
@@ -2453,7 +2479,7 @@ async function cargarPendientesEvaluacion(){
 async function buscarClienteEnBase(telefono){
   if(!sb || !telefono) return [];
   try{
-    const data = await traerTodo(()=>sb.from('consultas').select('id,data')
+    const data = await traerTodo(()=>sb.from('consultas').select(COLS_CONSULTA)
       .eq('telefono', String(telefono).replace(/\D/g,'')));
     return data.map(filaAConsulta);
   }catch(e){ console.error('buscarClienteEnBase', e); return []; }
@@ -4352,32 +4378,56 @@ function cheadEstaticoHtml(){
     <span class="h-eval">Evaluación</span>
   </div>`;
 }
-/* La lista se muestra de a tandas: con miles de consultas cargadas, pintarlas todas
-   de una traba el navegador y nadie va a scrollear 2.000 filas igual. */
+/* La lista se muestra por páginas de 50. Antes había un "ver más" acumulativo, pero
+   bastaba con apretar "ver todas" una vez para que quedara pintando miles de filas
+   el resto de la sesión. Con páginas, nunca se dibujan más de 50 a la vez. */
 const FILAS_POR_TANDA = 50;
-let filasVisibles = FILAS_POR_TANDA;
+let paginaActual = 1;
 
 function renderFilas(l){
   const box=$('filasBox');
   if(!l.length){ box.innerHTML=`<div class="empty">No hay atenciones para este filtro.</div>`; return; }
-  const muestra = l.slice(0, filasVisibles);
-  const quedan = l.length - muestra.length;
-  box.innerHTML = muestra.map(logItemHtml).join('') + (quedan
-    ? `<div class="mas-filas">
-         <span class="mf-txt">Mostrando ${muestra.length} de ${l.length}</span>
-         <button class="mf-btn" onclick="mostrarMasFilas()">Ver ${Math.min(quedan,FILAS_POR_TANDA)} más</button>
-         ${quedan>FILAS_POR_TANDA?`<button class="mf-btn mf-todo" onclick="mostrarMasFilas(${l.length})">Ver las ${l.length}</button>`:''}
-       </div>`
-    : (l.length>FILAS_POR_TANDA?`<div class="mas-filas"><span class="mf-txt">${l.length} consultas</span></div>`:''));
+  const paginas = Math.ceil(l.length / FILAS_POR_TANDA);
+  if(paginaActual > paginas) paginaActual = paginas;
+  if(paginaActual < 1) paginaActual = 1;
+  const desde = (paginaActual-1) * FILAS_POR_TANDA;
+  const muestra = l.slice(desde, desde + FILAS_POR_TANDA);
+
+  let pie='';
+  if(paginas > 1){
+    // Se muestran hasta 7 números; con muchas páginas, los del medio se resumen.
+    const nums=[];
+    const agregar=n=>nums.push(`<button class="pg-n${n===paginaActual?' on':''}" onclick="irAPagina(${n})">${n}</button>`);
+    if(paginas<=7){ for(let i=1;i<=paginas;i++) agregar(i); }
+    else{
+      agregar(1);
+      let a=Math.max(2,paginaActual-1), b=Math.min(paginas-1,paginaActual+1);
+      if(a>2) nums.push('<span class="pg-p">…</span>');
+      for(let i=a;i<=b;i++) agregar(i);
+      if(b<paginas-1) nums.push('<span class="pg-p">…</span>');
+      agregar(paginas);
+    }
+    pie=`<div class="paginado">
+      <button class="pg-f" ${paginaActual===1?'disabled':''} onclick="irAPagina(${paginaActual-1})">‹</button>
+      ${nums.join('')}
+      <button class="pg-f" ${paginaActual===paginas?'disabled':''} onclick="irAPagina(${paginaActual+1})">›</button>
+      <span class="pg-txt">${desde+1}–${desde+muestra.length} de ${l.length}</span>
+    </div>`;
+  }else{
+    pie=`<div class="paginado"><span class="pg-txt">${l.length} consulta${l.length===1?'':'s'}</span></div>`;
+  }
+  box.innerHTML = muestra.map(logItemHtml).join('') + pie;
 }
-function mostrarMasFilas(todas){
-  filasVisibles = todas || (filasVisibles + FILAS_POR_TANDA);
+
+function irAPagina(n){
+  paginaActual = n;
   renderHistorial();
+  const t=document.getElementById('cheadBox');
+  if(t && t.scrollIntoView) t.scrollIntoView({behavior:'smooth', block:'start'});
 }
-/* Cualquier cambio de filtro vuelve a arrancar desde la primera tanda: si no, al
-   pasar de un filtro con 800 resultados a uno con 12 quedaría pidiendo "ver más"
-   sobre una lista que ya se ve entera. */
-function reiniciarPaginado(){ filasVisibles = FILAS_POR_TANDA; }
+/* Cualquier cambio de filtro vuelve a la primera página: si no, al pasar de un
+   filtro con 800 resultados a uno con 12 quedaría en una página que no existe. */
+function reiniciarPaginado(){ paginaActual = 1; }
 
 function renderHistorial(){
   let l = construirListaFiltrada();
