@@ -342,7 +342,24 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .cierre-chips-rojo .cierre-chip.on{background:var(--red-l);border-color:var(--red);color:var(--red)}
 .aviso-nc{background:var(--blue-l);color:var(--blue);border-radius:9px;padding:10px 13px;font-size:12px;font-weight:600;margin-bottom:14px;line-height:1.45}
 .pop-est{width:170px;padding:10px;left:0}
-.pop-menu{width:210px;padding:6px}
+.pop-menu{width:210px;padding:6px;background:#fff}
+/* Un menú abierto tiene que quedar por encima del encabezado de la tabla. Se hace
+   por dos caminos para que no dependa de uno solo: la clase que pone el JS y la
+   regla :has() que actúa sola apenas hay un .ebtn abierto adentro. */
+#filasBox.pop-arriba,
+#filasBox:has(.ebtn.open){z-index:60!important}
+#cheadBox.pop-abajo{z-index:2!important}
+/* Los popovers que salen de una fila se abren hacia ABAJO cuando la fila está en
+   el borde superior de la tabla: hacia arriba se metían sobre el encabezado y se
+   leían encimados. */
+#filasBox .crow:nth-child(-n+2) .ebtn .pop{bottom:auto;top:130%}
+.pop-rapido{width:190px!important;padding:8px!important}
+.pop-rapido b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:5px}
+.pop-rapido .menu-op{padding:6px 8px;border-radius:6px;font-size:12.5px;cursor:pointer}
+.pop-rapido .menu-op:hover{background:var(--surface-1,#f4f6f8)}
+.pop-rapido .menu-op.on{background:var(--blue-l,#e7effc);color:var(--blue,#1e5fce);font-weight:700}
+.rap-btn{cursor:pointer;border-radius:6px;transition:background .12s}
+.rap-btn:hover{background:var(--blue-l,#e7effc)}
 .menu-op{padding:9px 10px;border-radius:7px;cursor:pointer;font-weight:600;font-size:12.5px;color:var(--ink)}
 .menu-op:hover{background:var(--line2)}
 .menu-op.rojo{color:var(--red)}
@@ -987,6 +1004,18 @@ textarea{resize:vertical;min-height:60px}
 .graf-tip{position:absolute;z-index:9000;display:none;transform:translate(-50%,-100%);background:#16324f;color:#fff;font-size:12px;padding:7px 11px;border-radius:8px;pointer-events:none;box-shadow:0 6px 18px rgba(15,26,42,.28);white-space:nowrap;max-width:280px}
 .graf-tip .gt-lbl{display:block;font-size:10.5px;color:#9fb3cc;margin-bottom:2px}
 .graf-tip b{font-weight:800}
+.req{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--red,#c92a2a);background:var(--red-l,#fdecea);border-radius:4px;padding:1px 5px;margin-left:5px;vertical-align:1px}
+.campo-falta{border-color:var(--red,#c92a2a)!important;background:var(--red-l,#fdecea)!important}
+.ev-resumen{display:grid;gap:12px}
+.ev-res{background:var(--surface-1,#f7f9fb);border:1px solid var(--line2,#eef1f5);border-radius:10px;padding:11px 13px}
+.ev-res-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:7px}
+.ev-res-tit{font-size:13px;font-weight:700;color:var(--navy,#16324f)}
+.ev-res-pct{font-size:12px;font-weight:800;color:var(--sec,#5b6675)}
+.ev-res-barra{display:flex;height:16px;border-radius:6px;overflow:hidden;background:var(--line2,#eef1f5)}
+.ev-res-barra span{display:block;height:100%}
+.ev-res-leg{display:flex;flex-wrap:wrap;gap:10px;margin-top:7px;font-size:11px;color:var(--sec,#5b6675)}
+.ev-res-leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.ev-res-leg b{color:var(--navy,#16324f)}
 .gr-leyenda{display:flex;flex-wrap:wrap;gap:12px;margin:-4px 0 10px}
 .gr-leg{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--sec,#5b6675)}
 .gr-leg i{width:16px;height:3px;border-radius:2px;display:inline-block}
@@ -1546,18 +1575,6 @@ textarea{resize:vertical;min-height:60px}
         <div class="modal-close" onclick="cerrarModal()">Cancelar</div>
       </div>
       </div>
-      </div>
-
-      <div class="confirm-fondo hidden" id="confirmDescartar">
-        <div class="confirm-caja">
-          <div class="confirm-ic">🗑️</div>
-          <h3 class="confirm-titulo">¿Descartar esta atención?</h3>
-          <p class="confirm-texto">Vas a perder todo lo que cargaste. Esta acción no se puede deshacer.</p>
-          <div class="confirm-botones">
-            <button class="btn-confirm-cancel" onclick="cancelarDescartar()">Seguir cargando</button>
-            <button class="btn-confirm-ok" onclick="confirmarDescartar()">Descartar</button>
-          </div>
-        </div>
       </div>
 
       <div id="colaOperativa">
@@ -3188,6 +3205,9 @@ const OPORT_EMOJI={'Decidido':'🔴','Muy interesado':'🟠','Potable':'🟡','N
 
 /* Estado de la consulta. Arranca sin definir: lo marca el vendedor, no se adivina. */
 function estadoDe(a){ return a.estadoManual || null; }
+/* El nombre del mueble puede venir en 'mueble' (cargado en el CRM) o en 'nombre'
+   (importado de las planillas viejas). Leer solo el primero mostraba "undefined". */
+function nombreMueble(m){ return (m && (m.mueble || m.nombre)) || 'Sin nombre'; }
 const ESTADOS=['En seguimiento','Concretado','Rechazado'];
 const ESTADO_CLS={'En seguimiento':'es-seg','Concretado':'es-conc','Rechazado':'es-rech'};
 
@@ -3264,13 +3284,13 @@ function htmlFormConcretado(a){
 
       <div class="row">
         <div class="field" style="flex:1">
-          <label>N° de orden</label>
-          <input type="text" id="cierreOrden" placeholder="Ej: 4142">
+          <label>N° de orden <span class="req">obligatorio</span></label>
+          <input type="text" id="cierreOrden" placeholder="Ej: 4142" oninput="this.classList.remove('campo-falta')">
         </div>
         <div class="field" style="flex:1">
-          <label>Monto vendido</label>
+          <label>Monto vendido <span class="req">obligatorio</span></label>
           <div class="money-input"><span>$</span>
-            <input type="text" inputmode="numeric" id="cierreMonto" placeholder="" oninput="formatearMontoInput(this)">
+            <input type="text" inputmode="numeric" id="cierreMonto" placeholder="" oninput="formatearMontoInput(this);this.classList.remove('campo-falta')">
           </div>
         </div>
       </div>
@@ -3291,7 +3311,7 @@ function htmlFormConcretado(a){
           ${mueblesCot.map((m,i)=>`
             <div class="cm-item ${m.elegido!==false?'on':''}" data-i="${i}" onclick="toggleMuebleVendido(this)">
               <span class="cm-check">✓</span>
-              <span class="cm-nom">${escapeHtml(m.mueble||'Mueble')}${m.monto?` · $${miles(m.monto)}`:''}</span>
+              <span class="cm-nom">${escapeHtml(nombreMueble(m))}${m.monto?` · $${miles(m.monto)}`:''}</span>
             </div>`).join('')}
         </div>
         <div id="cierreMueblesExtra"></div>
@@ -3407,8 +3427,23 @@ async function guardarCierre(){
   const cotizado=montoRepresentativo(a.muebles||[]);
 
   if(cerrandoTipo==='Concretado'){
-    a.nroOrden=$('cierreOrden').value.trim()||null;
-    a.montoVendido=montoNumerico($('cierreMonto'))||null;
+    /* Sin N° de orden y monto no hay venta que registrar: son los dos datos que
+       hacen que la plata del CRM cierre contra las órdenes reales. Dejarlos
+       opcionales daba ventas fantasma que no se pueden cruzar con nada. */
+    const nroOrden=$('cierreOrden').value.trim();
+    const monto=montoNumerico($('cierreMonto'));
+    if(!nroOrden){
+      toast('Cargá el N° de orden para confirmar la venta');
+      $('cierreOrden').classList.add('campo-falta'); $('cierreOrden').focus();
+      return;
+    }
+    if(!monto){
+      toast('Cargá el monto vendido para confirmar la venta');
+      $('cierreMonto').classList.add('campo-falta'); $('cierreMonto').focus();
+      return;
+    }
+    a.nroOrden=nroOrden;
+    a.montoVendido=monto;
     a.montoPerdido=null;
     a.resultadoMotivo=null;
 
@@ -3434,7 +3469,7 @@ async function guardarCierre(){
     });
     // Los extras se suman a la lista de muebles para que queden en el registro.
     if(extras.length) a.muebles=[...(a.muebles||[]), ...extras];
-    a.mueblesVendidos = (a.muebles||[]).filter(m=>m.vendido).map(m=>m.mueble);
+    a.mueblesVendidos = (a.muebles||[]).filter(m=>m.vendido).map(nombreMueble);
   }else{
     const sel=document.querySelector('#cierreMotivos .cierre-chip.on');
     if(!sel){toast('Elegí un motivo');return;}
@@ -3492,9 +3527,33 @@ function pintarEtapa(){
   }else if(etapaSel==='Rechazado'){
     cuerpo=htmlFormRechazado(a);
   }else if(etapaSel==='En seguimiento'){
+    /* Reabrir una consulta cerrada casi nunca es solo cambiar el estado: alguien
+       la marcó mal, hay que dejar dicho por qué, cuándo se retoma y —si el que la
+       cerró mal no es quien debe seguirla— a quién se le pasa. */
+    const eraCerrada = est==='Concretado' || est==='Rechazado';
+    const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
     cuerpo=`
-      <p class="tiny" style="margin-bottom:12px">La consulta queda abierta y sigue sumando al monto en juego.</p>
-      <button class="btn btn-navy" style="width:100%" onclick="guardarEtapaSeguimiento()">Guardar</button>`;
+      <p class="tiny" style="margin-bottom:12px">La consulta queda abierta y vuelve a sumar al monto en juego.${eraCerrada?` Estaba marcada como <b>${est}</b>.`:''}</p>
+      <div class="field">
+        <label>¿Qué pasó? ${eraCerrada?'<span class="req">obligatorio</span>':'<span class="tiny" style="color:var(--muted)">(opcional)</span>'}</label>
+        <textarea id="segComentario" rows="2" placeholder="Ej: el cliente volvió a escribir, todavía lo está pensando"
+          oninput="this.classList.remove('campo-falta')"></textarea>
+      </div>
+      <div class="field">
+        <label>¿Cuándo le volvemos a hablar?</label>
+        <div class="cierre-chips" id="segCuando">
+          ${[['hoy','Hoy'],['manana','Mañana'],['3dias','En 3 días'],['semana','En una semana'],['sin','Sin definir']]
+            .map(([v,l],i)=>`<span class="cierre-chip${i===1?' on':''}" data-v="${v}" onclick="segElegirCuando(this)">${l}</span>`).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <label>¿Quién la sigue?</label>
+        <select id="segVendedor">
+          ${vendedores.map(uid=>`<option value="${uid}"${a.vendedorId===uid?' selected':''}>${escapeHtml(nombreDe(uid))}${a.vendedorId===uid?' (la tiene ahora)':''}</option>`).join('')}
+        </select>
+        <p class="tiny" style="margin:4px 0 0;color:var(--muted)">Si la cerró mal, podés pasársela a otro vendedor.</p>
+      </div>
+      <button class="btn btn-navy" style="width:100%;margin-top:6px" onclick="guardarEtapaSeguimiento()">Guardar</button>`;
   }else{
     cuerpo=`<p class="tiny" style="color:var(--muted)">Elegí una etapa: según cuál marques se despliega lo que hay que completar.</p>`;
   }
@@ -3514,12 +3573,66 @@ function etapaCompletarFicha(){
   abrirModalCompletar(id,0);
   toast('Completá la ficha y después confirmás la etapa');
 }
+function segElegirCuando(el){
+  el.parentElement.querySelectorAll('.cierre-chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+}
+
 async function guardarEtapaSeguimiento(){
   const a=atenciones.find(x=>x.id===cerrandoId);
   if(!a){cerrarEtapa();return;}
+  const estPrevio=estadoDe(a);
+  const eraCerrada = estPrevio==='Concretado' || estPrevio==='Rechazado';
+  const comentario=($('segComentario')?.value||'').trim();
+
+  // Reabrir algo que estaba cerrado necesita explicación: alguien lo marcó mal y
+  // el que la reciba tiene que saber qué pasó.
+  if(eraCerrada && !comentario){
+    toast('Contá qué pasó para reabrir la consulta');
+    const c=$('segComentario'); if(c){ c.classList.add('campo-falta'); c.focus(); }
+    return;
+  }
+
+  if(comentario){
+    a.historialContacto=a.historialContacto||[];
+    a.historialContacto.push({ts:new Date().toISOString(), texto:comentario, percepcion:null});
+    a.notas=comentario;
+  }
+
+  // Próxima acción
+  const cuando=document.querySelector('#segCuando .cierre-chip.on')?.dataset.v;
+  if(cuando && cuando!=='sin'){
+    const d=new Date(); d.setHours(0,0,0,0);
+    if(cuando==='manana') d.setDate(d.getDate()+1);
+    else if(cuando==='3dias') d.setDate(d.getDate()+3);
+    else if(cuando==='semana') d.setDate(d.getDate()+7);
+    a.proximaAccionTs=d.toISOString();
+    if(a.contactoId){
+      const c=contactoPorId(a.contactoId);
+      if(c){ c.proximaAccionTs=a.proximaAccionTs; await saveContactos(); }
+    }
+  }else if(cuando==='sin'){
+    a.proximaAccionTs=null;
+  }
+
+  // Reasignación: queda registrada para poder rastrear quién la tenía antes
+  const nuevoVend=$('segVendedor')?.value;
+  if(nuevoVend && nuevoVend!==a.vendedorId){
+    a.reasignadaDe=a.vendedorId;
+    a.reasignadaTs=new Date().toISOString();
+    a.reasignadaPor=YO;
+    a.vendedorId=nuevoVend;
+  }
+
+  // Se limpian los datos del cierre anterior: si vuelve a seguimiento, no siguen
+  // contando como venta hecha ni como plata perdida.
+  a.nroOrden=null; a.montoVendido=null; a.montoPerdido=null; a.resultadoMotivo=null;
+
   await aplicarEstado(a,'En seguimiento');
   cerrarEtapa();
-  toast('Estado: En seguimiento');
+  toast(nuevoVend && nuevoVend!==a.reasignadaDe && a.reasignadaDe
+    ? `Reabierta y pasada a ${nombreDe(a.vendedorId)}`
+    : 'Estado: En seguimiento');
 }
 
 /* ---------------- Baja de contacto: Cintia la puede hacer directo; el resto la pide ---------------- */
@@ -3656,7 +3769,7 @@ function logItemHtml(a){
   const solPendiente = solicitudesEliminacion.some(s=>s.atencionId===a.id && s.estado==='pendiente');
 
   const mueblesTxt = muebles.length
-    ? muebles.map(m=>`${m.mueble}${m.observacion?' ('+m.observacion+')':''}${m.monto?' — $'+miles(m.monto):''}${m.elegido?' ✓ elegido':''}`).join('<br>')
+    ? muebles.map(m=>`${nombreMueble(m)}${m.observacion?' ('+m.observacion+')':''}${m.monto?' — $'+miles(m.monto):''}${m.elegido?' ✓ elegido':''}`).join('<br>')
     : 'Sin información';
   const coment = [a.notas, a.resultadoMotivo].filter(Boolean).join(' · ');
   // Para las que carga el propio vendedor (registro rápido, derivada entre vendedores, o
@@ -3677,13 +3790,13 @@ function logItemHtml(a){
       </div>`
     : '';
   const montoCol = esAuditora() ? '' : `
-      <div class="c-monto" ondblclick="editarDesdeHistorial('${a.id}')">
+      <div class="c-monto" ondblclick="editarSoloMuebles('${a.id}')" title="Doble clic para editar los muebles">
         <div>
           ${totalCotizado?'$ '+miles(totalCotizado):'—'}
           ${a.montoVendido?`<div class="m-vend">Vendido $ ${miles(a.montoVendido)}</div>`:''}
           ${a.montoPerdido?`<div class="m-perd">Perdido $ ${miles(a.montoPerdido)}</div>`:''}
         </div>
-        <span class="ebtn" onclick="event.stopPropagation();togPop(this)">🪑<small>(${muebles.length})</small><span class="pop"><b>Muebles cotizados</b><br>${mueblesTxt}</span></span>
+        <span class="ebtn" onclick="event.stopPropagation();togPop(this)">🪑<small>(${muebles.length})</small><span class="pop"><b>Muebles cotizados</b><br>${mueblesTxt}<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();editarSoloMuebles('${a.id}')">✎ Editar muebles</div></span></span>
       </div>`;
 
   // Campanita: atajo directo para pedirle al vendedor que se ocupe de esta consulta.
@@ -3700,14 +3813,26 @@ function logItemHtml(a){
     <div class="crow zn-${zona}">
       ${bellCol}
       <div class="c-fecha" ondblclick="editarDesdeHistorial('${a.id}')">${fechaConsultaCorta(a.ts)}</div>
-      <div class="c-plazo" ondblclick="editarDesdeHistorial('${a.id}')">
-        <span class="pl ${plazo.cls}">${plazo.txt}${plazo.det?`<span class="pl-d">${plazo.det}</span>`:''}</span>
+      <div class="c-plazo">
+        <span class="ebtn rap-btn" title="Cambiar cuándo le hablamos" onclick="event.stopPropagation();togPop(this)">
+          <span class="pl ${plazo.cls}">${plazo.txt}${plazo.det?`<span class="pl-d">${plazo.det}</span>`:''}</span>
+          <span class="pop pop-rapido">
+            <b>¿Cuándo le volvemos a hablar?</b>
+            ${RAPIDO_CUANDO.map(([v,l])=>`<div class="menu-op" onclick="event.stopPropagation();rapidoCuando('${a.id}','${v}')">${l}</div>`).join('')}
+          </span>
+        </span>
       </div>
       <div class="c-situacion">
         <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
           <span class="est ${est?ESTADO_CLS[est]:'es-sin'}">${est||'–'}</span>
         </span>
-        <span class="sit-op" ondblclick="editarDesdeHistorial('${a.id}')">${a.percepcion?`${emo} ${a.percepcion}`:'–'}</span>
+        <span class="ebtn rap-btn sit-op" title="Cambiar cómo viste al cliente" onclick="event.stopPropagation();togPop(this)">
+          ${a.percepcion?`${emo} ${a.percepcion}`:'–'}
+          <span class="pop pop-rapido">
+            <b>¿Cómo viste al cliente?</b>
+            ${PERCEPCIONES.map(p=>`<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${OPORT_EMOJI[p]||''} ${p}</div>`).join('')}
+          </span>
+        </span>
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         <b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin())) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.evaluada && !a.comentarioVendedor && !a.revisionEval && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--sec);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Ver evaluación</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
@@ -3740,11 +3865,88 @@ function logItemHtml(a){
       ${evalCol}
     </div>`;
 }
-function cerrarPops(){ document.querySelectorAll('.ebtn.open').forEach(x=>x.classList.remove('open')); }
+/* El encabezado de la tabla se pinta SOBRE las filas (para que no se cuele texto
+   al hacer scroll). Eso hacía que un menú abierto en una fila quedara por debajo
+   del encabezado y se leyera transparente. Mientras hay un menú abierto, el
+   contenedor de filas se eleva por encima; al cerrarlo vuelve a su lugar. */
+function elevarFilas(activo){
+  const box=document.getElementById('filasBox');
+  if(box) box.classList.toggle('pop-arriba', !!activo);
+  // Además se baja el encabezado: si por algún motivo la fila no logra subir,
+  // el encabezado igual deja de taparla.
+  const head=document.getElementById('cheadBox');
+  if(head) head.classList.toggle('pop-abajo', !!activo);
+}
+/* ── Ediciones rápidas desde la fila ──────────────────────────────────
+   Cambiar la próxima acción o cómo se ve al cliente es lo que más se toca en el
+   día a día. Abrir el formulario entero para eso hacía que nadie lo actualizara.
+   Desde acá se hace en dos toques, sin salir del listado. */
+const RAPIDO_CUANDO=[['hoy','Hoy'],['manana','Mañana'],['3dias','En 3 días'],
+                     ['semana','En una semana'],['custom','Otra fecha…'],['sin','Sin definir']];
+
+async function rapidoCuando(id, v){
+  const a=atenciones.find(x=>x.id===id);
+  if(!a) return;
+  cerrarPops();
+  let ts=null;
+  if(v==='custom'){
+    const hoy=new Date().toISOString().slice(0,10);
+    const txt=prompt('¿Qué día le volvemos a hablar? (AAAA-MM-DD)', hoy);
+    if(!txt) return;
+    const d=new Date(txt+'T00:00:00');
+    if(isNaN(d)){ toast('Fecha inválida'); return; }
+    ts=d.toISOString();
+  }else if(v!=='sin'){
+    const d=new Date(); d.setHours(0,0,0,0);
+    if(v==='manana') d.setDate(d.getDate()+1);
+    else if(v==='3dias') d.setDate(d.getDate()+3);
+    else if(v==='semana') d.setDate(d.getDate()+7);
+    ts=d.toISOString();
+  }
+  a.proximaAccionTs=ts;
+  if(a.contactoId){
+    const c=contactoPorId(a.contactoId);
+    if(c){ c.proximaAccionTs=ts; await saveContactos(); }
+  }
+  await saveAtenciones();
+  renderHistorial();
+  toast(ts?`Próximo contacto: ${fechaConsultaCorta(ts)}`:'Sin próxima acción');
+}
+
+async function rapidoPercepcion(id, p){
+  const a=atenciones.find(x=>x.id===id);
+  if(!a) return;
+  cerrarPops();
+  a.percepcion = (a.percepcion===p) ? null : p;
+  if(a.contactoId){
+    const c=contactoPorId(a.contactoId);
+    if(c){ c.calificacion=a.percepcion; c.ultimaActividad=new Date().toISOString(); await saveContactos(); }
+  }
+  await saveAtenciones();
+  renderHistorial();
+  toast(a.percepcion?`Cliente: ${a.percepcion}`:'Sin definir');
+}
+
+/* Abre el formulario directo en la parte de muebles, sin pasar por los datos del
+   cliente: cuando solo hay que corregir un precio, el resto sobra. */
+function editarSoloMuebles(id){
+  abrirModalCompletar(id);
+  setTimeout(()=>{
+    const cont=document.getElementById('mueblesLista');
+    if(cont && cont.scrollIntoView) cont.scrollIntoView({behavior:'smooth', block:'center'});
+    const primero=document.querySelector('#mueblesLista input');
+    if(primero) primero.focus();
+  }, 180);
+}
+
+function cerrarPops(){
+  document.querySelectorAll('.ebtn.open').forEach(x=>x.classList.remove('open'));
+  elevarFilas(false);
+}
 function togPop(el){
   const abierto=el.classList.contains('open');
   cerrarPops();
-  if(!abierto) el.classList.add('open');
+  if(!abierto){ el.classList.add('open'); elevarFilas(true); }
 }
 document.addEventListener('click',e=>{ if(!e.target.closest('.ebtn')) cerrarPops(); });
 document.addEventListener('click',e=>{
@@ -4225,10 +4427,11 @@ function renderSemaforoMisConsultas(){
 
 /* Zona de una consulta: define su color en la lista y en qué tarjeta del tablero cuenta.
    Se calcula igual arriba y abajo, así los números siempre cuadran con las filas. */
-/* Días que una consulta puede quedarse sin clasificar antes de considerarse atrasada.
-   Una consulta que nadie tocó en una semana ya es un problema, aunque nunca se le
-   haya puesto un plazo. */
-const DIAS_SIN_CLASIFICAR_ATRASA = 5;
+/* Una consulta está atrasada cuando hace más de una semana que nadie le habla.
+   Antes bastaba con que se venciera el plazo por un día, y eso llenaba la lista
+   de consultas de anteayer que no tienen nada de urgente. Lo que importa no es
+   haberse pasado del plazo, sino que el cliente se esté enfriando. */
+const DIAS_SIN_CLASIFICAR_ATRASA = 7;
 
 function diasDesde(ts){
   if(!ts) return 0;
@@ -4237,35 +4440,38 @@ function diasDesde(ts){
   return Math.floor((Date.now() - t) / 86400000);
 }
 
+/* Días desde el último movimiento real: la última vez que se le habló, o la fecha
+   de la consulta si nunca se registró un contacto. */
+function diasSinContacto(a){
+  const h=a.historialContacto;
+  const ultimo = (Array.isArray(h) && h.length) ? h[h.length-1].ts : null;
+  return diasDesde(ultimo || a.ts);
+}
+
 function zonaDe(a){
   // Histórico viejo: solo sabemos que la consulta entró. No hay nada que hacer con
   // ella, así que no puede aparecer como pendiente ni como atrasada.
   if(a.soloVolumen) return 'cerrada';
   const est=estadoDe(a);
   const cerradaPorResultado = est==='Concretado' || est==='Rechazado';
-  // Sin clasificar: si además lleva días parada, pasa a atrasada — es lo que
-  // necesita atención, no una lista donde envejece sin que nadie la mire.
-  if(a.status==='pendiente'){
-    return diasDesde(a.ts) > DIAS_SIN_CLASIFICAR_ATRASA ? 'atrasada' : 'sinclas';
-  }
   // El cliente nunca contestó: para el vendedor la consulta está cerrada. No se la seguimos
   // marcando como atrasada ni le pedimos un próximo contacto — no hay a quién contactar.
   if(a.nuncaRespondio) return 'cerrada';
   if(cerradaPorResultado) return 'cerrada';
+  // Atrasada manda sobre todo lo demás: una semana sin hablarle es lo urgente,
+  // tenga o no un plazo puesto.
+  if(diasSinContacto(a) > DIAS_SIN_CLASIFICAR_ATRASA) return 'atrasada';
+  if(a.status==='pendiente') return 'sinclas';
   // La próxima acción puede estar en el contacto (consultas cargadas en el CRM) o
   // en la consulta misma (las que vienen de las planillas viejas).
   const c=a.contactoId?contactoPorId(a.contactoId):null;
   const proxTs = (c && c.proximaAccionTs) || a.proximaAccionTs || null;
-  if(!proxTs){
-    // Abierta y sin plazo: se le da el mismo margen que a las sin clasificar.
-    return diasDesde(a.ts) > DIAS_SIN_CLASIFICAR_ATRASA ? 'atrasada' : 'sinplazo';
-  }
+  if(!proxTs) return 'sinplazo';
   const prox=new Date(proxTs);
   const hoy0=new Date(); hoy0.setHours(0,0,0,0);
   const manana0=new Date(hoy0.getTime()+86400000);
   const en7=new Date(hoy0.getTime()+7*86400000);
-  if(prox<hoy0) return 'atrasada';
-  if(prox<manana0) return 'hoy';
+  if(prox<manana0) return 'hoy';     // vencido o para hoy: hay que hablarle hoy
   if(prox<en7) return 'semana';
   return 'lejos';
 }
@@ -4294,7 +4500,10 @@ function renderPanelGestion(listaVisible){
   const secciones=[
     {id:'recordatorio', label:'Recordatorio', cnt:recordatoriosDeVendedor().length},
     {id:'estadisticas', label:'Estadísticas', cnt:undefined},
-    {id:'evaluacion',   label:'Evaluación',   cnt:mias.filter(a=>a.evaluada).length},
+    /* Sin número: los contadores de los otros botones significan "tenés N cosas
+       para hacer". Acá 285 era el histórico de lo ya evaluado y se leía como una
+       pila de tareas pendientes que no existe. */
+    {id:'evaluacion',   label:'Evaluación',   cnt:undefined},
     {id:'oportunidad',  label:'Oportunidad',  cnt:mias.filter(a=>esOportunidadCaliente(a)).length}
   ];
   const ICO={hoy:'evaluar',atrasada:'invalidas',sinclas:'consultas',semana:'estados',
@@ -4471,7 +4680,7 @@ function svMetricas(rango){
   l.forEach(a=>{
     const cerrada = estadoDe(a)==='Concretado', rech = estadoDe(a)==='Rechazado';
     (a.muebles||[]).filter(m=>m.elegido).forEach(m=>{
-      const f=familia(m.mueble); fam[f]=fam[f]||{cot:0,ven:0,esc:0,montoEsc:0};
+      const f=familia(nombreMueble(m)); fam[f]=fam[f]||{cot:0,ven:0,esc:0,montoEsc:0};
       fam[f].cot++;
       if(cerrada && m.vendido!==false) fam[f].ven++;
       else if(rech || (cerrada && m.vendido===false)){ fam[f].esc++; fam[f].montoEsc+=(+m.monto)||0; }
@@ -4697,7 +4906,6 @@ function svOportunidadesHtml(){
 }
 
 function svEvaluacionesHtml(){
-  // Solo el listado de lo que Cintia ya evaluó. Los promedios y la evolución van en Estadísticas.
   const lista = atenciones.filter(a=>a.vendedorId===YO && a.evaluada)
     .sort((a,b)=>new Date(b.evaluadoTs||b.ts)-new Date(a.evaluadoTs||a.ts));
   if(!lista.length) return `<p class="cin-empty">Cintia todavía no evaluó ninguna de tus consultas.</p>`;
@@ -4709,12 +4917,42 @@ function svEvaluacionesHtml(){
     const cls = fila[2]==='g1' ? 'g' : (fila[2]==='g4' ? 'r' : '');
     return `<span class="ev-chip ${cls}">${fila[1]}</span>`;
   };
+
+  /* Barra de distribución por eje: antes de la lista, el panorama. Una lista de
+     285 filas no responde "¿cómo vengo atendiendo?"; esto sí, de un vistazo. */
+  const COL={g1:'#2f9e44', g2:'#74b816', g3:'#f08c00', g4:'#c92a2a'};
+  const barra=(campo,esc,titulo,ayuda)=>{
+    const conteo=new Map(esc.map(x=>[x[0],0]));
+    let n=0;
+    lista.forEach(a=>{ const v=a[campo]; if(conteo.has(v)){ conteo.set(v,conteo.get(v)+1); n++; } });
+    if(!n) return '';
+    const tramos=esc.map(([v,label,cls])=>({v,label,cls,n:conteo.get(v)})).filter(t=>t.n>0);
+    const buenos=tramos.filter(t=>t.v<=2).reduce((s,t)=>s+t.n,0);
+    return `<div class="ev-res">
+      <div class="ev-res-hd">
+        <span class="ev-res-tit">${titulo}</span>
+        <span class="ev-res-pct">${Math.round(buenos/n*100)}% bien</span>
+      </div>
+      <div class="ev-res-barra">${tramos.map(t=>
+        `<span style="width:${(t.n/n*100).toFixed(1)}%;background:${COL[t.cls]||'#adb5bd'}" title="${t.label}: ${t.n}"></span>`).join('')}</div>
+      <div class="ev-res-leg">${tramos.map(t=>
+        `<span><i style="background:${COL[t.cls]||'#adb5bd'}"></i>${t.label} <b>${t.n}</b></span>`).join('')}</div>
+      <p class="tiny" style="margin:4px 0 0;color:var(--muted)">${ayuda}</p>
+    </div>`;
+  };
+
   return `
-    <p class="tiny" style="margin:0 0 12px">${lista.length} consulta${lista.length===1?'':'s'} evaluada${lista.length===1?'':'s'} por Cintia. Tocá una para ver el detalle y pedir una revisión.</p>
+    <div class="ev-resumen">
+      ${barra('evalAtencion',EV_ATENCION,'Tu calidad de atención','Cómo te evaluó Cintia a vos.')}
+      ${barra('evalConsulta',EV_CONSULTA,'Calidad de las consultas que recibiste','No depende de vos: dice si la publicidad trae gente bien orientada.')}
+      ${barra('evalCliente',EV_CLIENTE,'Calidad de los clientes','Cuán decididos venían. Marca cuánta oportunidad real tuviste.')}
+    </div>
+    <p class="tiny" style="margin:14px 0 12px">${lista.length} consulta${lista.length===1?'':'s'} evaluada${lista.length===1?'':'s'} por Cintia. Tocá una para ver el detalle y pedir una revisión.</p>
     <table class="tabla-cintia"><thead><tr><th>Cliente</th><th>Fecha</th><th>Atención</th><th>Consulta</th><th>Cliente</th></tr></thead><tbody>
     ${lista.map(a=>`
       <tr style="cursor:pointer" onclick="abrirVistaEvaluacion('${a.id}')">
-        <td><b>${escapeHtml(a.clienteNombre||'Sin nombre')}</b>${a.oportunidadPerdida?'<span class="nueva-b" style="background:var(--red)">Oport. perdida</span>':''}</td>
+        <td><b>${escapeHtml(a.clienteNombre||'Sin nombre')}</b>${a.oportunidadPerdida?'<span class="nueva-b" style="background:var(--red)">Oport. perdida</span>':''}
+          ${a.clienteTelefono?`<div class="tiny" style="color:var(--muted)">${escapeHtml(a.clienteTelefono)}</div>`:''}</td>
         <td>${fechaConsultaCorta(a.evaluadoTs||a.ts)}</td>
         <td>${chip(a.evalAtencion,'atencion')}</td>
         <td>${chip(a.evalConsulta,'consulta')}</td>
@@ -6122,11 +6360,19 @@ function resumenContacto(c){
 function abrirFichaCliente(id){ clienteFichaId=id; renderCintiaMain(); }
 function volverClientes(){ clienteFichaId=null; renderCintiaMain(); }
 
+/* La búsqueda tiene que recorrer TODA la base, no las filas dibujadas: la tabla
+   muestra las primeras 300 ordenadas por lo que compraron, así que buscar sobre el
+   DOM dejaba invisible a cualquier cliente que no estuviera en ese top. */
+let clientesBusqueda='';
+let _timerCli=null;
 function filtrarClientes(txt){
-  const q=(txt||'').toLowerCase().trim();
-  document.querySelectorAll('.cli-row').forEach(r=>{
-    r.style.display = !q || (r.dataset.buscar||'').includes(q) ? '' : 'none';
-  });
+  clientesBusqueda=(txt||'').toLowerCase().trim();
+  clearTimeout(_timerCli);
+  _timerCli=setTimeout(()=>{
+    renderCintiaMain();
+    const inp=document.querySelector('.cli-buscar');
+    if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  }, 250);
 }
 
 /* ── Gráficos de contactos: por día y por canal ───────────────────────
@@ -6310,18 +6556,28 @@ function grafTipOff(){ const t=document.getElementById('grafTip'); if(t) t.style
 
 function htmlCintiaClientes(){
   if(clienteFichaId) return htmlFichaCliente(clienteFichaId);
-  const filas=baseClientes()
+  let filas=baseClientes()
     .sort((a,b)=> b.comprado-a.comprado || new Date(b.ultima||0)-new Date(a.ultima||0));
-  if(!filas.length) return `<div class="cin-card"><p class="cin-empty">Todavía no hay clientes en la base. Aparecen solos apenas una consulta trae teléfono.</p></div>`;
+  const totalBase=filas.length;
+  // El filtro se aplica sobre TODA la base antes de recortar a 300
+  if(clientesBusqueda){
+    const q=clientesBusqueda.replace(/\s+/g,' ');
+    const qTel=q.replace(/\D/g,'');
+    filas=filas.filter(f=>
+      (f.nombre||'').toLowerCase().includes(q) ||
+      (qTel && f.tel.includes(qTel)));
+  }
+  if(!totalBase) return `<div class="cin-card"><p class="cin-empty">Todavía no hay clientes en la base. Aparecen solos apenas una consulta trae teléfono.</p></div>`;
   const totComprado=filas.reduce((s,f)=>s+f.comprado,0);
   const conVenta=filas.filter(f=>f.ventas>0).length;
   return `<div class="cin-card">
     <div class="est-hd">
       <div><h3>Clientes</h3>
       <p class="cap">Una fila por teléfono, con todo su historial. Pensada para la recompra: cuando el cliente vuelve, acá está lo que ya pasó con él y quién lo tiene.</p></div>
-      <div class="est-tot"><div class="n">${filas.length}</div><div class="l">${conVenta} ya compraron · $ ${miles(totComprado)}</div></div>
+      <div class="est-tot"><div class="n">${miles(filas.length)}</div><div class="l">${clientesBusqueda?`de ${miles(totalBase)} · `:''}${conVenta} ya compraron</div></div>
     </div>
-    <input type="text" class="cli-buscar" placeholder="Buscar por nombre o teléfono..." oninput="filtrarClientes(this.value)">
+    <input type="text" class="cli-buscar" placeholder="Buscar por nombre o teléfono en los ${miles(totalBase)} clientes..." value="${escAttr(clientesBusqueda)}" oninput="filtrarClientes(this.value)">
+    ${!filas.length?`<p class="cin-empty">Ningún cliente coincide con "${escapeHtml(clientesBusqueda)}".</p>`:`
     <div class="est-scroll"><table class="est-tabla" style="min-width:760px">
       <tr><th>Cliente</th><th>Teléfono</th><th>Vendedor</th><th class="r">Consultas</th><th class="r">Concret.</th><th class="r">Rechaz.</th><th class="r">Seguim.</th><th class="r">Comprado</th><th class="r">Última</th></tr>
       ${filas.slice(0,300).map(f=>`<tr class="cli-row" data-buscar="${escAttr(((f.nombre||'')+' '+f.tel).toLowerCase())}" onclick="abrirFichaCliente('${f.id}')">
@@ -6335,8 +6591,8 @@ function htmlCintiaClientes(){
         <td class="r emoney">${f.comprado?'$ '+miles(f.comprado):'<span class="ena">—</span>'}</td>
         <td class="r tiny">${f.ultima?formatFechaRelativa(f.ultima):'—'}</td>
       </tr>`).join('')}
-    </table></div>
-    <p class="tiny" style="margin-top:10px">⭐ = ya compró. <b>Vendedor</b> es quien lo atendió la última vez. Tocá una fila para ver la ficha completa.${filas.length>300?` Mostrando los 300 primeros de ${filas.length} — usá el buscador para encontrar uno puntual.`:''}</p>
+    </table></div>`}
+    <p class="tiny" style="margin-top:10px">⭐ = ya compró. <b>Vendedor</b> es quien lo atendió la última vez. Tocá una fila para ver la ficha completa.${filas.length>300?` Mostrando los 300 primeros de ${miles(filas.length)} — el buscador mira TODOS los ${miles(totalBase)} clientes, no solo los que se ven.`:''}</p>
   </div>`;
 }
 
@@ -7678,7 +7934,7 @@ function montoNumerico(v){
 function calcularEstadosMuebles(lista){
   const grupos={};
   lista.forEach(m=>{
-    const k=m.mueble.trim().toLowerCase();
+    const k=nombreMueble(m).trim().toLowerCase();
     (grupos[k]=grupos[k]||[]).push(m);
   });
   Object.values(grupos).forEach(grupo=>{
@@ -7833,7 +8089,7 @@ function renderMuebleFilas(){
   if(!box) return;
   box.innerHTML = mueblesActuales.map((m,i)=>`
     <div class="mfila ${m.elegido?'suma':'nosuma'}">
-      <div class="f1"><input type="text" id="mfMueble-${i}" placeholder="Mueble" list="muebles-list" value="${(m.mueble||'').replace(/"/g,'&quot;')}"
+      <div class="f1"><input type="text" id="mfMueble-${i}" placeholder="Mueble" list="muebles-list" value="${(m.mueble||m.nombre||'').replace(/"/g,'&quot;')}"
         oninput="actualizarMueble(${i},'mueble',this.value)"
         onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('mfDet-${i}').focus();}"></div>
       <div class="f2"><input type="text" id="mfDet-${i}" placeholder="Detalles" value="${(m.observacion||'').replace(/"/g,'&quot;')}"
@@ -8059,7 +8315,7 @@ function pintarSegFicha(a){
   const telHtml = telCopiable
     ? `<span class="tel-copy" onclick="copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
     : tel;
-  const prods=(a.muebles||[]).map(m=>`${m.mueble}${m.monto?' · $'+miles(m.monto):''}`).join(' · ')||'Sin muebles cargados';
+  const prods=(a.muebles||[]).map(m=>`${nombreMueble(m)}${m.monto?' · $'+miles(m.monto):''}`).join(' · ')||'Sin muebles cargados';
   $('segFicha').innerHTML=`
     <button class="seg-ficha-editar" onclick="editarDesdeSeguimiento()">✎ Editar</button>
     <div class="seg-ficha-nom">${escapeHtml(a.clienteNombre||'Sin nombre')}</div>
@@ -8150,7 +8406,7 @@ async function guardarSeguimiento(){
 function renderResumenFicha(a){
   const tel = a.noTomoTelefono ? 'sin teléfono' : (a.clienteTelefono||'');
   const totalCotizado=montoRepresentativo(a.muebles||[]);
-  const mueblesHtml=(a.muebles||[]).map(m=>`<span class="log-tag ${estadoTagClass(m.estado)}">${m.mueble}${m.monto?' · $'+miles(m.monto):''}</span>`).join('');
+  const mueblesHtml=(a.muebles||[]).map(m=>`<span class="log-tag ${estadoTagClass(m.estado)}">${nombreMueble(m)}${m.monto?' · $'+miles(m.monto):''}</span>`).join('');
   const tiempoTxt = a.tiempoAtencionMin ? `${a.tiempoAtencionMin>=60?Math.floor(a.tiempoAtencionMin/60)+'h '+(a.tiempoAtencionMin%60?a.tiempoAtencionMin%60+'min':''):a.tiempoAtencionMin+' min'} de atención` : '';
   return `
     <div class="log-notas" style="font-size:14px"><b>${a.clienteNombre||'—'}</b>${tel?' · '+tel:''}</div>
@@ -8175,7 +8431,7 @@ async function marcarResultadoRapido(percepcionValor){
     if(c){ c.calificacion=percepcionValor; c.estadoGeneral=rec.resultado; c.ultimaActividad=new Date().toISOString(); await saveContactos(); }
   }
   await saveAtenciones();
-  cerrarModal();
+  cerrarModalReal();   // ya guardó: cerrar sin preguntar
   render();
   toast(`Marcado como ${estadoDesdePercepcion(percepcionValor)}`);
 }
@@ -8220,7 +8476,7 @@ function modalTieneDatos(){
   const tel=($('clienteTelefono')?.value||'').trim();
   const cotiz=($('nroCotizacion')?.value||'').trim();
   const notas=($('notas')?.value||'').trim();
-  const hayMueble=(mueblesActuales||[]).some(m=>(m.mueble||'').trim() || m.monto || (m.observacion||'').trim());
+  const hayMueble=(mueblesActuales||[]).some(m=>(m.mueble||m.nombre||'').trim() || m.monto || (m.observacion||'').trim());
   return !!(nombre || tel || cotiz || notas || percepcionSel || proxSeleccionada || hayMueble || photoDataUrl);
 }
 
@@ -8231,27 +8487,18 @@ function intentarCerrarPorFondo(event, cont){
   return;
 }
 
+/* Cancelar cierra directo, sin preguntar: el botón es chico y está abajo de todo,
+   quien llega hasta ahí lo hizo a propósito. Si había datos cargados se avisa con
+   un toast, para que quede claro que se descartó y no que se guardó. */
 function cerrarModal(){
-  if(modalTieneDatos()){
-    mostrarConfirmDescartar();
-    return;
-  }
+  const habiaDatos=modalTieneDatos();
   cerrarModalReal();
+  if(habiaDatos) toast('Atención descartada');
 }
 function cerrarModalReal(){
   $('modalFondo').classList.add('hidden');
   document.body.style.overflow='';
   origenAutoEstado=null;
-}
-function mostrarConfirmDescartar(){
-  $('confirmDescartar').classList.remove('hidden');
-}
-function cancelarDescartar(){
-  $('confirmDescartar').classList.add('hidden');
-}
-function confirmarDescartar(){
-  $('confirmDescartar').classList.add('hidden');
-  cerrarModalReal();
 }
 
 function toggleTelefono(){
@@ -8357,7 +8604,7 @@ async function guardarAtencion(){
     await saveAtenciones();
     const eraAutoEstado=!!origenAutoEstado;
     origenAutoEstado=null;
-    cerrarModal();
+    cerrarModalReal();   // guardado OK: se cierra sin preguntar si descartar
     render();
     if(cierrePendiente){
       toast('Ficha completa — confirmá el '+(cierrePendiente==='Concretado'?'cierre de venta':'motivo de rechazo'));
@@ -8411,15 +8658,15 @@ async function guardarAtencion(){
 
   if(esSuTurno && hayMuebleOPrecio){
     await avanzarPointerSiCorresponde(localId);
-    cerrarModal();
+    cerrarModalReal();   // guardado OK: se cierra sin preguntar si descartar
     render();
     toast('Atención guardada');
   }else if(esSuTurno){
-    cerrarModal();
+    cerrarModalReal();   // guardado OK: se cierra sin preguntar si descartar
     render();
     toast('Guardada, pero el turno no avanzó: cargá un mueble o confirmá que no correspondía, en el paso de Muebles.');
   }else{
-    cerrarModal();
+    cerrarModalReal();   // guardado OK: se cierra sin preguntar si descartar
     render();
     toast('Atención guardada');
   }
