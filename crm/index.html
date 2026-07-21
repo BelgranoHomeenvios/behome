@@ -352,13 +352,20 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
    regla :has() que actúa sola apenas hay un .ebtn abierto adentro. */
 #filasBox.pop-arriba,
 #filasBox:has(.ebtn.open){z-index:60!important}
+/* La fila que tiene el menú abierto se eleva sobre las demás: si no, las filas de
+   abajo se dibujan encima del desplegable y se ve todo transparente. */
+#filasBox .crow:has(.ebtn.open),
+#filasBox .crow.fila-arriba{position:relative;z-index:50}
+#filasBox .crow .ebtn.open{z-index:320}
 #cheadBox.pop-abajo{z-index:2!important}
+/* Filtro abierto en el encabezado: es el encabezado el que tiene que quedar arriba. */
+#cheadBox.pop-encima{z-index:200!important}
 /* Los popovers que salen de una fila se abren hacia ABAJO cuando la fila está en
    el borde superior de la tabla: hacia arriba se metían sobre el encabezado y se
    leían encimados. */
 #filasBox .crow:nth-child(-n+2) .ebtn .pop{bottom:auto;top:130%}
-.pop-rapido{width:190px!important;padding:8px!important}
-.pop-coment{width:260px!important;padding:10px!important}
+.pop-rapido{width:190px!important;padding:8px!important;background:#fff!important}
+.pop-coment{width:260px!important;padding:10px!important;background:#fff!important}
 .pop-coment b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
 .cm-hist{font-size:12px;color:var(--ink);line-height:1.45;max-height:110px;overflow-y:auto;background:var(--surface-1,#f7f9fb);border-radius:6px;padding:7px 9px;margin-bottom:8px}
 .cm-vacio{font-size:11.5px;color:var(--muted);margin-bottom:8px}
@@ -1021,6 +1028,14 @@ textarea{resize:vertical;min-height:60px}
 .graf-tip b{font-weight:800}
 .req{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--red,#c92a2a);background:var(--red-l,#fdecea);border-radius:4px;padding:1px 5px;margin-left:5px;vertical-align:1px}
 .campo-falta{border-color:var(--red,#c92a2a)!important;background:var(--red-l,#fdecea)!important}
+.sv-fecha{border:1px solid var(--line,#d0d7e2);border-radius:6px;padding:4px 8px;font-family:inherit;font-size:12px}
+.ev-delta{font-size:11px;font-weight:700;margin-left:6px;padding:1px 6px;border-radius:5px;background:var(--surface-1,#f4f6f8)}
+.ev-delta.epos{color:#2f9e44;background:#eaf3de}
+.ev-delta.eneg{color:#c92a2a;background:#fceaea}
+.ev-obs-cel{font-size:11.5px;color:var(--sec,#5b6675);max-width:280px;line-height:1.4;white-space:normal!important}
+.vev-obs{background:var(--amber-l,#fff7e6);border:1px solid #f2d9a8;border-radius:9px;padding:10px 12px;margin-top:12px}
+.vev-obs-de{font-size:11px;font-weight:800;color:#8a5a00;margin-bottom:4px}
+.vev-obs p{margin:0;font-size:13px;color:var(--ink);line-height:1.5}
 .ev-resumen{display:grid;gap:12px}
 .ev-res{background:var(--surface-1,#f7f9fb);border:1px solid var(--line2,#eef1f5);border-radius:10px;padding:11px 13px}
 .ev-res-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:7px}
@@ -3218,14 +3233,24 @@ function estadoTexto(e){
 /* Plazo de acción, con el lenguaje que usa el vendedor: "Urgente hablarle" si ya se pasó,
    "Hoy", "Mañana", el día si cae esta semana, "La semana que viene" si es más lejos.
    El rank ordena la lista: lo urgente arriba de todo. */
+/* La próxima acción puede vivir en el contacto (consultas cargadas en el CRM) o en
+   la consulta (las migradas y las que se ponen desde el atajo de la fila). Todo el
+   código la lee por acá, para que no vuelva a quedar un lugar leyendo solo una. */
+function proximaAccionDe(a){
+  const c = a.contactoId ? contactoPorId(a.contactoId) : null;
+  return (c && c.proximaAccionTs) || a.proximaAccionTs || null;
+}
+
 function infoPlazo(a){
   // Textos cortos a propósito: la tabla se lee de un vistazo, no se lee como una frase.
   // De 2 días en adelante mostramos la fecha concreta (22/7) en vez del día de la semana
   // o "la semana que viene", que obligan a traducir mentalmente a qué día equivalen.
-  const c = a.contactoId ? contactoPorId(a.contactoId) : null;
-  if(!c || !c.proximaAccionTs) return {txt:'–', det:'', cls:'pl-sin', rank:9};
+  // La próxima acción puede estar en el contacto (consultas cargadas en el CRM) o en la
+  // consulta misma (las migradas y las que se cargan desde el atajo de la fila).
+  const proxTs = proximaAccionDe(a);
+  if(!proxTs) return {txt:'–', det:'', cls:'pl-sin', rank:9};
 
-  const prox=new Date(c.proximaAccionTs);
+  const prox=new Date(proxTs);
   const hoy0=new Date(); hoy0.setHours(0,0,0,0);
   const manana0=new Date(hoy0.getTime()+86400000);
   const pasado0=new Date(hoy0.getTime()+2*86400000);
@@ -3304,8 +3329,21 @@ async function setEstado(id,est){
   toast('Estado: '+est);
 }
 async function aplicarEstado(a,est){
+  const previo=a.estadoManual;
   a.estadoManual=est;
   a.resultado=est;
+  /* Se guarda CUÁNDO se cerró, no solo que está cerrada. Con eso se puede medir
+     cuánto tarda cada vendedor en definir una consulta: una que entra el 1 y se
+     rechaza el 3 no es lo mismo que una que queda dando vueltas 40 días.
+     Si se reabre, se limpia — así la demora no queda contando desde un cierre viejo. */
+  const cerrada = est==='Concretado' || est==='Rechazado';
+  if(cerrada && previo!==est){
+    a.cerradoTs = new Date().toISOString();
+    a.cerradoPorId = YO;
+    a.diasHastaCierre = Math.max(0, Math.round((Date.now()-new Date(a.ts).getTime())/86400000));
+  }else if(!cerrada){
+    a.cerradoTs=null; a.cerradoPorId=null; a.diasHastaCierre=null;
+  }
   if(a.contactoId){
     const c=contactoPorId(a.contactoId);
     if(c){ c.estadoGeneral=est; c.ultimaActividad=new Date().toISOString(); await saveContactos(); }
@@ -3573,6 +3611,9 @@ function pintarEtapa(){
        cerró mal no es quien debe seguirla— a quién se le pasa. */
     const eraCerrada = est==='Concretado' || est==='Rechazado';
     const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
+    // Reasignar es decisión de Cintia o de dirección: un vendedor no se saca de encima
+    // una consulta pasándosela a otro.
+    const puedeDerivar = esAuditora() || esAdmin();
     cuerpo=`
       <p class="tiny" style="margin-bottom:12px">La consulta queda abierta y vuelve a sumar al monto en juego.${eraCerrada?` Estaba marcada como <b>${est}</b>.`:''}</p>
       <div class="field">
@@ -3587,13 +3628,14 @@ function pintarEtapa(){
             .map(([v,l],i)=>`<span class="cierre-chip${i===1?' on':''}" data-v="${v}" onclick="segElegirCuando(this)">${l}</span>`).join('')}
         </div>
       </div>
+      ${puedeDerivar?`
       <div class="field">
         <label>¿Quién la sigue?</label>
         <select id="segVendedor">
           ${vendedores.map(uid=>`<option value="${uid}"${a.vendedorId===uid?' selected':''}>${escapeHtml(nombreDe(uid))}${a.vendedorId===uid?' (la tiene ahora)':''}</option>`).join('')}
         </select>
         <p class="tiny" style="margin:4px 0 0;color:var(--muted)">Si la cerró mal, podés pasársela a otro vendedor.</p>
-      </div>
+      </div>`:''}
       <button class="btn btn-navy" style="width:100%;margin-top:6px" onclick="guardarEtapaSeguimiento()">Guardar</button>`;
   }else{
     cuerpo=`<p class="tiny" style="color:var(--muted)">Elegí una etapa: según cuál marques se despliega lo que hay que completar.</p>`;
@@ -3922,13 +3964,16 @@ function logItemHtml(a){
    al hacer scroll). Eso hacía que un menú abierto en una fila quedara por debajo
    del encabezado y se leyera transparente. Mientras hay un menú abierto, el
    contenedor de filas se eleva por encima; al cerrarlo vuelve a su lugar. */
-function elevarFilas(activo){
+/* Quién tiene que quedar arriba depende de DÓNDE se abrió el menú:
+   - en una fila  → suben las filas y baja el encabezado
+   - en el encabezado (los filtros de columna) → al revés
+   Antes bajaba el encabezado siempre, y eso escondía sus propios filtros. */
+function elevarFilas(activo, enElEncabezado){
   const box=document.getElementById('filasBox');
-  if(box) box.classList.toggle('pop-arriba', !!activo);
-  // Además se baja el encabezado: si por algún motivo la fila no logra subir,
-  // el encabezado igual deja de taparla.
   const head=document.getElementById('cheadBox');
-  if(head) head.classList.toggle('pop-abajo', !!activo);
+  if(box)  box.classList.toggle('pop-arriba', !!activo && !enElEncabezado);
+  if(head) head.classList.toggle('pop-abajo', !!activo && !enElEncabezado);
+  if(head) head.classList.toggle('pop-encima', !!activo && !!enElEncabezado);
 }
 /* ── Ediciones rápidas desde la fila ──────────────────────────────────
    Cambiar la próxima acción o cómo se ve al cliente es lo que más se toca en el
@@ -4015,12 +4060,20 @@ async function guardarComentarioRapido(id){
 
 function cerrarPops(){
   document.querySelectorAll('.ebtn.open').forEach(x=>x.classList.remove('open'));
-  elevarFilas(false);
+  document.querySelectorAll('.crow.fila-arriba').forEach(x=>x.classList.remove('fila-arriba'));
+  elevarFilas(false, false);
 }
 function togPop(el){
   const abierto=el.classList.contains('open');
   cerrarPops();
-  if(!abierto){ el.classList.add('open'); elevarFilas(true); }
+  if(!abierto){
+    el.classList.add('open');
+    // La fila entera sube: así el desplegable queda sobre las filas de abajo.
+    // Se hace por clase además del :has() del CSS, que no existe en navegadores viejos.
+    const fila=el.closest('.crow');
+    if(fila) fila.classList.add('fila-arriba');
+    elevarFilas(true, !!el.closest('#cheadBox'));
+  }
 }
 document.addEventListener('click',e=>{ if(!e.target.closest('.ebtn')) cerrarPops(); });
 document.addEventListener('click',e=>{
@@ -4308,8 +4361,8 @@ function construirListaFiltrada(){
     const manana0=new Date(hoy0.getTime()+86400000);
     const en7=new Date(hoy0.getTime()+7*86400000);
     l=l.filter(a=>{
-      const c=a.contactoId?contactoPorId(a.contactoId):null;
-      const prox=c&&c.proximaAccionTs?new Date(c.proximaAccionTs):null;
+      const p=proximaAccionDe(a);
+      const prox=p?new Date(p):null;
       if(filtroPlazo==='sin') return !prox;
       if(!prox) return false;
       if(filtroPlazo==='vencidas') return prox<hoy0;
@@ -4568,8 +4621,7 @@ function zonaDe(a){
   if(a.status==='pendiente') return 'sinclas';
   // La próxima acción puede estar en el contacto (consultas cargadas en el CRM) o
   // en la consulta misma (las que vienen de las planillas viejas).
-  const c=a.contactoId?contactoPorId(a.contactoId):null;
-  const proxTs = (c && c.proximaAccionTs) || a.proximaAccionTs || null;
+  const proxTs = proximaAccionDe(a);
   if(!proxTs) return 'sinplazo';
   const prox=new Date(proxTs);
   const hoy0=new Date(); hoy0.setHours(0,0,0,0);
@@ -4738,13 +4790,35 @@ function svRecItemHtml(it){
 /* ===== Estadísticas del vendedor =====
    Período propio + comparación contra otro período. Mide volumen, resultado, plata y
    calidad — todo sobre SUS consultas. */
-let svPeriodo='mes';          // 'mes' | '3meses' | 'anio' | 'todo'
-let svComparar='anterior';    // 'no' | 'anterior'
-const SV_PERIODOS=[['mes','Este mes'],['3meses','3 meses'],['anio','Este año'],['todo','Todo']];
+let svPeriodo='mes';          // 'mes' | '3meses' | 'anio' | 'todo' | 'custom'
+let svComparar='anterior';    // 'no' | 'anterior' | 'custom'
+let svDesde=null, svHasta=null;         // fechas a elección del período
+let svCmpDesde=null, svCmpHasta=null;   // fechas a elección de la comparación
+const SV_PERIODOS=[['mes','Este mes'],['3meses','3 meses'],['anio','Este año'],
+                   ['todo','Todo'],['custom','Fechas a elección']];
 
 function svRangoPeriodo(cual){
   const hoy=new Date(); hoy.setHours(23,59,59,999);
-  const desde=new Date(hoy);
+
+  // Comparación contra fechas elegidas a mano: sirve para preguntas concretas
+  // ("¿cómo vengo en julio contra enero?"), que el período anterior no responde.
+  if(cual!=='actual' && svComparar==='custom'){
+    return {
+      desde: svCmpDesde ? new Date(svCmpDesde+'T00:00:00') : new Date(2025,0,1),
+      hasta: svCmpHasta ? new Date(svCmpHasta+'T23:59:59') : hoy
+    };
+  }
+
+  let desde;
+  if(svPeriodo==='custom'){
+    desde = svDesde ? new Date(svDesde+'T00:00:00') : new Date(2025,0,1);
+    const hasta = svHasta ? new Date(svHasta+'T23:59:59') : hoy;
+    if(cual==='actual') return {desde, hasta};
+    const largo = hasta-desde;
+    return {desde:new Date(desde.getTime()-largo-1), hasta:new Date(desde.getTime()-1)};
+  }
+
+  desde=new Date(hoy);
   if(svPeriodo==='mes')        desde.setMonth(desde.getMonth()-1);
   else if(svPeriodo==='3meses')desde.setMonth(desde.getMonth()-3);
   else if(svPeriodo==='anio')  desde.setFullYear(desde.getFullYear()-1);
@@ -4756,6 +4830,16 @@ function svRangoPeriodo(cual){
   return {desde:new Date(desde.getTime()-largo), hasta:new Date(desde.getTime()-1)};
 }
 
+function svFmtRango(r){
+  const f=d=>d.toLocaleDateString('es-AR',{day:'numeric',month:'short'});
+  return `${f(r.desde)} – ${f(r.hasta)}`;
+}
+function svSetFecha(k,v){
+  if(k==='desde') svDesde=v; else if(k==='hasta') svHasta=v;
+  else if(k==='cmpdesde') svCmpDesde=v; else if(k==='cmphasta') svCmpHasta=v;
+  render();
+}
+
 function svMetricas(rango){
   // Base: SOLO consultas que fueron oportunidades reales. Un fantasma o un rechazo que
   // nunca pudo ser venta no le suma ni le resta a nadie.
@@ -4764,6 +4848,18 @@ function svMetricas(rango){
   const est = e => l.filter(a=>estadoDe(a)===e);
   const concretadas=est('Concretado'), rechazadas=est('Rechazado');
   const abiertas = l.filter(a=>!['Concretado','Rechazado'].includes(estadoDe(a)));
+
+  /* --- Demora en definir --- Cuánto tarda desde que entra la consulta hasta que se
+     marca concretada o rechazada. Una consulta que queda 40 días sin definir es plata
+     inmovilizada; el promedio dice si el vendedor cierra o deja colgando. */
+  const conDemora = [...concretadas, ...rechazadas].filter(a=>typeof a.diasHastaCierre==='number');
+  const demoraProm = conDemora.length
+    ? Math.round(conDemora.reduce((t,a)=>t+a.diasHastaCierre,0)/conDemora.length) : null;
+  const demoraConc = concretadas.filter(a=>typeof a.diasHastaCierre==='number');
+  const demoraConcProm = demoraConc.length
+    ? Math.round(demoraConc.reduce((t,a)=>t+a.diasHastaCierre,0)/demoraConc.length) : null;
+  // Las que llevan mucho abiertas: todavía no se decidieron y siguen ocupando tiempo.
+  const abiertasViejas = abiertas.filter(a=>diasDesde(a.ts)>30).length;
 
   // --- Plata ---
   const podia   = l.reduce((t,a)=>t+(montoRepresentativo(a.muebles)||0),0);
@@ -4824,6 +4920,7 @@ function svMetricas(rango){
     sinclas:l.filter(a=>zonaDe(a)==='sinclas').length,
     atrasadas:l.filter(a=>zonaDe(a)==='atrasada').length,
     concretadas:concretadas.length, rechazadas:rechazadas.length,
+    demoraProm, demoraConcProm, abiertasViejas, definidas:conDemora.length,
     podia, genero, perdida, enJuego, perdidaParcial,
     ventasParciales:ventasParciales.length, mueblesSueltos,
     pctCerradas: pct(concretadas.length, l.length),
@@ -4886,11 +4983,16 @@ function svEstadisticasHtml(){
     <div class="sv-controles">
       <span class="sv-ctrl-lbl">Período</span>
       ${SV_PERIODOS.map(([v,t])=>`<button class="sv-chip ${svPeriodo===v?'on':''}" onclick="svSetPeriodo('${v}')">${t}</button>`).join('')}
+      ${svPeriodo==='custom'?`<input type="date" class="sv-fecha" value="${svDesde||''}" onchange="svSetFecha('desde',this.value)"><span class="tiny">a</span><input type="date" class="sv-fecha" value="${svHasta||''}" onchange="svSetFecha('hasta',this.value)">`:''}
       <span class="sv-ctrl-lbl" style="margin-left:10px">Comparar</span>
       <button class="sv-chip ${svComparar==='anterior'?'on':''}" onclick="svSetComparar('anterior')">Período anterior</button>
+      <button class="sv-chip ${svComparar==='custom'?'on':''}" onclick="svSetComparar('custom')">Fechas a elección</button>
       <button class="sv-chip ${svComparar==='no'?'on':''}" onclick="svSetComparar('no')">Sin comparar</button>
+      ${svComparar==='custom'?`<input type="date" class="sv-fecha" value="${svCmpDesde||''}" onchange="svSetFecha('cmpdesde',this.value)"><span class="tiny">a</span><input type="date" class="sv-fecha" value="${svCmpHasta||''}" onchange="svSetFecha('cmphasta',this.value)">`:''}
     </div>
-    <p class="tiny" style="margin:-6px 0 16px;color:var(--muted)">Todo se calcula sobre oportunidades reales: quedan afuera las consultas que nunca fueron un cliente.</p>
+    <p class="tiny" style="margin:-6px 0 16px;color:var(--muted)">
+      Viendo <b>${svFmtRango(svRangoPeriodo('actual'))}</b>${svComparar!=='no'?` contra <b>${svFmtRango(svRangoPeriodo('anterior'))}</b>`:''}.
+      Todo se calcula sobre oportunidades reales: quedan afuera las consultas que nunca fueron un cliente.</p>
 
     <h4 class="sv-h">Volumen</h4>
     <div class="sv-kpis">
@@ -4902,6 +5004,10 @@ function svEstadisticasHtml(){
 
     <h4 class="sv-h">Cierre</h4>
     <div class="sv-kpis">
+      ${kpi('Demora en definir', act.demoraProm===null?'—':act.demoraProm+' días',
+            ref&&ref.demoraProm!==null?ref.demoraProm:null, true,
+            act.definidas?`promedio de ${act.definidas} cerradas`:'todavía sin cerradas')}
+      ${kpi('Abiertas hace +30 días', act.abiertasViejas, ref&&ref.abiertasViejas, true)}
       ${kpi('Cerradas', act.concretadas, ref&&ref.concretadas, false, `${act.pctCerradas}% del total`)}
       ${kpi('Podías cerrar y no cerraste', act.rechazadas, ref&&ref.rechazadas, true, `${act.pctNoCerro}% del total`)}
       ${kpi('Todavía abiertas', act.total-act.concretadas-act.rechazadas, null, false, `$ ${miles(act.enJuego)} en juego`)}
@@ -5009,10 +5115,76 @@ function svOportunidadesHtml(){
     </tbody></table>`;
 }
 
+/* ── Período y comparación de la sección Evaluación ───────────────────
+   Una foto del total no dice si mejoró. Comparar dos períodos sí: "en enero
+   tenías 40% de atención floja, en julio 12%". */
+let evPeriodo='todo', evDesde=null, evHasta=null;
+let evCmp='no', evCmpDesde=null, evCmpHasta=null;
+
+function evRango(cual){
+  const hoy=new Date(); hoy.setHours(23,59,59,999);
+  const per = cual==='cmp' ? evCmp : evPeriodo;
+  const d = cual==='cmp' ? evCmpDesde : evDesde;
+  const h = cual==='cmp' ? evCmpHasta : evHasta;
+  if(per==='custom') return {d1:d?new Date(d+'T00:00:00'):new Date(0), d2:h?new Date(h+'T23:59:59'):hoy};
+  if(per==='no'||per==='todo') return null;
+  const d1=new Date(); d1.setHours(0,0,0,0);
+  if(per==='mes')    d1.setMonth(d1.getMonth()-1);
+  if(per==='3meses') d1.setMonth(d1.getMonth()-3);
+  if(per==='6meses') d1.setMonth(d1.getMonth()-6);
+  if(per==='anio')   { d1.setMonth(0); d1.setDate(1); }
+  return {d1, d2:hoy};
+}
+function evEnRango(a, r){
+  if(!r) return true;
+  const t=new Date(a.evaluadoTs||a.ts).getTime();
+  return t>=r.d1.getTime() && t<=r.d2.getTime();
+}
+function setEvPer(k,v){
+  if(k==='per'){ evPeriodo=v; if(v!=='custom'){evDesde=null;evHasta=null;} }
+  else if(k==='desde') evDesde=v;
+  else if(k==='hasta') evHasta=v;
+  else if(k==='cmp'){ evCmp=v; if(v!=='custom'){evCmpDesde=null;evCmpHasta=null;} }
+  else if(k==='cmpdesde') evCmpDesde=v;
+  else if(k==='cmphasta') evCmpHasta=v;
+  render();
+}
+function evFmtRango(r){
+  if(!r) return 'Todo el histórico';
+  const f=d=>d.toLocaleDateString('es-AR',{day:'numeric',month:'short'});
+  return `${f(r.d1)} – ${f(r.d2)}`;
+}
+
 function svEvaluacionesHtml(){
-  const lista = atenciones.filter(a=>a.vendedorId===YO && a.evaluada)
+  const todas = atenciones.filter(a=>a.vendedorId===YO && a.evaluada)
     .sort((a,b)=>new Date(b.evaluadoTs||b.ts)-new Date(a.evaluadoTs||a.ts));
-  if(!lista.length) return `<p class="cin-empty">Cintia todavía no evaluó ninguna de tus consultas.</p>`;
+  const rango=evRango('per'), rangoCmp=evCmp==='no'?null:evRango('cmp');
+  const lista = todas.filter(a=>evEnRango(a,rango));
+  const listaCmp = rangoCmp ? todas.filter(a=>evEnRango(a,rangoCmp)) : null;
+
+  const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
+  const controles=`<div class="est-ctrl" style="margin-bottom:12px">
+    <div class="grupo"><span class="est-lb">Período</span>
+      <select onchange="setEvPer('per',this.value)">
+        ${opt('todo','Todo el histórico',evPeriodo)}${opt('mes','Último mes',evPeriodo)}
+        ${opt('3meses','Últimos 3 meses',evPeriodo)}${opt('6meses','Últimos 6 meses',evPeriodo)}
+        ${opt('anio','Este año',evPeriodo)}${opt('custom','Fechas a elección',evPeriodo)}
+      </select>
+      ${evPeriodo==='custom'?`<input type="date" value="${evDesde||''}" onchange="setEvPer('desde',this.value)"><span class="tiny">a</span><input type="date" value="${evHasta||''}" onchange="setEvPer('hasta',this.value)">`:''}
+    </div>
+    <div class="grupo"><span class="est-lb">Comparar con</span>
+      <select onchange="setEvPer('cmp',this.value)">
+        ${opt('no','Sin comparar',evCmp)}${opt('mes','Último mes',evCmp)}
+        ${opt('3meses','Últimos 3 meses',evCmp)}${opt('anio','Este año',evCmp)}
+        ${opt('custom','Fechas a elección',evCmp)}
+      </select>
+      ${evCmp==='custom'?`<input type="date" value="${evCmpDesde||''}" onchange="setEvPer('cmpdesde',this.value)"><span class="tiny">a</span><input type="date" value="${evCmpHasta||''}" onchange="setEvPer('cmphasta',this.value)">`:''}
+    </div>
+  </div>`;
+
+  if(!todas.length) return controles+`<p class="cin-empty">Cintia todavía no evaluó ninguna de tus consultas.</p>`;
+  if(!lista.length) return controles+`<p class="cin-empty">No hay evaluaciones en el período elegido.</p>`;
+
   // Las escalas van de 1 (mejor) a 4 (peor); el color sale de la propia definición.
   const ESC={atencion:EV_ATENCION, consulta:EV_CONSULTA, cliente:EV_CLIENTE};
   const chip=(v,esc)=>{
@@ -5025,17 +5197,29 @@ function svEvaluacionesHtml(){
   /* Barra de distribución por eje: antes de la lista, el panorama. Una lista de
      285 filas no responde "¿cómo vengo atendiendo?"; esto sí, de un vistazo. */
   const COL={g1:'#2f9e44', g2:'#74b816', g3:'#f08c00', g4:'#c92a2a'};
+  const pctBuenos=(l,campo)=>{
+    let n=0,b=0;
+    l.forEach(a=>{ const v=a[campo]; if(v){ n++; if(v<=2) b++; } });
+    return n?Math.round(b/n*100):null;
+  };
   const barra=(campo,esc,titulo,ayuda)=>{
     const conteo=new Map(esc.map(x=>[x[0],0]));
     let n=0;
     lista.forEach(a=>{ const v=a[campo]; if(conteo.has(v)){ conteo.set(v,conteo.get(v)+1); n++; } });
     if(!n) return '';
     const tramos=esc.map(([v,label,cls])=>({v,label,cls,n:conteo.get(v)})).filter(t=>t.n>0);
-    const buenos=tramos.filter(t=>t.v<=2).reduce((s,t)=>s+t.n,0);
+    const buenos=pctBuenos(lista,campo);
+    const buenosCmp=listaCmp?pctBuenos(listaCmp,campo):null;
+    let delta='';
+    if(buenosCmp!==null && buenos!==null){
+      const d=buenos-buenosCmp;
+      const cls = d>0?'epos':(d<0?'eneg':'');
+      delta=`<span class="ev-delta ${cls}">${d>0?'▲':(d<0?'▼':'=')} ${Math.abs(d)} pts vs ${buenosCmp}%</span>`;
+    }
     return `<div class="ev-res">
       <div class="ev-res-hd">
         <span class="ev-res-tit">${titulo}</span>
-        <span class="ev-res-pct">${Math.round(buenos/n*100)}% bien</span>
+        <span class="ev-res-pct">${buenos}% bien ${delta}</span>
       </div>
       <div class="ev-res-barra">${tramos.map(t=>
         `<span style="width:${(t.n/n*100).toFixed(1)}%;background:${COL[t.cls]||'#adb5bd'}" title="${t.label}: ${t.n}"></span>`).join('')}</div>
@@ -5045,15 +5229,21 @@ function svEvaluacionesHtml(){
     </div>`;
   };
 
-  return `
+  const notaCmp = listaCmp
+    ? `<div class="est-note" style="margin:0 0 12px">Comparando <b>${evFmtRango(rango)}</b> (${lista.length} evaluaciones) contra <b>${evFmtRango(rangoCmp)}</b> (${listaCmp.length}).</div>`
+    : '';
+
+  return controles + notaCmp + `
     <div class="ev-resumen">
       ${barra('evalAtencion',EV_ATENCION,'Tu calidad de atención','Cómo te evaluó Cintia a vos.')}
       ${barra('evalConsulta',EV_CONSULTA,'Calidad de las consultas que recibiste','No depende de vos: dice si la publicidad trae gente bien orientada.')}
       ${barra('evalCliente',EV_CLIENTE,'Calidad de los clientes','Cuán decididos venían. Marca cuánta oportunidad real tuviste.')}
     </div>
-    <p class="tiny" style="margin:14px 0 12px">${lista.length} consulta${lista.length===1?'':'s'} evaluada${lista.length===1?'':'s'} por Cintia. Tocá una para ver el detalle y pedir una revisión.</p>
-    <table class="tabla-cintia"><thead><tr><th>Cliente</th><th>Fecha</th><th>Atención</th><th>Consulta</th><th>Cliente</th></tr></thead><tbody>
-    ${lista.map(a=>`
+    <p class="tiny" style="margin:14px 0 12px">${lista.length} consulta${lista.length===1?'':'s'} evaluada${lista.length===1?'':'s'} en este período. Tocá una para ver el detalle y pedir una revisión.</p>
+    <table class="tabla-cintia"><thead><tr><th>Cliente</th><th>Fecha</th><th>Atención</th><th>Consulta</th><th>Cliente</th><th>Observación</th></tr></thead><tbody>
+    ${lista.map(a=>{
+      const obs = a.obsCintia || (a.comentarioVendedor && a.comentarioVendedor.texto) || '';
+      return `
       <tr style="cursor:pointer" onclick="abrirVistaEvaluacion('${a.id}')">
         <td><b>${escapeHtml(a.clienteNombre||'Sin nombre')}</b>${a.oportunidadPerdida?'<span class="nueva-b" style="background:var(--red)">Oport. perdida</span>':''}
           ${a.clienteTelefono?`<div class="tiny" style="color:var(--muted)">${escapeHtml(a.clienteTelefono)}</div>`:''}</td>
@@ -5061,7 +5251,10 @@ function svEvaluacionesHtml(){
         <td>${chip(a.evalAtencion,'atencion')}</td>
         <td>${chip(a.evalConsulta,'consulta')}</td>
         <td>${chip(a.evalCliente,'cliente')}</td>
-      </tr>`).join('')}
+        <td class="ev-obs-cel">${obs
+          ? `<span title="${escAttr(obs)}">${escapeHtml(obs.length>70?obs.slice(0,70)+'…':obs)}</span>`
+          : '<span class="ena">—</span>'}</td>
+      </tr>`;}).join('')}
     </tbody></table>`;
 }
 
@@ -7202,9 +7395,13 @@ function abrirVistaEvaluacion(id){
   const puedePedir = a.evaluada && (!rev || rev.estado==='resuelta');
 
   $('evaluarCaja').innerHTML=`
-    <div class="ev-hd"><div><h3>Tu evaluación</h3><div class="meta">${escapeHtml(a.clienteNombre||'Sin nombre')}${a.evaluadoTs?' · '+new Date(a.evaluadoTs).toLocaleDateString('es-AR'):''}</div></div></div>
+    <div class="ev-hd"><div><h3>Tu evaluación</h3><div class="meta">${escapeHtml(a.clienteNombre||'Sin nombre')}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}${a.evaluadoTs?' · '+new Date(a.evaluadoTs).toLocaleDateString('es-AR'):''}</div></div></div>
     <div style="padding:14px 2px 2px">
       ${ejes}
+      ${a.obsCintia ? `<div class="vev-obs">
+        <div class="vev-obs-de">📋 Observación de ${nombreDe(a.evaluadoPorId||'cintia')}</div>
+        <p>${escapeHtml(a.obsCintia)}</p>
+      </div>` : ''}
       ${c && c.texto ? `<div class="vev-com">
         <div class="vev-com-de">💬 ${nombreDe(c.deId)} te comentó</div>
         <p>${escapeHtml(c.texto)}</p>
