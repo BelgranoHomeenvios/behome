@@ -144,7 +144,11 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-vendedor,.chead .h-vendedor{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* ===== Columnas fusionadas: Situación (estado+oportunidad) y Origen (vendedor+canal) ===== */
 .c-situacion,.chead .h-situacion{flex:1.5;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
-.c-situacion .sit-op{font-size:11.5px;color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.c-situacion{overflow:visible}
+.c-situacion .sit-op{font-size:11.5px;color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block}
+/* El contenedor NO recorta: si lo hiciera, el menú desplegable quedaría cortado
+   dentro de la celda. El recorte del texto largo vive en .sit-op. */
+.c-situacion .rap-op{display:block;max-width:100%;overflow:visible;position:relative}
 .c-origen,.chead .h-origen{flex:1.3;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
 .c-origen .or-vend{color:var(--sec);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .c-origen .or-canal{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -354,6 +358,17 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
    leían encimados. */
 #filasBox .crow:nth-child(-n+2) .ebtn .pop{bottom:auto;top:130%}
 .pop-rapido{width:190px!important;padding:8px!important}
+.pop-coment{width:260px!important;padding:10px!important}
+.pop-coment b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
+.cm-hist{font-size:12px;color:var(--ink);line-height:1.45;max-height:110px;overflow-y:auto;background:var(--surface-1,#f7f9fb);border-radius:6px;padding:7px 9px;margin-bottom:8px}
+.cm-vacio{font-size:11.5px;color:var(--muted);margin-bottom:8px}
+.cm-input{width:100%;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-family:inherit;font-size:12.5px;resize:vertical;box-sizing:border-box}
+.cm-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-l)}
+.cm-acc{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px}
+.cm-tip{font-size:10px;color:var(--muted)}
+.cm-btn{background:var(--navy,#16324f);color:#fff;border:none;border-radius:6px;padding:6px 13px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.cm-btn:hover{background:#1e3f5f}
+.c-coment{overflow:visible}
 .pop-rapido b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:5px}
 .pop-rapido .menu-op{padding:6px 8px;border-radius:6px;font-size:12.5px;cursor:pointer}
 .pop-rapido .menu-op:hover{background:var(--surface-1,#f4f6f8)}
@@ -3754,7 +3769,8 @@ async function resolverSolicitud(id, estado){
 }
 
 function logItemHtml(a){
-  const pend = a.status==='pendiente';
+  // Una consulta archivada no es "nueva" aunque nunca se haya clasificado: es vieja.
+  const pend = a.status==='pendiente' && !a.soloVolumen;
   const tel = a.noTomoTelefono ? 'sin teléfono' : (a.clienteTelefono || 'Sin definir');
   const telCopiable = !a.noTomoTelefono && a.clienteTelefono;
   const muebles = a.muebles||[];
@@ -3826,8 +3842,8 @@ function logItemHtml(a){
         <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
           <span class="est ${est?ESTADO_CLS[est]:'es-sin'}">${est||'–'}</span>
         </span>
-        <span class="ebtn rap-btn sit-op" title="Cambiar cómo viste al cliente" onclick="event.stopPropagation();togPop(this)">
-          ${a.percepcion?`${emo} ${a.percepcion}`:'–'}
+        <span class="ebtn rap-btn rap-op" title="Cambiar cómo viste al cliente" onclick="event.stopPropagation();togPop(this)">
+          <span class="sit-op">${a.percepcion?`${emo} ${a.percepcion}`:'–'}</span>
           <span class="pop pop-rapido">
             <b>¿Cómo viste al cliente?</b>
             ${PERCEPCIONES.map(p=>`<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${OPORT_EMOJI[p]||''} ${p}</div>`).join('')}
@@ -3835,23 +3851,34 @@ function logItemHtml(a){
         </span>
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
-        <b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin())) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.evaluada && !a.comentarioVendedor && !a.revisionEval && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--sec);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Ver evaluación</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin())) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.evaluada && !a.comentarioVendedor && !a.revisionEval && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--sec);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Ver evaluación</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         <div class="c-sub">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
           : tel}</div>
       </div>
       ${colsCintia}
       ${montoCol}
-      <div class="c-coment" ondblclick="editarDesdeHistorial('${a.id}')">
-        ${coment
-          ? `<span class="ebtn cm-ico" onclick="event.stopPropagation();togPop(this)">📝<span class="pop"><b>Comentarios</b><br>${coment}</span></span>`
-          : `<span class="cm-ico apagado" title="Sin comentarios">📝</span>`}
+      <div class="c-coment">
+        <span class="ebtn cm-ico rap-btn${coment?'':' apagado'}" title="${coment?'Ver y agregar comentario':'Agregar comentario'}" onclick="event.stopPropagation();togPop(this);enfocarComentario('${a.id}')">📝
+          <span class="pop pop-coment">
+            <b>Comentarios</b>
+            ${coment?`<div class="cm-hist">${coment}</div>`:'<div class="cm-vacio">Todavía no hay comentarios.</div>'}
+            <textarea id="cmRap-${a.id}" class="cm-input" rows="2" placeholder="Escribí y guardá — se suma al historial"
+              onclick="event.stopPropagation()"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();guardarComentarioRapido('${a.id}')}"></textarea>
+            <div class="cm-acc">
+              <span class="cm-tip">Enter guarda · Shift+Enter salta de línea</span>
+              <button class="cm-btn" onclick="event.stopPropagation();guardarComentarioRapido('${a.id}')">Guardar</button>
+            </div>
+          </span>
+        </span>
         <span class="ebtn" onclick="event.stopPropagation();togPop(this)" title="Más opciones">⋮
           <span class="pop pop-menu">
             <div class="menu-op" onclick="event.stopPropagation();cerrarPops();editarDesdeHistorial('${a.id}')">Ver todo</div>
             ${esAuditora() ? `
             <div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">Reasignar a otro vendedor</div>
-            <div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirRecordarConsulta('${a.id}')">Enviar recordatorio al vendedor</div>
+            <!-- El recordatorio se manda desde la campanita de la primera columna;
+                 tenerlo también acá era el mismo botón dos veces. -->
             ` : ''}
             ${a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora())
               ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">Marcar recordatorio como atendido</div>`
@@ -3937,6 +3964,27 @@ function editarSoloMuebles(id){
     const primero=document.querySelector('#mueblesLista input');
     if(primero) primero.focus();
   }, 180);
+}
+
+function enfocarComentario(id){
+  setTimeout(()=>{ const t=document.getElementById('cmRap-'+id); if(t) t.focus(); }, 30);
+}
+
+/* El comentario se SUMA al historial, nunca pisa lo anterior: la bitácora de la
+   consulta es lo que después le sirve a Cintia y al que la reciba derivada. */
+async function guardarComentarioRapido(id){
+  const t=document.getElementById('cmRap-'+id);
+  const texto=(t?.value||'').trim();
+  if(!texto){ toast('Escribí algo para guardar'); return; }
+  const a=atenciones.find(x=>x.id===id);
+  if(!a) return;
+  a.historialContacto=a.historialContacto||[];
+  a.historialContacto.push({ts:new Date().toISOString(), texto, percepcion:a.percepcion||null});
+  a.notas=texto;
+  cerrarPops();
+  await saveAtenciones();
+  renderHistorial();
+  toast('Comentario guardado');
 }
 
 function cerrarPops(){
@@ -4210,6 +4258,12 @@ function setFiltroBusqueda(valor){
 function construirListaFiltrada(){
   let l = puedeVerEquipo() ? registrosLocal(FILTRO_LOCAL_ADMIN) : atenciones.filter(a=>a.vendedorId===YO);
   if(scopeActual==='mias') l=l.filter(a=>a.vendedorId===YO);
+
+  /* Las consultas archivadas (anteriores a mayo 2026 que nunca se cerraron) no son
+     trabajo: en esa época no se registraba el resultado. Cuentan como volumen en las
+     estadísticas, pero no tienen por qué aparecerle a un vendedor como algo pendiente.
+     Se ven igual si las busca por teléfono. */
+  if(!filtroBusqueda) l=l.filter(a=>!a.soloVolumen);
 
   if(filtroOportunidad==='sin') l=l.filter(a=>!a.percepcion);
   else if(filtroOportunidad!=='todos') l=l.filter(a=>a.percepcion===filtroOportunidad);
