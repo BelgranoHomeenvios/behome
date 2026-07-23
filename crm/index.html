@@ -5174,22 +5174,18 @@ function svEstadisticasHtml(){
 
     <h4 class="sv-h">Cierre</h4>
     <div class="sv-kpis">
-      ${kpi('Demora en definir', act.demoraProm===null?'—':act.demoraProm+' días',
-            ref&&ref.demoraProm!==null?ref.demoraProm:null, true,
-            act.definidas?`promedio de ${act.definidas} cerradas`:'todavía sin cerradas')}
-      ${kpi('Abiertas hace +30 días', act.abiertasViejas, ref&&ref.abiertasViejas, true)}
-      ${kpi('Cerradas', act.concretadas, ref&&ref.concretadas, false, `${act.pctCerradas}% del total`)}
-      ${kpi('Podías cerrar y no cerraste', act.rechazadas, ref&&ref.rechazadas, true, `${act.pctNoCerro}% del total`)}
-      ${kpi('Todavía abiertas', act.total-act.concretadas-act.rechazadas, null, false, `$ ${miles(act.enJuego)} en juego`)}
-      ${kpi('Oportunidades perdidas', act.nPerdidas, ref&&ref.nPerdidas, true, act.perdidoOportunidad?`$ ${miles(act.perdidoOportunidad)}`:'Ninguna marcada')}
+      ${kpi('Concretadas', act.concretadas, ref&&ref.concretadas, false, `${act.pctCerradas}% del total`)}
+      ${kpi('En seguimiento', act.seguimiento, ref&&ref.seguimiento, false, 'Todavía abiertas')}
+      ${kpi('Rechazadas', act.rechazadas, ref&&ref.rechazadas, true, `${act.pctNoCerro}% del total`)}
+      ${kpi('Podías cerrar y no cerraste', act.nPerdidas, ref&&ref.nPerdidas, true, act.perdidoOportunidad?`$ ${miles(act.perdidoOportunidad)}`:'Lo marca Cintia')}
     </div>
 
     <h4 class="sv-h">Plata</h4>
     <div class="sv-kpis">
-      ${kpi('Podías generar', '$ '+miles(act.podia), null, false, 'Todo lo que cotizaste')}
-      ${kpi('Generaste', '$ '+miles(act.genero), null, false, `<b style="color:var(--green)">${act.pctPlataGen}%</b> de lo posible`)}
-      ${kpi('Perdiste', '$ '+miles(act.perdida), null, false, `<b style="color:var(--red)">${act.pctPlataPer}%</b> de lo posible`)}
-      ${kpi('En juego', '$ '+miles(act.enJuego), null, false, 'Consultas todavía abiertas')}
+      ${kpi('Plata cotizada', '$ '+miles(act.podia), null, false, 'Todo lo que cotizaste')}
+      ${kpi('Plata en juego', '$ '+miles(act.enJuego), null, false, 'Consultas todavía abiertas')}
+      ${kpi('Plata que generaste', '$ '+miles(act.genero), null, false, `<b style="color:var(--green)">${act.pctPlataGen}%</b> de lo posible`)}
+      ${kpi('Plata no generada', '$ '+miles(act.perdida), null, false, `<b style="color:var(--red)">${act.pctPlataPer}%</b> de lo cotizado`)}
     </div>
     <div class="sv-barra" style="margin-top:10px;height:14px">
       <span style="width:${act.pctPlataGen}%;background:var(--green)" title="Generado"></span>
