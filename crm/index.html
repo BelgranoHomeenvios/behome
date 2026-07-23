@@ -478,6 +478,12 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .pills-nowrap .pill{white-space:nowrap;flex-shrink:0}
 .c-nom b{color:var(--navy)}
 .c-sub{font-size:11px;color:var(--muted);margin-top:1px}
+/* Contacto invertido: teléfono grande arriba, nombre debajo (más legible) */
+.c-nom{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px}
+.c-tel{font-size:15px;font-weight:700;color:var(--navy);line-height:1.2}
+.c-tel .tel-copy{border-bottom:1px dashed var(--muted);padding-bottom:1px}
+.c-nom-txt{font-size:13px;color:var(--sec);line-height:1.25}
+.c-nom-txt b{font-weight:600;color:var(--sec)}
 .tel-copy{cursor:pointer;border-bottom:1px dashed var(--muted);padding-bottom:1px}
 .tel-copy:hover{color:var(--blue);border-color:var(--blue)}
 .copy-ic{opacity:.55;margin-left:3px;font-size:10.5px}
@@ -4072,8 +4078,9 @@ function logItemHtml(a){
         </span>
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
-        <b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin())) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
-        <div class="c-sub">${telCopiable
+        <span class="c-nom-txt"><b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin())) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        </span>
+        <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
           : tel}</div>
       </div>
@@ -4094,22 +4101,18 @@ function logItemHtml(a){
             </div>
           </span>
         </span>
-        <span class="ebtn" onclick="event.stopPropagation();togPop(this)" title="Más opciones">⋮
-          <span class="pop pop-menu">
-            <div class="menu-op" onclick="event.stopPropagation();cerrarPops();editarDesdeHistorial('${a.id}')">Ver todo</div>
-            ${esAuditora() ? `
-            <div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">Reasignar a otro vendedor</div>
-            <!-- El recordatorio se manda desde la campanita de la primera columna;
-                 tenerlo también acá era el mismo botón dos veces. -->
-            ` : ''}
-            ${a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora())
-              ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">Marcar recordatorio como atendido</div>`
-              : ''}
-            ${solPendiente
-              ? `<div class="menu-op" style="color:var(--muted)">Baja ya solicitada</div>`
-              : `<div class="menu-op rojo" onclick="event.stopPropagation();cerrarPops();abrirSolicitudEliminar('${a.id}')">${esAuditora()?'Eliminar contacto':'Solicitar eliminar contacto'}</div>`}
-          </span>
-        </span>
+        <span class="ebtn cm-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
+        ${solPendiente
+          ? `<span class="ebtn cm-ico apagado" title="Baja ya solicitada">🗑️</span>`
+          : `<span class="ebtn cm-ico" title="${esAuditora()?'Eliminar contacto':'Solicitar eliminar contacto'}" onclick="event.stopPropagation();abrirSolicitudEliminar('${a.id}')">🗑️</span>`}
+        ${(esAuditora() || (a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora())))
+          ? `<span class="ebtn" onclick="event.stopPropagation();togPop(this)" title="Más opciones">⋮
+              <span class="pop pop-menu">
+                ${esAuditora() ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">Reasignar a otro vendedor</div>` : ''}
+                ${a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora()) ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">Marcar recordatorio como atendido</div>` : ''}
+              </span>
+            </span>`
+          : ''}
       </div>
       ${evalCol}
     </div>`;
