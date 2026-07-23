@@ -3457,6 +3457,10 @@ const DIAS_PARA_URGENTE = 15;
 const DIAS_PARA_ARCHIVAR = 25;
 
 function infoPlazo(a){
+  // Una consulta ya cerrada (Concretada o Rechazada) no tiene ninguna acción pendiente:
+  // aunque le haya quedado una próxima acción vieja, no debe gritar "Urgente".
+  const estActual=estadoDe(a);
+  if(estActual==='Concretado' || estActual==='Rechazado') return {txt:'–', det:'', cls:'pl-sin', rank:9};
   // Textos cortos a propósito: la tabla se lee de un vistazo, no se lee como una frase.
   // De 2 días en adelante mostramos la fecha concreta (22/7) en vez del día de la semana
   // o "la semana que viene", que obligan a traducir mentalmente a qué día equivalen.
