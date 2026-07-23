@@ -1447,7 +1447,7 @@ textarea{resize:vertical;min-height:60px}
           <div class="turno-contador hidden" id="turnoContador"></div>
           <div class="row" id="accionesSecundarias" style="margin-top:4px">
             <button class="btn btn-primary" id="btnPrincipal" onclick="abrirModalNueva()">Registrar mi atención</button>
-            <button class="btn btn-secondary hidden" id="btnRegistroRapido" onclick="sumarAtencionRapida()">Registro rápido</button>
+            <button class="btn btn-secondary hidden" id="btnRegistroRapido" onclick="abrirModalRapido()">Registro rápido</button>
           </div>
         </div>
 
@@ -1933,6 +1933,7 @@ let filtroCanalCintia='todos';
 let filtroEvaluacion='todos'; // 'todos' | 'evaluadas' | 'sinevaluar' — solo para Cintia
 let photoDataUrl=null;
 let modalModo='nueva'; // 'nueva' | 'completar'
+let modalRapido=false; // true = pop-up "Registro rápido" (menos campos, exige mueble)
 let completandoId=null;
 let mueblesActuales=[];
 
@@ -8727,13 +8728,31 @@ function abrirModalNueva(){
   $('modalBadge').classList.add('hidden');
   $('modalBadge').textContent='';
   $('btnGuardar').textContent='Guardar atención';
+  modalRapido=false; _camposRapido(false);
   abrirModalFondo();
+}
+
+/* Registro rápido: mismo modal, pero solo Cliente (nombre/tel) + Muebles, con al
+   menos un mueble con monto obligatorio. Reusa toda la lógica de "nueva". */
+function _camposRapido(ocultar){
+  const disp=ocultar?'none':'';
+  const nro=$('nroCotizacion'); if(nro && nro.closest('.field')) nro.closest('.field').style.display=disp;
+  const per=$('percepcionPills'); if(per && per.closest('.field')) per.closest('.field').style.display=disp;
+  const tmp=$('campoTiempoTurno'); if(tmp) tmp.style.display=disp;
+  const px=$('wizProxima'); if(px) px.style.display=disp;
+}
+function abrirModalRapido(){
+  abrirModalNueva();                 // reusa el setup completo (modo nueva, limpio, campos visibles)
+  modalRapido=true;
+  _camposRapido(true);               // esconde N° cotiz, percepción, tiempo y "Próxima acción"
+  $('modalTitulo').textContent='Registro rápido';
 }
 
 function abrirModalCompletar(id, paso){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
   modalModo='completar';
+  modalRapido=false; _camposRapido(false);
   completandoId=id;
   limpiarModal();
 
@@ -9063,12 +9082,17 @@ async function guardarAtencion(){
   const percepcion=percepcionSel||null;
   const resultado=estadoDesdePercepcion(percepcionSel);
 
-  if(!nombreInput && !noTomoNombre){toast('Cargá el nombre o marcá "No lo tomé"');return;}
-  if(!noTomo && !tel){toast('Cargá el teléfono o marcá "No lo tomé"');return;}
-  const nombre = noTomoNombre ? 'Sin nombre' : nombreInput;
-
   const muebles=calcularEstadosMuebles(mueblesActuales.filter(m=>m.mueble && m.mueble.trim()));
   const hayMuebleOPrecio = muebles.length>0;
+
+  if(modalRapido){
+    // Registro rápido: nombre y teléfono opcionales; exige al menos un mueble con monto.
+    if(!hayMuebleOPrecio || !muebles.some(m=>Number(m.monto)>0)){ toast('Cargá al menos un mueble con su monto'); return; }
+  }else{
+    if(!nombreInput && !noTomoNombre){toast('Cargá el nombre o marcá "No lo tomé"');return;}
+    if(!noTomo && !tel){toast('Cargá el teléfono o marcá "No lo tomé"');return;}
+  }
+  const nombre = noTomoNombre ? 'Sin nombre' : (nombreInput || 'Sin nombre');
 
   if(modalModo==='completar'){
     const rec=atenciones.find(x=>x.id===completandoId);
@@ -9137,7 +9161,7 @@ async function guardarAtencion(){
     vendedorId:YO,
     registradoPor:YO,
     derivada:false,
-    origen:'directa',
+    origen: modalRapido?'rapido':'directa',
     canal:'presencial',
     contactoId:null,
     fueraDeTurno:!esSuTurno,
