@@ -4297,6 +4297,32 @@ function togPop(el){
   }
 }
 document.addEventListener('click',e=>{ if(!e.target.closest('.ebtn')) cerrarPops(); });
+
+/* Teclado global en todas las pantallas: ESC cierra el modal de arriba (o los
+   popovers si no hay modal); Enter aprieta el botón principal del modal.
+   - `e.defaultPrevented`: si el campo ya manejó el Enter (ej: avanzar de campo),
+     no hacemos nada, así no se pisa con la navegación por Enter.
+   - En textarea/select Enter no envía (sirve para escribir/elegir).
+   - El wizard de "Registrar atención" (modalFondo) NO se envía con Enter, para no
+     guardar de golpe estando en el primer paso. */
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){
+    const abiertos=[...document.querySelectorAll('.modal-fondo:not(.hidden)')];
+    if(abiertos.length){ e.preventDefault(); abiertos[abiertos.length-1].click(); return; }
+    if(document.querySelector('.ebtn.open')){ e.preventDefault(); cerrarPops(); }
+    return;
+  }
+  if(e.key==='Enter' && !e.shiftKey && !e.defaultPrevented){
+    const abiertos=[...document.querySelectorAll('.modal-fondo:not(.hidden)')];
+    if(!abiertos.length) return;
+    const top=abiertos[abiertos.length-1];
+    if(top.id==='modalFondo') return;
+    const ae=document.activeElement;
+    if(ae && (ae.tagName==='TEXTAREA' || ae.tagName==='SELECT')) return;
+    const btn=top.querySelector('.btn-guardar, .btn-navy, .login-btn');
+    if(btn && btn.offsetParent!==null){ e.preventDefault(); btn.click(); }
+  }
+});
 document.addEventListener('click',e=>{
   // El desplegable de motivo se cierra al tocar afuera, igual que el resto de los popovers.
   if(evTmp && evTmp.motivoAbierto && !e.target.closest('.mtv')){
