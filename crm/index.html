@@ -2338,7 +2338,7 @@ async function saveSolicitudes(){
 
 /* ================= Tablero de Cintia: canal / derivar-a / colas propias ================= */
 // Canal = de dónde vino el contacto. Configurable por el admin.
-let CANALES=['WhatsApp','Instagram','Facebook','Publicidad Mensajería','Publicidad Instagram','Local','Email','Tienda Nube','Google Shopping'];
+let CANALES=['WhatsApp','Instagram','Facebook','Publicidad Mensajería','Publicidad Instagram','Local','Email','Reclamo','Consulta de estado','Tienda Nube','Google Shopping'];
 const CANALES_PUBLICIDAD=['Publicidad Mensajería','Publicidad Instagram'];
 const LABEL_POR_CANAL={
   'WhatsApp':{lbl:'Teléfono', ph:'11 xxxx xxxx'},
@@ -8182,6 +8182,8 @@ const CR_CFG={
   'Publicidad Instagram':{contacto:{lbl:'Usuario de Instagram',ph:'@usuario'}, esIG:true, publicidad:true},
   'Local':               {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, atendido:true, masInfo:true, local:true},
   'Email':               {contacto:{lbl:'Email',ph:'nombre@mail.com'}, queConsulto:true},
+  'Reclamo':             {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, ig:true, orden:true, derivaCintia:true},
+  'Consulta de estado': {contacto:{lbl:'Celular',ph:'11 xxxx xxxx'}, ig:true, orden:true, derivaCintia:true},
   'Tienda Nube':         {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, queConsulto:true},
   'Google Shopping':     {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}},
 };
@@ -8473,6 +8475,8 @@ function onCanalChangeCr(){
     html+=`<div class="field"><label>${cfg.contacto.lbl}</label><input type="text" id="crContacto" placeholder="${cfg.contacto.ph}" oninput="chequearDupCr()" onkeydown="crTeclas(event,this)"></div>`;
   }
   html+=`<div id="crDupAviso"></div>`;
+  if(cfg.ig) html+=`<div class="field"><label>Usuario de Instagram <span class="opt">(opcional)</span></label><input type="text" id="crIG" placeholder="@usuario" oninput="chequearDupCr()" onkeydown="crTeclas(event,this)"></div>`;
+  if(cfg.orden) html+=`<div class="field"><label>N° de orden <span class="opt">(si lo tiene)</span></label><input type="text" id="crOrden" placeholder="Ej: 4142" onkeydown="crTeclas(event,this)"></div>`;
   html+=`<div class="field"><label>Nombre <span class="opt">(si lo tenés)</span></label><input type="text" id="crNombre" placeholder="Nombre y apellido" onkeydown="crTeclas(event,this)"></div>`;
   if(cfg.comentario) html+=`<div class="field">
     <label>¿Qué vio / contexto para el vendedor? <span class="opt">(opcional)</span></label>
@@ -8497,6 +8501,12 @@ function onCanalChangeCr(){
   // "¿Quién lo atendió?" ahora se muestra DESPUÉS de "Derivar a" (en onDerivarChangeCr),
   // porque su valor por defecto es justamente a quién se deriva.
   $('crCampos').innerHTML=html;
+  // Reclamo / Consulta de estado: las maneja Cintia, así que la derivación queda
+  // puesta en Cintia sola (se puede cambiar a mano igual).
+  if(cfg.derivaCintia){
+    const sel=$('crDerivar');
+    if(sel){ const opt=[...sel.options].find(o=>plainValueCr(o.value)==='cintia'); if(opt) sel.value=opt.value; }
+  }
   onDerivarChangeCr();
 }
 
@@ -8576,6 +8586,9 @@ async function guardarCargaRapida(){
   // campo aparte y opcional: si está, es lo que se usa para contactar y vincular.
   const igUser=esIG?contacto:'';
   const telIG=$('crTel')?$('crTel').value.trim():'';
+  // Reclamo / Consulta de estado: IG y N° de orden son campos aparte (el contacto es el teléfono).
+  const igExtra=$('crIG')?$('crIG').value.trim():'';
+  const nroOrden=$('crOrden')?$('crOrden').value.trim():'';
   // Campaña de publicidad: un solo mueble (el nombre que Cintia le pone). Queda
   // como registro interno — no viaja al vendedor.
   let campana='';
@@ -8627,7 +8640,8 @@ async function guardarCargaRapida(){
       contactoId:null, fueraDeTurno:true, status:'pendiente',
       clienteNombre:nombre||'', noTomoNombre:false,
       clienteTelefono:telParaGuardar, noTomoTelefono:false,
-      clienteInstagram: igUser||null, campanaPublicidad: campana||null,
+      clienteInstagram: (igUser||igExtra)||null, campanaPublicidad: campana||null,
+      nroCotizacion: nroOrden||null,
       atendidoPorId: atendido || (canal==='Local' ? derivar : null),
       muebles,
       notas:queConsulto||'', percepcion:null, resultado:'En seguimiento', resultadoMotivo:null,
@@ -8635,7 +8649,7 @@ async function guardarCargaRapida(){
       hasPhoto:false, photoThumb:null, crmSync:false,
       comentarioVendedor: textoVendedor ? {texto:textoVendedor, captura:null, paraId:derivar, deId:YO, ts:new Date().toISOString(), leido:false} : null
     };
-    record.contactoId=await vincularContacto({nombre:record.clienteNombre, telefono:record.clienteTelefono, instagram:igUser, noTomoTelefono:false, percepcion:null, resultado:'En seguimiento', canal:canalAmplio});
+    record.contactoId=await vincularContacto({nombre:record.clienteNombre, telefono:record.clienteTelefono, instagram:(igUser||igExtra), noTomoTelefono:false, percepcion:null, resultado:'En seguimiento', canal:canalAmplio});
     // Próxima acción opcional (Local): vive en el contacto, como en el resto del sistema.
     const pFecha=$('crProxFecha')?$('crProxFecha').value:'';
     const pNota=$('crProxNota')?$('crProxNota').value.trim():'';
