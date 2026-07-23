@@ -4155,7 +4155,6 @@ function logItemHtml(a){
       ${colsCintia}
       ${montoCol}
       <div class="c-coment">
-        ${(!esAuditora() && (YO===a.vendedorId || esAdmin())) ? `<span class="ebtn cm-ico${a.evaluada?'':' apagado'}" title="${a.evaluada?'Ver la evaluación de esta consulta':'Todavía no la evaluaron'}"${a.evaluada?` onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')"`:''}>📊</span>` : ''}
         <span class="ebtn cm-ico rap-btn${coment?'':' apagado'}" title="${coment?'Ver y agregar comentario':'Agregar comentario'}" onclick="event.stopPropagation();togPop(this);enfocarComentario('${a.id}')">📝
           <span class="pop pop-coment">
             <b>Comentarios</b>
@@ -4170,6 +4169,7 @@ function logItemHtml(a){
           </span>
         </span>
         <span class="ebtn cm-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
+        ${(!esAuditora() && (YO===a.vendedorId || esAdmin())) ? `<span class="ebtn cm-ico${a.evaluada?'':' apagado'}" title="${a.evaluada?'Ver la evaluación de esta consulta':'Todavía no la evaluaron'}"${a.evaluada?` onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')"`:''}>📊</span>` : ''}
         ${solPendiente
           ? `<span class="ebtn cm-ico apagado" title="Baja ya solicitada">🗑️</span>`
           : `<span class="ebtn cm-ico" title="${esAuditora()?'Eliminar contacto':'Solicitar eliminar contacto'}" onclick="event.stopPropagation();abrirSolicitudEliminar('${a.id}')">🗑️</span>`}
