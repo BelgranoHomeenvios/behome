@@ -4173,7 +4173,7 @@ function logItemHtml(a){
             ? `<span class="m-vend" style="font-size:13px">$ ${miles(a.montoVendido)}</span>`
             : `${totalCotizado?'$ '+miles(totalCotizado):'—'}${a.montoPerdido?`<div class="m-perd">Perdido $ ${miles(a.montoPerdido)}</div>`:''}`}
         </div>
-        <span class="ebtn" onclick="event.stopPropagation();togPop(this)">🪑<small>(${muebles.length})</small><span class="pop"><b>Muebles cotizados</b><br>${mueblesTxt}${(a.hasPhoto&&a.photoThumb)?`<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();abrirLightbox('${a.id}')">📷 Ver foto del presupuesto</div>`:(a.fotoVencida?`<div class="tiny" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px;color:var(--muted)">📷 La foto ya venció (se guardan ${DIAS_GUARDAR_FOTO} días)</div>`:'')}<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();editarSoloMuebles('${a.id}')">✎ Editar muebles</div></span></span>${(a.hasPhoto&&a.photoThumb)?`<span class="ebtn" title="Ver foto del presupuesto" onclick="event.stopPropagation();abrirLightbox('${a.id}')">📷</span>`:''}
+        <span class="ebtn" onclick="event.stopPropagation();togPop(this)">🪑<small>(${muebles.length})</small><span class="pop"><b>Muebles cotizados</b><br>${mueblesTxt}${(a.hasPhoto&&a.photoThumb)?`<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();abrirLightbox('${a.id}')">📷 Ver foto del presupuesto</div>`:(a.fotoVencida?`<div class="tiny" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px;color:var(--muted)">📷 La foto ya venció (se guardan ${DIAS_GUARDAR_FOTO} días)</div>`:'')}<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();editarSoloMuebles('${a.id}')">✎ Editar muebles</div></span></span>
       </div>`;
 
   // Campanita: atajo directo para pedirle al vendedor que se ocupe de esta consulta.
@@ -4234,6 +4234,7 @@ function logItemHtml(a){
             </div>
           </span>
         </span>
+        <span class="ebtn cm-ico${(a.hasPhoto&&a.photoThumb)?'':' apagado'}" title="${(a.hasPhoto&&a.photoThumb)?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
         <span class="ebtn cm-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
         ${(!esAuditora() && (YO===a.vendedorId || esAdmin())) ? `<span class="ebtn cm-ico${a.evaluada?'':' apagado'}" title="${a.evaluada?'Ver la evaluación de esta consulta':'Todavía no la evaluaron'}"${a.evaluada?` onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')"`:''}>📊</span>` : ''}
         ${solPendiente
@@ -5680,6 +5681,44 @@ async function purgarFotosViejas(){
     }
   });
   if(cambio) await saveAtenciones();
+}
+/* Emoji 🖼️ de la fila: si ya hay foto la abre al toque; si no, abre el selector para
+   cargarla y la guarda directo en esa consulta (sin abrir todo el formulario). */
+let _fotoRapidaId=null;
+function fotoRapidaConsulta(id){
+  const a=atenciones.find(x=>x.id===id); if(!a) return;
+  if(a.hasPhoto && a.photoThumb){ abrirLightbox(id); return; }
+  _fotoRapidaId=id;
+  let inp=$('fotoRapidaInput');
+  if(!inp){
+    inp=document.createElement('input');
+    inp.type='file'; inp.accept='image/*'; inp.id='fotoRapidaInput'; inp.style.display='none';
+    inp.onchange=onFotoRapidaSelected;
+    document.body.appendChild(inp);
+  }
+  inp.value=''; inp.click();
+}
+function onFotoRapidaSelected(ev){
+  const file=ev.target.files[0]; if(!file || !_fotoRapidaId) return;
+  const a=atenciones.find(x=>x.id===_fotoRapidaId); if(!a) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=async function(){
+      const maxW=800, scale=Math.min(1,maxW/img.width);
+      const canvas=document.createElement('canvas');
+      canvas.width=img.width*scale; canvas.height=img.height*scale;
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      a.photoThumb=canvas.toDataURL('image/jpeg',0.6);
+      a.hasPhoto=true; a.fotoVencida=false;
+      await saveAtenciones();
+      render();
+      toast('Foto del presupuesto cargada');
+      abrirLightbox(a.id);
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 function abrirLightbox(id){
   const a=atenciones.find(x=>x.id===id);
