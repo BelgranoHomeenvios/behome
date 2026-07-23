@@ -2172,6 +2172,7 @@ function entrarApp(){
   /* El histórico completo se baja después de que la pantalla ya está usable:
      así abre rápido y "Todas" termina mostrando todo sin que nadie espere. */
   setTimeout(()=>completarHistoricoEnSegundoPlano(), 1200);
+  setTimeout(()=>purgarFotosViejas(), 4000);   // limpia fotos viejas para no inflar la base
   /* Cintia y dirección trabajan sobre lo que falta evaluar: se les suma esa
      cola aunque alguna consulta quede fuera de la ventana de 2 meses. */
   if(esAuditora()||esAdmin()) cargarPendientesEvaluacion().then(()=>render());
@@ -4172,7 +4173,7 @@ function logItemHtml(a){
             ? `<span class="m-vend" style="font-size:13px">$ ${miles(a.montoVendido)}</span>`
             : `${totalCotizado?'$ '+miles(totalCotizado):'—'}${a.montoPerdido?`<div class="m-perd">Perdido $ ${miles(a.montoPerdido)}</div>`:''}`}
         </div>
-        <span class="ebtn" onclick="event.stopPropagation();togPop(this)">🪑<small>(${muebles.length})</small><span class="pop"><b>Muebles cotizados</b><br>${mueblesTxt}<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();editarSoloMuebles('${a.id}')">✎ Editar muebles</div></span></span>
+        <span class="ebtn" onclick="event.stopPropagation();togPop(this)">🪑<small>(${muebles.length})</small><span class="pop"><b>Muebles cotizados</b><br>${mueblesTxt}${(a.hasPhoto&&a.photoThumb)?`<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();abrirLightbox('${a.id}')">📷 Ver foto del presupuesto</div>`:(a.fotoVencida?`<div class="tiny" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px;color:var(--muted)">📷 La foto ya venció (se guardan ${DIAS_GUARDAR_FOTO} días)</div>`:'')}<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();editarSoloMuebles('${a.id}')">✎ Editar muebles</div></span></span>${(a.hasPhoto&&a.photoThumb)?`<span class="ebtn" title="Ver foto del presupuesto" onclick="event.stopPropagation();abrirLightbox('${a.id}')">📷</span>`:''}
       </div>`;
 
   // Campanita: atajo directo para pedirle al vendedor que se ocupe de esta consulta.
@@ -5667,9 +5668,22 @@ function svMarcarVisto(id, tipo){
   }
 }
 
+/* Las fotos del presupuesto se guardan en la consulta, pero NO para siempre: son
+   pesadas y solo sirven un rato. Pasados DIAS_GUARDAR_FOTO días se borran (queda la
+   marca fotoVencida para saber que hubo una). Así la base no se infla con el tiempo. */
+const DIAS_GUARDAR_FOTO=45;
+async function purgarFotosViejas(){
+  let cambio=false;
+  atenciones.forEach(a=>{
+    if(a.photoThumb && diasDesdeISO(a.completadoTs||a.ts) > DIAS_GUARDAR_FOTO){
+      a.photoThumb=null; a.fotoVencida=true; cambio=true;
+    }
+  });
+  if(cambio) await saveAtenciones();
+}
 function abrirLightbox(id){
   const a=atenciones.find(x=>x.id===id);
-  if(!a) return;
+  if(!a || !a.photoThumb) return;
   $('lightboxImg').src=a.photoThumb;
   $('lbCliente').textContent=a.clienteNombre||'—';
   const tel=a.noTomoTelefono?'sin teléfono':(a.clienteTelefono||'');
