@@ -505,6 +505,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .dup-fus{background:#eaf3ff;border-color:#9cc2f5;color:#1e5fce}
 .dup-fus:hover{background:#dceaff}
 .dup-det{margin-top:7px;background:#fff;border:1px solid #ecd9a5;border-radius:7px;padding:7px 9px;display:flex;flex-direction:column;gap:2px}
+.dup-alerta{background:#fdecea;border-color:#f0b4ad}
+.dup-alerta .dup-top{color:#b42318}
+.dup-alerta .dup-b{border-color:#e6a8a0;color:#b42318}
+.dup-alerta .dup-b:hover{background:#fff5f4}
 .paginador{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px;margin:12px 0 6px}
 .pg-b{min-width:32px;height:32px;padding:0 8px;border:1px solid var(--line);background:#fff;color:var(--navy);font:inherit;font-size:13px;font-weight:700;border-radius:7px;cursor:pointer}
 .pg-b:hover:not(:disabled):not(.on){background:var(--bg,#f4f6f8);border-color:var(--blue)}
@@ -8353,16 +8357,28 @@ function chequearDupModal(){
   const cs=dupConsultasPorIdent(keyTel,'').filter(a=>!rec || a.id!==rec.id);
   if(!cs.length){ box.innerHTML=''; return; }
   const ultimo=cs[0];
-  const vendPrevio = cs.find(a=>a.vendedorId && rolDe(a.vendedorId)==='vendedor')?.vendedorId || cs.find(a=>a.vendedorId)?.vendedorId || null;
   const ventas=cs.filter(a=>estadoDe(a)==='Concretado').length;
   const nombre=cs.find(a=>a.clienteNombre)?.clienteNombre||'';
-  const otroVendedor = vendPrevio && rec && rec.vendedorId && vendPrevio!==rec.vendedorId;
-  box.innerHTML=`<div class="dup-aviso">
-    <div class="dup-top">⚠️ <b>Ese teléfono ya está en la base.</b> ${escapeHtml(nombre||'Sin nombre')} — ${cs.length} consulta${cs.length===1?'':'s'}${ventas?` · ⭐ compró ${ventas}`:''}${vendPrevio?` · lo atiende <b>${escapeHtml(nombreDe(vendPrevio))}</b>`:''}</div>
-    ${otroVendedor?`<div class="dup-top" style="margin-top:4px">Al guardar se une con ese cliente. Como lo atiende otro vendedor, le queda el aviso a Cintia para que defina quién lo sigue.</div>`:''}
-    <div class="dup-acts"><button type="button" class="dup-b" onclick="verConversacionDup('${ultimo.id}')">👁 Ver consulta anterior</button></div>
-    <div id="crDupDetalle" class="hidden"></div>
-  </div>`;
+  const miVend = rec ? rec.vendedorId : YO;
+  const estaAbierta = a=>{ const e=estadoDe(a); return e!=='Concretado' && e!=='Rechazado'; };
+  // Lo que importa avisar: si OTRO vendedor tiene una consulta ABIERTA con este cliente,
+  // para no pisarse. Si están todas cerradas, lo puede atender sin problema.
+  const abiertasOtro = cs.filter(a=>estaAbierta(a) && a.vendedorId && a.vendedorId!==miVend);
+  const vendsAbiertos=[...new Set(abiertasOtro.map(a=>a.vendedorId))];
+  if(vendsAbiertos.length){
+    const quien = vendsAbiertos.map(u=>escapeHtml(nombreDe(u))).join(' y ');
+    box.innerHTML=`<div class="dup-aviso dup-alerta">
+      <div class="dup-top">🔴 <b>Ojo:</b> ${escapeHtml(nombre||'este cliente')} ya tiene una <b>consulta abierta</b> con <b>${quien}</b>. Pónganse de acuerdo quién lo atiende para no pisarse.</div>
+      <div class="dup-acts"><button type="button" class="dup-b" onclick="verConversacionDup('${abiertasOtro[0].id}')">👁 Ver la consulta abierta</button></div>
+      <div id="crDupDetalle" class="hidden"></div>
+    </div>`;
+  }else{
+    box.innerHTML=`<div class="dup-aviso">
+      <div class="dup-top">⚠️ <b>Ya está en la base.</b> ${escapeHtml(nombre||'Sin nombre')} — ${cs.length} consulta${cs.length===1?'':'s'}${ventas?` · ⭐ compró ${ventas}`:''}. No tiene ninguna abierta, así que lo podés atender vos.</div>
+      <div class="dup-acts"><button type="button" class="dup-b" onclick="verConversacionDup('${ultimo.id}')">👁 Ver consulta anterior</button></div>
+      <div id="crDupDetalle" class="hidden"></div>
+    </div>`;
+  }
 }
 /* Post-guardado: limpia un contacto de IG suelto que sea el mismo cliente, y si
    el cliente quedó con consultas de dos vendedores, le deja el aviso a Cintia. */
