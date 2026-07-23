@@ -2756,9 +2756,14 @@ const PB_PRESETS=[
   ['7',     '7 días',   7],
   ['15',    '15 días',  15],
   ['30',    '30 días',  30],
+  ['120',   '120 días', 120],
   ['todas', 'Todas',    null]
 ];
-let pbActivo='todas';   // por defecto se muestra todo el histórico
+/* Días de la ventana con la que arranca la app para todos los roles. Con "Todas"
+   los gráficos mezclaban 12 meses y el pico de agosto 2025 aplastaba la escala:
+   no se veía lo que pasó el último mes, que es lo que sirve para decidir. */
+const PB_DIAS_DEFECTO = 120;
+let pbActivo='120';   // arranca en el último cuatrimestre, no en todo el histórico
 
 /* La app abre con la ventana corta para que arranque rápido, y completa el resto
    por detrás. El vendedor ya puede trabajar mientras el histórico termina de bajar;
@@ -5596,7 +5601,15 @@ function cintiaIrSeccion(id){
 /* Filtro de fecha permanente: siempre visible, filtra las secciones propias de Cintia
    (no toca la tabla de Consultas compartida con vendedores/admin — esa tiene sus propios
    filtros de encabezado desde antes). */
-let cintiaFechaDesde=null, cintiaFechaHasta=null;
+/* Arrancan seteadas en la ventana por defecto (últimos PB_DIAS_DEFECTO días) para que
+   la primera pantalla que ve cualquier rol ya esté acotada, sin tener que tocar nada. */
+function _rangoDefectoPeriodo(){
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  const d=new Date(hoy); d.setDate(d.getDate()-(PB_DIAS_DEFECTO-1));
+  const f=x=>{const p=n=>String(n).padStart(2,'0');return x.getFullYear()+'-'+p(x.getMonth()+1)+'-'+p(x.getDate());};
+  return [f(d), f(hoy)];
+}
+let [cintiaFechaDesde, cintiaFechaHasta] = _rangoDefectoPeriodo();
 function dentroDePeriodoCintia(iso){
   if(!iso) return true;
   const t=new Date(iso).getTime();
@@ -5991,7 +6004,7 @@ function htmlCintiaResumen(){
     return `<td class="${cls}"><span class="cel-n">${n}</span>${pctHtml}</td>`;
   };
   const detalleHtml=`<div class="cin-card">
-    <h3>Detalle por vendedor <span class="cnt-pill">${tot.total} consulta${tot.total===1?'':'s'} real${tot.total===1?'':'es'}</span></h3>
+    <h3>Detalle por vendedor</h3>
     <div class="periodo-barra" style="margin:6px 0 12px">
       <span class="pb-lbl">Período</span>
       <div class="pb-chips">${PB_PRESETS.map(([id,lbl])=>
@@ -6008,7 +6021,7 @@ function htmlCintiaResumen(){
       </div>
     </div>
     <table class="tabla-cintia">
-      <tr><th>Vendedor</th><th>Seguim.</th><th>Sin clasif.</th><th>Atrasadas</th><th>Concret.</th><th>Rechaz.</th><th>Histórico</th><th>Total</th></tr>
+      <tr><th>Vendedor</th><th>Seguim.</th><th>Sin clasif.</th><th>Atrasadas</th><th>Concret.</th><th>Rechaz.</th><th>Total</th></tr>
       ${filas.map(({uid,m,prev})=>`<tr style="cursor:pointer" onclick="abrirResumenVendedor('${uid}')">
         <td><b>${nombreDe(uid)}</b></td>
         ${cel(m.seg, m.total)}
@@ -6016,7 +6029,6 @@ function htmlCintiaResumen(){
         ${cel(m.atras, m.total, 'alerta')}
         ${cel(m.conc, m.total, 'ok', true)}
         ${cel(m.rech, m.total)}
-        <td><span class="cel-n" style="color:var(--muted)">${m.hist||'—'}</span></td>
         <td><span class="cel-n">${m.total}</span>${prev?deltaHtml(m.total,prev.total):''}</td>
       </tr>`).join('')}
       <tr style="border-top:2px solid var(--line)">
@@ -6026,7 +6038,6 @@ function htmlCintiaResumen(){
         ${cel(tot.atras, tot.total, 'alerta')}
         ${cel(tot.conc, tot.total, 'ok', true)}
         ${cel(tot.rech, tot.total)}
-        <td><span class="cel-n" style="color:var(--muted)">${tot.hist||'—'}</span></td>
         <td><span class="cel-n">${tot.total}</span>${totPrev?deltaHtml(tot.total,totPrev.total):''}</td>
       </tr>
     </table>
