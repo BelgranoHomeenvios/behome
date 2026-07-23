@@ -424,9 +424,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .filt-op.on{background:var(--blue-l);color:var(--blue);font-weight:800}
 .filt-op .chk{color:var(--blue);font-weight:800;flex-shrink:0}
 .pop-buscar input{margin-top:2px}
-.busqueda-barra{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 13px;margin-bottom:12px;box-shadow:var(--shadow)}
-.busqueda-barra .bb-ico{font-size:14px;opacity:.65}
-.busqueda-barra .bb-input{flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--ink)}
+.busqueda-barra{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 11px;margin-bottom:10px;box-shadow:var(--shadow)}
+.busqueda-barra .bb-ico{font-size:12.5px;opacity:.6}
+.busqueda-barra .bb-input{flex:1;border:none;outline:none;font:inherit;font-size:12.5px;background:transparent;color:var(--ink)}
 .busqueda-barra .bb-clear{font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap}
 .busqueda-barra .bb-clear:hover{color:var(--red)}
 .c-monto{display:flex;align-items:center;gap:6px}
@@ -1613,6 +1613,10 @@ textarea{resize:vertical;min-height:60px}
                 <input type="text" id="nroCotizacion" placeholder="4142">
               </div>
             </div>
+            <div class="field">
+              <label>Email <span class="opt">(opcional — para tener toda la info del cliente)</span></label>
+              <input type="email" id="clienteEmail" placeholder="nombre@mail.com">
+            </div>
             <div class="field hidden" id="campoTelefonoIG">
               <label>Teléfono <span class="opt">(cuando lo consigas)</span></label>
               <input type="tel" id="clienteTelefonoIG" placeholder="11 xxxx xxxx" oninput="chequearDupModal()">
@@ -2459,7 +2463,7 @@ async function saveNotasSinAccion(){
 
 /* Crea o actualiza el Contacto asociado a un teléfono. Sin teléfono no hay forma de
    reconocer al cliente entre visitas, así que en ese caso no se crea ninguno. */
-async function vincularContacto({nombre, telefono, instagram, noTomoTelefono, percepcion, resultado, canal}){
+async function vincularContacto({nombre, telefono, instagram, email, noTomoTelefono, percepcion, resultado, canal}){
   if(noTomoTelefono || !telefono) return null;
   const key=normContacto(telefono);
   if(!key) return null;
@@ -2470,6 +2474,7 @@ async function vincularContacto({nombre, telefono, instagram, noTomoTelefono, pe
       telefono:key,
       nombre: (nombre && nombre!=='Sin nombre') ? nombre : '',
       instagram: instagram||'',
+      email: email||'',
       calificacion: percepcion||null,
       estadoGeneral: resultado||'En seguimiento',
       proximaAccionTs:null,
@@ -2482,6 +2487,7 @@ async function vincularContacto({nombre, telefono, instagram, noTomoTelefono, pe
     const c=CONTACTOS[key];
     if(nombre && nombre!=='Sin nombre') c.nombre=nombre;
     if(instagram && !c.instagram) c.instagram=instagram;
+    if(email && !c.email) c.email=email;
     if(percepcion) c.calificacion=percepcion;
     if(resultado) c.estadoGeneral=resultado;
     c.ultimaActividad=ahora;
@@ -7589,7 +7595,7 @@ function htmlFichaCliente(id){
     </div>
     <div class="est-hd" style="margin-top:8px">
       <div><h3>${escapeHtml(c.nombre||'Sin nombre')} ${r.ventas>0?'⭐':''}</h3>
-      <p class="cap">${escapeHtml(c.telefono||'')}${c.instagram?' · IG '+escapeHtml(c.instagram):''}${c.canales&&c.canales.length?' · llegó por '+c.canales.join(', '):''}${c.primeraActividad?' · cliente desde '+new Date(c.primeraActividad).toLocaleDateString('es-AR',{month:'short',year:'numeric'}):''}</p></div>
+      <p class="cap">${escapeHtml(c.telefono||'')}${(c.telefonosAlt&&c.telefonosAlt.length)?' / '+c.telefonosAlt.map(t=>escapeHtml(t)).join(' / '):''}${c.instagram?' · IG '+escapeHtml(c.instagram):''}${c.email?' · ✉ '+escapeHtml(c.email):''}${c.canales&&c.canales.length?' · llegó por '+c.canales.join(', '):''}${c.primeraActividad?' · cliente desde '+new Date(c.primeraActividad).toLocaleDateString('es-AR',{month:'short',year:'numeric'}):''}</p></div>
       <div class="est-tot"><div class="n">${r.comprado?'$ '+miles(r.comprado):'—'}</div><div class="l">comprado en total</div></div>
     </div>
     <div class="fic-kpis">
@@ -8804,6 +8810,7 @@ function onCanalChangeCr(){
   if(cfg.ig) html+=`<div class="field"><label>Usuario de Instagram <span class="opt">(opcional)</span></label><input type="text" id="crIG" placeholder="@usuario" oninput="chequearDupCr()" onkeydown="crTeclas(event,this)"></div>`;
   if(cfg.orden) html+=`<div class="field"><label>N° de orden <span class="opt">(si lo tiene)</span></label><input type="text" id="crOrden" placeholder="Ej: 4142" onkeydown="crTeclas(event,this)"></div>`;
   html+=`<div class="field"><label>Nombre <span class="opt">(si lo tenés)</span></label><input type="text" id="crNombre" placeholder="Nombre y apellido" onkeydown="crTeclas(event,this)"></div>`;
+  html+=`<div class="field"><label>Email <span class="opt">(opcional)</span></label><input type="email" id="crEmail" placeholder="nombre@mail.com" onkeydown="crTeclas(event,this)"></div>`;
   html+=`<div class="field" style="margin-top:-4px">
     <span class="cr-mas" onclick="mostrarTel2Cr(this)">＋ Agregar otro teléfono del cliente <span class="opt">(si escribe de 2 números)</span></span>
     <input type="text" id="crTel2" class="full hidden" placeholder="Otro teléfono del mismo cliente" style="margin-top:6px" onkeydown="crTeclas(event,this)">
@@ -8994,7 +9001,7 @@ async function guardarCargaRapida(){
       clienteNombre:nombre||'', noTomoNombre:false,
       clienteTelefono:telParaGuardar, noTomoTelefono:false,
       clienteInstagram: (igUser||igExtra)||null, campanaPublicidad: campana||null,
-      nroCotizacion: nroOrden||null,
+      nroCotizacion: nroOrden||null, clienteEmail: ($('crEmail')?$('crEmail').value.trim():'')||null,
       atendidoPorId: atendido || (canal==='Local' ? derivar : null),
       muebles,
       notas:queConsulto||'', percepcion:null, resultado:'En seguimiento', resultadoMotivo:null,
@@ -9002,7 +9009,7 @@ async function guardarCargaRapida(){
       hasPhoto:false, photoThumb:null, crmSync:false,
       comentarioVendedor: textoVendedor ? {texto:textoVendedor, captura:null, paraId:derivar, deId:YO, ts:new Date().toISOString(), leido:false} : null
     };
-    record.contactoId=await vincularContacto({nombre:record.clienteNombre, telefono:record.clienteTelefono, instagram:(igUser||igExtra), noTomoTelefono:false, percepcion:null, resultado:'En seguimiento', canal:canalAmplio});
+    record.contactoId=await vincularContacto({nombre:record.clienteNombre, telefono:record.clienteTelefono, instagram:(igUser||igExtra), email:record.clienteEmail, noTomoTelefono:false, percepcion:null, resultado:'En seguimiento', canal:canalAmplio});
     const tel2=$('crTel2')?$('crTel2').value.trim():'';
     if(tel2 && record.contactoId) await agregarTelefonoAlt(record.contactoId, tel2);
     // Próxima acción opcional (Local): vive en el contacto, como en el resto del sistema.
@@ -9432,7 +9439,7 @@ function toggleNombre(){
 }
 
 function limpiarModal(){
-  ['clienteNombre','clienteTelefono','clienteTelefonoIG','nroCotizacion','notas','tiempoAtencionInput'].forEach(id=>{const e=$(id); if(e) e.value='';});
+  ['clienteNombre','clienteTelefono','clienteTelefonoIG','clienteEmail','nroCotizacion','notas','tiempoAtencionInput'].forEach(id=>{const e=$(id); if(e) e.value='';});
   const cig=$('campoTelefonoIG'); if(cig) cig.classList.add('hidden');
   const dav=$('modalDupAviso'); if(dav) dav.innerHTML='';
   _senaEditada=false; _senaManual=0;   // la seña arranca en la sugerida en cada consulta
@@ -9506,6 +9513,7 @@ function abrirModalCompletar(id, paso){
   if(a.noTomoNombre){$('noTomoNombre').checked=true;$('clienteNombre').disabled=true;}
   else{$('clienteNombre').value=a.clienteNombre||'';}
   $('nroCotizacion').value=a.nroCotizacion||'';
+  if($('clienteEmail')) $('clienteEmail').value=a.clienteEmail||'';
   setFechaConversacion(a.ts);
   percepcionSel = a.percepcion || null;
 
@@ -9832,6 +9840,7 @@ async function guardarAtencion(){
   const noTomoNombre=$('noTomoNombre').checked;
   const noTomo=$('noTomoTel').checked;
   const tel=$('clienteTelefono').value.trim();
+  const emailCliente=$('clienteEmail')?$('clienteEmail').value.trim():'';
   const telIGval=$('clienteTelefonoIG')?$('clienteTelefonoIG').value.trim():'';
   const percepcion=percepcionSel||null;
   const resultado=estadoDesdePercepcion(percepcionSel);
@@ -9852,6 +9861,7 @@ async function guardarAtencion(){
     const rec=atenciones.find(x=>x.id===completandoId);
     if(!rec){toast('No se encontró la consulta');return;}
     rec.clienteNombre=nombre;
+    rec.clienteEmail=emailCliente||rec.clienteEmail||null;
     rec.noTomoNombre=noTomoNombre;
     const esIGrec = esConsultaIG(rec);
     if(esIGrec){
@@ -9898,7 +9908,7 @@ async function guardarAtencion(){
     // fijan solos acá — se encadena ese modal apenas se guarda la ficha.
     const cierrePendiente = (origenAutoEstado==='Concretado'||origenAutoEstado==='Rechazado') ? origenAutoEstado : null;
     if(origenAutoEstado==='En seguimiento') rec.estadoManual=origenAutoEstado;
-    rec.contactoId = await vincularContacto({nombre:rec.clienteNombre, telefono:rec.clienteTelefono, instagram:rec.clienteInstagram, noTomoTelefono:rec.noTomoTelefono, percepcion:rec.percepcion, resultado:rec.estadoManual||rec.resultado, canal:rec.canal});
+    rec.contactoId = await vincularContacto({nombre:rec.clienteNombre, telefono:rec.clienteTelefono, instagram:rec.clienteInstagram, email:rec.clienteEmail, noTomoTelefono:rec.noTomoTelefono, percepcion:rec.percepcion, resultado:rec.estadoManual||rec.resultado, canal:rec.canal});
     await aplicarProximaAccion(rec);
     await saveAtenciones();
     await revisarFusionYConflicto(rec);
@@ -9935,6 +9945,7 @@ async function guardarAtencion(){
     noTomoNombre:noTomoNombre,
     clienteTelefono:noTomo?null:tel,
     noTomoTelefono:noTomo,
+    clienteEmail: emailCliente||null,
     muebles,
     notas:$('notas').value.trim(),
     historialContacto: $('notas').value.trim() ? [{ts:new Date().toISOString(), texto:$('notas').value.trim(), percepcion:percepcion||null}] : [],
@@ -9950,7 +9961,7 @@ async function guardarAtencion(){
     crmSync:false
   };
 
-  record.contactoId = await vincularContacto({nombre:record.clienteNombre, telefono:record.clienteTelefono, noTomoTelefono:record.noTomoTelefono, percepcion:record.percepcion, resultado:record.resultado, canal:record.canal});
+  record.contactoId = await vincularContacto({nombre:record.clienteNombre, telefono:record.clienteTelefono, email:record.clienteEmail, noTomoTelefono:record.noTomoTelefono, percepcion:record.percepcion, resultado:record.resultado, canal:record.canal});
   await aplicarProximaAccion(record);
 
   atenciones.push(record);
