@@ -3554,13 +3554,9 @@ const METODOS_PAGO=[
 async function setEstado(id,est){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
-  if(a.status==='pendiente' && (est==='En seguimiento'||est==='Concretado'||est==='Rechazado')){
-    // Todavía no se registró la atención (nombre/muebles/etc) — antes de clasificarla,
-    // sea cual sea el estado (incluido cerrar como Concretado/Rechazado), hay que completar
-    // la ficha. Antes esto solo se exigía para "En seguimiento"; una consulta se podía cerrar
-    // como venta o rechazo sin haber cargado nunca qué mueble compró. El estado elegido se
-    // termina de aplicar al guardar el wizard (y si es Concretado/Rechazado, encadena el
-    // modal de cierre para pedir orden/monto o motivo).
+  if(a.status==='pendiente' && est==='En seguimiento'){
+    // "En seguimiento" sobre una consulta sin ficha todavía: se completa primero.
+    // Concretado y Rechazado van directo a su ficha de cierre (que ya pide todo).
     origenAutoEstado=est;
     abrirModalCompletar(id,0);
     toast('Completá la ficha antes de marcarla como '+est);
@@ -3617,6 +3613,11 @@ function htmlFormConcretado(a){
         </div>
       </div>
 
+      <div class="row">
+        <div class="field" style="flex:1"><label>Nombre <span class="opt">(si lo tenés)</span></label><input type="text" id="cierreNombre" value="${escAttr(a.clienteNombre||'')}" placeholder="Nombre y apellido"></div>
+        <div class="field" style="flex:1"><label>Teléfono <span class="opt">(si lo tenés)</span></label><input type="text" id="cierreTelefono" value="${escAttr(a.clienteTelefono||'')}" placeholder="11 xxxx xxxx"></div>
+      </div>
+
       <div class="field" style="margin-bottom:2px">
         <label>Método de pago</label>
         <div class="cierre-chips" id="cierrePago">
@@ -3644,7 +3645,9 @@ function htmlFormConcretado(a){
         <label>¿Por qué se vendió? <span class="opt">(podés marcar varios)</span></label>
         <div class="cierre-chips" id="cierreMotivosVenta">
           ${MOTIVOS_CONCRETADO.map(m=>`<span class="cierre-chip" data-v="${m.t}" onclick="toggleMotivoVenta(this)">${m.ic} ${m.t}</span>`).join('')}
+          <span class="cierre-chip" id="cierreMotivoOtroChip" onclick="toggleMotivoOtroVenta(this)">➕ Agregar motivo</span>
         </div>
+        <input type="text" id="cierreMotivoOtro" class="hidden" placeholder="Escribí el motivo…" style="margin-top:8px;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;box-sizing:border-box">
       </div>
 
       <button type="button" class="btn btn-guardar" onclick="guardarCierre()">✓ Confirmar venta</button>`;
@@ -3718,6 +3721,11 @@ function pickPago(el){
 }
 /* Motivo del concretado: multi-selección (toggle) */
 function toggleMotivoVenta(el){ el.classList.toggle('on'); }
+function toggleMotivoOtroVenta(el){
+  el.classList.toggle('on');
+  const inp=$('cierreMotivoOtro');
+  if(inp){ inp.classList.toggle('hidden', !el.classList.contains('on')); if(el.classList.contains('on')) inp.focus(); }
+}
 /* Mueble vendido: toggle sí/no */
 function toggleMuebleVendido(el){ el.classList.toggle('on'); }
 /* Agregar un mueble vendido que no estaba cotizado */
@@ -3774,7 +3782,9 @@ async function guardarCierre(){
     a.metodoPago = pagoSel ? pagoSel.dataset.v : null;
 
     // Motivos del concretado (multi-selección) — para medir por qué se vende
-    a.motivosVenta = [...document.querySelectorAll('#cierreMotivosVenta .cierre-chip.on')].map(c=>c.dataset.v);
+    a.motivosVenta = [...document.querySelectorAll('#cierreMotivosVenta .cierre-chip.on')].map(c=>c.dataset.v).filter(Boolean);
+    const otroMot=$('cierreMotivoOtro');
+    if(otroMot && !otroMot.classList.contains('hidden') && otroMot.value.trim()) a.motivosVenta.push(otroMot.value.trim());
 
     // Muebles vendidos: cuáles de los cotizados se concretaron + extras agregados.
     // Marca m.vendido en cada mueble cotizado (vínculo consultado↔concretado) y suma los extra.
@@ -3804,6 +3814,20 @@ async function guardarCierre(){
     a.montoPerdido = (sel.dataset.nocuenta==='1') ? null : (cotizado || null);
     a.montoVendido = null;
   }
+  // Nombre / teléfono: la ficha de cierre ahora los pide (para el caso en que se
+  // concreta una consulta que entró sin datos y se saltea el wizard). Si ya estaban,
+  // vienen autocompletados; si el vendedor los edita, se actualizan.
+  const cNom=$('cierreNombre'), cTel=$('cierreTelefono');
+  if(cNom && cNom.value.trim()){ a.clienteNombre=cNom.value.trim(); a.noTomoNombre=false; }
+  if(cTel && cTel.value.trim()){ a.clienteTelefono=cTel.value.trim(); a.noTomoTelefono=false; }
+  // Si la consulta estaba pendiente (se cerró directo, sin pasar por el wizard),
+  // se completa acá mismo para que quede como una consulta cerrada normal.
+  if(a.status==='pendiente'){
+    a.status='completa';
+    a.completadoTs=new Date().toISOString();
+    if(!a.canal) a.canal='presencial';
+  }
+  a.contactoId = await vincularContacto({nombre:a.clienteNombre, telefono:a.clienteTelefono, instagram:a.clienteInstagram, noTomoTelefono:a.noTomoTelefono, percepcion:a.percepcion, resultado:cerrandoTipo, canal:a.canal});
   await aplicarEstado(a, cerrandoTipo);
   const msg = cerrandoTipo==='Concretado'
     ? 'Venta cargada: $ '+miles(a.montoVendido||0)
@@ -3839,8 +3863,10 @@ function pintarEtapa(){
   // guardarCierre() lee cerrandoTipo, así que se fija acá según lo elegido
   cerrandoTipo = (etapaSel==='Concretado'||etapaSel==='Rechazado') ? etapaSel : null;
   let cuerpo='';
-  if(a.status==='pendiente' && etapaSel){
-    // misma regla que siempre: no se clasifica una consulta sin ficha completa
+  if(a.status==='pendiente' && etapaSel && etapaSel!=='Concretado' && etapaSel!=='Rechazado'){
+    // Para "En seguimiento" sobre una consulta sin ficha todavía pedimos completarla.
+    // Concretado y Rechazado, en cambio, van directo a su ficha (que ya pide todo lo
+    // necesario), sin el paso intermedio del wizard.
     cuerpo=`
       <p class="tiny" style="margin-bottom:12px">Antes de marcarla como <b>${etapaSel}</b> hay que completar la ficha (cliente, muebles, próxima acción).</p>
       <button class="btn btn-navy" style="width:100%" onclick="etapaCompletarFicha()">Completar la ficha</button>`;
