@@ -6986,17 +6986,26 @@ function htmlCintiaMisPendientes(){
   if(conflictos.length) html+=`<div class="cin-card">
     <h3>Cliente en dos vendedores <span class="cnt-pill">${conflictos.length}</span></h3>
     <p class="tiny" style="margin-top:-8px">El mismo cliente lo están atendiendo dos vendedores (por ejemplo uno por IG y otro por teléfono). Elegí quién lo sigue — solo se mueven las consultas abiertas, las ventas ya cerradas quedan como están.</p>
-    ${conflictos.map(n=>`
-      <div class="solic-item">
+    ${conflictos.map(n=>{
+      const keyTel=normContacto(n.clienteTelefono||'');
+      const cs=keyTel?dupConsultasPorIdent(keyTel,'').filter(a=>{const e=estadoDe(a);return e!=='Concretado'&&e!=='Rechazado';}):[];
+      return `<div class="solic-item" style="flex-direction:column;align-items:stretch;gap:9px">
         <div>
           <div class="pend-name">${escapeHtml(n.clienteNombre||'Sin nombre')}${n.clienteTelefono?' · '+escapeHtml(n.clienteTelefono):''}</div>
           <div class="pend-sub">Lo atienden: ${(n.vendedores||[]).map(u=>escapeHtml(nombreDe(u))).join(' y ')} · ${new Date(n.ts).toLocaleDateString('es-AR')}</div>
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
+        ${cs.length?`<div style="display:flex;flex-direction:column;gap:5px">${cs.map(a=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--line2);padding:7px 10px;border-radius:7px">
+            <span class="tiny">${fechaConsultaCorta(a.ts)} · <b>${escapeHtml(nombreDe(a.vendedorId)||'—')}</b> · ${estadoDe(a)||'sin estado'}${a.canalDetalle?' · '+escapeHtml(a.canalDetalle):''}</span>
+            <button class="btn btn-outline btn-sm" style="flex-shrink:0" onclick="editarDesdeHistorial('${a.id}')">Ver / editar</button>
+          </div>`).join('')}</div>`:''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span class="tiny" style="color:var(--sec);font-weight:700">Que lo siga:</span>
           ${(n.vendedores||[]).map(u=>`<button class="btn btn-outline btn-sm" onclick="asignarVendedorCliente('${n.id}','${u}')">${escapeHtml(nombreDe(u))}</button>`).join('')}
           <button class="btn btn-secondary btn-sm" onclick="descartarAvisoFusion('${n.id}')">Dejar compartido</button>
         </div>
-      </div>`).join('')}
+      </div>`;
+    }).join('')}
   </div>`;
   if(fusiones.length) html+=`<div class="cin-card">
     <h3>Contactos fusionados <span class="cnt-pill">${fusiones.length}</span></h3>
