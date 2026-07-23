@@ -366,7 +366,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
    leían encimados. */
 #filasBox .crow:nth-child(-n+2) .ebtn .pop{bottom:auto;top:130%}
 .pop-rapido{width:190px!important;padding:8px!important;background:#fff!important}
-.pop-coment{width:260px!important;padding:10px!important;background:#fff!important}
+.pop-coment{width:300px!important;padding:13px!important;background:#fff!important;border:1px solid var(--line)!important;border-radius:12px!important;box-shadow:0 16px 40px rgba(15,26,42,.28),0 3px 10px rgba(15,26,42,.16)!important;z-index:600!important}
 .pop-coment b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
 .cm-hist{font-size:12px;color:var(--ink);line-height:1.45;max-height:110px;overflow-y:auto;background:var(--surface-1,#f7f9fb);border-radius:6px;padding:7px 9px;margin-bottom:8px}
 .cm-vacio{font-size:11.5px;color:var(--muted);margin-bottom:8px}
@@ -493,6 +493,12 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .dup-fus{background:#eaf3ff;border-color:#9cc2f5;color:#1e5fce}
 .dup-fus:hover{background:#dceaff}
 .dup-det{margin-top:7px;background:#fff;border:1px solid #ecd9a5;border-radius:7px;padding:7px 9px;display:flex;flex-direction:column;gap:2px}
+.paginador{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px;margin:12px 0 6px}
+.pg-b{min-width:32px;height:32px;padding:0 8px;border:1px solid var(--line);background:#fff;color:var(--navy);font:inherit;font-size:13px;font-weight:700;border-radius:7px;cursor:pointer}
+.pg-b:hover:not(:disabled):not(.on){background:var(--bg,#f4f6f8);border-color:var(--blue)}
+.pg-b.on{background:var(--navy);color:#fff;border-color:var(--navy);cursor:default}
+.pg-b:disabled{opacity:.4;cursor:default}
+.pg-ell{color:var(--muted);font-weight:700;padding:0 2px}
 .tel-copy{cursor:pointer;border-bottom:1px dashed var(--muted);padding-bottom:1px}
 .tel-copy:hover{color:var(--blue);border-color:var(--blue)}
 .copy-ic{opacity:.55;margin-left:3px;font-size:10.5px}
@@ -6301,20 +6307,38 @@ function htmlCintiaMisConsultas(){
 }
 
 /* -------- Atrasadas: plazo vencido + sin clasificar, de todos los vendedores -------- */
-let _cintiaAtrLimite=50;
-function verMasCintiaAtr(){ _cintiaAtrLimite+=50; render(); }
+let _cintiaAtrPagina=1;
+function irPaginaCintiaAtr(p){ _cintiaAtrPagina=p; render(); const box=$('cintiaMain'); if(box) box.scrollIntoView({block:'start'}); }
+/* Paginador numerado (1 2 3 … N) con ventana alrededor de la página actual. */
+function paginadorHtml(actual, total, fn){
+  if(total<=1) return '';
+  const nums=[...new Set([1,total,actual-1,actual,actual+1])].filter(p=>p>=1&&p<=total).sort((a,b)=>a-b);
+  let out=`<button class="pg-b" ${actual<=1?'disabled':''} onclick="${fn}(${actual-1})">‹</button>`;
+  let prev=0;
+  for(const p of nums){
+    if(p-prev>1) out+=`<span class="pg-ell">…</span>`;
+    out+=`<button class="pg-b${p===actual?' on':''}" onclick="${fn}(${p})">${p}</button>`;
+    prev=p;
+  }
+  out+=`<button class="pg-b" ${actual>=total?'disabled':''} onclick="${fn}(${actual+1})">›</button>`;
+  return `<div class="paginador">${out}</div>`;
+}
 function htmlCintiaAtrasadas(){
   const todo=atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts))
     .sort((a,b)=> new Date(fechaUltimoMovimiento(b)).getTime() - new Date(fechaUltimoMovimiento(a)).getTime());
   if(!todo.length) return `<div class="cin-card"><p class="cin-empty">No hay nada atrasado ni sin clasificar en este período.</p></div>`;
-  const l=todo.slice(0, _cintiaAtrLimite);
-  const restan=todo.length-l.length;
+  const POR=50;
+  const totalPag=Math.ceil(todo.length/POR);
+  if(_cintiaAtrPagina>totalPag) _cintiaAtrPagina=totalPag;
+  if(_cintiaAtrPagina<1) _cintiaAtrPagina=1;
+  const desde=(_cintiaAtrPagina-1)*POR;
+  const l=todo.slice(desde, desde+POR);
   return `<div class="cin-card" style="padding:4px 18px">
     <h3 style="padding-top:10px">Atrasadas <span class="cnt-pill">${todo.length}</span></h3>
-    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma plazo vencido y consultas todavía sin oportunidad clasificada, de todos los vendedores. Se muestran de a 50, de la más reciente a la más vieja.</p>
+    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma plazo vencido y consultas todavía sin oportunidad clasificada, de todos los vendedores. De a 50 por página, de la más reciente a la más vieja${totalPag>1?` · página ${_cintiaAtrPagina} de ${totalPag}`:''}.</p>
     ${cheadEstaticoHtml()}
     ${l.map(logItemHtml).join('')}
-    ${restan>0?`<div class="cr-mas" style="text-align:center;margin:10px 0" onclick="verMasCintiaAtr()">Ver 50 más · quedan ${restan}</div>`:''}
+    ${paginadorHtml(_cintiaAtrPagina, totalPag, 'irPaginaCintiaAtr')}
   </div>`;
 }
 
@@ -8380,7 +8404,7 @@ function tablaDistribucionCr(){
     const mias=atenciones.filter(a=>cuentaParaVendedor(a) && a.vendedorId===uid);
     const semana=mias.filter(a=>new Date(a.ts).getTime()>=hace7).length;
     const abiertas=mias.filter(a=>{const e=estadoDe(a);return e!=='Concretado'&&e!=='Rechazado';});
-    const trabadas=abiertas.filter(a=>zonaDe(a)==='atrasada' || !a.percepcion).length;
+    const trabadas=abiertas.filter(a=>cintiaEsAtrasada(a)).length;
     const seguim=abiertas.filter(a=>estadoDe(a)==='En seguimiento').length;
     return {uid, semana, trabadas, seguim};
   }).sort((a,b)=>a.semana-b.semana || a.trabadas-b.trabadas);
@@ -8463,18 +8487,8 @@ function onCanalChangeCr(){
       </select>
     </div>`;
   }
-  if(cfg.atendido){
-    const staff=[...Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor'), ...CR_ATENDIO_EXTRA];
-    const unicos=[...new Set(staff)];
-    html+=`<div class="field">
-      <label>¿Quién lo atendió en el local?</label>
-      <select id="crAtendido" class="full" onkeydown="crTeclas(event,this)">
-        <option value="">— elegí —</option>
-        ${unicos.map(u=>`<option value="${u}">${USUARIOS[u]?nombreDe(u):(CR_NOMBRES_EXTRA[u]||u)}</option>`).join('')}
-      </select>
-      <p class="tiny" style="margin-top:3px">No suma a sus ventas — es registro de quién lo recibió.</p>
-    </div>`;
-  }
+  // "¿Quién lo atendió?" ahora se muestra DESPUÉS de "Derivar a" (en onDerivarChangeCr),
+  // porque su valor por defecto es justamente a quién se deriva.
   $('crCampos').innerHTML=html;
   onDerivarChangeCr();
 }
@@ -8500,6 +8514,17 @@ function onDerivarChangeCr(){
     <div class="field"><label>¿Qué escribió? <span class="opt">(opcional)</span></label><textarea id="crMensajeDest" rows="2"></textarea></div>
     <button class="btn btn-navy" style="width:100%" onclick="guardarCargaRapida()">Guardar</button>`;
   else if(v){
+    const atendidoField = canal==='Local' ? (()=>{
+      const staff=[...new Set([...Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor'), ...CR_ATENDIO_EXTRA])];
+      const defNom = nombreDe(v)||v;
+      return `<div class="field">
+        <label>¿Quién lo atendió en el local? <span class="opt">(opcional)</span></label>
+        <select id="crAtendido" class="full" onkeydown="crTeclas(event,this)">
+          <option value="">— por defecto: ${escapeHtml(defNom)} —</option>
+          ${staff.map(u=>`<option value="${u}">${escapeHtml(USUARIOS[u]?nombreDe(u):(CR_NOMBRES_EXTRA[u]||u))}</option>`).join('')}
+        </select>
+        <p class="tiny" style="margin-top:3px">Si no elegís, queda a nombre de <b>${escapeHtml(defNom)}</b> (a quien derivás). No suma a sus ventas.</p>
+      </div>` })() : '';
     const extras = canal==='Local' ? `
       <div class="cr-mas" id="crMasToggle" onclick="crToggleMas()">＋ Completar más info <span class="opt">(próxima acción y muebles si consultó algo específico)</span></div>
       <div class="hidden" id="crMasInfo">
@@ -8512,7 +8537,7 @@ function onDerivarChangeCr(){
           <div class="field" style="flex:2"><label>Nota <span class="opt">(opcional)</span></label><input type="text" id="crProxNota" placeholder="Ej: pasarle fotos del blanco"></div>
         </div>
       </div>` : '';
-    body.innerHTML=`${extras}
+    body.innerHTML=`${atendidoField}${extras}
     <button class="btn btn-navy" style="width:100%" onclick="guardarCargaRapida()">Cargar y derivar a ${nombreDe(v)||v}</button>`;
   }
   else body.innerHTML='';
@@ -8596,7 +8621,7 @@ async function guardarCargaRapida(){
       clienteNombre:nombre||'', noTomoNombre:false,
       clienteTelefono:telParaGuardar, noTomoTelefono:false,
       clienteInstagram: igUser||null, campanaPublicidad: campana||null,
-      atendidoPorId: atendido||null,
+      atendidoPorId: atendido || (canal==='Local' ? derivar : null),
       muebles,
       notas:queConsulto||'', percepcion:null, resultado:'En seguimiento', resultadoMotivo:null,
       tiempoAtencionMin:null, motivoSinMueble:null, motivoSinTiempo:null,
