@@ -8030,14 +8030,11 @@ async function crearAtencionAdminLocal(){
 
 /* -------- Cargar consulta rápida: Canal → (Publicidad) → Teléfono → Nombre → Derivar a -------- */
 function destinosListaCintia(){
-  // Todos los vendedores de USUARIOS
-  const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor').map(uid=>({uid,label:nombreDe(uid)}));
-  // Otros agentes (coordinadora, personal admin, etc.)
-  const agentesExtra=CR_ATENDIO_EXTRA.map(uid=>({uid,label:CR_NOMBRES_EXTRA[uid]||uid}));
-  // Evitar duplicados (si está en USUARIOS no agregar de nuevo)
-  const agenteExtraFilt=agentesExtra.filter(a=>!USUARIOS[a.uid]);
-  // Orden: vendedores primero, luego el resto
-  return [...vendedores, ...agenteExtraFilt];
+  // Orden fijo pedido para "Derivar a": 1 Alejandro, 2 Sergio, 3 Cristian,
+  // 4 Nati, 5 Claudia, 6 Brian, 7 Cintia. El nombre sale de USUARIOS si es
+  // usuario del sistema, o de CR_NOMBRES_EXTRA (ej. Alejandro) si no lo es.
+  const ORDEN_DERIVAR=['alejandro','sergio','cristian','nati','claudia','brian','cintia'];
+  return ORDEN_DERIVAR.map(uid=>({uid, label: USUARIOS[uid]?nombreDe(uid):(CR_NOMBRES_EXTRA[uid]||uid)}));
 }
 /* ============================================================
    CARGAR CONSULTA (Cintia) — rediseño.
