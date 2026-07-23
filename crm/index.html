@@ -424,6 +424,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .filt-op.on{background:var(--blue-l);color:var(--blue);font-weight:800}
 .filt-op .chk{color:var(--blue);font-weight:800;flex-shrink:0}
 .pop-buscar input{margin-top:2px}
+.mini-sit{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.mini-sit .ms-item{flex:1;min-width:88px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 12px;display:flex;flex-direction:column;gap:0}
+.mini-sit .ms-n{font-size:18px;font-weight:800;color:var(--navy);line-height:1.15}
+.mini-sit .ms-l{font-size:10.5px;font-weight:700;color:var(--sec);text-transform:uppercase;letter-spacing:.03em}
 .busqueda-barra{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 11px;margin-bottom:10px;box-shadow:var(--shadow)}
 .busqueda-barra .bb-ico{font-size:12.5px;opacity:.6}
 .busqueda-barra .bb-input{flex:1;border:none;outline:none;font:inherit;font-size:12.5px;background:transparent;color:var(--ink)}
@@ -5040,11 +5044,25 @@ function renderPanelGestion(listaVisible){
       ${it.cnt!==undefined?`<div class="cnt">${it.cnt}</div>`:''}
     </div>`;
 
+  // Situación rápida del vendedor en el período elegido: concretadas / en seguimiento /
+  // rechazadas / total. Chico y simple, para ver de un vistazo cómo viene.
+  const real = mias.filter(a=>dentroDePeriodoCintia(a.ts) && !a.soloVolumen);
+  const cConc = real.filter(a=>estadoDe(a)==='Concretado').length;
+  const cSeg  = real.filter(a=>estadoDe(a)==='En seguimiento').length;
+  const cRech = real.filter(a=>estadoDe(a)==='Rechazado').length;
+  const miniSit = `<div class="mini-sit">
+    <div class="ms-item"><span class="ms-n" style="color:var(--green)">${cConc}</span><span class="ms-l">Concretadas</span></div>
+    <div class="ms-item"><span class="ms-n" style="color:var(--amber)">${cSeg}</span><span class="ms-l">En seguimiento</span></div>
+    <div class="ms-item"><span class="ms-n" style="color:var(--red)">${cRech}</span><span class="ms-l">Rechazadas</span></div>
+    <div class="ms-item"><span class="ms-n">${real.length}</span><span class="ms-l">Consultas</span></div>
+  </div>`;
+
   box.innerHTML = `
     <div class="gridbtn">
       ${zonas.map(z=>btn(z, !seccionVendedor && zonaActiva===z.id, `setZona('${z.id}')`)).join('')}
       ${secciones.map(sc=>btn(sc, seccionVendedor===sc.id, `abrirSeccionVendedor('${sc.id}')`)).join('')}
     </div>
+    ${miniSit}
   `;
 }
 
