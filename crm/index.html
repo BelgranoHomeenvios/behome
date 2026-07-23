@@ -4787,6 +4787,18 @@ function zonaDe(a){
   // se pierden las ventas. Va antes que 'atrasada' porque manda sobre ella.
   // Si el vendedor le escribe algo, el reloj se reinicia y la consulta vuelve a abrirse.
   if(diasSinContacto(a) > DIAS_PARA_ARCHIVAR) return 'cerrada';
+  // Si el vendedor YA puso una próxima acción para hoy o a futuro, la consulta se está
+  // trabajando: no debe figurar como atrasada. Se clasifica por ese plazo.
+  {
+    const _prox = a.status!=='pendiente' ? proximaAccionDe(a) : null;
+    if(_prox){
+      const _h0=new Date(); _h0.setHours(0,0,0,0);
+      const _man=new Date(_h0.getTime()+86400000);
+      const _en7=new Date(_h0.getTime()+7*86400000);
+      const _p=new Date(_prox);
+      if(_p>=_h0){ if(_p>=_en7) return 'lejos'; if(_p>=_man) return 'semana'; return 'hoy'; }
+    }
+  }
   // Atrasada manda sobre lo demás: es lo urgente, tenga o no un plazo puesto.
   if(diasSinContacto(a) > DIAS_SIN_CLASIFICAR_ATRASA) return 'atrasada';
   if(a.status==='pendiente') return 'sinclas';
