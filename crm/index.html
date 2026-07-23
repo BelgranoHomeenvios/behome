@@ -3525,6 +3525,7 @@ const MOTIVOS_RECHAZO=[
 const MOTIVOS_CONCRETADO=[
   {t:'Teníamos stock',           ic:'📦'},
   {t:'Interpreté qué necesitaba',ic:'🎯'},
+  {t:'La atención que di',       ic:'🤝'},
   {t:'Ya nos había comprado',    ic:'🔁'},
   {t:'Buen seguimiento',         ic:'📞'},
   {t:'Buen precio / oferta',     ic:'🏷️'},
@@ -5724,22 +5725,27 @@ function estadoVivoVendedor(uid){
 let cintiaSeccion='resumen';
 function diasDesdeISO(iso){ if(!iso) return 9999; return Math.floor((Date.now()-new Date(iso).getTime())/86400000); }
 function fechaUltimoMovimiento(a){ return a.completadoTs || a.ts; }
-/* Qué cuenta como "atrasada" en el tablero de Cintia: plazo vencido, o una
-   consulta todavía sin clasificar. Pero NO lo viejo ya cerrado y definido:
-   las archivadas (volumen) y las que hace más de 60 días que no tienen ningún
-   movimiento se dan por cerradas y no vuelven a caer como atrasadas. */
+// Último movimiento REAL de la consulta: creación, última vez que se completó/guardó,
+// cierre, o la última nota de la bitácora. Con esto se mide hace cuánto que nadie la toca.
+function tsUltimoMovimiento(a){
+  const h=a.historialContacto;
+  const nota=(Array.isArray(h)&&h.length)?h[h.length-1].ts:null;
+  const cands=[a.ts, a.completadoTs, a.cerradoTs, nota].filter(Boolean).map(x=>new Date(x).getTime()).filter(n=>!isNaN(n));
+  return cands.length?Math.max(...cands):Date.now();
+}
+const DIAS_ATRASO_CINTIA=5;
+/* Atrasada para Cintia: una consulta abierta (no vendida / rechazada / archivada) que
+   hace más de 5 días que no tiene NINGÚN movimiento — de estado, de situación o de
+   acción. Una recién entrada, aunque no tenga oportunidad clasificada, NO es atrasada:
+   todavía es nueva. Si ya tiene una próxima acción para hoy o a futuro, se está
+   trabajando: tampoco cuenta. */
 function cintiaEsAtrasada(a){
-  const z=zonaDe(a);
-  if(z==='atrasada') return true;   // plazo vencido
-  // "Sin clasificar": sin oportunidad (percepción) todavía Y sin un plazo puesto que
-  // muestre que se está trabajando. zonaDe ya deja fuera las cerradas/resueltas
-  // (Concretado, Rechazado, nunca respondió, archivadas) y las que tienen próxima
-  // acción (hoy/semana/lejos): esas NO son atrasadas. Y lo muy viejo (+60 días sin
-  // movimiento) se da por cerrado.
-  if(!a.percepcion && (z==='sinclas' || z==='sinplazo')){
-    return diasDesdeISO(fechaUltimoMovimiento(a)) <= 60;
-  }
-  return false;
+  const e=estadoDe(a);
+  if(e==='Concretado' || e==='Rechazado') return false;
+  if(a.soloVolumen || a.nuncaRespondio) return false;
+  const prox=proximaAccionDe(a);
+  if(prox){ const h0=new Date(); h0.setHours(0,0,0,0); if(new Date(prox).getTime()>=h0.getTime()) return false; }
+  return (Date.now()-tsUltimoMovimiento(a))/86400000 > DIAS_ATRASO_CINTIA;
 }
 
 /* Nada más viejo que DIAS_PARA_ARCHIVAR se evalúa. Evaluar una operación de hace más
