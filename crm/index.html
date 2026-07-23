@@ -6109,7 +6109,7 @@ function renderCintiaBotones(){
     {id:'resumen', label:'Resumen', ic:'resumen'},
     {id:'consultas', label:'Consultas', ic:'consultas'},
     {id:'evaluar', label:'Para evaluar', ic:'evaluar', cnt:colaEvaluarCintia().length},
-    {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts)).length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
+    {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && !a.soloVolumen && dentroDePeriodoCintia(a.ts)).length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
     {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)).length},
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
     {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length},
@@ -6514,7 +6514,8 @@ function htmlCintiaEvaluar(){
    Debajo se mantienen Estados de pedido y Consultas inválidas — no son consultas de un vendedor,
    así que siguen viviendo acá aunque no entren en el mismo formato de fila. */
 function htmlCintiaMisConsultas(){
-  const mias=atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts));
+  // Las archivadas (viejas, sin resultado) no son trabajo: no aparecen en Mis consultas.
+  const mias=atenciones.filter(a=>a.vendedorId===YO && !a.soloVolumen && dentroDePeriodoCintia(a.ts));
   const estados=estadosPedido.filter(e=>dentroDePeriodoCintia(e.ts)).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
   const invalidas=consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   if(!mias.length && !estados.length && !invalidas.length) return `<div class="cin-card"><p class="cin-empty">No tenés consultas propias en este período.</p></div>`;
