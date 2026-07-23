@@ -153,7 +153,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-origen .or-vend{color:var(--sec);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .c-origen .or-canal{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .chead .h-situacion,.chead .h-origen{gap:2px}
-.chead .filtro-head.sub{font-size:9.5px;opacity:.75;font-weight:600}
+/* Nada de opacity acá: el popover del filtro es hijo de este span y la opacidad
+   se le contagia (se ve transparente). Se usa un color más claro en su lugar. */
+.chead .filtro-head.sub{font-size:9.5px;color:#aab3be;font-weight:600}
 /* Comentario: el emoji siempre está; apagado cuando no hay nada que leer */
 .cm-ico{font-size:14px;line-height:1}
 .cm-ico.apagado{filter:grayscale(1);opacity:.3;cursor:default}
@@ -366,7 +368,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
    leían encimados. */
 #filasBox .crow:nth-child(-n+2) .ebtn .pop{bottom:auto;top:130%}
 .pop-rapido{width:190px!important;padding:8px!important;background:#fff!important}
-.pop-coment{width:300px!important;padding:13px!important;background:#fff!important;border:1px solid var(--line)!important;border-radius:12px!important;box-shadow:0 16px 40px rgba(15,26,42,.28),0 3px 10px rgba(15,26,42,.16)!important;z-index:600!important}
+.pop-coment{width:300px!important;padding:13px!important;background:#ffffff!important;opacity:1!important;border:1px solid #cdd5df!important;border-radius:12px!important;box-shadow:0 16px 40px rgba(15,26,42,.28),0 3px 10px rgba(15,26,42,.16)!important;z-index:600!important}
 .pop-coment b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
 .cm-hist{font-size:12px;color:var(--ink);line-height:1.45;max-height:110px;overflow-y:auto;background:var(--surface-1,#f7f9fb);border-radius:6px;padding:7px 9px;margin-bottom:8px}
 .cm-vacio{font-size:11.5px;color:var(--muted);margin-bottom:8px}
@@ -2123,6 +2125,14 @@ function entrarApp(){
   $('screen-login').classList.add('hidden');
   $('screen-app').classList.remove('hidden');
   $('tabConfig').classList.toggle('hidden', !esAdmin());
+  // Default de período por rol: el vendedor arranca viendo los últimos 60 días
+  // (Cintia y dirección siguen con la ventana más amplia de 120).
+  if(!esAdmin() && !esAuditora()){
+    pbActivo='60';
+    const hoy=new Date(); hoy.setHours(0,0,0,0);
+    const d=new Date(hoy); d.setDate(d.getDate()-59);
+    cintiaFechaDesde=formatDateInput(d); cintiaFechaHasta=formatDateInput(hoy);
+  }
   pintarAdminViewBar();
   actualizarLeyendaVerMas();
   /* El histórico completo se baja después de que la pantalla ya está usable:
@@ -2870,6 +2880,7 @@ const PB_PRESETS=[
   ['7',     '7 días',   7],
   ['15',    '15 días',  15],
   ['30',    '30 días',  30],
+  ['60',    '60 días',  60],
   ['120',   '120 días', 120],
   ['todas', 'Todas',    null]
 ];
@@ -3562,7 +3573,7 @@ function htmlFormConcretado(a){
         <div class="field" style="flex:1">
           <label>Monto vendido <span class="req">obligatorio</span></label>
           <div class="money-input"><span>$</span>
-            <input type="text" inputmode="numeric" id="cierreMonto" placeholder="" oninput="formatearMontoInput(this);this.classList.remove('campo-falta')">
+            <input type="text" inputmode="numeric" id="cierreMonto" value="${cotizado?miles(cotizado):''}" placeholder="" oninput="formatearMontoInput(this);this.classList.remove('campo-falta')">
           </div>
         </div>
       </div>
@@ -4071,9 +4082,9 @@ function logItemHtml(a){
   const montoCol = esAuditora() ? '' : `
       <div class="c-monto" ondblclick="editarSoloMuebles('${a.id}')" title="Doble clic para editar los muebles">
         <div>
-          ${totalCotizado?'$ '+miles(totalCotizado):'—'}
-          ${a.montoVendido?`<div class="m-vend">Vendido $ ${miles(a.montoVendido)}</div>`:''}
-          ${a.montoPerdido?`<div class="m-perd">Perdido $ ${miles(a.montoPerdido)}</div>`:''}
+          ${a.montoVendido
+            ? `<span class="m-vend" style="font-size:13px">$ ${miles(a.montoVendido)}</span>`
+            : `${totalCotizado?'$ '+miles(totalCotizado):'—'}${a.montoPerdido?`<div class="m-perd">Perdido $ ${miles(a.montoPerdido)}</div>`:''}`}
         </div>
         <span class="ebtn" onclick="event.stopPropagation();togPop(this)">🪑<small>(${muebles.length})</small><span class="pop"><b>Muebles cotizados</b><br>${mueblesTxt}<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();editarSoloMuebles('${a.id}')">✎ Editar muebles</div></span></span>
       </div>`;
@@ -8615,6 +8626,7 @@ async function guardarCargaRapida(){
   const localElegido=$('crLocal')?$('crLocal').value:'';
   if(!canal){toast('Elegí un canal');return;}
   if(!contacto){toast('Cargá el '+((CR_CFG[canal]||{}).contacto||{lbl:'contacto'}).lbl.toLowerCase());return;}
+  if((CR_CFG[canal]||{}).orden && !nroOrden){toast('Cargá el N° de orden');return;}
   if((CR_CFG[canal]||{}).local && !localElegido){toast('Elegí en qué local fue');return;}
   if(!derivar){toast('Elegí a quién derivar');return;}
 
