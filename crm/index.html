@@ -5412,7 +5412,8 @@ function svEvaluacionesHtml(){
     <p class="tiny" style="margin:14px 0 12px">${lista.length} consulta${lista.length===1?'':'s'} evaluada${lista.length===1?'':'s'} en este período. Tocá una para ver el detalle y pedir una revisión.</p>
     <table class="tabla-cintia"><thead><tr><th>Cliente</th><th>Fecha</th><th>Atención</th><th>Consulta</th><th>Cliente</th><th>Observación</th></tr></thead><tbody>
     ${lista.map(a=>{
-      const obs = a.obsCintia || (a.comentarioVendedor && a.comentarioVendedor.texto) || '';
+      // El vendedor NO ve las "Notas internas" de Cintia (obsCintia); solo su comentario dedicado.
+      const obs = (a.comentarioVendedor && a.comentarioVendedor.texto) || '';
       return `
       <tr style="cursor:pointer" onclick="abrirVistaEvaluacion('${a.id}')">
         <td><b>${escapeHtml(a.clienteNombre||'Sin nombre')}</b>${a.oportunidadPerdida?'<span class="nueva-b" style="background:var(--red)">Oport. perdida</span>':''}
@@ -7601,10 +7602,6 @@ function abrirVistaEvaluacion(id){
     <div class="ev-hd"><div><h3>Tu evaluación</h3><div class="meta">${escapeHtml(a.clienteNombre||'Sin nombre')}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}${a.evaluadoTs?' · '+new Date(a.evaluadoTs).toLocaleDateString('es-AR'):''}</div></div></div>
     <div style="padding:14px 2px 2px">
       ${ejes}
-      ${a.obsCintia ? `<div class="vev-obs">
-        <div class="vev-obs-de">📋 Observación de ${nombreDe(a.evaluadoPorId||'cintia')}</div>
-        <p>${escapeHtml(a.obsCintia)}</p>
-      </div>` : ''}
       ${c && c.texto ? `<div class="vev-com">
         <div class="vev-com-de">💬 ${nombreDe(c.deId)} te comentó</div>
         <p>${escapeHtml(c.texto)}</p>
