@@ -1777,16 +1777,33 @@ window.storage={
 
 /* Realtime: si otro vendedor/Cintia cambia algo desde otro dispositivo, recargamos ese
    pedazo de estado y volvemos a pintar — sin que nadie tenga que refrescar la página. */
+/* Canal de cambios en vivo. Se guarda la referencia porque sb.channel() con el mismo
+   nombre devuelve el canal YA suscripto, y agregarle callbacks después de subscribe()
+   tira "cannot add postgres_changes callbacks after subscribe()". Eso pasaba en el
+   segundo intento de login dentro de la misma pestaña: el primero dejaba el canal
+   abierto, el segundo explotaba y la app decía "no se pudo leer tu rol" — un mensaje
+   que no tenía nada que ver con el problema real. */
+let _canalCRM=null;
 function sbSuscribirCRMRealtime(){
   if(!sb) return;
-  sb.channel('crm-kv-cambios')
-    .on('postgres_changes',{event:'*',schema:'public',table:'crm_kv'},async payload=>{
-      try{
-        await loadState();
-        if(typeof YO!=='undefined' && YO) render();
-      }catch(e){ console.error('realtime crm_kv',e); }
-    })
-    .subscribe();
+  try{
+    if(_canalCRM){ sb.removeChannel(_canalCRM); _canalCRM=null; }
+  }catch(e){ _canalCRM=null; }
+  try{
+    _canalCRM = sb.channel('crm-kv-cambios')
+      .on('postgres_changes',{event:'*',schema:'public',table:'crm_kv'},async payload=>{
+        try{
+          await loadState();
+          if(typeof YO!=='undefined' && YO) render();
+        }catch(e){ console.error('realtime crm_kv',e); }
+      })
+      .subscribe();
+  }catch(e){
+    /* Los cambios en vivo son una comodidad, no un requisito: si fallan, la app tiene
+       que abrir igual. Antes este error impedía entrar. */
+    console.error('realtime crm_kv suscripción', e);
+    _canalCRM=null;
+  }
 }
 
 /* ===================== LOGIN (Supabase Auth + tabla crm_usuarios_roles) ===================== */
@@ -1816,17 +1833,34 @@ async function hacerLoginCRM(){
 }
 async function entrarConUsuarioCRM(user){
   const err=document.getElementById('lg_err');
+  const email=(user.email||'').toLowerCase();
+
+  /* PASO 1 — leer el rol. Antes este try envolvía también toda la carga de la app,
+     así que cualquier falla posterior decía igual "No se pudo leer tu rol" y mandaba
+     a buscar el problema al lugar equivocado. Ahora cada paso avisa lo suyo y muestra
+     el error real, no un texto genérico. */
+  let data;
   try{
-    const email=(user.email||'').toLowerCase();
-    const {data,error}=await sb.from('crm_usuarios_roles').select('uid').eq('email',email).maybeSingle();
-    if(error) throw error;
-    if(!data||!data.uid||!USUARIOS[data.uid]){
-      mostrarFormularioLoginCRM();
-      err.textContent='Tu usuario ('+email+') no tiene un rol asignado en el CRM. Avisale a Brian.';
-      err.style.display='';
-      await sb.auth.signOut();
-      return;
-    }
+    const r=await sb.from('crm_usuarios_roles').select('uid').eq('email',email).maybeSingle();
+    if(r.error) throw r.error;
+    data=r.data;
+  }catch(e){
+    console.error('leer rol', e);
+    mostrarFormularioLoginCRM();
+    err.textContent='No se pudo leer tu rol: '+(e.message||e.code||e);
+    err.style.display='';
+    return;
+  }
+  if(!data||!data.uid||!USUARIOS[data.uid]){
+    mostrarFormularioLoginCRM();
+    err.textContent='Tu usuario ('+email+') no tiene un rol asignado en el CRM. Avisale a Brian.';
+    err.style.display='';
+    await sb.auth.signOut();
+    return;
+  }
+
+  /* PASO 2 — cargar la app ya con el rol resuelto. */
+  try{
     usuarioActualEmail=email;
     YO=data.uid;
     ADMIN_UID=(rolDe(YO)==='admin')?YO:null;
@@ -1835,9 +1869,9 @@ async function entrarConUsuarioCRM(user){
     entrarApp();
     sbSuscribirCRMRealtime();
   }catch(e){
-    console.error('entrarConUsuarioCRM',e);
+    console.error('cargar app', e);
     mostrarFormularioLoginCRM();
-    err.textContent='No se pudo leer tu rol. Probá de nuevo en un momento.';
+    err.textContent='Tu rol ('+data.uid+') se leyó bien, pero falló al abrir la app: '+(e.message||e);
     err.style.display='';
   }
 }
