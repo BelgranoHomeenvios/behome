@@ -1570,7 +1570,7 @@ textarea{resize:vertical;min-height:60px}
               <div class="field" style="flex:1.6">
                 <label id="lblTelefono">Teléfono</label>
                 <div class="inp-wrap">
-                  <input type="tel" id="clienteTelefono" placeholder="11 xxxx xxxx">
+                  <input type="tel" id="clienteTelefono" placeholder="11 xxxx xxxx" oninput="chequearDupModal()">
                   <label class="tomo"><input type="checkbox" id="noTomoTel" onchange="toggleTelefono()"> no lo tomé</label>
                 </div>
               </div>
@@ -1579,6 +1579,11 @@ textarea{resize:vertical;min-height:60px}
                 <input type="text" id="nroCotizacion" placeholder="4142">
               </div>
             </div>
+            <div class="field hidden" id="campoTelefonoIG">
+              <label>Teléfono <span class="opt">(cuando lo consigas)</span></label>
+              <input type="tel" id="clienteTelefonoIG" placeholder="11 xxxx xxxx" oninput="chequearDupModal()">
+            </div>
+            <div id="modalDupAviso"></div>
             <div class="field">
               <label>¿Cómo viste al cliente?</label>
               <div class="pills pills-nowrap" id="percepcionPills"></div>
@@ -1981,6 +1986,8 @@ function copiarCampoTelefono(){
   copiarTexto(v, esIG?'Usuario copiado':'Teléfono copiado');
 }
 function rolDe(uid){return (USUARIOS[uid]||{rol:'vendedor'}).rol;}
+// Consulta de Instagram (canalDetalle se guarda capitalizado: 'Instagram' / 'Publicidad Instagram').
+function esConsultaIG(a){ return !!(a && a.canal==='virtual' && /instagram/i.test(a.canalDetalle||'')); }
 function esAdmin(){return rolDe(YO)==='admin';}
 function esAuditora(){return rolDe(YO)==='auditora';}
 function puedeVerEquipo(){return esAdmin()||esAuditora();}
@@ -5855,7 +5862,7 @@ function renderCintiaBotones(){
     {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts)).length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
     {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)).length},
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
-    {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length + notasSinAccion.filter(n=>n.tipo==='fusion' && !n.visto).length},
+    {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length},
     {id:'clientes', label:'Clientes', ic:'pulso'},
     ...(esAdmin() ? [{id:'ejemplos', label:'Ejemplo del mes', ic:'evaluar', cnt:atenciones.filter(a=>a.ejemploDelMes && !a.ejemploDelMes.leido).length}] : []),
   ];
@@ -6796,8 +6803,24 @@ function htmlCintiaMisPendientes(){
   // Revisiones de evaluación que los vendedores pidieron y me tocan a mí (o que escalé y siguen abiertas).
   const revisiones=atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).sort((a,b)=>new Date(a.revisionEval.ts)-new Date(b.revisionEval.ts));
   const fusiones=notasSinAccion.filter(n=>n.tipo==='fusion' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
-  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
+  const conflictos=notasSinAccion.filter(n=>n.tipo==='conflicto_vendedor' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
   let html='';
+  if(conflictos.length) html+=`<div class="cin-card">
+    <h3>Cliente en dos vendedores <span class="cnt-pill">${conflictos.length}</span></h3>
+    <p class="tiny" style="margin-top:-8px">El mismo cliente lo están atendiendo dos vendedores (por ejemplo uno por IG y otro por teléfono). Elegí quién lo sigue — solo se mueven las consultas abiertas, las ventas ya cerradas quedan como están.</p>
+    ${conflictos.map(n=>`
+      <div class="solic-item">
+        <div>
+          <div class="pend-name">${escapeHtml(n.clienteNombre||'Sin nombre')}${n.clienteTelefono?' · '+escapeHtml(n.clienteTelefono):''}</div>
+          <div class="pend-sub">Lo atienden: ${(n.vendedores||[]).map(u=>escapeHtml(nombreDe(u))).join(' y ')} · ${new Date(n.ts).toLocaleDateString('es-AR')}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
+          ${(n.vendedores||[]).map(u=>`<button class="btn btn-outline btn-sm" onclick="asignarVendedorCliente('${n.id}','${u}')">${escapeHtml(nombreDe(u))}</button>`).join('')}
+          <button class="btn btn-secondary btn-sm" onclick="descartarAvisoFusion('${n.id}')">Dejar compartido</button>
+        </div>
+      </div>`).join('')}
+  </div>`;
   if(fusiones.length) html+=`<div class="cin-card">
     <h3>Contactos fusionados <span class="cnt-pill">${fusiones.length}</span></h3>
     <p class="tiny" style="margin-top:-8px">Se unió un mismo cliente que estaba cargado dos veces (por ejemplo Instagram y teléfono). Así todos ven la misma info.</p>
@@ -8246,6 +8269,74 @@ async function descartarAvisoFusion(id){
   const n=notasSinAccion.find(x=>x.id===id); if(n){ n.visto=true; await saveNotasSinAccion(); renderCintiaMain(); }
 }
 
+/* Mismo aviso, pero en el modal del vendedor: cuando agrega el teléfono a una
+   consulta (típicamente una de IG que le derivó Cintia) y ese número ya está
+   en la base, le avisa. La unión del cliente pasa sola al guardar (vincularContacto). */
+function chequearDupModal(){
+  const box=$('modalDupAviso'); if(!box) return;
+  const igVisible = $('campoTelefonoIG') && !$('campoTelefonoIG').classList.contains('hidden');
+  const telField = igVisible ? ($('clienteTelefonoIG')?$('clienteTelefonoIG').value.trim():'')
+                             : ($('clienteTelefono')?$('clienteTelefono').value.trim():'');
+  const keyTel=normContacto(telField);
+  if(!keyTel){ box.innerHTML=''; return; }
+  const rec = modalModo==='completar' ? atenciones.find(x=>x.id===completandoId) : null;
+  const cs=dupConsultasPorIdent(keyTel,'').filter(a=>!rec || a.id!==rec.id);
+  if(!cs.length){ box.innerHTML=''; return; }
+  const ultimo=cs[0];
+  const vendPrevio = cs.find(a=>a.vendedorId && rolDe(a.vendedorId)==='vendedor')?.vendedorId || cs.find(a=>a.vendedorId)?.vendedorId || null;
+  const ventas=cs.filter(a=>estadoDe(a)==='Concretado').length;
+  const nombre=cs.find(a=>a.clienteNombre)?.clienteNombre||'';
+  const otroVendedor = vendPrevio && rec && rec.vendedorId && vendPrevio!==rec.vendedorId;
+  box.innerHTML=`<div class="dup-aviso">
+    <div class="dup-top">⚠️ <b>Ese teléfono ya está en la base.</b> ${escapeHtml(nombre||'Sin nombre')} — ${cs.length} consulta${cs.length===1?'':'s'}${ventas?` · ⭐ compró ${ventas}`:''}${vendPrevio?` · lo atiende <b>${escapeHtml(nombreDe(vendPrevio))}</b>`:''}</div>
+    ${otroVendedor?`<div class="dup-top" style="margin-top:4px">Al guardar se une con ese cliente. Como lo atiende otro vendedor, le queda el aviso a Cintia para que defina quién lo sigue.</div>`:''}
+    <div class="dup-acts"><button type="button" class="dup-b" onclick="verConversacionDup('${ultimo.id}')">👁 Ver consulta anterior</button></div>
+    <div id="crDupDetalle" class="hidden"></div>
+  </div>`;
+}
+/* Post-guardado: limpia un contacto de IG suelto que sea el mismo cliente, y si
+   el cliente quedó con consultas de dos vendedores, le deja el aviso a Cintia. */
+async function revisarFusionYConflicto(rec){
+  if(!rec || !rec.contactoId || !rec.clienteTelefono) return;
+  const keyTel=normContacto(rec.clienteTelefono);
+  if(!keyTel) return;
+  const igH=rec.clienteInstagram;
+  if(igH){
+    const keyIG=normContacto(igH);
+    const cIG = keyIG && CONTACTOS[keyIG];
+    const cTel = CONTACTOS[keyTel];
+    if(cIG && cTel && cIG.id!==cTel.id) await fusionarContactos(cIG.id, cTel.id);
+  }
+  const cs=dupConsultasPorIdent(keyTel,'');
+  const vend=[...new Set(cs.filter(a=>a.vendedorId && rolDe(a.vendedorId)==='vendedor').map(a=>a.vendedorId))];
+  if(vend.length>=2){
+    const ya=notasSinAccion.some(n=>n.tipo==='conflicto_vendedor' && !n.visto && normContacto(n.clienteTelefono||'')===keyTel);
+    if(!ya){
+      const cont=CONTACTOS[keyTel];
+      notasSinAccion.push({id:'cfv_'+Date.now(), tipo:'conflicto_vendedor', contactoId:cont?cont.id:null, clienteNombre:(cont&&cont.nombre)||rec.clienteNombre||null, clienteTelefono:rec.clienteTelefono, vendedores:vend, ts:new Date().toISOString(), visto:false});
+      await saveNotasSinAccion();
+    }
+  }
+}
+/* Cintia asigna un único vendedor: mueve solo las consultas ABIERTAS (no toca
+   ventas ni rechazos ya cerrados, para no cambiar el crédito de nadie). */
+async function asignarVendedorCliente(avisoId, uid){
+  const n=notasSinAccion.find(x=>x.id===avisoId); if(!n) return;
+  const keyTel=normContacto(n.clienteTelefono||'');
+  let cambiadas=0;
+  atenciones.forEach(a=>{
+    const mismo = (n.contactoId && a.contactoId===n.contactoId) || (a.clienteTelefono && normContacto(a.clienteTelefono)===keyTel);
+    if(mismo){
+      const e=estadoDe(a);
+      if(e!=='Concretado' && e!=='Rechazado' && a.vendedorId!==uid){ a.vendedorId=uid; cambiadas++; }
+    }
+  });
+  n.visto=true;
+  await saveAtenciones(); await saveNotasSinAccion();
+  toast('Cliente asignado a '+nombreDe(uid)+(cambiadas?` · ${cambiadas} consulta(s) abiertas movidas`:''));
+  renderCintiaMain();
+}
+
 function abrirCargaRapidaCintia(){
   $('cargaRapidaCaja').innerHTML=`
     <h3 style="margin-top:0">+ Cargar consulta</h3>
@@ -8900,7 +8991,9 @@ function toggleNombre(){
 }
 
 function limpiarModal(){
-  ['clienteNombre','clienteTelefono','nroCotizacion','notas','tiempoAtencionInput'].forEach(id=>{const e=$(id); if(e) e.value='';});
+  ['clienteNombre','clienteTelefono','clienteTelefonoIG','nroCotizacion','notas','tiempoAtencionInput'].forEach(id=>{const e=$(id); if(e) e.value='';});
+  const cig=$('campoTelefonoIG'); if(cig) cig.classList.add('hidden');
+  const dav=$('modalDupAviso'); if(dav) dav.innerHTML='';
   ['noTomoNombre','noTomoTel'].forEach(id=>{const e=$(id); if(e) e.checked=false;});
   ['clienteNombre','clienteTelefono'].forEach(id=>{const e=$(id); if(e) e.disabled=false;});
   percepcionSel=null; tiempoSel=null; proxSeleccionada=null; atajosExpandidos=false;
@@ -8970,8 +9063,6 @@ function abrirModalCompletar(id, paso){
 
   if(a.noTomoNombre){$('noTomoNombre').checked=true;$('clienteNombre').disabled=true;}
   else{$('clienteNombre').value=a.clienteNombre||'';}
-  if(a.noTomoTelefono){$('noTomoTel').checked=true;$('clienteTelefono').disabled=true;}
-  else{$('clienteTelefono').value=a.clienteTelefono||'';}
   $('nroCotizacion').value=a.nroCotizacion||'';
   setFechaConversacion(a.ts);
   percepcionSel = a.percepcion || null;
@@ -8979,14 +9070,26 @@ function abrirModalCompletar(id, paso){
   // Canal virtual (derivada por Cintia desde WhatsApp/Instagram): no hubo turno presencial,
   // así que ese campo no aplica. Además el dato de contacto puede ser un usuario de IG, no un teléfono.
   const esVirtual = a.canal==='virtual';
+  const esInstagram = esConsultaIG(a);
   $('campoTiempoTurno').classList.toggle('hidden', esVirtual);
-  if(esVirtual && a.canalDetalle==='instagram'){
+  $('campoTelefonoIG').classList.toggle('hidden', !esInstagram);
+  if(esInstagram){
+    // El campo principal queda como el usuario de IG; el teléfono es su propio campo,
+    // para que el vendedor lo agregue cuando lo consigue (y ahí salta el aviso de duplicado).
+    const igHandle = a.clienteInstagram || ((a.clienteTelefono||'')[0]==='@' ? a.clienteTelefono : '');
+    const telNum = (a.clienteTelefono && (a.clienteTelefono||'')[0]!=='@' && normTel(a.clienteTelefono).length>=8) ? a.clienteTelefono : '';
     $('lblTelefono').textContent='Usuario de Instagram';
     $('clienteTelefono').placeholder='@usuario';
+    if(a.noTomoTelefono){$('noTomoTel').checked=true;$('clienteTelefono').disabled=true;}
+    else{$('clienteTelefono').value=igHandle||'';}
+    $('clienteTelefonoIG').value=telNum;
   }else{
     $('lblTelefono').textContent='Teléfono';
     $('clienteTelefono').placeholder='11 xxxx xxxx';
+    if(a.noTomoTelefono){$('noTomoTel').checked=true;$('clienteTelefono').disabled=true;}
+    else{$('clienteTelefono').value=a.clienteTelefono||'';}
   }
+  const dav0=$('modalDupAviso'); if(dav0) dav0.innerHTML='';
 
   if(a.tiempoAtencionMin){
     const opciones=['15','30','45','60','90','120'];
@@ -9287,6 +9390,7 @@ async function guardarAtencion(){
   const noTomoNombre=$('noTomoNombre').checked;
   const noTomo=$('noTomoTel').checked;
   const tel=$('clienteTelefono').value.trim();
+  const telIGval=$('clienteTelefonoIG')?$('clienteTelefonoIG').value.trim():'';
   const percepcion=percepcionSel||null;
   const resultado=estadoDesdePercepcion(percepcionSel);
 
@@ -9298,7 +9402,7 @@ async function guardarAtencion(){
     if(!hayMuebleOPrecio || !muebles.some(m=>Number(m.monto)>0)){ toast('Cargá al menos un mueble con su monto'); return; }
   }else{
     if(!nombreInput && !noTomoNombre){toast('Cargá el nombre o marcá "No lo tomé"');return;}
-    if(!noTomo && !tel){toast('Cargá el teléfono o marcá "No lo tomé"');return;}
+    if(!noTomo && !tel && !telIGval){toast('Cargá el teléfono o marcá "No lo tomé"');return;}
   }
   const nombre = noTomoNombre ? 'Sin nombre' : (nombreInput || 'Sin nombre');
 
@@ -9307,8 +9411,18 @@ async function guardarAtencion(){
     if(!rec){toast('No se encontró la consulta');return;}
     rec.clienteNombre=nombre;
     rec.noTomoNombre=noTomoNombre;
-    rec.clienteTelefono=noTomo?null:tel;
-    rec.noTomoTelefono=noTomo;
+    const esIGrec = esConsultaIG(rec);
+    if(esIGrec){
+      // Campo principal = usuario de IG; el teléfono es el campo aparte que agrega el vendedor.
+      const igHandle = noTomo ? '' : tel;
+      const telIG = $('clienteTelefonoIG') ? $('clienteTelefonoIG').value.trim() : '';
+      rec.clienteInstagram = igHandle || rec.clienteInstagram || null;
+      rec.clienteTelefono = noTomo ? null : (telIG || igHandle || null);
+      rec.noTomoTelefono = noTomo && !telIG;
+    }else{
+      rec.clienteTelefono=noTomo?null:tel;
+      rec.noTomoTelefono=noTomo;
+    }
     rec.muebles=muebles;
     {
       // Cada "Guardar" suma una entrada nueva a la bitácora — nunca pisa lo que ya se
@@ -9342,9 +9456,10 @@ async function guardarAtencion(){
     // fijan solos acá — se encadena ese modal apenas se guarda la ficha.
     const cierrePendiente = (origenAutoEstado==='Concretado'||origenAutoEstado==='Rechazado') ? origenAutoEstado : null;
     if(origenAutoEstado==='En seguimiento') rec.estadoManual=origenAutoEstado;
-    rec.contactoId = await vincularContacto({nombre:rec.clienteNombre, telefono:rec.clienteTelefono, noTomoTelefono:rec.noTomoTelefono, percepcion:rec.percepcion, resultado:rec.estadoManual||rec.resultado, canal:rec.canal});
+    rec.contactoId = await vincularContacto({nombre:rec.clienteNombre, telefono:rec.clienteTelefono, instagram:rec.clienteInstagram, noTomoTelefono:rec.noTomoTelefono, percepcion:rec.percepcion, resultado:rec.estadoManual||rec.resultado, canal:rec.canal});
     await aplicarProximaAccion(rec);
     await saveAtenciones();
+    await revisarFusionYConflicto(rec);
     const eraAutoEstado=!!origenAutoEstado;
     origenAutoEstado=null;
     cerrarModalReal();   // guardado OK: se cierra sin preguntar si descartar
