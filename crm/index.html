@@ -424,6 +424,11 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .filt-op.on{background:var(--blue-l);color:var(--blue);font-weight:800}
 .filt-op .chk{color:var(--blue);font-weight:800;flex-shrink:0}
 .pop-buscar input{margin-top:2px}
+.busqueda-barra{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 13px;margin-bottom:12px;box-shadow:var(--shadow)}
+.busqueda-barra .bb-ico{font-size:14px;opacity:.65}
+.busqueda-barra .bb-input{flex:1;border:none;outline:none;font:inherit;font-size:13.5px;background:transparent;color:var(--ink)}
+.busqueda-barra .bb-clear{font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap}
+.busqueda-barra .bb-clear:hover{color:var(--red)}
 .c-monto{display:flex;align-items:center;gap:6px}
 .c-monto .ebtn small{font-size:10px;color:var(--muted);font-weight:700}
 .m-vend{font-size:10.5px;font-weight:700;color:var(--green);margin-top:1px}
@@ -1736,6 +1741,11 @@ textarea{resize:vertical;min-height:60px}
       </div>
       <div class="card hidden" id="statsTurnosBox"></div>
       <div class="filtros-activos hidden" id="filtrosActivosBox"></div>
+      <div class="busqueda-barra" id="busquedaBarra">
+        <span class="bb-ico">🔍</span>
+        <input type="text" id="filtroBusquedaTop" class="bb-input" placeholder="Buscar por nombre o teléfono — en todas las situaciones (concretadas y rechazadas incluidas)…" oninput="setFiltroBusqueda(this.value,'top')">
+        <span class="bb-clear hidden" id="bbClear" onclick="setFiltroBusqueda('')">✕ limpiar</span>
+      </div>
       <div id="verMasBox" class="periodo-barra">
         <span class="pb-lbl">Período</span>
         <div class="pb-chips" id="pbChips"></div>
@@ -4495,7 +4505,7 @@ function cheadHtml(){
     </span>
     <span class="h-nom"><span class="ebtn filtro-head ${buscActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Contacto<span class="arrow">▾</span>
       <span class="pop pop-down pop-buscar" onclick="event.stopPropagation()"><b>Buscar</b>
-        <input type="text" id="filtroBusquedaInput" placeholder="Nombre o teléfono…" value="${escAttr(filtroBusqueda)}" oninput="setFiltroBusqueda(this.value)">
+        <input type="text" id="filtroBusquedaInput" placeholder="Nombre o teléfono…" value="${escAttr(filtroBusqueda)}" oninput="setFiltroBusqueda(this.value,'head')">
       </span>
     </span></span>
     ${colsCintia}
@@ -4580,11 +4590,17 @@ function renderFiltrosActivos(){
     ${f.length>1?`<button class="fa-todo" onclick="limpiarTodosLosFiltros()">Quitar todo</button>`:''}`;
 }
 
-function setFiltroBusqueda(valor){
+function setFiltroBusqueda(valor, origen){
   reiniciarPaginado();
   // Solo repinta las filas — si regenerara también el encabezado en cada tecla,
   // el input de búsqueda se recrearía y perdería el foco a cada letra.
   filtroBusqueda=valor;
+  // Sincroniza el otro cuadro de búsqueda (el de arriba y el del encabezado), sin tocar
+  // el que se está tipeando para no perder el cursor.
+  const top=$('filtroBusquedaTop'), head=$('filtroBusquedaInput'), clr=$('bbClear');
+  if(origen!=='top' && top && top.value!==valor) top.value=valor;
+  if(origen!=='head' && head && head.value!==valor) head.value=valor;
+  if(clr) clr.classList.toggle('hidden', !valor);
   let l=construirListaFiltrada();
   const baseTablero=[...l];
   if(zonaActiva) l=l.filter(a=>zonaDe(a)===zonaActiva);
@@ -4596,6 +4612,9 @@ function setFiltroBusqueda(valor){
 function construirListaFiltrada(){
   let l = puedeVerEquipo() ? registrosLocal(FILTRO_LOCAL_ADMIN) : atenciones.filter(a=>a.vendedorId===YO);
   if(scopeActual==='mias') l=l.filter(a=>a.vendedorId===YO);
+  // Cuando hay una búsqueda, se busca en TODO: cualquier estado (concretadas y
+  // rechazadas incluidas) y cualquier fecha. Los filtros de estado y período se saltean.
+  const buscar=(filtroBusqueda||'').trim().toLowerCase();
 
   /* Las consultas archivadas (anteriores a mayo 2026 que nunca se cerraron) no son
      trabajo: en esa época no se registraba el resultado. Cuentan como volumen en las
@@ -4611,9 +4630,12 @@ function construirListaFiltrada(){
 
   // Por defecto (activas) las concretadas y rechazadas salen de la lista: ya no hay
   // nada que hacer con ellas y solo ensucian lo que el vendedor tiene que trabajar.
-  if(filtroEstado==='activas') l=l.filter(a=>{const e=estadoDe(a); return e!=='Concretado' && e!=='Rechazado';});
-  else if(filtroEstado==='sin') l=l.filter(a=>!estadoDe(a));
-  else if(filtroEstado!=='todos') l=l.filter(a=>estadoDe(a)===filtroEstado);
+  // Si hay búsqueda activa, no se filtra por estado: se busca en todas las situaciones.
+  if(!buscar){
+    if(filtroEstado==='activas') l=l.filter(a=>{const e=estadoDe(a); return e!=='Concretado' && e!=='Rechazado';});
+    else if(filtroEstado==='sin') l=l.filter(a=>!estadoDe(a));
+    else if(filtroEstado!=='todos') l=l.filter(a=>estadoDe(a)===filtroEstado);
+  }
 
   if(filtroPlazo!=='todos'){
     const hoy0=new Date(); hoy0.setHours(0,0,0,0);
@@ -4632,8 +4654,7 @@ function construirListaFiltrada(){
     });
   }
 
-  const buscar=(filtroBusqueda||'').trim().toLowerCase();
-  if(buscar) l=l.filter(a=>(a.clienteNombre||'').toLowerCase().includes(buscar) || (a.clienteTelefono||'').includes(buscar));
+  if(buscar) l=l.filter(a=>(a.clienteNombre||'').toLowerCase().includes(buscar) || (a.clienteTelefono||'').includes(buscar) || (a.clienteInstagram||'').toLowerCase().includes(buscar));
 
   // Recordatorios: solo filtra para quien ve la campanita (Cintia y dirección).
   if(puedeRecordar()){
@@ -4649,7 +4670,7 @@ function construirListaFiltrada(){
     if(filtroCanalCintia!=='todos') l=l.filter(a=>(a.canal==='presencial'?'Local':(a.canalDetalle||'Sin definir'))===filtroCanalCintia);
     if(filtroEvaluacion==='evaluadas') l=l.filter(a=>a.evaluada);
     else if(filtroEvaluacion==='sinevaluar') l=l.filter(a=>!a.evaluada);
-    l=l.filter(a=>dentroDePeriodoCintia(a.ts));
+    if(!buscar) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
   }
 
   return l;
@@ -4751,7 +4772,7 @@ function renderHistorial(){
   // El período elegido en la barra de abajo filtra la LISTA (para Cintia ya se aplica
   // dentro de construirListaFiltrada; acá se suma para el vendedor). El tablero de
   // arriba no se toca: sus contadores son el trabajo actual, sin importar la fecha.
-  if(!esAuditora()) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
+  if(!esAuditora() && !filtroBusqueda) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
   l=ordenarLista(l);
 
   renderChead();
@@ -5048,11 +5069,12 @@ function renderSolapasVendedor(){
 /* Cuando el vendedor entra a una sección propia, la tabla de consultas se esconde:
    son vistas alternativas del mismo espacio, como las secciones de Cintia. */
 function mostrarTablaVendedor(mostrar){
-  const hist=$('historialBox'), filtros=$('filtrosHistorialCard'), titulo=$('tituloColaOperativa'), periodo=$('verMasBox');
+  const hist=$('historialBox'), filtros=$('filtrosHistorialCard'), titulo=$('tituloColaOperativa'), periodo=$('verMasBox'), busq=$('busquedaBarra');
   if(hist) hist.classList.toggle('hidden', !mostrar);
-  // La barra de período solo filtra la lista de consultas: en Estadísticas/Evaluación
-  // no hace nada, así que se esconde junto con la tabla para no quedar "colgada".
+  // La barra de período y la de búsqueda solo aplican a la lista de consultas: en
+  // Estadísticas/Evaluación no hacen nada, así que se esconden junto con la tabla.
   if(periodo) periodo.classList.toggle('hidden', !mostrar);
+  if(busq) busq.classList.toggle('hidden', !mostrar);
   if(filtros && !mostrar) filtros.classList.add('hidden');
   if(titulo) titulo.textContent = mostrar ? (esAuditora()?'Consultas':'Mis consultas') : TITULOS_SECCION_VENDEDOR[seccionVendedor]||'Mis consultas';
 }
