@@ -251,6 +251,15 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .ev-op:hover{border-color:var(--sec)}
 .ev-cerrada{background:var(--green-l);border-radius:9px;padding:13px 15px;font-size:14px;color:var(--green)}
 .ev-cerrada b{display:block;margin-bottom:2px}
+/* Evaluación en una sola columna con desplegables, para cargar con Tab/Enter */
+.ev-form{padding:16px 20px 8px;display:flex;flex-direction:column;gap:11px;max-height:80vh;overflow-y:auto}
+.ev-form .ev-field{display:flex;flex-direction:column;gap:4px}
+.ev-form .ev-field>label{font-size:11.5px;font-weight:800;color:var(--sec);text-transform:uppercase;letter-spacing:.03em}
+.ev-form .ev-field>label .opt{font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted)}
+.ev-sel,.ev-inp,.ev-ta{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit;font-size:14px;background:#fff;box-sizing:border-box}
+.ev-sel:focus,.ev-inp:focus,.ev-ta:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-l)}
+.ev-ta{resize:vertical;min-height:44px}
+.ev-form .ev-nunca{margin-bottom:2px}
 .ev-cerrada span{color:var(--sec);font-size:13.5px}
 
 /* ---- Desplegable de motivo (propio, no el select del navegador) ---- */
@@ -7687,7 +7696,12 @@ function htmlEjemplosDelMes(){
           ${(a.evalAtencion||a.evalConsulta||a.evalCliente)?`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">
             ${evChip('atencion',a.evalAtencion)}${evChip('consulta',a.evalConsulta)}${evChip('cliente',a.evalCliente)}
           </div>`:''}
+          <div class="tiny" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+            <span class="ev-chip ${a.ejemploDelMes.tipo==='malo'?'r':'g'}" style="font-size:10px;padding:2px 7px">${a.ejemploDelMes.tipo==='malo'?'👎 Mal ejemplo':'👍 Buen ejemplo'}</span>
+            <span class="ev-chip a" style="font-size:10px;padding:2px 7px">${a.ejemploDelMes.target==='direccion'?'🔒 Solo dirección':'Para el vendedor'}</span>
+          </div>
           ${a.ejemploDelMes.motivo?`<div class="tiny" style="margin-top:6px;padding:8px 10px;background:var(--line2);border-radius:7px"><b>Motivo:</b> ${escapeHtml(a.ejemploDelMes.motivo)}</div>`:''}
+          ${a.ejemploDelMes.captura?`<img src="${a.ejemploDelMes.captura}" style="max-width:100%;border-radius:8px;border:1px solid var(--line);margin-top:6px">`:''}
         </div>
         <button class="btn btn-navy btn-sm" onclick="marcarEjemploLeido('${a.id}')">Leído</button>
       </div>`;
@@ -7739,18 +7753,19 @@ function abrirEvaluar(id){
   evTmp={
     atencion:a.evalAtencion||null, consulta:a.evalConsulta||null, cliente:a.evalCliente||null,
     decision:a.evalDecision||'rechazada',
-    fbAbierto:!!(a.comentarioVendedor&&(a.comentarioVendedor.texto||a.comentarioVendedor.captura)),
-    fbCargado:!!(a.comentarioVendedor&&(a.comentarioVendedor.texto||a.comentarioVendedor.captura)),
+    fbAbierto:true, fbCargado:false,
     fbTexto:(a.comentarioVendedor&&a.comentarioVendedor.texto)||'',
     capturaData:(a.comentarioVendedor&&a.comentarioVendedor.captura)||null,
-    ejemplo:!!a.ejemploDelMes,
-    ejemploCargado:!!a.ejemploDelMes,
+    motivoCintia:(a.motivoCintia && MOTIVOS_RECHAZO.some(m=>m.t===a.motivoCintia))?a.motivoCintia:'',
+    ejemploTarget:(a.ejemploDelMes&&a.ejemploDelMes.target)||'',
+    ejemploTipo:(a.ejemploDelMes&&a.ejemploDelMes.tipo)||'bueno',
+    ejemploCaptura:(a.ejemploDelMes&&a.ejemploDelMes.captura)||null,
     ejemploMotivo:(a.ejemploDelMes&&a.ejemploDelMes.motivo)||'',
     obs:a.evaluacionComentario||'',
     nuncaRespondio:!!a.nuncaRespondio
   };
   renderEvaluar();
-  _evalAncho('1000px');
+  _evalAncho('560px');
   $('modalEvaluar').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
@@ -7759,12 +7774,19 @@ function cerrarEvaluar(){ $('modalEvaluar').classList.add('hidden'); document.bo
 // columnas, ancho) y la vista del vendedor / 2da oportunidad (una columna, angosto).
 function _evalAncho(px){ const c=document.querySelector('#modalEvaluar .modal-caja'); if(c) c.style.maxWidth=px; }
 
-function evSet(eje,val){
-  evTmp[eje]=val;
-  guardarBorradorEvaluar();
-  renderEvaluar();
+// Los tres ejes se cargan con <select>: se actualiza evTmp sin redibujar todo el modal
+// (así no se pierde el foco y se puede seguir con Tab). Solo se recalcula el botón Guardar.
+function evSetAxis(eje,val){ evTmp[eje]=val?+val:null; evActualizarGuardar(); }
+function evActualizarGuardar(){
+  const btn=$('evGuardar'); if(!btn) return;
+  const completa = evTmp.nuncaRespondio || (evTmp.atencion&&evTmp.consulta&&evTmp.cliente);
+  btn.disabled=!completa; btn.style.opacity=completa?'1':'.45'; btn.style.cursor=completa?'pointer':'not-allowed';
 }
-function evDecision(d){ evTmp.decision=d; guardarBorradorEvaluar(); renderEvaluar(); }
+function evSetMotivo(v){ evTmp.motivoCintia=v; const i=$('evMotivoOtro'); if(i){ i.classList.toggle('hidden', v!=='__otro__'); if(v==='__otro__') i.focus(); } }
+function evSetEjemploTarget(v){ guardarBorradorEvaluar(); evTmp.ejemploTarget=v; if(v && !evTmp.ejemploTipo) evTmp.ejemploTipo='bueno'; renderEvaluar(); }
+async function evCapturaEjemplo(input){ const f=input.files&&input.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ evTmp.ejemploCaptura=r.result; guardarBorradorEvaluar(); renderEvaluar(); }; r.readAsDataURL(f); }
+function evQuitarCapturaEjemplo(){ evTmp.ejemploCaptura=null; renderEvaluar(); }
+function evDecision(d){ guardarBorradorEvaluar(); evTmp.decision=d; renderEvaluar(); }
 function evToggleFb(){ evTmp.fbAbierto=!evTmp.fbAbierto; guardarBorradorEvaluar(); renderEvaluar(); }
 async function evToggleEjemplo(){
   evTmp.ejemplo=!evTmp.ejemplo;
@@ -7875,185 +7897,118 @@ function renderEvaluar(){
   const ev=evTmp;
   const monto=montoRepresentativo(a.muebles);
   const e=estadoDe(a);
-  // Si nunca respondió, no hay nada que evaluar: la evaluación está completa sin los tres ejes.
-  const completa = ev.nuncaRespondio || (ev.atencion&&ev.consulta&&ev.cliente);
-
-  // Dictamen — jamás aparece si el cliente nunca contestó: no hubo oportunidad ni atención que juzgar.
-  let dctHtml='';
-  if(!ev.nuncaRespondio && ev.atencion && ev.consulta && ev.cliente){
-    if(calificaPerdida(ev)){
-      dctHtml=`<div class="ev-dct">
-        <input type="checkbox" id="evPerdida" checked>
-        <span>Registrar como <b>oportunidad perdida</b></span>
-      </div>`;
-    }else if(!huboOportunidad(ev)){
-      dctHtml=`<div class="ev-dct bloq">No se le imputa la pérdida al vendedor — no era una oportunidad real.</div>`;
-    }else{
-      dctHtml=`<div class="ev-dct bloq" style="background:var(--green-l);color:var(--green);font-style:normal;font-weight:700">Atención correcta — no hay oportunidad perdida.</div>`;
-    }
-  }
-
-  const chips = (!ev.nuncaRespondio && (ev.atencion||ev.consulta||ev.cliente)) ? `<div class="ev-chips">
-    ${ev.atencion?`<span class="ev-chip ${ev.atencion<=2?'g':(ev.atencion===3?'a':'r')}">${EV_TXT.atencion[ev.atencion]}</span>`:''}
-    ${ev.consulta?`<span class="ev-chip ${ev.consulta===1?'g':(ev.consulta===2?'a':'r')}">${EV_TXT.consulta[ev.consulta]}</span>`:''}
-    ${ev.cliente?`<span class="ev-chip ${ev.cliente<=2?'g':'r'}">${EV_TXT.cliente[ev.cliente]}</span>`:''}
-  </div>` : '';
-
-  // El atajo: si nunca contestó, las tres escalas se van de la pantalla.
-  const nuncaHtml=`<div class="ev-nunca ${ev.nuncaRespondio?'on':''}" onclick="evToggleNunca()">
-    <span class="ic">${ev.nuncaRespondio?'☑':'☐'}</span>
-    <div>
-      <b>Nunca respondió</b>
-      <span>El cliente no contestó nunca — no hay nada que evaluar.</span>
-    </div>
-  </div>`;
-
-  const evaluacionHtml = ev.nuncaRespondio ? '' : `
-        <p class="ev-lb">Evaluación</p>
-        <div class="ev-fila"><span class="ev-fn">Atención</span>${escalaHtml('atencion',EV_ATENCION)}</div>
-        <div class="ev-fila"><span class="ev-fn">Consulta</span>${escalaHtml('consulta',EV_CONSULTA)}</div>
-        <div class="ev-fila"><span class="ev-fn">Cliente</span>${escalaHtml('cliente',EV_CLIENTE)}</div>
-        ${chips}
-        ${dctHtml}`;
-
-  /* La decisión depende del estado REAL de la consulta. Antes se preguntaba siempre
-     "¿queda rechazada o 2da oportunidad?", incluso sobre una consulta ya vendida —
-     un absurdo: si se concretó, no hay nada que recuperar. Tres casos distintos: */
-  const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
   const esConcretada = e==='Concretado';
   const esRechazada  = e==='Rechazado';
-  const quedarseTxt  = esRechazada ? 'Queda rechazada' : 'Sigue en seguimiento';
+  const vNom=nombreDe(a.vendedorId);
+  const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
+  const completa = ev.nuncaRespondio || (ev.atencion&&ev.consulta&&ev.cliente);
 
-  const derivarHtml=`
-    <p class="ev-lb">¿A qué agente se la derivás?</p>
-    <select id="evDerivar" onchange="guardarBorradorEvaluar()">
-      ${vendedores.map(uid=>`<option value="${uid}" ${ev.derivar===uid?'selected':''}>${nombreDe(uid)}${uid===a.vendedorId?' — el mismo que la atendió':''}</option>`).join('')}
-      <option value="__yo__" ${ev.derivar==='__yo__'?'selected':''}>Me la quedo yo</option>
-    </select>
-    <p class="ev-lb" style="margin-top:9px">Nota para el agente</p>
-    <textarea id="evNota" placeholder="Te mando esta consulta porque creo que podés venderle…" oninput="guardarBorradorEvaluar()">${ev.nota||''}</textarea>`;
+  // Todo con <select> para cargar con Tab/Enter, sin mouse.
+  const axisSel=(eje,ops)=>`<select id="evSel_${eje}" class="ev-sel" onchange="evSetAxis('${eje}',this.value)">
+      <option value="">— elegí —</option>
+      ${ops.map(([v,txt])=>`<option value="${v}" ${ev[eje]==v?'selected':''}>${v} · ${txt}</option>`).join('')}
+    </select>`;
 
+  const nuncaHtml=`<div class="ev-nunca ${ev.nuncaRespondio?'on':''}" onclick="evToggleNunca()">
+    <span class="ic">${ev.nuncaRespondio?'☑':'☐'}</span>
+    <div><b>Nunca respondió</b><span>El cliente no contestó nunca — no hay nada que evaluar.</span></div>
+  </div>`;
+
+  const ejesHtml = ev.nuncaRespondio ? '' : `
+    <div class="ev-field"><label>Atención</label>${axisSel('atencion',EV_ATENCION)}</div>
+    <div class="ev-field"><label>Consulta</label>${axisSel('consulta',EV_CONSULTA)}</div>
+    <div class="ev-field"><label>Cliente</label>${axisSel('cliente',EV_CLIENTE)}</div>`;
+
+  const comentarioHtml=`<div class="ev-field">
+    <label>Comentario para ${escapeHtml(vNom)} <span class="opt">(opcional)</span></label>
+    <textarea id="evFbTexto" class="ev-ta" rows="2" placeholder="Ej: acá te confundiste… (Tab para seguir si no querés cargar)" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.fbTexto||'')}</textarea>
+    ${ev.capturaData
+      ? `<div class="ev-adj" onclick="evQuitarCaptura()"><img src="${ev.capturaData}"> Captura adjunta — clic para quitar</div>`
+      : `<label class="ev-adj">📎 Adjuntar captura<input type="file" accept="image/*" style="display:none" onchange="evCaptura(this)"></label>`}
+  </div>`;
+
+  // ¿Qué hacemos con la consulta?
   let decisionHtml='';
   if(esConcretada){
-    // Se vendió. No hay decisión de recupero que tomar — solo se evalúa cómo se atendió.
-    decisionHtml=`
-      <p class="ev-lb">Estado de la consulta</p>
-      <div class="ev-cerrada">
-        <b>Venta concretada</b>
-        <span>No hay nada que decidir — acá solo evaluás cómo se atendió.</span>
-      </div>`;
+    decisionHtml=`<div class="ev-cerrada"><b>Venta concretada</b><span>No hay nada que decidir — acá solo evaluás cómo se atendió.</span></div>`;
   }else{
-    let ramaHtml='';
-    if(ev.decision==='rechazada'){
-      if(esRechazada){
-        const esOtro = ev.motivoCintia==='__otro__';
-        const sel = MOTIVOS_RECHAZO.find(m=>m.t===ev.motivoCintia);
-        const icoSel = esOtro ? '✏️' : (sel?sel.ic:'↔');
-        const txtSel = esOtro ? 'Otro (escribir)' : (sel?sel.t:'Mismo motivo que el vendedor');
-        ramaHtml=`
-          <div class="ev-vm"><span class="q">Motivo del vendedor</span><span class="v">${a.resultadoMotivo||'Sin motivo'}</span></div>
-          <p class="ev-lb" style="margin-top:9px">Motivo real</p>
-          <div class="mtv">
-            <button type="button" class="mtv-btn ${ev.motivoAbierto?'abierto':''}" onclick="evToggleMotivo()">
-              <span class="ic">${icoSel}</span>
-              <span class="txt ${(!sel&&!esOtro)?'vacio':''}">${txtSel}</span>
-              <span class="chev">▾</span>
-            </button>
-            ${ev.motivoAbierto?`
-            <div class="mtv-pop">
-              <div class="mtv-op mismo ${!ev.motivoCintia?'on':''}" onclick="evPickMotivo('')">
-                <span class="ic">↔</span><span>Mismo motivo que el vendedor</span>${!ev.motivoCintia?'<span class="chk">✓</span>':''}
-              </div>
-              <div class="mtv-sep"></div>
-              ${MOTIVOS_RECHAZO.map(m=>`
-                <div class="mtv-op ${ev.motivoCintia===m.t?'on':''}" onclick="evPickMotivo('${m.t.replace(/'/g,"\\'")}')">
-                  <span class="ic">${m.ic}</span><span>${m.t}</span>${ev.motivoCintia===m.t?'<span class="chk">✓</span>':''}
-                </div>`).join('')}
-              <div class="mtv-sep"></div>
-              <div class="mtv-op ${esOtro?'on':''}" onclick="evPickMotivo('__otro__')">
-                <span class="ic">✏️</span><span>Otro (escribir)…</span>${esOtro?'<span class="chk">✓</span>':''}
-              </div>
-            </div>`:''}
-          </div>
-          ${esOtro?`<input type="text" class="mtv-otro" id="evMotivoOtro" placeholder="Escribí el motivo…" value="${escAttr(ev.motivoOtro||'')}" oninput="guardarBorradorEvaluar()" autofocus>`:''}`;
-      }else{
-        // Estancada: nunca se cerró, así que no hay motivo de rechazo que comparar.
-        ramaHtml=`<p class="tiny" style="margin:0">Se la dejás a ${nombreDe(a.vendedorId)} como está.</p>`;
-      }
+    const decSel=`<select id="evSelDecision" class="ev-sel" onchange="evDecision(this.value)">
+      <option value="rechazada" ${ev.decision!=='segunda'?'selected':''}>${esRechazada?'Queda rechazada':'Sigue en seguimiento'}</option>
+      <option value="segunda" ${ev.decision==='segunda'?'selected':''}>2da oportunidad</option>
+    </select>`;
+    let sub='';
+    if(ev.decision==='segunda'){
+      sub=`<div class="ev-field"><label>¿A qué agente se la derivás?</label>
+        <select id="evDerivar" class="ev-sel" onchange="guardarBorradorEvaluar()">
+          ${vendedores.map(uid=>`<option value="${uid}" ${ev.derivar===uid?'selected':''}>${nombreDe(uid)}${uid===a.vendedorId?' — el mismo':''}</option>`).join('')}
+          <option value="__yo__" ${ev.derivar==='__yo__'?'selected':''}>Me la quedo yo</option>
+        </select></div>
+        <div class="ev-field"><label>Nota para el agente</label>
+          <textarea id="evNota" class="ev-ta" rows="2" placeholder="Te mando esta consulta porque…" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.nota||'')}</textarea></div>`;
+    }else if(esRechazada){
+      sub=`<div class="ev-field"><label>Motivo real</label>
+        <select id="evSelMotivo" class="ev-sel" onchange="evSetMotivo(this.value)">
+          <option value="" ${!ev.motivoCintia?'selected':''}>↔ Mismo motivo que el vendedor (${escapeHtml(a.resultadoMotivo||'sin motivo')})</option>
+          ${MOTIVOS_RECHAZO.map(m=>`<option value="${escAttr(m.t)}" ${ev.motivoCintia===m.t?'selected':''}>${m.ic} ${m.t}</option>`).join('')}
+          <option value="__otro__" ${ev.motivoCintia==='__otro__'?'selected':''}>✏️ Otro (escribir)…</option>
+        </select>
+        <input type="text" id="evMotivoOtro" class="ev-inp ${ev.motivoCintia==='__otro__'?'':'hidden'}" placeholder="Escribí el motivo…" value="${escAttr(ev.motivoOtro||'')}" oninput="guardarBorradorEvaluar()">
+      </div>`;
     }else{
-      ramaHtml=derivarHtml;
+      sub=`<p class="tiny" style="margin:4px 0 0">Se la dejás a ${escapeHtml(vNom)} como está.</p>`;
     }
-    decisionHtml=`
-      <p class="ev-lb">¿Qué hacemos con la consulta?</p>
-      <div class="ev-sw">
-        <div class="${ev.decision==='rechazada'?'on':''}" onclick="evDecision('rechazada')">${quedarseTxt}</div>
-        <div class="${ev.decision==='segunda'?'on v':''}" onclick="evDecision('segunda')">2da oportunidad</div>
-      </div>
-      <div style="margin-top:10px">${ramaHtml}</div>`;
+    decisionHtml=`<div class="ev-field"><label>¿Qué hacemos con la consulta?</label>${decSel}</div>${sub}`;
   }
+
+  const obsHtml=`<div class="ev-field"><label>Observaciones <span class="opt">(notas internas)</span></label>
+    <textarea id="evObs" class="ev-ta" rows="2" placeholder="Notas internas…" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.obs||'')}</textarea></div>`;
+
+  // Ejemplo del mes: para el vendedor (lo ve él) o para dirección (solo lo ve Brian).
+  const brianNom=nombreDe('brian')||'dirección';
+  const ejTargetSel=`<select id="evSelEjTarget" class="ev-sel" onchange="evSetEjemploTarget(this.value)">
+      <option value="" ${!ev.ejemploTarget?'selected':''}>— No —</option>
+      <option value="vendedor" ${ev.ejemploTarget==='vendedor'?'selected':''}>Para el vendedor (${escapeHtml(vNom)})</option>
+      <option value="direccion" ${ev.ejemploTarget==='direccion'?'selected':''}>Para dirección (solo ${escapeHtml(brianNom)})</option>
+    </select>`;
+  const ejSub = ev.ejemploTarget ? `
+    <div class="ev-field"><label>¿Buen o mal ejemplo?</label>
+      <select id="evSelEjTipo" class="ev-sel" onchange="evTmp.ejemploTipo=this.value">
+        <option value="bueno" ${ev.ejemploTipo!=='malo'?'selected':''}>👍 Buen ejemplo</option>
+        <option value="malo" ${ev.ejemploTipo==='malo'?'selected':''}>👎 Mal ejemplo</option>
+      </select></div>
+    <div class="ev-field"><label>¿Por qué? <span class="opt">${ev.ejemploTarget==='vendedor'?'(lo ve '+escapeHtml(vNom)+')':'(solo lo ves vos)'}</span></label>
+      <textarea id="evEjemploMotivo" class="ev-ta" rows="2" placeholder="Por qué lo querés mostrar…" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.ejemploMotivo||'')}</textarea>
+      ${ev.ejemploCaptura
+        ? `<div class="ev-adj" onclick="evQuitarCapturaEjemplo()"><img src="${ev.ejemploCaptura}"> Captura adjunta — clic para quitar</div>`
+        : `<label class="ev-adj">📎 Adjuntar captura<input type="file" accept="image/*" style="display:none" onchange="evCapturaEjemplo(this)"></label>`}
+    </div>` : '';
+  const ejemploHtml=`<div class="ev-field"><label>★ Ejemplo del mes</label>${ejTargetSel}</div>${ejSub}`;
 
   $('evaluarCaja').innerHTML=`
     <div class="ev-hd">
       <div>
-        <h3>${a.clienteNombre||'Sin nombre'}</h3>
-        <div class="meta">${nombreDe(a.vendedorId)} · ${e?e.toLowerCase():'estancada'}${a.ts?' hace '+diasDesdeISO(a.ts)+'d':''}</div>
+        <h3>${escapeHtml(a.clienteNombre||'Sin nombre')}</h3>
+        <div class="meta">${escapeHtml(vNom)} · ${e?e.toLowerCase():'estancada'}${a.ts?' hace '+diasDesdeISO(a.ts)+'d':''}</div>
       </div>
       ${monto?`<div class="monto"><div class="n">$ ${miles(monto)}</div><div class="l">en juego</div></div>`:''}
       <button class="btn-close" onclick="cerrarEvaluar()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Cerrar">×</button>
     </div>
-    <div class="ev-cols">
-      <div class="ev-cl">
-        ${nuncaHtml}
-        ${evaluacionHtml}
-
-        <div class="ev-fb ${ev.fbAbierto?'on':''} ${ev.fbCargado?'cargado':''}">
-          <div class="ev-fb-t" onclick="${ev.fbCargado?'':'evToggleFb()'}">
-            💬 Comentario para ${nombreDe(a.vendedorId)}
-            ${ev.fbCargado?'<span class="ev-ok">✓ Cargado</span>':''}
-          </div>
-          ${ev.fbCargado?`
-          <div class="ev-guardado">
-            <p>${(ev.fbTexto||'').replace(/</g,'&lt;')||'<i>(solo captura)</i>'}</p>
-            ${ev.capturaData?`<img src="${ev.capturaData}" class="ev-thumb">`:''}
-            <div class="ev-guardado-acc">
-              <span onclick="evEditarComentario()">Editar</span>
-              <span class="rojo" onclick="evBorrarComentario()">Borrar</span>
-            </div>
-          </div>`
-          : (ev.fbAbierto?`
-          <div style="margin-top:8px">
-            <textarea id="evFbTexto" placeholder="Acá te confundiste… (Enter para cargar, Shift+Enter para bajar de línea)" oninput="guardarBorradorEvaluar()" onkeydown="evTeclaComentario(event)">${ev.fbTexto||''}</textarea>
-            ${ev.capturaData
-              ? `<div class="ev-adj" onclick="evQuitarCaptura()"><img src="${ev.capturaData}"> Captura adjunta — clic para quitar</div>`
-              : `<label class="ev-adj">📎 Adjuntar captura de pantalla<input type="file" accept="image/*" style="display:none" onchange="evCaptura(this)"></label>`}
-            <button type="button" class="btn btn-navy btn-cargar" onclick="evCargarComentario()">Cargar comentario</button>
-          </div>`:'')}
-        </div>
-
-        <div style="margin-top:10px"><span class="ev-pm ${ev.ejemplo?'on':''}" onclick="evToggleEjemplo()">★ Ejemplo del mes${ev.ejemploCargado?' ✓':''}</span></div>
-        ${ev.ejemplo?(ev.ejemploCargado?`
-          <div class="ev-ej cargado">
-            <p>${(ev.ejemploMotivo||'').replace(/</g,'&lt;')}</p>
-            <div class="ev-guardado-acc"><span onclick="evEditarEjemplo()">Editar</span></div>
-          </div>`:`
-          <div class="ev-ej">
-            <input type="text" id="evEjemploMotivo" placeholder="¿Por qué? (Enter para cargar)" value="${escAttr(ev.ejemploMotivo||'')}" oninput="guardarBorradorEvaluar()" onkeydown="evTeclaEjemplo(event)">
-            <button type="button" class="btn btn-navy btn-cargar" onclick="evCargarEjemplo()">Cargar</button>
-          </div>`):''}
-      </div>
-
-      <div class="ev-cr">
-        ${decisionHtml}
-
-        <p class="ev-lb" style="margin-top:13px">Observaciones</p>
-        <textarea id="evObs" style="min-height:80px" placeholder="Notas internas…" oninput="guardarBorradorEvaluar()">${ev.obs||''}</textarea>
-
-        <button id="evGuardar" class="btn btn-navy" style="width:100%;margin-top:12px${completa?'':';opacity:.45;cursor:not-allowed'}" onclick="guardarEvaluacionCintia()" ${completa?'':'disabled'}>
-          ${(!esConcretada && ev.decision==='segunda')?'Guardar y derivar':'Guardar evaluación'}
-        </button>
-        <div class="modal-close" onclick="cerrarEvaluar()">Cancelar</div>
-      </div>
+    <div class="ev-form">
+      ${nuncaHtml}
+      ${ejesHtml}
+      ${comentarioHtml}
+      ${decisionHtml}
+      ${obsHtml}
+      ${ejemploHtml}
+      <button id="evGuardar" class="btn btn-navy" style="width:100%;margin-top:8px${completa?'':';opacity:.45;cursor:not-allowed'}" onclick="guardarEvaluacionCintia()" ${completa?'':'disabled'}>
+        ${(!esConcretada && ev.decision==='segunda')?'Guardar y derivar':'Guardar evaluación'}
+      </button>
+      <div class="modal-close" onclick="cerrarEvaluar()">Cancelar</div>
     </div>`;
+
+  // Foco inicial en el primer campo para poder cargar directo con teclado.
+  const foco = $('evSel_atencion') || $('evFbTexto') || $('evSelDecision');
+  if(foco) setTimeout(()=>foco.focus(), 30);
 }
 
 /* Los mensajes de Cintia llegan al vendedor acá — si no puede leerlos, todo lo de
@@ -8116,6 +8071,11 @@ function abrirVistaEvaluacion(id){
         <div class="vev-com-de">💬 ${nombreDe(c.deId)} te comentó</div>
         ${comTxt?`<p>${escapeHtml(comTxt)}</p>`:''}
         ${c.captura?`<img src="${c.captura}" style="max-width:100%;border-radius:8px;border:1px solid var(--line);margin-top:8px">`:''}
+      </div>` : ''}
+      ${(a.ejemploDelMes && a.ejemploDelMes.visibleVendedor) ? `<div class="vev-com" style="background:${a.ejemploDelMes.tipo==='malo'?'var(--red-l)':'var(--green-l)'};border:none">
+        <div class="vev-com-de" style="color:${a.ejemploDelMes.tipo==='malo'?'var(--red)':'var(--green)'}">${a.ejemploDelMes.tipo==='malo'?'👎 Ejemplo a mejorar':'👍 Ejemplo del mes'}</div>
+        ${a.ejemploDelMes.motivo?`<p>${escapeHtml(a.ejemploDelMes.motivo)}</p>`:''}
+        ${a.ejemploDelMes.captura?`<img src="${a.ejemploDelMes.captura}" style="max-width:100%;border-radius:8px;border:1px solid var(--line);margin-top:8px">`:''}
       </div>` : ''}
       ${!a.evaluada ? `<p class="tiny" style="margin:4px 0">Esta consulta todavía no fue evaluada.</p>`:''}
       ${estadoRev}
@@ -8235,8 +8195,7 @@ async function guardarEvaluacionCintia(){
     a.evalCliente=ev.cliente;
     // Compatibilidad con lo que ya existía (la columna "Evaluada · X" de la planilla).
     a.evaluacionCalidad=EV_TXT.atencion[ev.atencion];
-    const perdidaChk=$('evPerdida');
-    a.oportunidadPerdida = calificaPerdida(ev) && perdidaChk && perdidaChk.checked;
+    a.oportunidadPerdida = calificaPerdida(ev);
     a.montoOportunidadPerdida = a.oportunidadPerdida ? montoRepresentativo(a.muebles) : 0;
   }
 
@@ -8254,14 +8213,15 @@ async function guardarEvaluacionCintia(){
     a.comentarioVendedor=null;
   }
 
-  // Mismo criterio para el ejemplo del mes.
-  if(ev.ejemploCargado){
-    // ya está guardado
-  }else{
-    a.ejemploDelMes = (ev.ejemplo && (ev.ejemploMotivo||'').trim())
-      ? {motivo:(ev.ejemploMotivo||'').trim(), ts:new Date().toISOString(), porId:YO}
-      : null;
-  }
+  // Ejemplo del mes: puede ir al vendedor (lo ve él) o a dirección (solo lo ve Brian).
+  a.ejemploDelMes = ev.ejemploTarget ? {
+    motivo:(ev.ejemploMotivo||'').trim(),
+    tipo: ev.ejemploTipo==='malo' ? 'malo' : 'bueno',
+    target: ev.ejemploTarget,                 // 'vendedor' | 'direccion'
+    visibleVendedor: ev.ejemploTarget==='vendedor',
+    captura: ev.ejemploCaptura||null,
+    ts:new Date().toISOString(), porId:YO, leido:false
+  } : null;
 
   const estadoActual=estadoDe(a);
   const eraConcretada = estadoActual==='Concretado';
