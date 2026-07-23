@@ -1985,6 +1985,18 @@ function esAdmin(){return rolDe(YO)==='admin';}
 function esAuditora(){return rolDe(YO)==='auditora';}
 function puedeVerEquipo(){return esAdmin()||esAuditora();}
 function nombreDe(uid){return (USUARIOS[uid]||{n:uid}).n;}
+/* El "Vino de la publicidad: X" es info interna de Cintia — al vendedor no le
+   sirve. Consultas viejas lo tienen guardado como comentario; lo filtramos en
+   la vista para que no lo vean, sin tocar el dato guardado. */
+function esComentarioPublicidad(txt){ return /vino de la publicidad/i.test(txt||''); }
+function comentarioVendedorTexto(a){
+  const t=(a && a.comentarioVendedor && a.comentarioVendedor.texto)||'';
+  return esComentarioPublicidad(t) ? '' : t;
+}
+function hayComentarioVendedor(a){
+  const cv=a && a.comentarioVendedor; if(!cv) return false;
+  return !!comentarioVendedorTexto(a) || !!cv.captura;
+}
 function nombreLocal(id){ if(!id) return 'Virtual'; return (LOCALES[id]||{n:id}).n;}
 
 function vendedoresDeLocal(localId){
@@ -3100,7 +3112,7 @@ function renderBandejaVendedor_LEGACY(){
       .forEach(a=>items.push({tipo:'segunda', a, monto:montoRepresentativo(a.muebles)||0}));
 
   // 2) Comentario de coaching de Cintia sin leer. Este es el que estaba invisible.
-  mias.filter(a=>a.comentarioVendedor && !a.comentarioVendedor.leido && a.comentarioVendedor.paraId===YO)
+  mias.filter(a=>a.comentarioVendedor && !a.comentarioVendedor.leido && a.comentarioVendedor.paraId===YO && hayComentarioVendedor(a))
       .forEach(a=>items.push({tipo:'comentario', a, monto:0}));
 
   if(!items.length){ box.classList.add('hidden'); box.innerHTML=''; return; }
@@ -4089,7 +4101,7 @@ function logItemHtml(a){
         </span>
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
-        <span class="c-nom-txt"><b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin())) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
@@ -4917,9 +4929,9 @@ function recordatoriosDeVendedor(){
       .forEach(a=>items.push({tipo:'segunda', a, monto:montoRepresentativo(a.muebles)||0,
         texto:a.segundaOportunidad.nota, porId:a.segundaOportunidad.porId, ts:a.segundaOportunidad.ts}));
   // 2) Comentario de coaching de Cintia sin leer.
-  mias.filter(a=>a.comentarioVendedor && !a.comentarioVendedor.leido && a.comentarioVendedor.paraId===YO)
+  mias.filter(a=>a.comentarioVendedor && !a.comentarioVendedor.leido && a.comentarioVendedor.paraId===YO && hayComentarioVendedor(a))
       .forEach(a=>items.push({tipo:'eval', a, monto:0,
-        texto:a.comentarioVendedor.texto||'', porId:a.comentarioVendedor.deId, ts:a.comentarioVendedor.ts}));
+        texto:comentarioVendedorTexto(a), porId:a.comentarioVendedor.deId, ts:a.comentarioVendedor.ts}));
   // 3) Revisión de evaluación respondida por Cintia, sin ver.
   mias.filter(a=>a.revisionEval && a.revisionEval.respuesta && !a.revisionEval.vistoVendedor && a.revisionEval.paraId===YO)
       .forEach(a=>items.push({tipo:'consulta', a, monto:0,
@@ -5454,7 +5466,7 @@ function svEvaluacionesHtml(){
     <table class="tabla-cintia"><thead><tr><th>Cliente</th><th>Fecha</th><th>Atención</th><th>Consulta</th><th>Cliente</th><th>Observación</th></tr></thead><tbody>
     ${lista.map(a=>{
       // El vendedor NO ve las "Notas internas" de Cintia (obsCintia); solo su comentario dedicado.
-      const obs = (a.comentarioVendedor && a.comentarioVendedor.texto) || '';
+      const obs = comentarioVendedorTexto(a);
       return `
       <tr style="cursor:pointer" onclick="abrirVistaEvaluacion('${a.id}')">
         <td><b>${escapeHtml(a.clienteNombre||'Sin nombre')}</b>${a.oportunidadPerdida?'<span class="nueva-b" style="background:var(--red)">Oport. perdida</span>':''}
@@ -7638,6 +7650,7 @@ function abrirVistaEvaluacion(id){
   if(!a) return;
   evaluandoId=id;
   const c=a.comentarioVendedor;
+  const comTxt=comentarioVendedorTexto(a);
   const rev=a.revisionEval;
   // Si es el vendedor abriendo una revisión ya resuelta, la marco vista para que
   // el badge "Revisión respondida" desaparezca.
@@ -7675,9 +7688,9 @@ function abrirVistaEvaluacion(id){
     <div class="ev-hd"><div><h3>Tu evaluación</h3><div class="meta">${escapeHtml(a.clienteNombre||'Sin nombre')}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}${a.evaluadoTs?' · '+new Date(a.evaluadoTs).toLocaleDateString('es-AR'):''}</div></div></div>
     <div style="padding:14px 2px 2px">
       ${ejes}
-      ${c && c.texto ? `<div class="vev-com">
+      ${(comTxt || (c && c.captura)) ? `<div class="vev-com">
         <div class="vev-com-de">💬 ${nombreDe(c.deId)} te comentó</div>
-        <p>${escapeHtml(c.texto)}</p>
+        ${comTxt?`<p>${escapeHtml(comTxt)}</p>`:''}
         ${c.captura?`<img src="${c.captura}" style="max-width:100%;border-radius:8px;border:1px solid var(--line);margin-top:8px">`:''}
       </div>` : ''}
       ${!a.evaluada ? `<p class="tiny" style="margin:4px 0">Esta consulta todavía no fue evaluada.</p>`:''}
@@ -7691,9 +7704,9 @@ function abrirVistaEvaluacion(id){
         </div>
       </div>
       <div class="row" style="margin-top:14px">
-        ${c && c.texto && !c.leido ? `<button class="btn btn-navy" style="flex:1" onclick="marcarComentarioLeido('${a.id}')">Entendido</button>`:''}
+        ${hayComentarioVendedor(a) && !c.leido ? `<button class="btn btn-navy" style="flex:1" onclick="marcarComentarioLeido('${a.id}')">Entendido</button>`:''}
         ${puedePedir ? `<button class="btn btn-outline" style="flex:1" onclick="toggleRevForm()">Pedir revisión</button>`:''}
-        ${!(c && c.texto && !c.leido) && !puedePedir ? `<button class="btn btn-navy" style="flex:1" onclick="cerrarEvaluar()">Cerrar</button>`:''}
+        ${!(hayComentarioVendedor(a) && !c.leido) && !puedePedir ? `<button class="btn btn-navy" style="flex:1" onclick="cerrarEvaluar()">Cerrar</button>`:''}
       </div>
     </div>`;
   $('modalEvaluar').classList.remove('hidden');
