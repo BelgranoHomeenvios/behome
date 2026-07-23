@@ -8751,6 +8751,10 @@ function onCanalChangeCr(){
   if(cfg.ig) html+=`<div class="field"><label>Usuario de Instagram <span class="opt">(opcional)</span></label><input type="text" id="crIG" placeholder="@usuario" oninput="chequearDupCr()" onkeydown="crTeclas(event,this)"></div>`;
   if(cfg.orden) html+=`<div class="field"><label>N° de orden <span class="opt">(si lo tiene)</span></label><input type="text" id="crOrden" placeholder="Ej: 4142" onkeydown="crTeclas(event,this)"></div>`;
   html+=`<div class="field"><label>Nombre <span class="opt">(si lo tenés)</span></label><input type="text" id="crNombre" placeholder="Nombre y apellido" onkeydown="crTeclas(event,this)"></div>`;
+  html+=`<div class="field" style="margin-top:-4px">
+    <span class="cr-mas" onclick="mostrarTel2Cr(this)">＋ Agregar otro teléfono del cliente <span class="opt">(si escribe de 2 números)</span></span>
+    <input type="text" id="crTel2" class="full hidden" placeholder="Otro teléfono del mismo cliente" style="margin-top:6px" onkeydown="crTeclas(event,this)">
+  </div>`;
   if(cfg.comentario) html+=`<div class="field">
     <label>¿Qué vio / contexto para el vendedor? <span class="opt">(opcional)</span></label>
     <textarea id="crComenta" rows="2" placeholder="Ej: vino por la publicación de camas, leer la conversación" onkeydown="crTeclas(event,this)"></textarea>
@@ -8833,6 +8837,28 @@ function onDerivarChangeCr(){
   else body.innerHTML='';
 }
 function crToggleMas(){ $('crMasInfo').classList.toggle('hidden'); }
+function mostrarTel2Cr(el){ const i=$('crTel2'); if(i){ i.classList.remove('hidden'); i.focus(); if(el) el.classList.add('hidden'); } }
+/* Suma un segundo teléfono al mismo cliente (marido/mujer que escriben de 2 números).
+   Queda como teléfono alternativo del contacto; si ese número tenía su propio contacto,
+   se absorbe (sin tocar el vendedor de sus consultas). */
+async function agregarTelefonoAlt(contactoId, tel2){
+  const k2=normContacto(tel2); if(!k2) return;
+  const c=contactoPorId(contactoId); if(!c) return;
+  const kP=normContacto(c.telefono);
+  if(k2===kP) return;
+  if(!c.telefonosAlt) c.telefonosAlt=[];
+  if(!c.telefonosAlt.map(t=>normContacto(t)).includes(k2)) c.telefonosAlt.push(k2);
+  const cSec=CONTACTOS[k2];
+  if(cSec && cSec.id!==c.id){
+    if(!c.instagram && cSec.instagram) c.instagram=cSec.instagram;
+    (cSec.telefonosAlt||[]).forEach(t=>{ const k=normContacto(t); if(k && k!==kP && !c.telefonosAlt.map(y=>normContacto(y)).includes(k)) c.telefonosAlt.push(k); });
+    const keyS=Object.keys(CONTACTOS).find(kk=>CONTACTOS[kk].id===cSec.id);
+    if(keyS) delete CONTACTOS[keyS];
+    atenciones.forEach(a=>{ if(normContacto(a.clienteTelefono)===k2) a.contactoId=c.id; });
+    await saveAtenciones();
+  }
+  await saveContactos();
+}
 
 /* Enter avanza al siguiente campo visible; Backspace en los selects los limpia. */
 function crTeclas(e, el){
@@ -8924,6 +8950,8 @@ async function guardarCargaRapida(){
       comentarioVendedor: textoVendedor ? {texto:textoVendedor, captura:null, paraId:derivar, deId:YO, ts:new Date().toISOString(), leido:false} : null
     };
     record.contactoId=await vincularContacto({nombre:record.clienteNombre, telefono:record.clienteTelefono, instagram:(igUser||igExtra), noTomoTelefono:false, percepcion:null, resultado:'En seguimiento', canal:canalAmplio});
+    const tel2=$('crTel2')?$('crTel2').value.trim():'';
+    if(tel2 && record.contactoId) await agregarTelefonoAlt(record.contactoId, tel2);
     // Próxima acción opcional (Local): vive en el contacto, como en el resto del sistema.
     const pFecha=$('crProxFecha')?$('crProxFecha').value:'';
     const pNota=$('crProxNota')?$('crProxNota').value.trim():'';
