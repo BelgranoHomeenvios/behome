@@ -5900,6 +5900,10 @@ const DIAS_ATRASO_CINTIA=5;
    todavía es nueva. Si ya tiene una próxima acción para hoy o a futuro, se está
    trabajando: tampoco cuenta. */
 function cintiaEsAtrasada(a){
+  // Solo las consultas de VENDEDORES pueden estar atrasadas. Las que quedaron a nombre
+  // de Cintia o de dirección (consultas de estado, reclamos, etc.) no son seguimiento de
+  // ventas: ya fueron respondidas, no se atrasan.
+  if(rolDe(a.vendedorId)!=='vendedor') return false;
   const e=estadoDe(a);
   if(e==='Concretado' || e==='Rechazado') return false;
   if(a.soloVolumen || a.nuncaRespondio) return false;
