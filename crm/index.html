@@ -480,9 +480,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-sub{font-size:11px;color:var(--muted);margin-top:1px}
 /* Contacto invertido: teléfono grande arriba, nombre debajo (más legible) */
 .c-nom{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px}
-.c-tel{font-size:15px;font-weight:700;color:var(--navy);line-height:1.2}
+.c-tel{font-size:13px;font-weight:700;color:var(--navy);line-height:1.2}
 .c-tel .tel-copy{border-bottom:1px dashed var(--muted);padding-bottom:1px}
-.c-nom-txt{font-size:13px;color:var(--sec);line-height:1.25}
+.c-nom-txt{font-size:11.5px;color:var(--sec);line-height:1.25}
 .c-nom-txt b{font-weight:600;color:var(--sec)}
 .tel-copy{cursor:pointer;border-bottom:1px dashed var(--muted);padding-bottom:1px}
 .tel-copy:hover{color:var(--blue);border-color:var(--blue)}
@@ -2380,7 +2380,7 @@ async function saveNotasSinAccion(){
 
 /* Crea o actualiza el Contacto asociado a un teléfono. Sin teléfono no hay forma de
    reconocer al cliente entre visitas, así que en ese caso no se crea ninguno. */
-async function vincularContacto({nombre, telefono, noTomoTelefono, percepcion, resultado, canal}){
+async function vincularContacto({nombre, telefono, instagram, noTomoTelefono, percepcion, resultado, canal}){
   if(noTomoTelefono || !telefono) return null;
   const key=normContacto(telefono);
   if(!key) return null;
@@ -2390,6 +2390,7 @@ async function vincularContacto({nombre, telefono, noTomoTelefono, percepcion, r
       id:'ct_'+key,
       telefono:key,
       nombre: (nombre && nombre!=='Sin nombre') ? nombre : '',
+      instagram: instagram||'',
       calificacion: percepcion||null,
       estadoGeneral: resultado||'En seguimiento',
       proximaAccionTs:null,
@@ -2401,6 +2402,7 @@ async function vincularContacto({nombre, telefono, noTomoTelefono, percepcion, r
   }else{
     const c=CONTACTOS[key];
     if(nombre && nombre!=='Sin nombre') c.nombre=nombre;
+    if(instagram && !c.instagram) c.instagram=instagram;
     if(percepcion) c.calificacion=percepcion;
     if(resultado) c.estadoGeneral=resultado;
     c.ultimaActividad=ahora;
@@ -7172,7 +7174,7 @@ function htmlFichaCliente(id){
     </div>
     <div class="est-hd" style="margin-top:8px">
       <div><h3>${escapeHtml(c.nombre||'Sin nombre')} ${r.ventas>0?'⭐':''}</h3>
-      <p class="cap">${escapeHtml(c.telefono||'')}${c.canales&&c.canales.length?' · llegó por '+c.canales.join(', '):''}${c.primeraActividad?' · cliente desde '+new Date(c.primeraActividad).toLocaleDateString('es-AR',{month:'short',year:'numeric'}):''}</p></div>
+      <p class="cap">${escapeHtml(c.telefono||'')}${c.instagram?' · IG '+escapeHtml(c.instagram):''}${c.canales&&c.canales.length?' · llegó por '+c.canales.join(', '):''}${c.primeraActividad?' · cliente desde '+new Date(c.primeraActividad).toLocaleDateString('es-AR',{month:'short',year:'numeric'}):''}</p></div>
       <div class="est-tot"><div class="n">${r.comprado?'$ '+miles(r.comprado):'—'}</div><div class="l">comprado en total</div></div>
     </div>
     <div class="fic-kpis">
@@ -8066,10 +8068,10 @@ function destinosListaCintia(){
 // en el local), masInfo (muebles + próxima acción opcionales, solo Local).
 const CR_CFG={
   'WhatsApp':            {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}},
-  'Instagram':           {contacto:{lbl:'Usuario de Instagram',ph:'@usuario'}, comentario:true},
+  'Instagram':           {contacto:{lbl:'Usuario de Instagram',ph:'@usuario'}, esIG:true, comentario:true},
   'Facebook':            {contacto:{lbl:'Usuario de Facebook',ph:'Nombre de perfil'}, comentario:true},
   'Publicidad Mensajería':{contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, publicidad:true},
-  'Publicidad Instagram':{contacto:{lbl:'Usuario de Instagram',ph:'@usuario'}, publicidad:true},
+  'Publicidad Instagram':{contacto:{lbl:'Usuario de Instagram',ph:'@usuario'}, esIG:true, publicidad:true},
   'Local':               {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, atendido:true, masInfo:true, local:true},
   'Email':               {contacto:{lbl:'Email',ph:'nombre@mail.com'}, queConsulto:true},
   'Tienda Nube':         {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, queConsulto:true},
@@ -8079,6 +8081,17 @@ const CR_CFG={
 // es registro de quién lo recibió): vendedores + el resto del equipo.
 const CR_ATENDIO_EXTRA=['iara','lucas','jony','alejandro','nicki'];
 const CR_NOMBRES_EXTRA={iara:'Iara', lucas:'Lucas', jony:'Jony', alejandro:'Alejandro', nicki:'Nicki'};
+
+// Muebles con los que se arma una campaña de publicidad. Cintia elige UNO: es el
+// nombre que le pone a la campaña, así que va una sola por consulta. Esto se
+// guarda para tener el registro de la campaña — al vendedor no le llega.
+const CR_CAMPANAS=['Cómodas','Mesa redonda','Mesa extensible','Mesas de luz','Camas','Mesa ratona','Mundial','Sillas','Divisores de ambiente','Otros'];
+function onCampanaChangeCr(){
+  const sel=$('crCampana'); const otro=$('crCampanaOtro');
+  if(!sel||!otro) return;
+  if(sel.value==='__otra__'){ otro.classList.remove('hidden'); otro.focus(); }
+  else otro.classList.add('hidden');
+}
 
 function abrirCargaRapidaCintia(){
   $('cargaRapidaCaja').innerHTML=`
@@ -8167,11 +8180,23 @@ function onCanalChangeCr(){
   const cfg=CR_CFG[v]||{contacto:{lbl:'Teléfono / usuario',ph:'11 xxxx xxxx o @usuario'}};
   let html='';
   if(cfg.publicidad) html+=`<div class="field">
-    <label>¿Qué publicidad vio?</label>
-    <textarea id="crPublicidad" rows="2" placeholder="Ej: la publicidad de camas" onkeydown="crTeclas(event,this)"></textarea>
-    <p class="tiny" style="margin-top:3px">Esto le llega al vendedor como comentario, para que sepa de dónde vino.</p>
+    <label>¿De qué es la campaña? <span class="opt">(un mueble)</span></label>
+    <select id="crCampana" class="full" onchange="onCampanaChangeCr()" onkeydown="crTeclas(event,this)">
+      <option value="" selected disabled>— elegí —</option>
+      ${CR_CAMPANAS.map(m=>`<option value="${m}">${m}</option>`).join('')}
+      <option value="__otra__">➕ Adicionar otra…</option>
+    </select>
+    <input type="text" id="crCampanaOtro" class="full hidden" placeholder="Nombre de la campaña" style="margin-top:6px" onkeydown="crTeclas(event,this)">
+    <p class="tiny" style="margin-top:3px">Queda como registro de la campaña. Al vendedor no le llega.</p>
   </div>`;
-  html+=`<div class="field"><label>${cfg.contacto.lbl}</label><input type="text" id="crContacto" placeholder="${cfg.contacto.ph}" onkeydown="crTeclas(event,this)"></div>`;
+  if(cfg.esIG){
+    html+=`<div class="row" style="gap:8px">
+      <div class="field" style="flex:2"><label>${cfg.contacto.lbl}</label><input type="text" id="crContacto" placeholder="${cfg.contacto.ph}" onkeydown="crTeclas(event,this)"></div>
+      <div class="field" style="flex:1"><label>Teléfono <span class="opt">(opcional)</span></label><input type="text" id="crTel" placeholder="11 xxxx xxxx" onkeydown="crTeclas(event,this)"></div>
+    </div>`;
+  }else{
+    html+=`<div class="field"><label>${cfg.contacto.lbl}</label><input type="text" id="crContacto" placeholder="${cfg.contacto.ph}" onkeydown="crTeclas(event,this)"></div>`;
+  }
   html+=`<div class="field"><label>Nombre <span class="opt">(si lo tenés)</span></label><input type="text" id="crNombre" placeholder="Nombre y apellido" onkeydown="crTeclas(event,this)"></div>`;
   if(cfg.comentario) html+=`<div class="field">
     <label>¿Qué vio / contexto para el vendedor? <span class="opt">(opcional)</span></label>
@@ -8269,7 +8294,17 @@ async function guardarCargaRapida(){
   const derivar=plainValueCr($('crDerivar').value);
   const contacto=$('crContacto')?$('crContacto').value.trim():'';
   const nombre=$('crNombre')?$('crNombre').value.trim():'';
-  const publicidad=$('crPublicidad')?$('crPublicidad').value.trim():'';
+  const esIG=!!(CR_CFG[canal]||{}).esIG;
+  // En canales de Instagram el "contacto" es el usuario de IG. El teléfono es un
+  // campo aparte y opcional: si está, es lo que se usa para contactar y vincular.
+  const igUser=esIG?contacto:'';
+  const telIG=$('crTel')?$('crTel').value.trim():'';
+  // Campaña de publicidad: un solo mueble (el nombre que Cintia le pone). Queda
+  // como registro interno — no viaja al vendedor.
+  let campana='';
+  if($('crCampana')){
+    campana = $('crCampana').value==='__otra__' ? ($('crCampanaOtro')?$('crCampanaOtro').value.trim():'') : ($('crCampana').value||'');
+  }
   const comenta=$('crComenta')?$('crComenta').value.trim():'';
   const queConsulto=$('crMensaje')?$('crMensaje').value.trim():'';
   const mensajeDest=$('crMensajeDest')?$('crMensajeDest').value.trim():'';
@@ -8304,14 +8339,18 @@ async function guardarCargaRapida(){
     const muebles = (mNom && mMonto) ? [{nombre:mNom, monto:mMonto, elegido:true}] : [];
     // El contexto para el vendedor (publicidad o comentario) viaja como comentario
     // en su bandeja — así sabe de dónde vino antes de escribirle al cliente.
-    const textoVendedor = publicidad ? '📣 Vino de la publicidad: '+publicidad : (comenta||'');
+    const textoVendedor = comenta||'';
+    // Instagram: si hay teléfono, ese es el dato de contacto; si no, se usa el
+    // usuario de IG. El usuario de IG queda siempre guardado aparte.
+    const telParaGuardar = esIG ? (telIG || igUser) : contacto;
     const record={
       id, ts:new Date().toISOString(), localId: canalAmplio==='presencial' ? (localElegido||null) : null,
       vendedorId:derivar, registradoPor:YO,
       derivada:true, origen:'derivada', canal:canalAmplio, canalDetalle:canal,
       contactoId:null, fueraDeTurno:true, status:'pendiente',
       clienteNombre:nombre||'', noTomoNombre:false,
-      clienteTelefono:contacto, noTomoTelefono:false,
+      clienteTelefono:telParaGuardar, noTomoTelefono:false,
+      clienteInstagram: igUser||null, campanaPublicidad: campana||null,
       atendidoPorId: atendido||null,
       muebles,
       notas:queConsulto||'', percepcion:null, resultado:'En seguimiento', resultadoMotivo:null,
@@ -8319,7 +8358,7 @@ async function guardarCargaRapida(){
       hasPhoto:false, photoThumb:null, crmSync:false,
       comentarioVendedor: textoVendedor ? {texto:textoVendedor, captura:null, paraId:derivar, deId:YO, ts:new Date().toISOString(), leido:false} : null
     };
-    record.contactoId=await vincularContacto({nombre:record.clienteNombre, telefono:record.clienteTelefono, noTomoTelefono:false, percepcion:null, resultado:'En seguimiento', canal:canalAmplio});
+    record.contactoId=await vincularContacto({nombre:record.clienteNombre, telefono:record.clienteTelefono, instagram:igUser, noTomoTelefono:false, percepcion:null, resultado:'En seguimiento', canal:canalAmplio});
     // Próxima acción opcional (Local): vive en el contacto, como en el resto del sistema.
     const pFecha=$('crProxFecha')?$('crProxFecha').value:'';
     const pNota=$('crProxNota')?$('crProxNota').value.trim():'';
