@@ -4682,6 +4682,10 @@ function renderHistorial(){
   // pero no los números del tablero — si no, al filtrar quedarían todos en cero menos uno.
   const baseTablero = [...l];
   if(zonaActiva) l=l.filter(a=>zonaDe(a)===zonaActiva);
+  // El período elegido en la barra de abajo filtra la LISTA (para Cintia ya se aplica
+  // dentro de construirListaFiltrada; acá se suma para el vendedor). El tablero de
+  // arriba no se toca: sus contadores son el trabajo actual, sin importar la fecha.
+  if(!esAuditora()) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
   l=ordenarLista(l);
 
   renderChead();
@@ -4978,8 +4982,11 @@ function renderSolapasVendedor(){
 /* Cuando el vendedor entra a una sección propia, la tabla de consultas se esconde:
    son vistas alternativas del mismo espacio, como las secciones de Cintia. */
 function mostrarTablaVendedor(mostrar){
-  const hist=$('historialBox'), filtros=$('filtrosHistorialCard'), titulo=$('tituloColaOperativa');
+  const hist=$('historialBox'), filtros=$('filtrosHistorialCard'), titulo=$('tituloColaOperativa'), periodo=$('verMasBox');
   if(hist) hist.classList.toggle('hidden', !mostrar);
+  // La barra de período solo filtra la lista de consultas: en Estadísticas/Evaluación
+  // no hace nada, así que se esconde junto con la tabla para no quedar "colgada".
+  if(periodo) periodo.classList.toggle('hidden', !mostrar);
   if(filtros && !mostrar) filtros.classList.add('hidden');
   if(titulo) titulo.textContent = mostrar ? (esAuditora()?'Consultas':'Mis consultas') : TITULOS_SECCION_VENDEDOR[seccionVendedor]||'Mis consultas';
 }
@@ -5238,14 +5245,14 @@ function svEstadisticasHtml(){
     <div class="sv-kpis">
       ${kpi('Consultas', act.total, ref&&ref.total)}
       ${kpi('Personas atendidas', act.personas, ref&&ref.personas, false, `${act.personasLocal} en el local · ${act.personasVirtual} virtual`)}
-      ${kpi('En seguimiento', act.seguimiento, ref&&ref.seguimiento)}
-      ${kpi('Sin clasificar + atrasadas', act.sinclas+act.atrasadas, ref&&(ref.sinclas+ref.atrasadas), true)}
+      ${kpi('En seguimiento', act.seguimiento, null)}
+      ${kpi('Sin clasificar + atrasadas', act.sinclas+act.atrasadas, null, true)}
     </div>
 
     <h4 class="sv-h">Cierre</h4>
     <div class="sv-kpis">
       ${kpi('Concretadas', act.concretadas, ref&&ref.concretadas, false, `${act.pctCerradas}% del total`)}
-      ${kpi('En seguimiento', act.seguimiento, ref&&ref.seguimiento, false, 'Todavía abiertas')}
+      ${kpi('En seguimiento', act.seguimiento, null, false, 'Todavía abiertas')}
       ${kpi('Rechazadas', act.rechazadas, ref&&ref.rechazadas, true, `${act.pctNoCerro}% del total`)}
       ${kpi('Podías cerrar y no cerraste', act.nPerdidas, ref&&ref.nPerdidas, true, act.perdidoOportunidad?`$ ${miles(act.perdidoOportunidad)}`:'Lo marca Cintia')}
     </div>
@@ -7384,10 +7391,14 @@ function abrirEvaluar(id){
     nuncaRespondio:!!a.nuncaRespondio
   };
   renderEvaluar();
+  _evalAncho('1000px');
   $('modalEvaluar').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
 function cerrarEvaluar(){ $('modalEvaluar').classList.add('hidden'); document.body.style.overflow=''; evaluandoId=null; }
+// El modal de evaluación se usa para dos cosas: el formulario de Cintia (dos
+// columnas, ancho) y la vista del vendedor / 2da oportunidad (una columna, angosto).
+function _evalAncho(px){ const c=document.querySelector('#modalEvaluar .modal-caja'); if(c) c.style.maxWidth=px; }
 
 function evSet(eje,val){
   evTmp[eje]=val;
@@ -7763,6 +7774,7 @@ function abrirVistaEvaluacion(id){
         ${!(hayComentarioVendedor(a) && !c.leido) && !puedePedir ? `<button class="btn btn-navy" style="flex:1" onclick="cerrarEvaluar()">Cerrar</button>`:''}
       </div>
     </div>`;
+  _evalAncho('440px');
   $('modalEvaluar').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
@@ -7831,6 +7843,7 @@ function verNotaSegunda(id){
       <p style="font-size:13.5px;line-height:1.55;margin:0">${(s.nota||'').replace(/</g,'&lt;')}</p>
       <button class="btn btn-navy" style="width:100%;margin-top:14px" onclick="cerrarEvaluar()">Entendido</button>
     </div>`;
+  _evalAncho('440px');
   $('modalEvaluar').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
