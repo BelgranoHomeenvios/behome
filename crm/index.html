@@ -6898,7 +6898,8 @@ function htmlCintiaMisPendientes(){
           <div class="pend-sub">Baja de contacto pedida por ${nombreDe(s.vendedorId)} · ${new Date(s.ts).toLocaleDateString('es-AR')}</div>
           ${s.motivo?`<div class="tiny" style="margin-top:3px">"${s.motivo}"</div>`:''}
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
+        <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
+          ${s.atencionId && atenciones.some(a=>a.id===s.atencionId)?`<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorial('${s.atencionId}')">Ver / editar</button>`:''}
           <button class="btn btn-outline btn-sm" onclick="resolverSolicitud('${s.id}','rechazada')">Rechazar</button>
           <button class="btn btn-navy btn-sm" onclick="resolverSolicitud('${s.id}','aprobada')">Aprobar</button>
         </div>
