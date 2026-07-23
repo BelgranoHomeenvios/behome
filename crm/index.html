@@ -6503,14 +6503,29 @@ function htmlResumenDetalleVendedor(uid){
 }
 
 /* -------- Para evaluar -------- */
+let evalBusqueda='', _timerEval=null;
+function filtrarEval(txt){
+  evalBusqueda=(txt||'').toLowerCase().trim();
+  clearTimeout(_timerEval);
+  _timerEval=setTimeout(()=>{
+    renderCintiaMain();
+    const inp=document.querySelector('.eval-buscar'); if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  },180);
+}
 function htmlCintiaEvaluar(){
-  const cola=colaEvaluarCintia().filter(a=>dentroDePeriodoCintia(fechaUltimoMovimiento(a))).sort((a,b)=>diasDesdeISO(fechaUltimoMovimiento(b))-diasDesdeISO(fechaUltimoMovimiento(a)));
-  if(!cola.length) return `<div class="cin-card"><p class="cin-empty">No hay nada para evaluar en este período.</p></div>`;
+  let cola=colaEvaluarCintia().filter(a=>dentroDePeriodoCintia(fechaUltimoMovimiento(a))).sort((a,b)=>diasDesdeISO(fechaUltimoMovimiento(b))-diasDesdeISO(fechaUltimoMovimiento(a)));
+  const total=cola.length;
+  if(evalBusqueda){
+    const q=evalBusqueda, qTel=q.replace(/\D/g,'');
+    cola=cola.filter(a=>(a.clienteNombre||'').toLowerCase().includes(q) || (a.clienteTelefono||'').includes(qTel||q) || (a.clienteInstagram||'').toLowerCase().includes(q));
+  }
+  if(!total) return `<div class="cin-card"><p class="cin-empty">No hay nada para evaluar en este período.</p></div>`;
   return `<div class="cin-card" style="padding:4px 18px">
-    <h3 style="padding-top:10px">Para evaluar <span class="cnt-pill">${cola.length} en cola</span></h3>
+    <h3 style="padding-top:10px">Para evaluar <span class="cnt-pill">${evalBusqueda?`${cola.length} de ${total}`:`${total} en cola`}</span></h3>
     <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma cerradas (Concretado/Rechazado) sin evaluar, y en seguimiento estancadas +7 días sin movimiento.</p>
+    <input type="text" class="cli-buscar eval-buscar" placeholder="Buscar contacto por nombre o teléfono…" value="${escAttr(evalBusqueda)}" oninput="filtrarEval(this.value)">
     ${cheadEstaticoHtml()}
-    ${cola.map(logItemHtml).join('')}
+    ${cola.length?cola.map(logItemHtml).join(''):`<p class="cin-empty">Ningún contacto coincide con "${escapeHtml(evalBusqueda)}".</p>`}
   </div>`;
 }
 
