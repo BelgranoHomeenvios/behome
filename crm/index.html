@@ -1790,6 +1790,14 @@ function sbSuscribirCRMRealtime(){
 }
 
 /* ===================== LOGIN (Supabase Auth + tabla crm_usuarios_roles) ===================== */
+/* Cliente del proyecto de Logística. Solo se usa para la sesión: permite que "Salir"
+   cierre los dos módulos y que al entrar acá quede abierta también la sesión de allá,
+   así el botón "Logística" de la barra entra directo. Nunca lee ni escribe sus datos. */
+const LOG_URL='https://iwrgivmqvzalzbfsnxvv.supabase.co';
+const LOG_KEY='sb_publishable_700uBDWuIvX4swFDi5WXuw_iKEIbCzq';
+let sbLOG=null;
+try{ sbLOG = window.supabase.createClient(LOG_URL, LOG_KEY, {auth:{persistSession:true, autoRefreshToken:true}}); }catch(e){ sbLOG=null; }
+
 let usuarioActualEmail=null;
 async function hacerLoginCRM(){
   const email=(document.getElementById('lg_email').value||'').trim().toLowerCase();
@@ -1800,6 +1808,9 @@ async function hacerLoginCRM(){
   try{
     const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
     if(error){ err.textContent='Email o contraseña incorrectos.'; err.style.display=''; btn.disabled=false; btn.textContent='Entrar'; return; }
+    /* Misma contraseña en el otro módulo: si la cuenta existe allá, queda logueado y el
+       botón "Logística" entra derecho. Si no existe, se sigue de largo sin molestar. */
+    try{ if(sbLOG) await sbLOG.auth.signInWithPassword({email,password:pass}); }catch(e){}
     await entrarConUsuarioCRM(data.user);
   }catch(e){ console.error('login',e); err.textContent='No se pudo conectar. Probá de nuevo.'; err.style.display=''; btn.disabled=false; btn.textContent='Entrar'; }
 }
@@ -2090,6 +2101,7 @@ function logout(){
   YO=null; LOCAL_ACTUAL=null; ADMIN_UID=null; usuarioActualEmail=null;
   intentoIPHecho=false;
   if(sb) sb.auth.signOut();
+  if(sbLOG) { try{ sbLOG.auth.signOut(); }catch(e){} }   // salir cierra los DOS módulos
   $('screen-app').classList.add('hidden');
   $('screen-login').classList.remove('hidden');
   cambiarVista('cola');
