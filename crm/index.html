@@ -100,7 +100,17 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .mfila.nosuma .toggle{color:var(--muted)}
 .mdel{width:34px;height:34px;background:none;border:1px solid var(--line);border-radius:8px;color:var(--muted);cursor:pointer;font-family:inherit;flex-shrink:0}
 .mdel:hover{border-color:var(--red);color:var(--red)}
-.total-presu{display:flex;justify-content:space-between;align-items:center;background:var(--navy);color:#fff;border-radius:11px;padding:15px 20px;margin-top:16px}
+.total-presu{display:flex;flex-direction:column;background:var(--navy);color:#fff;border-radius:11px;padding:15px 20px;margin-top:16px}
+.total-presu-top{display:flex;justify-content:space-between;align-items:center}
+.sena-box{margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;gap:6px}
+.sena-row{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;gap:12px}
+.sena-row .k{opacity:.82;font-weight:600}
+.sena-row .v{font-weight:800;white-space:nowrap}
+.sena-row.es-sena .v{color:#8fe3b0}
+.sena-input{width:112px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#8fe3b0;border-radius:6px;padding:3px 8px;font:inherit;font-size:13px;font-weight:800;text-align:right}
+.sena-input:focus{outline:none;border-color:#8fe3b0;background:rgba(255,255,255,.2)}
+.sena-cur{margin-right:3px;font-weight:800;color:#8fe3b0}
+.sena-hint{font-size:10.5px;opacity:.55;line-height:1.35}
 .total-presu .t-lbl{font-size:12px;font-weight:700;opacity:.85}
 .total-presu .t-sub{font-size:11px;opacity:.6;margin-top:2px}
 .total-presu .t-val{font-size:23px;font-weight:800}
@@ -1621,11 +1631,14 @@ textarea{resize:vertical;min-height:60px}
             </div>
             <div id="mueblesLista"></div>
             <div class="total-presu">
-              <div>
-                <div class="t-lbl">Total del presupuesto</div>
-                <div class="t-sub" id="totalSub"></div>
+              <div class="total-presu-top">
+                <div>
+                  <div class="t-lbl">Total del presupuesto</div>
+                  <div class="t-sub" id="totalSub"></div>
+                </div>
+                <div class="t-val" id="totalPresupuesto">$ 0</div>
               </div>
-              <div class="t-val" id="totalPresupuesto">$ 0</div>
+              <div id="senaBox" class="sena-box hidden"></div>
             </div>
           </div>
 
@@ -9000,6 +9013,43 @@ function actualizarTotal(){
   const el=$('totalPresupuesto'); if(el) el.textContent='$ '+miles(t);
   const sub=$('totalSub');
   if(sub) sub.textContent = `Suma ${suman.length} de ${mueblesActuales.length} mueble${mueblesActuales.length===1?'':'s'}`;
+  const sb=$('senaBox');
+  if(sb){
+    const c=calcSena(t);
+    if(!c){ sb.classList.add('hidden'); sb.innerHTML=''; _senaEditada=false; }
+    else{
+      sb.classList.remove('hidden');
+      // Si el vendedor ya tocó la seña a mano, se respeta ese número; si no, va la sugerida.
+      const sena = _senaEditada ? _senaManual : c.sena;
+      const resto = Math.max(0, t - sena);
+      sb.innerHTML=`
+        <div class="sena-row es-sena">
+          <span class="k">Seña para la transferencia</span>
+          <span class="v"><span class="sena-cur">$</span><input type="text" inputmode="numeric" id="senaInput" class="sena-input" value="${miles(sena)}" oninput="onSenaInput(this)"></span>
+        </div>
+        <div class="sena-row"><span class="k">Resto para terminar de abonar</span><span class="v" id="senaResto">$ ${miles(resto)}</span></div>
+        <div class="sena-hint">Sugerida ~30%, redondeada para que el resto quede lindo. Podés ajustarla y el resto se recalcula.</div>`;
+    }
+  }
+}
+/* Seña de fabricación: ~30% del total, ajustada para que el RESTO quede redondo
+   (múltiplo de $10.000). Es solo una sugerencia — el número final lo redondea el
+   vendedor a mano (por eso el campo es editable). Ej: $953.000 → ~$303.000. */
+let _senaEditada=false, _senaManual=0;
+function calcSena(total){
+  if(!total || total<=0) return null;
+  let resto = Math.round(total*0.7/10000)*10000;
+  if(resto>=total) resto = Math.floor(total*0.7/10000)*10000;
+  let sena = total-resto;
+  if(sena<=0){ sena=Math.round(total*0.3); resto=total-sena; }
+  return {sena, resto};
+}
+function onSenaInput(el){
+  formatearMontoInput(el);
+  const total = mueblesActuales.filter(m=>m.elegido).reduce((s,m)=>s+((+m.monto)||0),0);
+  const sena = parseInt((el.value||'').replace(/\D/g,''))||0;
+  _senaEditada = true; _senaManual = sena;
+  const r=$('senaResto'); if(r) r.textContent='$ '+miles(Math.max(0, total - sena));
 }
 
 /* ---------------- Paso 3 ---------------- */
@@ -9065,6 +9115,7 @@ function limpiarModal(){
   ['clienteNombre','clienteTelefono','clienteTelefonoIG','nroCotizacion','notas','tiempoAtencionInput'].forEach(id=>{const e=$(id); if(e) e.value='';});
   const cig=$('campoTelefonoIG'); if(cig) cig.classList.add('hidden');
   const dav=$('modalDupAviso'); if(dav) dav.innerHTML='';
+  _senaEditada=false; _senaManual=0;   // la seña arranca en la sugerida en cada consulta
   ['noTomoNombre','noTomoTel'].forEach(id=>{const e=$(id); if(e) e.checked=false;});
   ['clienteNombre','clienteTelefono'].forEach(id=>{const e=$(id); if(e) e.disabled=false;});
   percepcionSel=null; tiempoSel=null; proxSeleccionada=null; atajosExpandidos=false;
