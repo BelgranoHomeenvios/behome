@@ -136,7 +136,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-oport,.chead .h-oport{flex:1.4}
 .c-plazo,.chead .h-plazo{flex:1}
 .c-emo,.chead .h-emo{flex:1;display:flex;gap:6px;justify-content:flex-end}
-.c-coment,.chead .h-coment{flex:1.3;display:flex;align-items:center;gap:6px;min-width:90px;justify-content:flex-end}
+.c-coment,.chead .h-coment{flex:1.3;display:flex;align-items:center;gap:6px;min-width:112px;justify-content:flex-end}
 .c-estado,.chead .h-estado{flex:1.2;display:flex;align-items:center;gap:4px}
 .c-fecha,.chead .h-fecha{flex:.7;color:var(--sec);font-weight:600;font-size:12.5px}
 .c-vendedor,.chead .h-vendedor{flex:1;color:var(--sec);font-weight:600}
@@ -161,6 +161,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .bell-filtro:hover,.bell-filtro.activo{filter:none;opacity:1}
 .h-bell .pop{width:190px}
 .eval-ok{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;font-size:13px;font-weight:800;cursor:default;flex-shrink:0}
+.eval-vieja{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;color:var(--muted);font-size:14px;cursor:default;flex-shrink:0}
 /* Campanita: columna fija angosta al principio de la fila */
 .c-bell,.chead .h-bell{flex:0 0 26px;display:flex;align-items:center;justify-content:center}
 .bell-btn{cursor:pointer;font-size:15px;line-height:1;filter:grayscale(1);opacity:.35;transition:all .12s}
@@ -708,7 +709,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .cr-mas{font-size:12.5px;font-weight:700;color:var(--blue);cursor:pointer;margin:2px 0 10px}
 .cr-mas:hover{text-decoration:underline}
 @media(max-width:760px){.cr-split{flex-direction:column}.cr-lado{width:100%}}
-.turno-contador{display:inline-block;background:var(--amber);color:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;margin-bottom:8px}
+.turno-contador{display:block;color:#fff;font-size:20px;font-weight:800;letter-spacing:-.01em;margin-bottom:12px}
 .panel-section{padding:16px 20px;border-top:1px solid var(--line2)}
 .turno-label{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.65;margin-bottom:3px}
 .turno-nombre{font-size:22px;font-weight:800;line-height:1.15;margin-bottom:3px}
@@ -1409,7 +1410,6 @@ textarea{resize:vertical;min-height:60px}
           <div class="row" id="accionesSecundarias" style="margin-top:4px">
             <button class="btn btn-primary" id="btnPrincipal" onclick="abrirModalNueva()">Registrar mi atención</button>
             <button class="btn btn-secondary hidden" id="btnRegistroRapido" onclick="sumarAtencionRapida()">Registro rápido</button>
-            <button class="btn btn-secondary" onclick="toggleDerivarPanel()">Derivar</button>
           </div>
         </div>
 
@@ -2752,7 +2752,10 @@ function pbSet(id){
     cintiaFechaDesde=formatDateInput(d); cintiaFechaHasta=formatDateInput(d);
   }else{
     const dias=PB_PRESETS.find(p=>p[0]===id)[2];
-    const d=new Date(hoy); d.setDate(d.getDate()-dias);
+    // "7 días" tiene que abarcar 7 días CONTANDO hoy. Antes restaba 7 desde hoy y
+    // el rango terminaba siendo de 8 días, lo que además descolocaba la comparación
+    // contra el período anterior.
+    const d=new Date(hoy); d.setDate(d.getDate()-(dias>0?dias-1:0));
     cintiaFechaDesde=formatDateInput(d); cintiaFechaHasta=formatDateInput(hoy);
   }
   cerrarVerMas();
@@ -3028,6 +3031,9 @@ function renderTurnoCard(){
     return;
   }
   $('panelSuperior').classList.remove('hidden');
+  // Las ramas de abajo (falta activar / pausa) sí usan estos campos; la del vendedor ya
+  // trabajando los esconde. Se resetean acá para que no queden ocultos de un render previo.
+  ['turnoLabel','turnoActual','turnoSub','badgeTurno'].forEach(id=>$(id).classList.remove('hidden'));
 
   if(!puedeVerEquipo() && (!yaConectadoHoy(YO) || forzandoSelector || !LOCAL_ACTUAL || !LOCALES[LOCAL_ACTUAL])){
     card.classList.remove('now');
@@ -3071,6 +3077,20 @@ function renderTurnoCard(){
   }
   $('btnPrincipal').classList.remove('hidden');
   $('accionesSecundarias').classList.remove('hidden');
+
+  // Los turnos rotativos quedaron para una 2da fase. El vendedor ya no ve de quién es el
+  // turno, cuántas atenciones faltan para la suya ni la lista de activos: esa información
+  // no le cambia lo que tiene que hacer. La tarjeta se reduce a lo único operativo —
+  // cuántas atenciones lleva hoy (lo pone renderChipsHoy en #turnoContador) y los botones
+  // para registrar. "Derivar" también se fue: sin rotación no tiene a quién pasarle.
+  card.classList.remove('now');
+  $('turnoLabel').classList.add('hidden');
+  $('turnoActual').classList.add('hidden');
+  $('turnoSub').classList.add('hidden');
+  $('badgeTurno').classList.add('hidden');
+  $('turnoActual').classList.remove('big');
+  $('derivarSection').classList.add('hidden');
+  return;
 
   if(esAdmin()){
     card.classList.remove('now');
@@ -3241,6 +3261,16 @@ function proximaAccionDe(a){
   return (c && c.proximaAccionTs) || a.proximaAccionTs || null;
 }
 
+/* Umbral único de atraso. Lo usan las dos alertas del CRM, para que el cartel rojo
+   "Urgente" de la fila y el contador "Atrasadas" de la grilla no digan cosas
+   distintas sobre la misma consulta. */
+const DIAS_PARA_URGENTE = 15;
+
+/* Pasados estos días sin ninguna actividad, la consulta se archiva sola: sale de la
+   lista de pendientes del vendedor y pasa a contar como volumen. Cualquier nota o
+   contacto reinicia el reloj. */
+const DIAS_PARA_ARCHIVAR = 25;
+
 function infoPlazo(a){
   // Textos cortos a propósito: la tabla se lee de un vistazo, no se lee como una frase.
   // De 2 días en adelante mostramos la fecha concreta (22/7) en vez del día de la semana
@@ -3260,7 +3290,13 @@ function infoPlazo(a){
 
   if(prox<hoy0){
     const dias=Math.round((hoy0-prox)/86400000);
-    return {txt:'Urgente', det: dias===1?'era de ayer':`hace ${dias} días`, cls:'pl-urg', rank:0};
+    // Antes cualquier atraso de 1 día ya gritaba "Urgente" en rojo, así que casi toda
+    // la cartera quedaba en rojo y la alerta dejaba de significar algo. Ahora el rojo
+    // se reserva para lo que está vencido hace más de DIAS_PARA_URGENTE; abajo de eso
+    // se muestra la fecha en la que había que hablarle, sin alarma.
+    if(dias > DIAS_PARA_URGENTE)
+      return {txt:'Urgente', det:`hace ${dias} días`, cls:'pl-urg', rank:0};
+    return {txt:fechaCorta, det: dias===1?'era de ayer':`hace ${dias} días`, cls:'pl-lejos', rank:5};
   }
   if(prox<manana0) return {txt:'Hoy', det:'a las '+hora, cls:'pl-hoy', rank:1};
   if(prox<pasado0) return {txt:'Mañana', det:'', cls:'pl-man', rank:2};
@@ -3870,7 +3906,9 @@ function logItemHtml(a){
     ? `<div class="c-eval">
         ${a.evaluada 
           ? `<span class="eval-ok" title="Evaluada">✓</span>`
-          : `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();abrirEvaluar('${a.id}')">Evaluar</button>`}
+          : (evaluable(a)
+              ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();abrirEvaluar('${a.id}')">Evaluar</button>`
+              : `<span class="eval-vieja" title="Pasaron más de ${DIAS_PARA_ARCHIVAR} días: ya no se evalúa">–</span>`)}
       </div>`
     : '';
   const montoCol = esAuditora() ? '' : `
@@ -3919,7 +3957,7 @@ function logItemHtml(a){
         </span>
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
-        <b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin())) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.evaluada && !a.comentarioVendedor && !a.revisionEval && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--sec);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Ver evaluación</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin())) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         <div class="c-sub">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
           : tel}</div>
@@ -3927,6 +3965,7 @@ function logItemHtml(a){
       ${colsCintia}
       ${montoCol}
       <div class="c-coment">
+        ${(!esAuditora() && (YO===a.vendedorId || esAdmin())) ? `<span class="ebtn cm-ico${a.evaluada?'':' apagado'}" title="${a.evaluada?'Ver la evaluación de esta consulta':'Todavía no la evaluaron'}"${a.evaluada?` onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')"`:''}>📊</span>` : ''}
         <span class="ebtn cm-ico rap-btn${coment?'':' apagado'}" title="${coment?'Ver y agregar comentario':'Agregar comentario'}" onclick="event.stopPropagation();togPop(this);enfocarComentario('${a.id}')">📝
           <span class="pop pop-coment">
             <b>Comentarios</b>
@@ -4562,6 +4601,14 @@ function setScope(s){if(!puedeVerEquipo())return;scopeActual=s;renderHistorial()
 
 function renderSemaforoMisConsultas(){
   const box=$('semaforoMisConsultas');
+  // Turnos rotativos: en pausa hasta la 2da fase. Este semáforo le decía al vendedor
+  // "te toca / sos el próximo / en N atenciones"; queda apagado junto con la tarjeta.
+  box.classList.add('hidden');
+  return;
+}
+
+function _renderSemaforoMisConsultas_LEGACY(){
+  const box=$('semaforoMisConsultas');
   if(puedeVerEquipo()){ box.classList.add('hidden'); return; }
   const loc=LOCALES[LOCAL_ACTUAL];
   if(!loc || loc.modo!=='rotacion'){ box.classList.add('hidden'); return; }
@@ -4588,7 +4635,10 @@ function renderSemaforoMisConsultas(){
    Antes bastaba con que se venciera el plazo por un día, y eso llenaba la lista
    de consultas de anteayer que no tienen nada de urgente. Lo que importa no es
    haberse pasado del plazo, sino que el cliente se esté enfriando. */
-const DIAS_SIN_CLASIFICAR_ATRASA = 7;
+// Mismo umbral que el cartel "Urgente" de la fila (DIAS_PARA_URGENTE): si la etiqueta
+// y el contador usaran números distintos, una consulta podía no figurar como urgente
+// pero igual sumar en "Atrasadas", y nadie entendería por qué.
+const DIAS_SIN_CLASIFICAR_ATRASA = DIAS_PARA_URGENTE;
 
 function diasDesde(ts){
   if(!ts) return 0;
@@ -4615,8 +4665,14 @@ function zonaDe(a){
   // marcando como atrasada ni le pedimos un próximo contacto — no hay a quién contactar.
   if(a.nuncaRespondio) return 'cerrada';
   if(cerradaPorResultado) return 'cerrada';
-  // Atrasada manda sobre todo lo demás: una semana sin hablarle es lo urgente,
-  // tenga o no un plazo puesto.
+  // Archivado por inactividad: pasados DIAS_PARA_ARCHIVAR días sin ninguna actividad
+  // (ni una nota, ni un contacto), la consulta se da por muerta y deja de figurar como
+  // trabajo pendiente. No se marca como "Rechazada": nadie confirmó que el cliente
+  // dijera que no, y ponerle un motivo inventado ensuciaría el análisis de por qué
+  // se pierden las ventas. Va antes que 'atrasada' porque manda sobre ella.
+  // Si el vendedor le escribe algo, el reloj se reinicia y la consulta vuelve a abrirse.
+  if(diasSinContacto(a) > DIAS_PARA_ARCHIVAR) return 'cerrada';
+  // Atrasada manda sobre lo demás: es lo urgente, tenga o no un plazo puesto.
   if(diasSinContacto(a) > DIAS_SIN_CLASIFICAR_ATRASA) return 'atrasada';
   if(a.status==='pendiente') return 'sinclas';
   // La próxima acción puede estar en el contacto (consultas cargadas en el CRM) o
@@ -5416,16 +5472,25 @@ let cintiaSeccion='resumen';
 function diasDesdeISO(iso){ if(!iso) return 9999; return Math.floor((Date.now()-new Date(iso).getTime())/86400000); }
 function fechaUltimoMovimiento(a){ return a.completadoTs || a.ts; }
 
+/* Nada más viejo que DIAS_PARA_ARCHIVAR se evalúa. Evaluar una operación de hace más
+   de un mes no cambia nada: el vendedor ya no se acuerda del caso, la devolución llega
+   tarde para servirle de coaching, y el cliente hace rato que decidió. Además el tiempo
+   de Cintia es el recurso escaso — mejor usarlo en lo que todavía se puede recuperar.
+   Es el mismo umbral con el que la consulta se archiva sola. */
+function evaluable(a){
+  return diasDesdeISO(fechaUltimoMovimiento(a)) <= DIAS_PARA_ARCHIVAR;
+}
+
 function cerradasSinEvaluar(){
   return atenciones.filter(a=>{
     const e=estadoDe(a);
-    return (e==='Concretado'||e==='Rechazado') && !a.evaluada;
+    return (e==='Concretado'||e==='Rechazado') && !a.evaluada && evaluable(a);
   });
 }
 function estancadasSinEvaluar(){
   return atenciones.filter(a=>{
     const e=estadoDe(a);
-    return e==='En seguimiento' && !a.evaluada && diasDesdeISO(fechaUltimoMovimiento(a))>=7;
+    return e==='En seguimiento' && !a.evaluada && evaluable(a) && diasDesdeISO(fechaUltimoMovimiento(a))>=7;
   });
 }
 function colaEvaluarCintia(){ return [...cerradasSinEvaluar(), ...estancadasSinEvaluar()]; }
@@ -5741,9 +5806,15 @@ function baseResumenReal(){
    elegido (=="Todo"), no hay con qué comparar y la comparativa no se muestra. */
 function periodoAnteriorEquivalente(){
   if(!cintiaFechaDesde || !cintiaFechaHasta) return null;
+  const UN_DIA=86400000;
   const d=new Date(cintiaFechaDesde+'T00:00:00'), h=new Date(cintiaFechaHasta+'T23:59:59');
-  const largo=h.getTime()-d.getTime();
-  return {desde:new Date(d.getTime()-largo-86400000), hasta:new Date(d.getTime()-1)};
+  // Cuántos días CALENDARIO cubre el período actual. Como "hasta" es a las 23:59:59,
+  // la diferencia es N días menos un segundo: redondeando queda N justo.
+  // Antes se restaba un día extra (largo + 86400000) y el período anterior terminaba
+  // siendo un día MÁS LARGO que el actual, así que todas las flechas daban en rojo
+  // por un sesgo de cálculo y no porque hubieran bajado las consultas.
+  const dias=Math.round((h.getTime()-d.getTime())/UN_DIA);
+  return {desde:new Date(d.getTime()-dias*UN_DIA), hasta:new Date(d.getTime()-1)};
 }
 function enPeriodoAnterior(iso, per){
   if(!iso||!per) return false;
@@ -5760,8 +5831,13 @@ function metricasVendedor(cs){
   // El histórico viejo (ago-nov 2025) no tiene estado porque nunca se registró:
   // de esas consultas solo sabemos que entraron. Contarlas como "sin clasificar"
   // le inventaba a cada vendedor cientos de tareas pendientes de hace un año.
-  const hist=cs.filter(a=>a.soloVolumen).length;
-  const sinClas=cs.filter(a=>!estadoDe(a) && !a.soloVolumen).length;
+  // Cuenta como volumen, no como trabajo pendiente: el archivo viejo sin estado, las
+  // consultas de estado de pedido, y lo que se archivó solo por quedar más de
+  // DIAS_PARA_ARCHIVAR días sin actividad.
+  const archivadaPorInactividad = a => !estadoDe(a) && !a.soloVolumen && !a.nuncaRespondio
+                                       && diasSinContacto(a) > DIAS_PARA_ARCHIVAR;
+  const hist=cs.filter(a=>a.soloVolumen || archivadaPorInactividad(a)).length;
+  const sinClas=cs.filter(a=>!estadoDe(a) && !a.soloVolumen && !archivadaPorInactividad(a)).length;
   // Atrasadas NO suma aparte: es un subconjunto de las abiertas que está fuera de
   // plazo. Marca urgencia, no volumen.
   const atras=cs.filter(a=>zonaDe(a)==='atrasada').length;
@@ -5866,10 +5942,15 @@ function htmlCintiaResumen(){
   // "4 en seguimiento" no dice nada solo, pero "4 · 57%" dice que más de la mitad de lo que le
   // entró sigue abierto. El número se lee oscuro y en negrita, el % chico y gris, para que
   // ninguno de los dos tape al otro.
-  const cel=(n, base_, tipo)=>{
+  // El % al lado del número solo se muestra donde significa algo. En Seguim., Sin clasif.
+  // y Rechaz. era pura composición: no comparaba nada y ensuciaba la lectura. En
+  // Concret. sí importa, porque es la TASA DE CIERRE, el único número de la tabla que
+  // permite comparar vendedores sin importar cuántas consultas recibió cada uno.
+  const cel=(n, base_, tipo, conPct)=>{
     const pct = base_ ? Math.round(n/base_*100) : 0;
     const cls = tipo==='alerta' && n ? 'cel-alerta' : (tipo==='ok' && n ? 'cel-ok' : '');
-    return `<td class="${cls}"><span class="cel-n">${n}</span><span class="cel-p">${base_?pct+'%':'—'}</span></td>`;
+    const pctHtml = conPct ? `<span class="cel-p">${base_?pct+'%':'—'}</span>` : '';
+    return `<td class="${cls}"><span class="cel-n">${n}</span>${pctHtml}</td>`;
   };
   const detalleHtml=`<div class="cin-card">
     <h3>Detalle por vendedor <span class="cnt-pill">${tot.total} consulta${tot.total===1?'':'s'} real${tot.total===1?'':'es'}</span></h3>
@@ -5888,34 +5969,29 @@ function htmlCintiaResumen(){
         </div>
       </div>
     </div>
-    <p class="tiny" style="margin:0 0 8px;color:var(--muted)">El detalle y los gráficos de abajo responden a este período. Si elegís uno más largo de lo cargado, las consultas se traen solas de la base.</p>
-    ${per?`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Las flechas comparan contra el período anterior de igual duración (${per.desde.toLocaleDateString('es-AR')} – ${per.hasta.toLocaleDateString('es-AR')}).</p>`:`<p class="tiny" style="margin-top:-8px;margin-bottom:8px">Cada % es sobre el total de ese vendedor. Elegí un período arriba para ver la comparación contra el período anterior.</p>`}
     <table class="tabla-cintia">
-      <tr><th>Vendedor</th><th>Abiertas</th><th>Seguim.</th><th>Sin clasif.</th><th>Atrasadas</th><th>Concret.</th><th>Rechaz.</th><th>Histórico</th><th>Total</th></tr>
+      <tr><th>Vendedor</th><th>Seguim.</th><th>Sin clasif.</th><th>Atrasadas</th><th>Concret.</th><th>Rechaz.</th><th>Histórico</th><th>Total</th></tr>
       ${filas.map(({uid,m,prev})=>`<tr style="cursor:pointer" onclick="abrirResumenVendedor('${uid}')">
         <td><b>${nombreDe(uid)}</b></td>
-        <td><span class="cel-n">${m.abiertas}</span><span class="cel-p">${m.total?Math.round(m.abiertas/m.total*100)+'%':'—'}</span></td>
         ${cel(m.seg, m.total)}
         ${cel(m.sinClas, m.total)}
         ${cel(m.atras, m.total, 'alerta')}
-        ${cel(m.conc, m.total, 'ok')}
+        ${cel(m.conc, m.total, 'ok', true)}
         ${cel(m.rech, m.total)}
         <td><span class="cel-n" style="color:var(--muted)">${m.hist||'—'}</span></td>
         <td><span class="cel-n">${m.total}</span>${prev?deltaHtml(m.total,prev.total):''}</td>
       </tr>`).join('')}
       <tr style="border-top:2px solid var(--line)">
         <td><b>Total</b></td>
-        <td><span class="cel-n">${tot.abiertas}</span><span class="cel-p">${tot.total?Math.round(tot.abiertas/tot.total*100)+'%':'—'}</span></td>
         ${cel(tot.seg, tot.total)}
         ${cel(tot.sinClas, tot.total)}
         ${cel(tot.atras, tot.total, 'alerta')}
-        ${cel(tot.conc, tot.total, 'ok')}
+        ${cel(tot.conc, tot.total, 'ok', true)}
         ${cel(tot.rech, tot.total)}
         <td><span class="cel-n" style="color:var(--muted)">${tot.hist||'—'}</span></td>
         <td><span class="cel-n">${tot.total}</span>${totPrev?deltaHtml(tot.total,totPrev.total):''}</td>
       </tr>
     </table>
-    <p class="tiny" style="margin-top:10px"><b>Abiertas</b> = seguimiento + sin clasificar, lo que todavía tiene encima. <b>Atrasadas</b> son un subconjunto de esas, fuera de plazo: marcan urgencia, no suman aparte. <b>Histórico</b> son las de ago–nov 2025, que llegaron sin estado registrado: cuentan como volumen pero no como trabajo pendiente. Seguimiento + sin clasificar + concretadas + rechazadas + histórico dan el <b>Total</b>.<br>No cuenta las cerradas como "No era un cliente" ni "Dejó de responder" — nunca fueron una oportunidad real, y contarlas ensuciaría la comparación entre vendedores.</p>
   </div>`;
 
   return activosBar + canalPills + rankingHtml + detalleHtml
@@ -7026,6 +7102,13 @@ let evTmp={atencion:null,consulta:null,cliente:null,decision:'rechazada',fbAbier
 function abrirEvaluar(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
+  // Red de seguridad: la evaluación también se puede abrir desde "Para evaluar" o desde
+  // una reevaluación, así que el corte se chequea acá y no solo en el botón de la fila.
+  // Una ya evaluada sí se puede reabrir, para poder corregirla.
+  if(!a.evaluada && !evaluable(a)){
+    toast(`Pasaron más de ${DIAS_PARA_ARCHIVAR} días: esta consulta ya no se evalúa.`);
+    return;
+  }
   evaluandoId=id;
   evTmp={
     atencion:a.evalAtencion||null, consulta:a.evalConsulta||null, cliente:a.evalCliente||null,
@@ -8511,11 +8594,10 @@ function abrirModalNueva(){
   const localId = esAdmin()?FILTRO_LOCAL_ADMIN:LOCAL_ACTUAL;
   const vid=currentVendorId(localId);
   const esSuTurno=vid===YO;
-  $('modalBadge').style.background=esSuTurno?'var(--green-l)':'var(--amber-l)';
-  $('modalBadge').style.color=esSuTurno?'var(--green)':'var(--amber)';
-  $('modalBadge').textContent = LOCALES[localId] && LOCALES[localId].modo==='rotacion'
-    ? (esSuTurno?'Avanza la cola.':'Fuera de turno — no altera la cola.')
-    : 'Atención directa.';
+  // Sin turnos rotativos (2da fase) el cartel de "Avanza la cola / Fuera de turno" no
+  // significa nada, así que el modal abre limpio.
+  $('modalBadge').classList.add('hidden');
+  $('modalBadge').textContent='';
   $('btnGuardar').textContent='Guardar atención';
   abrirModalFondo();
 }
