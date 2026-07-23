@@ -1594,6 +1594,17 @@ textarea{resize:vertical;min-height:60px}
 
         <div id="wizardBox">
 
+          <!-- BLOQUE · ESTADO (solo al registrar una atención nueva) -->
+          <div class="wiz-step" id="wizEstado">
+            <div class="bloque-titulo-b">Estado</div>
+            <div class="pills pills-nowrap" id="nuevaEstadoPills">
+              <span class="pill on" data-est="En seguimiento" onclick="pickNuevaEstado(this)">En seguimiento</span>
+              <span class="pill" data-est="Concretado" onclick="pickNuevaEstado(this)">Concretado</span>
+              <span class="pill" data-est="Rechazado" onclick="pickNuevaEstado(this)">Rechazado</span>
+            </div>
+            <p class="tiny" style="margin-top:6px;color:var(--muted)">Si ya cerraste la venta o se rechazó, marcalo acá: al guardar te pide los datos del cierre, sin tener que pasar por "En seguimiento".</p>
+          </div>
+
           <!-- BLOQUE · CLIENTE -->
           <div class="wiz-step" id="wizCliente">
             <div class="bloque-titulo-b">Cliente</div>
@@ -4152,6 +4163,9 @@ function logItemHtml(a){
   // no distingue esto de un dato que simplemente no se completó. Este texto sí lo deja claro.
   const nombreMostrar = a.clienteNombre || (a.origen==='rapido' ? 'Cliente de local nuevo' : 'Sin definir');
   const solPendiente = solicitudesEliminacion.some(s=>s.atencionId===a.id && s.estado==='pendiente');
+  // De un vistazo: 📲 si la consulta es virtual, 👥 si fue presencial (en el local).
+  const canalEmoji = a.canal==='virtual' ? '📲' : (a.canal==='presencial' ? '👥' : '');
+  const canalEmojiHtml = canalEmoji ? `<span class="canal-emoji" title="${a.canal==='virtual'?'Consulta virtual':'Consulta del local'}">${canalEmoji}</span> ` : '';
 
   const mueblesTxt = muebles.length
     ? muebles.map(m=>`${nombreMueble(m)}${m.observacion?' ('+m.observacion+')':''}${m.monto?' — $'+miles(m.monto):''}${m.elegido?' ✓ elegido':''}`).join('<br>')
@@ -4224,7 +4238,7 @@ function logItemHtml(a){
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         <span class="c-nom-txt"><b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
-        <div class="c-tel">${telCopiable
+        <div class="c-tel">${canalEmojiHtml}${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
           : tel}</div>
       </div>
@@ -9475,12 +9489,26 @@ function limpiarModal(){
   $('wizardBox').classList.remove('hidden');
   $('modalBadge').classList.add('hidden');
 }
+/* Estado elegido al registrar una atención nueva. Si es Concretado/Rechazado, al
+   guardar se encadena la ficha de cierre (orden/monto/motivo), sin pasar por seguimiento. */
+let nuevaEstadoSel='En seguimiento';
+function pickNuevaEstado(el){
+  document.querySelectorAll('#nuevaEstadoPills .pill').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  nuevaEstadoSel=el.dataset.est;
+}
+function resetNuevaEstado(){
+  nuevaEstadoSel='En seguimiento';
+  document.querySelectorAll('#nuevaEstadoPills .pill').forEach(p=>p.classList.toggle('on', p.dataset.est==='En seguimiento'));
+}
 function abrirModalNueva(){
   if(esAdmin() && FILTRO_LOCAL_ADMIN==='todos'){toast('Elegí un local primero');return;}
   modalModo='nueva';
   completandoId=null;
   origenAutoEstado=null;
   limpiarModal();
+  const we=$('wizEstado'); if(we) we.style.display='';
+  resetNuevaEstado();
   setFechaConversacion(null);
   // Atención directa en el local: siempre presencial, así que va el tiempo de turno y el campo es teléfono.
   $('campoTiempoTurno').classList.remove('hidden');
@@ -9523,6 +9551,7 @@ function abrirModalCompletar(id, paso){
   modalRapido=false; _camposRapido(false);
   completandoId=id;
   limpiarModal();
+  const we=$('wizEstado'); if(we) we.style.display='none';   // en completar el estado se cambia por la etapa comercial
 
   $('modalTitulo').textContent = a.status==='pendiente' ? 'Completar consulta' : 'Editar consulta';
   $('modalBadge').textContent = a.derivada ? 'Derivada por '+nombreDe(a.registradoPor) : '';
@@ -9984,6 +10013,16 @@ async function guardarAtencion(){
 
   atenciones.push(record);
   await saveAtenciones();
+
+  // Estado directo: si al registrar se marcó Concretado/Rechazado, se encadena la
+  // ficha de cierre para pedir orden/monto o motivo, sin pasar por "En seguimiento".
+  if(nuevaEstadoSel==='Concretado' || nuevaEstadoSel==='Rechazado'){
+    if(esSuTurno) await avanzarPointerSiCorresponde(localId);
+    cerrarModalReal();
+    render();
+    abrirModalCierre(record.id, nuevaEstadoSel);
+    return;
+  }
 
   if(esSuTurno && hayMuebleOPrecio){
     await avanzarPointerSiCorresponde(localId);
