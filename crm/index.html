@@ -4014,10 +4014,21 @@ async function confirmarSolicitudEliminar(){
     resueltaTs: directo ? new Date().toISOString() : null
   };
   solicitudesEliminacion.push(registro);
-  if(directo) await ejecutarBajaContacto(registro);
+  if(directo){
+    await ejecutarBajaContacto(registro);
+  }else{
+    // Pedir la baja saca la consulta del trabajo activo: se marca Rechazada (sin plata
+    // perdida, porque no es una venta que se cayó) para que no siga molestando en el
+    // tablero mientras Cintia decide. Si Cintia rechaza la baja, se reabre sola.
+    await aplicarEstado(a,'Rechazado');
+    a.resultadoMotivo='Baja de contacto solicitada';
+    a.montoPerdido=null; a.montoVendido=null;
+    a.rechazoPorBaja=true;
+    await saveAtenciones();
+  }
   await saveSolicitudes();
   cerrarModalSolicitud();
-  toast(directo ? 'Contacto eliminado' : 'Solicitud enviada a Cintia');
+  toast(directo ? 'Contacto eliminado' : 'Solicitud enviada a Cintia · consulta marcada como rechazada');
   renderHistorial();
 }
 async function ejecutarBajaContacto(s){
@@ -4073,6 +4084,16 @@ async function resolverSolicitud(id, estado){
   s.resueltaPorId=YO;
   s.resueltaTs=new Date().toISOString();
   if(estado==='aprobada') await ejecutarBajaContacto(s);
+  else {
+    // Cintia rechazó la baja: si la consulta se había marcado Rechazada solo por el
+    // pedido de baja, se reabre en seguimiento para que vuelva al trabajo.
+    const a=atenciones.find(x=>x.id===s.atencionId);
+    if(a && a.rechazoPorBaja){
+      a.rechazoPorBaja=false;
+      a.resultadoMotivo=null;
+      await aplicarEstado(a,'En seguimiento');
+    }
+  }
   await saveSolicitudes();
   renderPanelCintia();
   renderHistorial();
