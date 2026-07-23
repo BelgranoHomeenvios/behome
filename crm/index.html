@@ -4245,7 +4245,7 @@ function logItemHtml(a){
                 ${a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora()) ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">Marcar recordatorio como atendido</div>` : ''}
               </span>
             </span>`
-          : ''}
+          : `<span class="ebtn cm-ico" style="visibility:hidden" aria-hidden="true">⋮</span>`}
       </div>
       ${evalCol}
     </div>`;
@@ -5306,7 +5306,7 @@ function svEstadisticasHtml(){
   const ref=svComparar==='anterior' ? svMetricas(svRangoPeriodo('anterior')) : null;
 
   const delta=(a,b,invertido)=>{
-    if(ref===null || b===undefined || b===0) return '';
+    if(ref===null || b==null || b===0) return '';
     const d=a-b, pct=Math.round((d/b)*100);
     if(d===0) return '<span class="sv-delta">=</span>';
     const bueno = invertido ? d<0 : d>0;
