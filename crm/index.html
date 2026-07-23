@@ -1308,6 +1308,44 @@ textarea{resize:vertical;min-height:60px}
 .login-foot{color:#8a94a3;font-size:12px;margin:18px 0 0}
 </style>
 
+<style>
+/* ============================================================================
+   FILAS COMPACTAS del tablero de consultas.
+   Va último a propósito: gana sobre las reglas de más arriba sin tener que
+   tocarlas, así se puede volver atrás borrando este bloque entero.
+   La altura de la fila la definían tres cosas, y se bajaron las tres:
+   el padding, el interlineado, y que cada celda apila dos líneas
+   (nombre + teléfono, estado + oportunidad, plazo + detalle).
+   No se achica ningún texto por debajo de 10px ni los iconos clicables:
+   los vendedores trabajan con el celular en la mano y hay que poder tocarlos.
+   ========================================================================== */
+.crow{padding:1px 14px!important;gap:10px;line-height:1.1;font-size:12.5px}
+.chead{padding:2px 14px 3px!important;font-size:10px;line-height:1.1}
+
+/* Las dos líneas de cada celda, lo más juntas posible */
+.c-sub{font-size:10.5px;margin-top:0;line-height:1.15}
+.sit-op{font-size:10.5px;line-height:1.15}
+.or-canal{font-size:10.5px;line-height:1.15}
+.pl-d{font-size:10px;margin-top:0;line-height:1.15}
+.c-fecha,.chead .h-fecha{font-size:12px}
+
+/* Píldoras y badges: menos aire vertical, mismo texto */
+.est{font-size:10.5px;padding:1px 8px}
+.nueva-b{font-size:9px;padding:1px 6px;margin-left:5px}
+.eval-ok,.eval-vieja{width:19px;height:19px;font-size:12px}
+.c-eval .btn-sm{padding:3px 8px;font-size:11px}
+
+/* Iconos: se mantienen tocables aunque la fila sea más baja */
+.c-coment .ebtn{padding:2px 5px}
+.cm-ico{font-size:14px}
+
+/* En celular la fila no se comprime tanto: hay que poder pegarle con el dedo */
+@media(max-width:900px){
+  .crow{padding:5px 12px!important;line-height:1.25}
+  .c-coment .ebtn{padding:5px 6px}
+}
+</style>
+
 <div id="screen-app" class="hidden">
   <!-- ===== SHELL V28 (fusión etapa 1): sidebar + topbar, sin tocar la lógica ===== -->
   <aside class="bh-side" id="bhSide">
