@@ -2199,8 +2199,30 @@ function renderPausasHoy(){
   }).join('');
 }
 
-/* ---------------- FASE 1: Contacto (por teléfono) — une consultas de un mismo cliente ---------------- */
+/* ---------------- FASE 1: Contacto — une consultas de un mismo cliente ---------------- */
+/* El campo "teléfono" es en realidad el IDENTIFICADOR con el que se llega al cliente,
+   y no siempre es un número: en Instagram y Facebook lo único que hay es el usuario.
+   normTel se quedaba solo con los dígitos, así que un "@aurapilates" quedaba vacío,
+   vincularContacto devolvía null y esa consulta nunca entraba a la base de clientes:
+   sin historial, sin recompra y sin el aviso de "cliente conocido".
+   normContacto devuelve una clave para las dos formas. */
 function normTel(t){ return (t||'').replace(/\D/g,''); }
+
+function esUsuarioRed(t){
+  const s=(t||'').trim();
+  // Un usuario de red NUNCA lleva espacios. Eso es lo que separa un identificador real
+  // ("@aurapilates") de un nombre suelto ("Aura Pilates", "IG 23/3"), que no sirve para
+  // llegar a nadie. Sin este filtro cualquier nombre entraba como si fuera contacto.
+  return !!s && normTel(s).length<8 && /[a-zA-Z]/.test(s) && !/\s/.test(s);
+}
+function normContacto(t){
+  const s=(t||'').trim();
+  if(!s) return '';
+  const dig=normTel(s);
+  if(dig.length>=8) return dig;                       // es un teléfono
+  if(esUsuarioRed(s)) return '@'+s.replace(/^@+/,'').toLowerCase();
+  return '';                                          // no sirve para identificar a nadie
+}
 
 let CONTACTOS={};
 async function loadContactos(){
@@ -2307,7 +2329,7 @@ async function saveNotasSinAccion(){
    reconocer al cliente entre visitas, así que en ese caso no se crea ninguno. */
 async function vincularContacto({nombre, telefono, noTomoTelefono, percepcion, resultado, canal}){
   if(noTomoTelefono || !telefono) return null;
-  const key=normTel(telefono);
+  const key=normContacto(telefono);
   if(!key) return null;
   const ahora=new Date().toISOString();
   if(!CONTACTOS[key]){
@@ -2350,11 +2372,11 @@ async function guardarVinculacionCliente(id){
   if(!a) return;
   const input=$('vinc-tel-'+id);
   const tel=input?input.value.trim():'';
-  if(!tel){ toast('Ingresá un teléfono'); return; }
-  // Validación: mínimo 8 dígitos, SIN LETRAS
-  const telNorm=normTel(tel);
-  if(telNorm.length<8){ toast('El teléfono debe tener al menos 8 dígitos'); return; }
-  if(tel!==telNorm && tel.match(/[a-zA-Z]/i)){ toast('El teléfono no puede contener letras'); return; }
+  if(!tel){ toast('Ingresá un teléfono o usuario'); return; }
+  /* Vale un teléfono (8 dígitos o más) o un usuario de red. Lo que no vale es algo
+     que no sirva para llegar al cliente: un nombre suelto como "Fede" no es contacto. */
+  const telNorm=normContacto(tel);
+  if(!telNorm){ toast('Poné un teléfono de 8 dígitos o más, o un usuario (@nombre)'); return; }
   // Reconocimiento: ¿este teléfono ya existe en la base? Si el cliente ya nos compró
   // o ya nos escribió, es el dato más valioso del momento — hay que decirlo, no taparlo.
   const existente=CONTACTOS[telNorm];
@@ -2533,7 +2555,7 @@ async function buscarClienteEnBase(telefono){
   if(!sb || !telefono) return [];
   try{
     const data = await traerTodo(()=>sb.from('consultas').select(COLS_CONSULTA)
-      .eq('telefono', String(telefono).replace(/\D/g,'')));
+      .eq('telefono', normContacto(telefono)));
     return data.map(filaAConsulta);
   }catch(e){ console.error('buscarClienteEnBase', e); return []; }
 }
@@ -2543,7 +2565,10 @@ async function buscarClienteEnBase(telefono){
 function consultaAFila(a){
   const estado = ({concretado:'Concretado', rechazado:'Rechazado',
                    seguimiento:'En seguimiento'})[a.status] || a.resultado || null;
-  const tel = String(a.clienteTelefono||'').replace(/\D/g,'');
+  // Guarda el identificador tal como sirve para contactar: el número si es un teléfono,
+  // el usuario si vino de Instagram o Facebook. Antes se quedaba solo con los dígitos y
+  // los usuarios de red llegaban vacíos a la base.
+  const tel = normContacto(a.clienteTelefono);
   return {
     id: a.id,
     telefono: tel || null,
@@ -6736,13 +6761,13 @@ let clienteFichaId=null;
 function baseClientes(){
   const porTel=new Map();
   for(const a of atenciones){
-    const tel=normTel(a.clienteTelefono||'');
+    const tel=normContacto(a.clienteTelefono);
     if(!tel) continue;                       // sin teléfono no hay a quién agrupar
     if(!porTel.has(tel)) porTel.set(tel,[]);
     porTel.get(tel).push(a);
   }
   const contactoPorTel={};
-  Object.values(CONTACTOS).forEach(c=>{ if(c.telefono) contactoPorTel[normTel(c.telefono)]=c; });
+  Object.values(CONTACTOS).forEach(c=>{ if(c.telefono) contactoPorTel[normContacto(c.telefono)]=c; });
 
   return [...porTel.entries()].map(([tel,cs])=>{
     cs.sort((x,y)=>new Date(y.ts)-new Date(x.ts));
@@ -6768,7 +6793,7 @@ function baseClientes(){
 
 function consultasDeContacto(c){
   return atenciones.filter(a=> a.contactoId===c.id ||
-    (a.clienteTelefono && normTel(a.clienteTelefono)===c.telefono))
+    (a.clienteTelefono && normContacto(a.clienteTelefono)===c.telefono))
     .sort((x,y)=>new Date(y.ts)-new Date(x.ts));
 }
 function resumenContacto(c){
