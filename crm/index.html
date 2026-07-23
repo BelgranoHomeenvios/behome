@@ -715,6 +715,13 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .cli-buscar{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 13px;font-family:inherit;font-size:13px;margin-bottom:12px}
 .cli-row{cursor:pointer;transition:background .12s}
 .cli-row:hover td{background:var(--bg)}
+.cli-row.cli-sel td{background:#dcecff}
+.fus-check{color:var(--blue);font-size:14px;margin-right:2px}
+.fus-bar{background:#eaf3ff;border:1px solid #b8d3f5;border-radius:10px;padding:11px 14px;margin-bottom:12px;font-size:13px;color:var(--navy)}
+.fus-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:12.5px}
+.fus-lbl{font-weight:700;color:var(--sec)}
+.fus-opt{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.fus-sel{padding:4px 8px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:12.5px}
 .cli-star{font-size:11px}
 .fic-kpis{display:flex;gap:9px;flex-wrap:wrap;margin:6px 0 14px}
 .fic-kpi{background:var(--line2);border-radius:9px;padding:9px 15px;text-align:center;min-width:82px}
@@ -7009,11 +7016,24 @@ let clienteFichaId=null;
    (o cualquier consulta que nunca se vinculó a mano) quedaba afuera aunque
    tuviera teléfono cargado. Agrupar por teléfono no depende de que alguien
    haya hecho la vinculación. */
+/* Un cliente puede tener varios teléfonos (ej: marido y mujer). El contacto guarda
+   el principal en `telefono` y los demás en `telefonosAlt`. Este mapa lleva cada
+   número secundario a su principal, para agrupar todo bajo la misma persona. */
+function mapaAltTelefonos(){
+  const m={};
+  Object.values(CONTACTOS).forEach(c=>{
+    const p=normContacto(c.telefono||''); if(!p) return;
+    (c.telefonosAlt||[]).forEach(t=>{ const k=normContacto(t); if(k) m[k]=p; });
+  });
+  return m;
+}
 function baseClientes(){
+  const alt=mapaAltTelefonos();
   const porTel=new Map();
   for(const a of atenciones){
-    const tel=normContacto(a.clienteTelefono);
+    let tel=normContacto(a.clienteTelefono);
     if(!tel) continue;                       // sin teléfono no hay a quién agrupar
+    if(alt[tel]) tel=alt[tel];               // número secundario: agrupa bajo el principal
     if(!porTel.has(tel)) porTel.set(tel,[]);
     porTel.get(tel).push(a);
   }
@@ -7043,8 +7063,9 @@ function baseClientes(){
 }
 
 function consultasDeContacto(c){
+  const nums=new Set([normContacto(c.telefono||''), ...(c.telefonosAlt||[]).map(t=>normContacto(t))].filter(Boolean));
   return atenciones.filter(a=> a.contactoId===c.id ||
-    (a.clienteTelefono && normContacto(a.clienteTelefono)===c.telefono))
+    (a.clienteTelefono && nums.has(normContacto(a.clienteTelefono))))
     .sort((x,y)=>new Date(y.ts)-new Date(x.ts));
 }
 function resumenContacto(c){
@@ -7055,6 +7076,44 @@ function resumenContacto(c){
   return {cs, cant:cs.length, ventas:ventas.length, comprado, activas};
 }
 
+/* Fusiona dos clientes en uno: el principal se queda con los dos teléfonos (el otro
+   pasa a `telefonosAlt`) y todo el historial. Las consultas ABIERTAS pasan al vendedor
+   elegido; las cerradas (Concretada/Rechazada) quedan como están, con su vendedor,
+   estado y N° de orden. */
+async function fusionarClientes(telPrincipal, telSecundario, vendedorElegido){
+  const kP=normContacto(telPrincipal), kS=normContacto(telSecundario);
+  if(!kP || !kS || kP===kS) return false;
+  let cP=CONTACTOS[kP];
+  if(!cP){
+    const cs=atenciones.filter(a=>normContacto(a.clienteTelefono)===kP).sort((x,y)=>new Date(x.ts)-new Date(y.ts));
+    cP=CONTACTOS[kP]={ id:'ct_'+kP, telefono:kP, nombre:cs.find(a=>a.clienteNombre)?.clienteNombre||'', telefonosAlt:[],
+      calificacion:null, estadoGeneral:'En seguimiento', proximaAccionTs:null, proximaAccionNota:'',
+      primeraActividad:(cs[0]?.ts)||new Date().toISOString(), ultimaActividad:new Date().toISOString(), canales:[] };
+  }
+  if(!cP.telefonosAlt) cP.telefonosAlt=[];
+  if(kS!==kP && !cP.telefonosAlt.map(t=>normContacto(t)).includes(kS)) cP.telefonosAlt.push(kS);
+  const cS=CONTACTOS[kS];
+  if(cS && cS.id!==cP.id){
+    if(!cP.nombre && cS.nombre) cP.nombre=cS.nombre;
+    if(!cP.instagram && cS.instagram) cP.instagram=cS.instagram;
+    if(!cP.canales) cP.canales=[];
+    (cS.canales||[]).forEach(x=>{ if(!cP.canales.includes(x)) cP.canales.push(x); });
+    (cS.telefonosAlt||[]).forEach(t=>{ const k=normContacto(t); if(k && k!==kP && !cP.telefonosAlt.map(y=>normContacto(y)).includes(k)) cP.telefonosAlt.push(k); });
+    const keyS=Object.keys(CONTACTOS).find(k=>CONTACTOS[k].id===cS.id);
+    if(keyS) delete CONTACTOS[keyS];
+  }
+  atenciones.forEach(a=>{
+    const t=normContacto(a.clienteTelefono);
+    if(t===kP || t===kS){
+      a.contactoId=cP.id;
+      const e=estadoDe(a);
+      const abierta = e!=='Concretado' && e!=='Rechazado';
+      if(abierta && vendedorElegido && a.vendedorId!==vendedorElegido) a.vendedorId=vendedorElegido;
+    }
+  });
+  await saveContactos(); await saveAtenciones();
+  return true;
+}
 function abrirFichaCliente(id){ clienteFichaId=id; renderCintiaMain(); }
 function volverClientes(){ clienteFichaId=null; renderCintiaMain(); }
 
@@ -7252,10 +7311,50 @@ function grafTipTexto(ev,lbl,html){
 }
 function grafTipOff(){ const t=document.getElementById('grafTip'); if(t) t.style.display='none'; }
 
+let fusionModoCli=false, fusionSelCli=[], fusionPrincipalCli=0;
+function toggleFusionModoCli(){ fusionModoCli=!fusionModoCli; fusionSelCli=[]; fusionPrincipalCli=0; renderCintiaMain(); }
+function toggleFusionSelCli(tel){
+  const i=fusionSelCli.indexOf(tel);
+  if(i>-1) fusionSelCli.splice(i,1);
+  else { if(fusionSelCli.length>=2) fusionSelCli.shift(); fusionSelCli.push(tel); }
+  fusionPrincipalCli=0;
+  renderCintiaMain();
+}
+function setFusionPrincipal(i){ fusionPrincipalCli=i; renderCintiaMain(); }
+async function confirmarFusionCli(){
+  if(fusionSelCli.length!==2){ toast('Elegí 2 clientes'); return; }
+  const principalTel=fusionSelCli[fusionPrincipalCli], otroTel=fusionSelCli[1-fusionPrincipalCli];
+  const vendSel=$('fusionVendCli')?$('fusionVendCli').value:'';
+  const ok=await fusionarClientes(principalTel, otroTel, vendSel||null);
+  toast(ok?'Clientes fusionados':'No se pudo fusionar');
+  fusionModoCli=false; fusionSelCli=[]; fusionPrincipalCli=0;
+  renderCintiaMain();
+}
+function fusionPanelCliHtml(selFilas){
+  if(selFilas.length<2) return `<div class="fus-bar"><b>Modo fusión.</b> Tocá 2 clientes para unirlos en uno solo (una persona con varios teléfonos).${selFilas.length===1?' — 1 elegido, falta 1.':''}</div>`;
+  const a=selFilas[0], b=selFilas[1];
+  const todos=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
+  const opts=[...new Set([a.vend,b.vend,...todos].filter(Boolean))];
+  const prin=selFilas[fusionPrincipalCli]||a;
+  const defVend=prin.vend||opts[0]||'';
+  return `<div class="fus-bar fus-bar-2">
+    <div style="margin-bottom:2px"><b>Fusionar:</b> ${escapeHtml(a.nombre||a.tel)} (${escapeHtml(a.tel)}) + ${escapeHtml(b.nombre||b.tel)} (${escapeHtml(b.tel)})</div>
+    <div class="fus-row"><span class="fus-lbl">Cliente principal:</span>
+      <label class="fus-opt"><input type="radio" name="fusprin" ${fusionPrincipalCli===0?'checked':''} onclick="setFusionPrincipal(0)"> ${escapeHtml(a.nombre||a.tel)}</label>
+      <label class="fus-opt"><input type="radio" name="fusprin" ${fusionPrincipalCli===1?'checked':''} onclick="setFusionPrincipal(1)"> ${escapeHtml(b.nombre||b.tel)}</label>
+    </div>
+    <div class="fus-row"><span class="fus-lbl">Vendedor de las consultas abiertas:</span>
+      <select id="fusionVendCli" class="fus-sel">${opts.map(u=>`<option value="${u}" ${u===defVend?'selected':''}>${escapeHtml(nombreDe(u))}</option>`).join('')}</select>
+    </div>
+    <div class="fus-row" style="margin-top:8px"><button class="btn btn-navy btn-sm" onclick="confirmarFusionCli()">Fusionar</button><button class="btn btn-outline btn-sm" onclick="toggleFusionModoCli()">Cancelar</button></div>
+    <p class="tiny" style="margin-top:6px;opacity:.75">Las consultas cerradas (vendidas/rechazadas) quedan como están; solo las abiertas pasan al vendedor elegido.</p>
+  </div>`;
+}
 function htmlCintiaClientes(){
   if(clienteFichaId) return htmlFichaCliente(clienteFichaId);
   let filas=baseClientes()
     .sort((a,b)=> b.comprado-a.comprado || new Date(b.ultima||0)-new Date(a.ultima||0));
+  const filasTodas=filas;
   const totalBase=filas.length;
   // El filtro se aplica sobre TODA la base antes de recortar a 300
   if(clientesBusqueda){
@@ -7266,20 +7365,27 @@ function htmlCintiaClientes(){
       (qTel && f.tel.includes(qTel)));
   }
   if(!totalBase) return `<div class="cin-card"><p class="cin-empty">Todavía no hay clientes en la base. Aparecen solos apenas una consulta trae teléfono.</p></div>`;
-  const totComprado=filas.reduce((s,f)=>s+f.comprado,0);
   const conVenta=filas.filter(f=>f.ventas>0).length;
+  const selFilas=fusionSelCli.map(t=>filasTodas.find(f=>f.tel===t)).filter(Boolean);
   return `<div class="cin-card">
     <div class="est-hd">
       <div><h3>Clientes</h3>
       <p class="cap">Una fila por teléfono, con todo su historial. Pensada para la recompra: cuando el cliente vuelve, acá está lo que ya pasó con él y quién lo tiene.</p></div>
-      <div class="est-tot"><div class="n">${miles(filas.length)}</div><div class="l">${clientesBusqueda?`de ${miles(totalBase)} · `:''}${conVenta} ya compraron</div></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px">
+        <div class="est-tot"><div class="n">${miles(filas.length)}</div><div class="l">${clientesBusqueda?`de ${miles(totalBase)} · `:''}${conVenta} ya compraron</div></div>
+        <button class="btn ${fusionModoCli?'btn-navy':'btn-outline'} btn-sm" onclick="toggleFusionModoCli()" style="width:auto">${fusionModoCli?'Salir de fusión':'⇄ Fusionar clientes'}</button>
+      </div>
     </div>
+    ${fusionModoCli?fusionPanelCliHtml(selFilas):''}
     <input type="text" class="cli-buscar" placeholder="Buscar por nombre o teléfono en los ${miles(totalBase)} clientes..." value="${escAttr(clientesBusqueda)}" oninput="filtrarClientes(this.value)">
     ${!filas.length?`<p class="cin-empty">Ningún cliente coincide con "${escapeHtml(clientesBusqueda)}".</p>`:`
     <div class="est-scroll"><table class="est-tabla" style="min-width:760px">
       <tr><th>Cliente</th><th>Teléfono</th><th>Vendedor</th><th class="r">Consultas</th><th class="r">Concret.</th><th class="r">Rechaz.</th><th class="r">Seguim.</th><th class="r">Comprado</th><th class="r">Última</th></tr>
-      ${filas.slice(0,300).map(f=>`<tr class="cli-row" data-buscar="${escAttr(((f.nombre||'')+' '+f.tel).toLowerCase())}" onclick="abrirFichaCliente('${f.id}')">
-        <td><b>${escapeHtml(f.nombre||'Sin nombre')}</b>${f.ventas>0?' <span class="cli-star" title="Ya nos compró">⭐</span>':''}</td>
+      ${filas.slice(0,300).map(f=>{
+        const sel=fusionModoCli && fusionSelCli.includes(f.tel);
+        const clickAttr = fusionModoCli ? `toggleFusionSelCli('${f.tel}')` : `abrirFichaCliente('${f.id}')`;
+        return `<tr class="cli-row${sel?' cli-sel':''}" data-buscar="${escAttr(((f.nombre||'')+' '+f.tel).toLowerCase())}" onclick="${clickAttr}">
+        <td>${fusionModoCli?`<span class="fus-check">${sel?'☑':'☐'}</span> `:''}<b>${escapeHtml(f.nombre||'Sin nombre')}</b>${f.ventas>0?' <span class="cli-star" title="Ya nos compró">⭐</span>':''}</td>
         <td class="tiny">${escapeHtml(f.tel)}</td>
         <td class="tiny">${f.vend?escapeHtml(nombreDe(f.vend)):'<span class="ena">—</span>'}</td>
         <td class="r">${f.cant}</td>
@@ -7288,9 +7394,9 @@ function htmlCintiaClientes(){
         <td class="r"><b>${f.seg||''}</b>${!f.seg?'<span class="ena">—</span>':''}</td>
         <td class="r emoney">${f.comprado?'$ '+miles(f.comprado):'<span class="ena">—</span>'}</td>
         <td class="r tiny">${f.ultima?formatFechaRelativa(f.ultima):'—'}</td>
-      </tr>`).join('')}
+      </tr>`}).join('')}
     </table></div>`}
-    <p class="tiny" style="margin-top:10px">⭐ = ya compró. <b>Vendedor</b> es quien lo atendió la última vez. Tocá una fila para ver la ficha completa.${filas.length>300?` Mostrando los 300 primeros de ${miles(filas.length)} — el buscador mira TODOS los ${miles(totalBase)} clientes, no solo los que se ven.`:''}</p>
+    <p class="tiny" style="margin-top:10px">⭐ = ya compró. <b>Vendedor</b> es quien lo atendió la última vez. ${fusionModoCli?'Tocá 2 clientes para fusionarlos.':'Tocá una fila para ver la ficha completa.'}${filas.length>300?` Mostrando los 300 primeros de ${miles(filas.length)} — el buscador mira TODOS los ${miles(totalBase)} clientes.`:''}</p>
   </div>`;
 }
 
@@ -9070,10 +9176,10 @@ function actualizarTotal(){
       const resto = Math.max(0, t - sena);
       sb.innerHTML=`
         <div class="sena-row es-sena">
-          <span class="k">Seña para la transferencia</span>
+          <span class="k">Cálculo de seña mínima a solicitar</span>
           <span class="v"><span class="sena-cur">$</span><input type="text" inputmode="numeric" id="senaInput" class="sena-input" value="${miles(sena)}" oninput="onSenaInput(this)"></span>
         </div>
-        <div class="sena-row"><span class="k">Resto para terminar de abonar</span><span class="v" id="senaResto">$ ${miles(resto)}</span></div>
+        <div class="sena-row"><span class="k">Saldo restante</span><span class="v" id="senaResto">$ ${miles(resto)}</span></div>
         <div class="sena-hint">Sugerida ~30%, redondeada para que el resto quede lindo. Podés ajustarla y el resto se recalcula.</div>`;
     }
   }
@@ -9084,8 +9190,11 @@ function actualizarTotal(){
 let _senaEditada=false, _senaManual=0;
 function calcSena(total){
   if(!total || total<=0) return null;
-  let resto = Math.round(total*0.7/10000)*10000;
-  if(resto>=total) resto = Math.floor(total*0.7/10000)*10000;
+  // El "paso" de redondeo escala con el monto: montos chicos redondean fino, así no
+  // dan resto $0. ($5.200 → paso 100 → seña $1.600, saldo $3.600).
+  const step = total<10000 ? 100 : total<100000 ? 1000 : 10000;
+  let resto = Math.round(total*0.7/step)*step;
+  if(resto>=total) resto = Math.floor(total*0.7/step)*step;
   let sena = total-resto;
   if(sena<=0){ sena=Math.round(total*0.3); resto=total-sena; }
   return {sena, resto};
