@@ -5657,11 +5657,17 @@ function fechaUltimoMovimiento(a){ return a.completadoTs || a.ts; }
    las archivadas (volumen) y las que hace más de 60 días que no tienen ningún
    movimiento se dan por cerradas y no vuelven a caer como atrasadas. */
 function cintiaEsAtrasada(a){
-  if(zonaDe(a)==='atrasada') return true;
-  if(a.percepcion) return false;
-  if(a.soloVolumen) return false;
-  if(diasDesdeISO(fechaUltimoMovimiento(a)) > 60) return false;
-  return true;
+  const z=zonaDe(a);
+  if(z==='atrasada') return true;   // plazo vencido
+  // "Sin clasificar": sin oportunidad (percepción) todavía Y sin un plazo puesto que
+  // muestre que se está trabajando. zonaDe ya deja fuera las cerradas/resueltas
+  // (Concretado, Rechazado, nunca respondió, archivadas) y las que tienen próxima
+  // acción (hoy/semana/lejos): esas NO son atrasadas. Y lo muy viejo (+60 días sin
+  // movimiento) se da por cerrado.
+  if(!a.percepcion && (z==='sinclas' || z==='sinplazo')){
+    return diasDesdeISO(fechaUltimoMovimiento(a)) <= 60;
+  }
+  return false;
 }
 
 /* Nada más viejo que DIAS_PARA_ARCHIVAR se evalúa. Evaluar una operación de hace más
