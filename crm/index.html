@@ -5153,15 +5153,16 @@ function svEstadisticasHtml(){
   const _ce=act.concretadas,_se=act.seguimiento,_re=act.rechazadas,_te=_ce+_se+_re;
   const _pe=n=>_te?Math.round(n/_te*100):0;
   const barraEstados=_te?`
-    <div class="sv-barra" style="height:16px;margin:2px 0 6px">
-      ${_ce?`<span style="width:${_pe(_ce)}%;background:var(--green)" title="Concretadas: ${_ce}"></span>`:''}
-      ${_se?`<span style="width:${_pe(_se)}%;background:var(--amber)" title="En seguimiento: ${_se}"></span>`:''}
-      ${_re?`<span style="width:${_pe(_re)}%;background:var(--red)" title="Rechazadas: ${_re}"></span>`:''}
+    <div class="sv-barra" style="height:24px;margin:2px 0 8px">
+      ${_ce?`<span style="width:${_pe(_ce)}%;background:var(--green)" title="Concretadas: ${_ce} (${_pe(_ce)}%)"></span>`:''}
+      ${_se?`<span style="width:${_pe(_se)}%;background:var(--amber)" title="En seguimiento: ${_se} (${_pe(_se)}%)"></span>`:''}
+      ${_re?`<span style="width:${_pe(_re)}%;background:var(--red)" title="Rechazadas: ${_re} (${_pe(_re)}%)"></span>`:''}
     </div>
-    <div class="sv-leg" style="margin:0 0 16px">
-      <span><i class="sv-dot" style="background:var(--green)"></i>Concretadas <b>${_ce}</b></span>
-      <span><i class="sv-dot" style="background:var(--amber)"></i>En seguimiento <b>${_se}</b></span>
-      <span><i class="sv-dot" style="background:var(--red)"></i>Rechazadas <b>${_re}</b></span>
+    <div class="sv-leg" style="margin:0 0 18px;align-items:center">
+      <span><i class="sv-dot" style="background:var(--green)"></i>Concretadas <b>${_ce}</b> · ${_pe(_ce)}%</span>
+      <span><i class="sv-dot" style="background:var(--amber)"></i>En seguimiento <b>${_se}</b> · ${_pe(_se)}%</span>
+      <span><i class="sv-dot" style="background:var(--red)"></i>Rechazadas <b>${_re}</b> · ${_pe(_re)}%</span>
+      <span style="margin-left:auto;font-weight:800;color:var(--navy)">Total ${_te} consultas</span>
     </div>`:'';
 
   return `
@@ -8033,7 +8034,7 @@ function destinosListaCintia(){
   // Orden fijo pedido para "Derivar a": 1 Alejandro, 2 Sergio, 3 Cristian,
   // 4 Nati, 5 Claudia, 6 Brian, 7 Cintia. El nombre sale de USUARIOS si es
   // usuario del sistema, o de CR_NOMBRES_EXTRA (ej. Alejandro) si no lo es.
-  const ORDEN_DERIVAR=['alejandro','sergio','cristian','nati','claudia','brian','cintia'];
+  const ORDEN_DERIVAR=['ale','sergio','cristian','nati','claudia','brian','cintia'];
   return ORDEN_DERIVAR.map(uid=>({uid, label: USUARIOS[uid]?nombreDe(uid):(CR_NOMBRES_EXTRA[uid]||uid)}));
 }
 /* ============================================================
