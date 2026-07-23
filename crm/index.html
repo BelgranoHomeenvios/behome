@@ -484,6 +484,15 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-tel .tel-copy{border-bottom:1px dashed var(--muted);padding-bottom:1px}
 .c-nom-txt{font-size:11.5px;color:var(--sec);line-height:1.25}
 .c-nom-txt b{font-weight:600;color:var(--sec)}
+.dup-aviso{background:#fff7e6;border:1px solid #f4d58a;border-radius:9px;padding:9px 11px;margin:2px 0 8px}
+.dup-top{font-size:12.5px;color:#8a5a00;line-height:1.4}
+.dup-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.dup-b{background:#fff;border:1px solid #e0c477;color:#7a4f00;font:inherit;font-size:11.5px;font-weight:600;padding:5px 9px;border-radius:7px;cursor:pointer}
+.dup-b:hover{background:#fffdf6;border-color:#c99a2e}
+.dup-b .opt{font-weight:400;color:#a97f28}
+.dup-fus{background:#eaf3ff;border-color:#9cc2f5;color:#1e5fce}
+.dup-fus:hover{background:#dceaff}
+.dup-det{margin-top:7px;background:#fff;border:1px solid #ecd9a5;border-radius:7px;padding:7px 9px;display:flex;flex-direction:column;gap:2px}
 .tel-copy{cursor:pointer;border-bottom:1px dashed var(--muted);padding-bottom:1px}
 .tel-copy:hover{color:var(--blue);border-color:var(--blue)}
 .copy-ic{opacity:.55;margin-left:3px;font-size:10.5px}
@@ -5834,7 +5843,7 @@ function renderCintiaBotones(){
     {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts)).length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
     {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)).length},
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
-    {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length},
+    {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length + notasSinAccion.filter(n=>n.tipo==='fusion' && !n.visto).length},
     {id:'clientes', label:'Clientes', ic:'pulso'},
     ...(esAdmin() ? [{id:'ejemplos', label:'Ejemplo del mes', ic:'evaluar', cnt:atenciones.filter(a=>a.ejemploDelMes && !a.ejemploDelMes.leido).length}] : []),
   ];
@@ -6774,8 +6783,23 @@ function htmlCintiaMisPendientes(){
   const porVincular=pendientesVincularCliente().filter(a=>dentroDePeriodoCintia(a.ts));
   // Revisiones de evaluación que los vendedores pidieron y me tocan a mí (o que escalé y siguen abiertas).
   const revisiones=atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).sort((a,b)=>new Date(a.revisionEval.ts)-new Date(b.revisionEval.ts));
-  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
+  const fusiones=notasSinAccion.filter(n=>n.tipo==='fusion' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
   let html='';
+  if(fusiones.length) html+=`<div class="cin-card">
+    <h3>Contactos fusionados <span class="cnt-pill">${fusiones.length}</span></h3>
+    <p class="tiny" style="margin-top:-8px">Se unió un mismo cliente que estaba cargado dos veces (por ejemplo Instagram y teléfono). Así todos ven la misma info.</p>
+    ${fusiones.map(n=>`
+      <div class="solic-item">
+        <div>
+          <div class="pend-name">${escapeHtml(n.clienteNombre||'Sin nombre')}${n.clienteTelefono?' · '+escapeHtml(n.clienteTelefono):''}${n.instagram?' · IG '+escapeHtml(n.instagram):''}</div>
+          <div class="pend-sub">${escapeHtml(n.mensaje||'')} · ${new Date(n.ts).toLocaleDateString('es-AR')}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-outline btn-sm" onclick="descartarAvisoFusion('${n.id}')">Entendido</button>
+        </div>
+      </div>`).join('')}
+  </div>`;
   if(revisiones.length) html+=`<div class="cin-card">
     <h3>Revisiones de evaluación <span class="cnt-pill">${revisiones.length}</span></h3>
     <p class="tiny" style="margin-top:-8px">Vendedores que te pidieron revisar cómo quedó evaluada su consulta.</p>
@@ -8110,6 +8134,105 @@ function onCampanaChangeCr(){
   else otro.classList.add('hidden');
 }
 
+/* ---- Aviso "ya está en la base" + fusión IG/teléfono, en vivo al cargar ---- */
+// Consultas que matchean un teléfono o un usuario de IG (una sola pasada).
+function dupConsultasPorIdent(keyTel, keyIG){
+  const out=[];
+  for(const a of atenciones){
+    const t=normContacto(a.clienteTelefono);
+    const g=normContacto(a.clienteInstagram);
+    if((keyTel && t===keyTel) || (keyIG && (g===keyIG || t===keyIG))) out.push(a);
+  }
+  return out.sort((x,y)=>new Date(y.ts)-new Date(x.ts));
+}
+// Contacto formal (de la base CONTACTOS) que corresponde a una clave (tel o @IG).
+function contactoFormalPorKey(key){
+  if(!key) return null;
+  if(CONTACTOS[key]) return CONTACTOS[key];
+  return Object.values(CONTACTOS).find(c=>c.instagram && normContacto(c.instagram)===key) || null;
+}
+function chequearDupCr(){
+  const box=$('crDupAviso'); if(!box) return;
+  const canal=plainValueCr($('crCanal').value);
+  const esIG=!!(CR_CFG[canal]||{}).esIG;
+  const idIG = esIG ? ($('crContacto')?$('crContacto').value.trim():'') : '';
+  const idTel = esIG ? ($('crTel')?$('crTel').value.trim():'') : ($('crContacto')?$('crContacto').value.trim():'');
+  const keyTel=normContacto(idTel), keyIG=normContacto(idIG);
+  if(!keyTel && !keyIG){ box.innerHTML=''; return; }
+  const cs=dupConsultasPorIdent(keyTel,keyIG);
+  if(!cs.length){ box.innerHTML=''; return; }
+  const ultimo=cs[0];
+  const vend=cs.find(a=>a.vendedorId && rolDe(a.vendedorId)==='vendedor')?.vendedorId || cs.find(a=>a.vendedorId)?.vendedorId || null;
+  const ventas=cs.filter(a=>estadoDe(a)==='Concretado').length;
+  const nombre=cs.find(a=>a.clienteNombre)?.clienteNombre||'';
+  // ¿Hay dos contactos distintos (IG por un lado, teléfono por otro)? → ofrecer fusión.
+  const cTel=contactoFormalPorKey(keyTel), cIG=contactoFormalPorKey(keyIG);
+  const puedeFusion = esIG && keyTel && keyIG && cTel && cIG && cTel.id!==cIG.id;
+  box.innerHTML=`<div class="dup-aviso">
+    <div class="dup-top">⚠️ <b>Ya está en la base.</b> ${escapeHtml(nombre||'Sin nombre')} — ${cs.length} consulta${cs.length===1?'':'s'}${ventas?` · ⭐ compró ${ventas}`:''}</div>
+    <div class="dup-acts">
+      ${vend?`<button type="button" class="dup-b" onclick="derivarAlMismoCr('${vend}')">↩︎ Derivar a ${escapeHtml(nombreDe(vend))} <span class="opt">(lo atendió antes)</span></button>`:''}
+      <button type="button" class="dup-b" onclick="verConversacionDup('${ultimo.id}')">👁 Ver consulta anterior</button>
+      ${puedeFusion?`<button type="button" class="dup-b dup-fus" onclick="fusionarDesdeCr('${cIG.id}','${cTel.id}')">🔗 Es el mismo cliente · fusionar</button>`:''}
+    </div>
+    <div id="crDupDetalle" class="hidden"></div>
+  </div>`;
+}
+function derivarAlMismoCr(uid){
+  const sel=$('crDerivar'); if(!sel) return;
+  const opt=[...sel.options].find(o=>plainValueCr(o.value)===uid);
+  if(opt){ sel.value=opt.value; onDerivarChangeCr(); toast('Derivando a '+nombreDe(uid)+' (mismo vendedor de antes)'); }
+}
+function verConversacionDup(id){
+  const d=$('crDupDetalle'); if(!d) return;
+  if(d.dataset.open==='1'){ d.classList.add('hidden'); d.dataset.open='0'; return; }
+  const a=atenciones.find(x=>x.id===id);
+  if(!a){ d.innerHTML='<p class="tiny">No está en esta ventana — miralo en Clientes.</p>'; }
+  else{
+    const fecha=new Date(a.ts).toLocaleDateString('es-AR');
+    const nota=(a.notas||'') || (a.comentarioVendedor&&a.comentarioVendedor.texto) || '';
+    const mueb=(a.muebles||[]).map(m=>m.nombre).filter(Boolean).join(', ');
+    d.innerHTML=`<div class="dup-det">
+      <div class="tiny"><b>${fecha}</b> · ${escapeHtml(nombreDe(a.vendedorId)||'—')} · ${estadoDe(a)||'sin estado'}${a.canalDetalle?' · '+escapeHtml(a.canalDetalle):''}</div>
+      ${mueb?`<div class="tiny">Muebles: ${escapeHtml(mueb)}</div>`:''}
+      <div class="tiny">${nota?'"'+escapeHtml(nota)+'"':'Sin nota registrada.'}</div>
+    </div>`;
+  }
+  d.classList.remove('hidden'); d.dataset.open='1';
+}
+/* Fusión: el contacto con teléfono se queda; el de IG se absorbe. Reasigna las
+   consultas cargadas al teléfono, deja el IG guardado en la ficha, borra el
+   contacto duplicado y le deja el aviso a Cintia en "Mis pendientes". */
+async function fusionarContactos(idIG, idTel){
+  const dest=contactoPorId(idTel), orig=contactoPorId(idIG);
+  if(!dest||!orig||dest.id===orig.id) return;
+  const igHandle = orig.instagram || ((orig.telefono||'')[0]==='@' ? orig.telefono : '');
+  atenciones.forEach(a=>{
+    const t=normContacto(a.clienteTelefono);
+    if(a.contactoId===orig.id || (t && t===orig.telefono)){
+      a.contactoId=dest.id;
+      if(igHandle && !a.clienteInstagram) a.clienteInstagram=igHandle;
+      a.clienteTelefono=dest.telefono;
+    }
+  });
+  if(igHandle && !dest.instagram) dest.instagram=igHandle;
+  if(!dest.nombre && orig.nombre) dest.nombre=orig.nombre;
+  if(!dest.canales) dest.canales=[];
+  (orig.canales||[]).forEach(c=>{ if(!dest.canales.includes(c)) dest.canales.push(c); });
+  const key=Object.keys(CONTACTOS).find(k=>CONTACTOS[k].id===orig.id);
+  if(key) delete CONTACTOS[key];
+  notasSinAccion.push({id:'fus_'+Date.now(), tipo:'fusion', clienteNombre:dest.nombre||null, clienteTelefono:dest.telefono, instagram:dest.instagram||null, mensaje:`Se fusionó ${orig.telefono||'IG'} con ${dest.telefono}`, ts:new Date().toISOString(), registradoPor:YO, visto:false});
+  await saveContactos(); await saveAtenciones(); await saveNotasSinAccion();
+  toast('Contactos fusionados: '+(dest.nombre||dest.telefono));
+}
+async function fusionarDesdeCr(idIG, idTel){
+  await fusionarContactos(idIG, idTel);
+  chequearDupCr();
+}
+async function descartarAvisoFusion(id){
+  const n=notasSinAccion.find(x=>x.id===id); if(n){ n.visto=true; await saveNotasSinAccion(); renderCintiaMain(); }
+}
+
 function abrirCargaRapidaCintia(){
   $('cargaRapidaCaja').innerHTML=`
     <h3 style="margin-top:0">+ Cargar consulta</h3>
@@ -8208,12 +8331,13 @@ function onCanalChangeCr(){
   </div>`;
   if(cfg.esIG){
     html+=`<div class="row" style="gap:8px">
-      <div class="field" style="flex:2"><label>${cfg.contacto.lbl}</label><input type="text" id="crContacto" placeholder="${cfg.contacto.ph}" onkeydown="crTeclas(event,this)"></div>
-      <div class="field" style="flex:1"><label>Teléfono <span class="opt">(opcional)</span></label><input type="text" id="crTel" placeholder="11 xxxx xxxx" onkeydown="crTeclas(event,this)"></div>
+      <div class="field" style="flex:2"><label>${cfg.contacto.lbl}</label><input type="text" id="crContacto" placeholder="${cfg.contacto.ph}" oninput="chequearDupCr()" onkeydown="crTeclas(event,this)"></div>
+      <div class="field" style="flex:1"><label>Teléfono <span class="opt">(opcional)</span></label><input type="text" id="crTel" placeholder="11 xxxx xxxx" oninput="chequearDupCr()" onkeydown="crTeclas(event,this)"></div>
     </div>`;
   }else{
-    html+=`<div class="field"><label>${cfg.contacto.lbl}</label><input type="text" id="crContacto" placeholder="${cfg.contacto.ph}" onkeydown="crTeclas(event,this)"></div>`;
+    html+=`<div class="field"><label>${cfg.contacto.lbl}</label><input type="text" id="crContacto" placeholder="${cfg.contacto.ph}" oninput="chequearDupCr()" onkeydown="crTeclas(event,this)"></div>`;
   }
+  html+=`<div id="crDupAviso"></div>`;
   html+=`<div class="field"><label>Nombre <span class="opt">(si lo tenés)</span></label><input type="text" id="crNombre" placeholder="Nombre y apellido" onkeydown="crTeclas(event,this)"></div>`;
   if(cfg.comentario) html+=`<div class="field">
     <label>¿Qué vio / contexto para el vendedor? <span class="opt">(opcional)</span></label>
