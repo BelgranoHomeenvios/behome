@@ -5149,6 +5149,21 @@ function svEstadisticasHtml(){
 
   const cob = act.total ? Math.round((act.evaluadas/act.total)*100) : 0;
 
+  // Barra de distribución del período: concretadas (verde) / en seguimiento (amber) / rechazadas (rojo)
+  const _ce=act.concretadas,_se=act.seguimiento,_re=act.rechazadas,_te=_ce+_se+_re;
+  const _pe=n=>_te?Math.round(n/_te*100):0;
+  const barraEstados=_te?`
+    <div class="sv-barra" style="height:16px;margin:2px 0 6px">
+      ${_ce?`<span style="width:${_pe(_ce)}%;background:var(--green)" title="Concretadas: ${_ce}"></span>`:''}
+      ${_se?`<span style="width:${_pe(_se)}%;background:var(--amber)" title="En seguimiento: ${_se}"></span>`:''}
+      ${_re?`<span style="width:${_pe(_re)}%;background:var(--red)" title="Rechazadas: ${_re}"></span>`:''}
+    </div>
+    <div class="sv-leg" style="margin:0 0 16px">
+      <span><i class="sv-dot" style="background:var(--green)"></i>Concretadas <b>${_ce}</b></span>
+      <span><i class="sv-dot" style="background:var(--amber)"></i>En seguimiento <b>${_se}</b></span>
+      <span><i class="sv-dot" style="background:var(--red)"></i>Rechazadas <b>${_re}</b></span>
+    </div>`:'';
+
   return `
     <div class="sv-controles">
       <span class="sv-ctrl-lbl">Período</span>
@@ -5163,6 +5178,8 @@ function svEstadisticasHtml(){
     <p class="tiny" style="margin:-6px 0 16px;color:var(--muted)">
       Viendo <b>${svFmtRango(svRangoPeriodo('actual'))}</b>${svComparar!=='no'?` contra <b>${svFmtRango(svRangoPeriodo('anterior'))}</b>`:''}.
       Todo se calcula sobre oportunidades reales: quedan afuera las consultas que nunca fueron un cliente.</p>
+
+    ${barraEstados}
 
     <h4 class="sv-h">Volumen</h4>
     <div class="sv-kpis">
