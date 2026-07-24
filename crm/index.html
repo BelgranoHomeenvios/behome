@@ -8143,10 +8143,12 @@ function baseClientes(){
     // Sin teléfono: si vino por Instagram (u otro canal) y tiene usuario o nombre
     // (incluido el recuperado del Excel), igual es un cliente y va a la base.
     const ig=(a.clienteInstagram||'').trim().replace(/^@/,'');
-    const nom=nombreCliente(a).trim();
-    if(!ig && !nom) continue;                // sin ningún identificador, no hay a quién mostrar
-    const key = ig ? 'ig:'+ig.toLowerCase() : 'nom:'+(a.vendedorId||'')+':'+nom.toLowerCase();
-    if(!porTel.has(key)){ porTel.set(key,[]); igKey.set(key, ig?('@'+ig):''); }
+    // Sin teléfono NI Instagram no hay forma de contactar al cliente: NO entra a la base de
+    // Clientes (un nombre suelto no alcanza). Queda solo en "Clientes de local para vincular"
+    // hasta que se le cargue un teléfono/usuario — recién ahí pasa a Clientes.
+    if(!ig) continue;
+    const key = 'ig:'+ig.toLowerCase();
+    if(!porTel.has(key)){ porTel.set(key,[]); igKey.set(key, '@'+ig); }
     porTel.get(key).push(a);
   }
   const contactoPorTel={};
