@@ -1766,7 +1766,7 @@ textarea{resize:vertical;min-height:60px}
 
       <div id="colaOperativa">
 
-      <div class="section-title hidden" id="chipsTitle">Conteo de hoy</div>
+      <div class="section-title hidden" id="chipsTitle">Conteo</div>
       <div class="card hidden" id="chipsCard" style="padding:14px 18px">
         <div class="chips" id="chipsHoy"></div>
       </div>
@@ -3503,13 +3503,17 @@ function renderChipsHoy(){
     $('turnoContador').classList.add('hidden');
     $('chipsTitle').classList.remove('hidden');
     $('chipsCard').classList.remove('hidden');
+    // Conteo del PERÍODO elegido (no solo de hoy): cuántas consultas recibió cada uno,
+    // sin importar el canal. Las que después se marquen inválidas se descuentan de las
+    // estadísticas, pero acá cuenta el volumen crudo de lo que entró.
+    const enPeriodo = base.filter(a=>dentroDePeriodoCintia(a.ts));
     const counts={};
-    hoy.forEach(a=>counts[a.vendedorId]=(counts[a.vendedorId]||0)+1);
+    enPeriodo.forEach(a=>counts[a.vendedorId]=(counts[a.vendedorId]||0)+1);
     const todosVendedores=[...new Set(Object.keys(LOCALES).flatMap(id=>vendedoresDeLocal(id)))];
     const ids=[...new Set(Object.keys(counts).concat(todosVendedores))];
     box.innerHTML=ids.map(uid=>`<div class="chip"><b>${counts[uid]||0}</b> ${nombreDe(uid)}</div>`).join('')
-      + `<div class="chip total"><b>${hoy.length}</b> Total</div>`;
-    $('chipsTitle').textContent='Conteo de hoy';
+      + `<div class="chip total"><b>${enPeriodo.length}</b> Total</div>`;
+    $('chipsTitle').textContent='Conteo';
   }else{
     $('chipsTitle').classList.add('hidden');
     $('chipsCard').classList.add('hidden');
@@ -4285,6 +4289,9 @@ async function resolverSolicitud(id, estado){
   toast(estado==='aprobada' ? 'Contacto eliminado' : 'Solicitud rechazada');
 }
 
+/* Contexto de la lista que se está pintando. En 'evaluar' no se muestra el ⋮ de
+   "Reasignar a otro vendedor" (eso se hace desde la evaluación, no desde la cola). */
+let _ctxLista='';
 function logItemHtml(a){
   // Una consulta archivada no es "nueva" aunque nunca se haya clasificado: es vieja.
   const pend = a.status==='pendiente' && !a.soloVolumen;
@@ -4404,10 +4411,10 @@ function logItemHtml(a){
         ${solPendiente
           ? `<span class="ebtn cm-ico apagado" title="Baja ya solicitada">🗑️</span>`
           : `<span class="ebtn cm-ico" title="${esAuditora()?'Eliminar contacto':'Solicitar eliminar contacto'}" onclick="event.stopPropagation();abrirSolicitudEliminar('${a.id}')">🗑️</span>`}
-        ${(esAuditora() || (a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora())))
+        ${(( esAuditora() && _ctxLista!=='evaluar') || (a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora())))
           ? `<span class="ebtn" onclick="event.stopPropagation();togPop(this)" title="Más opciones">⋮
               <span class="pop pop-menu">
-                ${esAuditora() ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">Reasignar a otro vendedor</div>` : ''}
+                ${(esAuditora() && _ctxLista!=='evaluar') ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">Reasignar a otro vendedor</div>` : ''}
                 ${a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora()) ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">Marcar recordatorio como atendido</div>` : ''}
               </span>
             </span>`
@@ -5039,6 +5046,7 @@ function renderHistorial(){
   renderSituResumen();
   renderSolapasVendedor();
   renderFiltrosActivos();
+  renderChipsHoy();   // el Conteo del período se actualiza al cambiar fecha/filtros
 
   if(puedeVerEquipo()){
     $('sbtn-mias').style.background = scopeActual==='mias'?'var(--navy)':'#fff';
@@ -6967,19 +6975,23 @@ function filtrarEval(txt){
   },180);
 }
 function htmlCintiaEvaluar(){
-  let cola=colaEvaluarCintia().filter(a=>dentroDePeriodoCintia(fechaUltimoMovimiento(a))).sort((a,b)=>diasDesdeISO(fechaUltimoMovimiento(b))-diasDesdeISO(fechaUltimoMovimiento(a)));
+  let cola=filtrosColumna(colaEvaluarCintia().filter(a=>dentroDePeriodoCintia(fechaUltimoMovimiento(a))))
+    .sort((a,b)=>diasDesdeISO(fechaUltimoMovimiento(b))-diasDesdeISO(fechaUltimoMovimiento(a)));
   const total=cola.length;
   if(evalBusqueda){
     const q=evalBusqueda, qTel=q.replace(/\D/g,'');
-    cola=cola.filter(a=>(a.clienteNombre||'').toLowerCase().includes(q) || (a.clienteTelefono||'').includes(qTel||q) || (a.clienteInstagram||'').toLowerCase().includes(q));
+    cola=cola.filter(a=>(nombreCliente(a)||'').toLowerCase().includes(q) || (a.clienteTelefono||'').includes(qTel||q) || (a.clienteInstagram||'').toLowerCase().includes(q));
   }
   if(!total) return `<div class="cin-card"><p class="cin-empty">No hay nada para evaluar en este período.</p></div>`;
+  _ctxLista='evaluar';
+  const filas = cola.length?cola.map(logItemHtml).join(''):`<p class="cin-empty">Ningún contacto coincide con "${escapeHtml(evalBusqueda)}".</p>`;
+  _ctxLista='';
   return `<div class="cin-card" style="padding:4px 18px">
     <h3 style="padding-top:10px">Para evaluar <span class="cnt-pill">${evalBusqueda?`${cola.length} de ${total}`:`${total} en cola`}</span></h3>
-    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma cerradas (Concretado/Rechazado) sin evaluar, y en seguimiento estancadas +7 días sin movimiento.</p>
+    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma cerradas (Concretado/Rechazado) sin evaluar, y en seguimiento estancadas +7 días sin movimiento. Podés filtrar/ordenar por los títulos (ej: evaluar solo las de un vendedor).</p>
     <input type="text" class="cli-buscar eval-buscar" placeholder="Buscar contacto por nombre o teléfono…" value="${escAttr(evalBusqueda)}" oninput="filtrarEval(this.value)">
-    ${cheadEstaticoHtml()}
-    ${cola.length?cola.map(logItemHtml).join(''):`<p class="cin-empty">Ningún contacto coincide con "${escapeHtml(evalBusqueda)}".</p>`}
+    ${cheadHtml()}
+    ${filas}
   </div>`;
 }
 
@@ -7829,9 +7841,12 @@ function volverClientes(){ clienteFichaId=null; renderCintiaMain(); }
    muestra las primeras 300 ordenadas por lo que compraron, así que buscar sobre el
    DOM dejaba invisible a cualquier cliente que no estuviera en ese top. */
 let clientesBusqueda='';
+let _cliPagina=1;
 let _timerCli=null;
+function irPaginaCli(n){ _cliPagina=n; renderCintiaMain(); const t=document.querySelector('.cli-buscar'); if(t) t.scrollIntoView({block:'nearest'}); }
 function filtrarClientes(txt){
   clientesBusqueda=(txt||'').toLowerCase().trim();
+  _cliPagina=1;   // al buscar, se vuelve a la primera página
   clearTimeout(_timerCli);
   _timerCli=setTimeout(()=>{
     renderCintiaMain();
@@ -8074,6 +8089,12 @@ function htmlCintiaClientes(){
       (qTel && f.tel.includes(qTel)));
   }
   if(!totalBase) return `<div class="cin-card"><p class="cin-empty">Todavía no hay clientes en la base. Aparecen solos apenas una consulta trae teléfono.</p></div>`;
+  // Páginas de 50 (el buscador ya filtró sobre TODA la base, así que se busca entre todos).
+  const POR_CLI=50;
+  const totalPagCli=Math.max(1,Math.ceil(filas.length/POR_CLI));
+  if(_cliPagina>totalPagCli) _cliPagina=totalPagCli;
+  if(_cliPagina<1) _cliPagina=1;
+  const pagina=filas.slice((_cliPagina-1)*POR_CLI, _cliPagina*POR_CLI);
   const conVenta=filas.filter(f=>f.ventas>0).length;
   const selFilas=fusionSelCli.map(t=>filasTodas.find(f=>f.tel===t)).filter(Boolean);
   return `<div class="cin-card">
@@ -8090,7 +8111,7 @@ function htmlCintiaClientes(){
     ${!filas.length?`<p class="cin-empty">Ningún cliente coincide con "${escapeHtml(clientesBusqueda)}".</p>`:`
     <div class="est-scroll"><table class="est-tabla" style="min-width:760px">
       <tr><th>Cliente</th><th>Teléfono</th><th>Vendedor</th><th class="r">Consultas</th><th class="r">Concret.</th><th class="r">Rechaz.</th><th class="r">Seguim.</th><th class="r">Comprado</th><th class="r">Última</th></tr>
-      ${filas.slice(0,300).map(f=>{
+      ${pagina.map(f=>{
         const puedeFusionar = fusionModoCli && !f.esInstagram;   // IG sin teléfono no entra a fusión por ahora
         const sel=puedeFusionar && fusionSelCli.includes(f.tel);
         const clickAttr = puedeFusionar ? `toggleFusionSelCli('${f.tel}')` : `abrirFichaCliente('${f.id}')`;
@@ -8105,8 +8126,10 @@ function htmlCintiaClientes(){
         <td class="r emoney">${f.comprado?'$ '+miles(f.comprado):'<span class="ena">—</span>'}</td>
         <td class="r tiny">${f.ultima?formatFechaRelativa(f.ultima):'—'}</td>
       </tr>`}).join('')}
-    </table></div>`}
-    <p class="tiny" style="margin-top:10px">⭐ = ya compró. <b>Vendedor</b> es quien lo atendió la última vez. ${fusionModoCli?'Tocá 2 clientes para fusionarlos.':'Tocá una fila para ver la ficha completa.'}${filas.length>300?` Mostrando los 300 primeros de ${miles(filas.length)} — el buscador mira TODOS los ${miles(totalBase)} clientes.`:''}</p>
+    </table></div>
+    ${paginadorHtml(_cliPagina, totalPagCli, 'irPaginaCli')}
+    <p class="tiny" style="margin-top:6px;text-align:center;color:var(--muted)">Mostrando ${(_cliPagina-1)*POR_CLI+1}–${Math.min(_cliPagina*POR_CLI, filas.length)} de ${miles(filas.length)}${clientesBusqueda?` (de ${miles(totalBase)} en total)`:''} · página ${_cliPagina} de ${totalPagCli}</p>`}
+    <p class="tiny" style="margin-top:10px">⭐ = ya compró. <b>Vendedor</b> es quien lo atendió la última vez. ${fusionModoCli?'Tocá 2 clientes para fusionarlos.':'Tocá una fila para ver la ficha completa.'} El buscador mira TODOS los ${miles(totalBase)} clientes.</p>
   </div>`;
 }
 
