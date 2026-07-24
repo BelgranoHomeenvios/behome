@@ -438,18 +438,27 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .pop-buscar input{margin-top:2px}
 /* Resumen de situación del vendedor, con el mismo formato gris + pastillas que la
    barra de período que tiene justo arriba. */
-.situ-barra{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:8px 14px;margin:0 0 12px;background:var(--surface-1,#f4f6f8);border:1px solid var(--line,#e3e8ee);border-radius:10px}
-.situ-barra .sb-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#8a94a3)}
-.situ-barra .sb-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;align-items:center}
-.situ-chip{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--line,#d0d7e2);border-radius:20px;padding:5px 13px;font-size:12px;font-weight:600;color:var(--sec,#5b6675);white-space:nowrap}
-.situ-chip .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:var(--muted)}
-.situ-chip b{font-weight:800;color:var(--ink);font-size:13.5px}
-.situ-chip .pct{font-size:11px;font-weight:700;color:var(--muted,#8a94a3)}
+.situ-barra{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 16px;margin:0 0 12px;background:var(--surface-1,#f4f6f8);border:1px solid var(--line,#e3e8ee);border-radius:12px}
+.situ-barra.seg-alto{border-color:var(--red);background:var(--red-l,#fdecea)}
+.situ-barra .sb-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#8a94a3)}
+.situ-barra .sb-chips{display:flex;gap:8px;flex-wrap:wrap;flex:1;align-items:center}
+.situ-chip{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line,#d0d7e2);border-radius:22px;padding:7px 15px;font-size:13.5px;font-weight:600;color:var(--sec,#5b6675);white-space:nowrap}
+.situ-chip .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;background:var(--muted)}
+.situ-chip b{font-weight:800;color:var(--ink);font-size:15.5px}
+.situ-chip .pct{font-size:12px;font-weight:700;color:var(--muted,#8a94a3)}
 .situ-chip.conc .dot{background:var(--green)}
 .situ-chip.seg .dot{background:var(--amber)}
 .situ-chip.rech .dot{background:var(--red)}
-.sb-total{margin-left:auto;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);white-space:nowrap}
-.sb-total b{font-size:15px;font-weight:800}
+.situ-chip.alerta{border-color:var(--red);background:var(--red-l,#fdecea);color:var(--red)}
+.situ-chip.alerta .dot{background:var(--red)}
+.situ-chip.alerta b,.situ-chip.alerta .pct{color:var(--red)}
+.sb-total{margin-left:auto;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);white-space:nowrap}
+.sb-total b{font-size:17px;font-weight:800}
+/* Pop-up de "muchas en seguimiento" */
+.aviso-seg-caja{background:#fff;border-radius:16px;max-width:400px;width:calc(100% - 40px);padding:26px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.aviso-seg-caja .aviso-seg-emoji{font-size:40px;margin-bottom:6px}
+.aviso-seg-caja h3{margin:0 0 8px;font-size:18px;color:var(--red)}
+.aviso-seg-caja p{font-size:13.5px;color:var(--sec);line-height:1.5;margin:0 0 18px}
 .interv-ico{opacity:.4;transition:opacity .12s,background .12s}
 .interv-ico:hover{opacity:.8}
 .interv-ico.on{opacity:1;background:rgba(13,148,136,.16);border-radius:6px}
@@ -787,20 +796,26 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .cr-mas{font-size:12.5px;font-weight:700;color:var(--blue);cursor:pointer;margin:2px 0 10px}
 .cr-mas:hover{text-decoration:underline}
 @media(max-width:760px){.cr-split{flex-direction:column}.cr-lado{width:100%}}
-/* Atenciones del día: un solo recuadro grande arriba de los botones, sin emojis. */
-.turno-contador{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px 12px;color:#fff;font-size:14px;font-weight:600;margin:0 0 12px;background:rgba(255,255,255,.09);border-radius:10px;padding:9px 14px}
-.turno-contador b{font-size:17px;font-weight:800}
-.turno-contador .ad-sep{opacity:.35}
+/* Atenciones del día: un solo recuadro grande arriba de los botones, sin emojis.
+   'Total de atención' resalta; 'At. Virtual/Local' van más chicos para separarse. */
+.turno-contador{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:4px 12px;color:#fff;margin:0 0 12px;background:rgba(255,255,255,.09);border-radius:10px;padding:9px 14px}
+.turno-contador .ad-main{font-size:15px;font-weight:700}
+.turno-contador .ad-main b{font-size:18px;font-weight:800}
+.turno-contador .ad-sub{font-size:11.5px;font-weight:600;opacity:.8}
+.turno-contador .ad-sub b{font-size:13px;font-weight:800;opacity:1}
+.turno-contador .ad-sep{opacity:.4}
 /* Calculadora de seña suelta (fuera del módulo azul), estética de la barra de período. */
-#calcSenaExterna{background:var(--surface-1,#f4f6f8);border:1px solid var(--line,#e3e8ee);border-radius:10px;margin-bottom:8px;overflow:hidden}
+#calcSenaExterna{background:#e7ebf1;border:1px solid var(--line,#dce2ea);border-radius:10px;margin-bottom:8px;overflow:hidden}
 .cse-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:10px 14px;user-select:none}
-.cse-head:hover{background:rgba(0,0,0,.02)}
+.cse-head:hover{background:rgba(0,0,0,.03)}
 .cse-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--sec)}
 .cse-chev{font-size:10px;color:var(--muted)}
 .cse-body{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;padding:0 14px 13px}
 .cse-f{flex:1;min-width:130px}
 .cse-f label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;margin-bottom:5px}
-.cse-f .money-input{padding:0 12px}
+.cse-f .money-input{background:#fff;border:1px solid var(--line);border-radius:9px;padding:0 12px}
+.cse-f .money-input input{border:none;background:transparent;box-shadow:none;padding:11px 0;width:100%}
+.cse-f .money-input input:focus{outline:none;box-shadow:none}
 .cse-val{font-size:18px;font-weight:800;color:var(--green);padding:9px 0}
 .panel-section{padding:16px 20px;border-top:1px solid var(--line2)}
 .turno-label{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.65;margin-bottom:3px}
@@ -2131,28 +2146,34 @@ function pintarLogin(){
 }
 
 let ADMIN_UID=null; // si la sesión real es admin, queda guardado acá aunque esté "viendo como" otro usuario
+let VER_COMO_REAL=null; // usuario REAL que puede ver como otros (admin o auditora)
 
 function login(uid){
   YO=uid;
   ADMIN_UID = (rolDe(uid)==='admin') ? uid : null;
+  VER_COMO_REAL = (rolDe(uid)==='admin' || rolDe(uid)==='auditora') ? uid : null;
   entrarApp();
 }
 
 function pintarAdminViewBar(){
-  if(!ADMIN_UID){
+  if(!VER_COMO_REAL){
     $('adminViewBar').classList.add('hidden');
     return;
   }
   $('adminViewBar').classList.remove('hidden');
-  const vendedores=ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor'||rolDe(uid)==='auditora');
+  // El admin puede ver a todos (vendedores + Cintia); Cintia solo a los vendedores.
+  const esAdminReal = rolDe(VER_COMO_REAL)==='admin';
+  const uids = esAdminReal
+    ? ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor'||rolDe(uid)==='auditora')
+    : ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor');
   $('adminViewSelect').innerHTML =
-    `<option value="__admin__">Admin (vos)</option>` +
-    vendedores.map(uid=>`<option value="${uid}">${nombreDe(uid)}</option>`).join('');
-  $('adminViewSelect').value = (YO===ADMIN_UID) ? '__admin__' : YO;
+    `<option value="__real__">${nombreDe(VER_COMO_REAL)} (vos)</option>` +
+    uids.map(uid=>`<option value="${uid}">${nombreDe(uid)}</option>`).join('');
+  $('adminViewSelect').value = (YO===VER_COMO_REAL) ? '__real__' : YO;
 }
 
 function cambiarVistaComo(valor){
-  YO = (valor==='__admin__') ? ADMIN_UID : valor;
+  YO = (valor==='__real__' || valor==='__admin__') ? VER_COMO_REAL : valor;
   LOCAL_ACTUAL=null;
   intentoIPHecho=false;
   entrarApp();
@@ -2235,6 +2256,9 @@ function entrarApp(){
      así abre rápido y "Todas" termina mostrando todo sin que nadie espere. */
   setTimeout(()=>completarHistoricoEnSegundoPlano(), 1200);
   setTimeout(()=>purgarFotosViejas(), 4000);   // limpia fotos viejas para no inflar la base
+  // Aviso de "muchas en seguimiento": primer chequeo al entrar y después cada 2 horas.
+  setTimeout(()=>chequearSeguimientoAlto(false), 6000);
+  if(!window._segInterval) window._segInterval=setInterval(()=>chequearSeguimientoAlto(false), 2*3600*1000);
   /* Cintia y dirección trabajan sobre lo que falta evaluar: se les suma esa
      cola aunque alguna consulta quede fuera de la ventana de 2 meses. */
   if(esAuditora()||esAdmin()) cargarPendientesEvaluacion().then(()=>render());
@@ -3523,7 +3547,7 @@ function renderChipsHoy(){
     const contador=$('turnoContador');
     if(yaConectadoHoy(YO) && !forzandoSelector && !estaPausado(YO)){
       contador.classList.remove('hidden');
-      contador.innerHTML=`<span>Total de atención: <b>${misHoy.length}</b></span><span class="ad-sep">·</span><span>At. Virtual: <b>${virtual}</b></span><span class="ad-sep">·</span><span>At. Local: <b>${local}</b></span>`;
+      contador.innerHTML=`<span class="ad-main">Total de atención: <b>${misHoy.length}</b></span><span class="ad-sub">At. Virtual: <b>${virtual}</b> <span class="ad-sep">·</span> At. Local: <b>${local}</b></span>`;
     }else{
       contador.classList.add('hidden');
     }
@@ -5275,16 +5299,56 @@ function renderSituResumen(){
   const cRech= mias.filter(a=>estadoDe(a)==='Rechazado').length;
   const cSeg = tot - cConc - cRech;   // todo lo no cerrado (incluye sin clasificar)
   const pct  = c => tot ? Math.round(c/tot*100) : 0;
-  const chip = (cls,lbl,c)=>`<span class="situ-chip ${cls}"><span class="dot"></span>${lbl} <b>${c}</b> <span class="pct">${pct(c)}%</span></span>`;
-  box.innerHTML = `<div class="situ-barra">
+  const segAlto = pct(cSeg) > TOPE_SEGUIMIENTO;   // más de 30% en seguimiento => alerta roja
+  const chip = (cls,lbl,c,alerta)=>`<span class="situ-chip ${cls}${alerta?' alerta':''}"><span class="dot"></span>${lbl} <b>${c}</b> <span class="pct">${pct(c)}%</span></span>`;
+  box.innerHTML = `<div class="situ-barra${segAlto?' seg-alto':''}">
     <span class="sb-lbl">Situación</span>
     <div class="sb-chips">
       ${chip('conc','Concretadas',cConc)}
-      ${chip('seg','En seguimiento',cSeg)}
+      ${chip('seg','En seguimiento',cSeg, segAlto)}
       ${chip('rech','Rechazadas',cRech)}
       <span class="sb-total"><b>${tot}</b> consultas</span>
     </div>
   </div>`;
+}
+/* Cada 2 horas, si el vendedor tiene más del tope de consultas En seguimiento, le salta
+   un aviso para que las baje (cerrando o rechazando) hasta quedar por debajo del tope. */
+let _ultimoAvisoSeg=0;
+function porcentajeSeguimiento(){
+  const mias=atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts));
+  const tot=mias.length; if(!tot) return {pct:0,seg:0,tot:0};
+  const cerr=mias.filter(a=>{const e=estadoDe(a);return e==='Concretado'||e==='Rechazado';}).length;
+  const seg=tot-cerr;
+  return {pct:Math.round(seg/tot*100), seg, tot};
+}
+function chequearSeguimientoAlto(forzar){
+  if(esAdmin()||esAuditora()) return;
+  if(!yaConectadoHoy(YO)||forzandoSelector||estaPausado(YO)) return;
+  const {pct,seg}=porcentajeSeguimiento();
+  if(pct<=TOPE_SEGUIMIENTO) return;
+  // No repetir el aviso si ya saltó hace menos de 2 horas (salvo que se fuerce).
+  if(!forzar && (Date.now()-_ultimoAvisoSeg) < 2*3600*1000) return;
+  _ultimoAvisoSeg=Date.now();
+  mostrarAvisoSeguimiento(seg, pct);
+}
+function mostrarAvisoSeguimiento(seg, pct){
+  cerrarAvisoSeguimiento();
+  const d=document.createElement('div');
+  d.className='modal-fondo';
+  d.id='avisoSegFondo';
+  d.innerHTML=`<div class="aviso-seg-caja">
+    <div class="aviso-seg-emoji">📥</div>
+    <h3>Tenés muchas consultas en seguimiento</h3>
+    <p>Tenés <b>${seg}</b> consultas en seguimiento (<b>${pct}%</b> del total). El límite es <b>${TOPE_SEGUIMIENTO}%</b>.
+    Bajalas cerrando las que ya se concretaron o rechazando las que no van, hasta quedar por debajo del ${TOPE_SEGUIMIENTO}%.</p>
+    <button class="btn btn-navy" style="width:100%" onclick="cerrarAvisoSeguimiento()">Entendido, las bajo</button>
+  </div>`;
+  document.body.appendChild(d);
+  document.body.style.overflow='hidden';
+}
+function cerrarAvisoSeguimiento(){
+  const d=$('avisoSegFondo'); if(d) d.remove();
+  if(!document.querySelector('.modal-fondo:not(.hidden)')) document.body.style.overflow='';
 }
 
 /* Oportunidad caliente: el cliente mostró intención real de comprar y la consulta sigue viva. */
@@ -6766,6 +6830,7 @@ function metricasVendedor(cs){
   return {total,abiertas,seg,sinClas,hist,atras,conc,rech,cerradas,pendiente:abiertas,carga,topeAtrasadas};
 }
 const TOPE_ATRASADAS = 25;   // % de atrasadas sobre abiertas que se considera aceptable
+const TOPE_SEGUIMIENTO = 30; // % de "En seguimiento" sobre el total antes de saltar alerta (se irá bajando)
 function deltaHtml(actual, anterior){
   if(anterior===null||anterior===undefined||!anterior) return '';
   const dif=Math.round((actual-anterior)/anterior*100);
@@ -6902,8 +6967,24 @@ function htmlCintiaResumen(){
     </table>
   </div>`;
 
-  return activosBar + canalPills + rankingHtml + detalleHtml
+  return activosBar + canalPills + rankingHtml + htmlEquipoPantallas() + detalleHtml
        + graficoContactosPorTiempo(actual) + graficoContactosPorCanal(actual);
+}
+/* Módulo para que Cintia entre a la pantalla de cada vendedor y le dé soporte. Solo
+   vendedores (no Brian ni ella misma). Usa el mismo "ver como" que dirección; la barra
+   de arriba le deja volver a su propia pantalla. */
+function htmlEquipoPantallas(){
+  const AVC=['#1e5fce','#0d9488','#7c3aed','#db2777','#ea580c'];
+  const vends=ORDEN_LOGIN.filter(u=>rolDe(u)==='vendedor');
+  return `<div class="cin-card">
+    <div class="dh" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Entrar a las pantallas del equipo</h3><span class="tiny" style="color:var(--muted)">ver la app tal cual la ve cada vendedor, para dar soporte</span></div>
+    <div class="dir-team">${vends.map((u,i)=>`
+      <div class="dir-tcard" onclick="cambiarVistaComo('${u}')">
+        <span class="av2" style="background:${AVC[i%AVC.length]}">${nombreDe(u).slice(0,2).toUpperCase()}</span>
+        <div><b style="font-size:13px">${nombreDe(u)}</b><div style="font-size:11px;color:var(--muted)">Vendedor</div></div>
+        <span class="go">Ver pantalla →</span>
+      </div>`).join('')}</div>
+  </div>`;
 }
 
 /* -------- Detalle de un vendedor: para entrar a ver qué le está frenando el trabajo -------- */
@@ -10830,14 +10911,16 @@ function renderDireccion(){
   const AVC=['#1e5fce','#0d9488','#7c3aed','#db2777','#ea580c'];
 
   box.innerHTML=`
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
-      <div><div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Solo lo ves vos</div>
-        <h2 style="margin:2px 0 0;font-size:19px">Panel de dirección</h2></div>
-      <span class="dir-seg" style="margin-left:auto">
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Solo lo ves vos</div>
+      <h2 style="margin:2px 0 0;font-size:19px">Panel de dirección</h2>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="dir-seg">
         ${[['todo','Todo'],['mes','Mes'],['semana','Semana'],['hoy','Hoy'],['custom','Personalizado']].map(x=>`<button class="${dirPer===x[0]?'on':''}" onclick="dirSetPer('${x[0]}')">${x[1]}</button>`).join('')}
       </span>
       ${dirPer==='custom'?`
-      <span class="dir-rango" style="margin-left:auto">
+      <span class="dir-rango">
         <input type="date" id="dirDesde" value="${dirDesde||''}" onchange="dirSetRango()">
         <span class="tiny" style="color:var(--muted)">al</span>
         <input type="date" id="dirHasta" value="${dirHasta||''}" onchange="dirSetRango()">
