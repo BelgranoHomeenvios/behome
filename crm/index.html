@@ -4685,15 +4685,19 @@ function logItemHtml(a){
   // Ámbar cuando ya hay un recordatorio pendiente, para no mandar dos veces lo mismo.
   const puedeAsist = (YO===a.vendedorId || esAuditora() || esAdmin());
   const tieneHilo = !!(a.asistencia && a.asistencia.mensajes && a.asistencia.mensajes.length);
-  const bellCol = (puedeRecordar()||puedeAsist)
+  // La campanita queda sola en su columna. El 🙏 de comentarios/asistencia se movió al
+  // costado, con el resto de los íconos de acción de la fila.
+  const bellCol = puedeRecordar()
     ? `<div class="c-bell">
-        ${puedeRecordar()?`<span class="bell-btn ${a.recordatorioPendiente?'on':''}" role="button" tabindex="0"
+        <span class="bell-btn ${a.recordatorioPendiente?'on':''}" role="button" tabindex="0"
               title="${a.recordatorioPendiente?('Recordatorio pendiente: '+escAttr(a.recordatorioComentario||'')):(a.vendedorId===YO?'Recordarme esto':'Enviar recordatorio al vendedor')}"
-              onclick="event.stopPropagation();abrirRecordarConsulta('${a.id}')">🔔</span>`:''}
-        ${puedeAsist?`<span class="asist-btn ${asistenciaSinLeer(a)?'sinleer':''} ${tieneHilo?'activo':''}" role="button" tabindex="0"
-              title="${tieneHilo?((a.asistencia.estado==='resuelta'?'Conversación (resuelta)':'Conversación interna')+' — '+a.asistencia.mensajes.length+' mensaje(s)'):'Pedir asistencia o comentar (interno, no es WhatsApp)'}"
-              onclick="event.stopPropagation();abrirAsistencia('${a.id}')">🙏</span>`:''}
+              onclick="event.stopPropagation();abrirRecordarConsulta('${a.id}')">🔔</span>
       </div>`
+    : '';
+  const asistBtn = puedeAsist
+    ? `<span class="asist-btn ebtn cm-ico ${asistenciaSinLeer(a)?'sinleer':''} ${tieneHilo?'activo':''}" role="button" tabindex="0"
+          title="${tieneHilo?((a.asistencia.estado==='resuelta'?'Conversación (resuelta)':'Conversación interna')+' — '+a.asistencia.mensajes.length+' mensaje(s)'):'Pedir asistencia o comentar (interno, no es WhatsApp)'}"
+          onclick="event.stopPropagation();abrirAsistencia('${a.id}')">🙏</span>`
     : '';
 
   return `
@@ -4758,6 +4762,7 @@ function logItemHtml(a){
         </span>
         <span class="ebtn cm-ico${(tieneFoto(a))?'':' apagado'}" title="${(tieneFoto(a))?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
         <span class="ebtn cm-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
+        ${asistBtn}
         ${(!esAuditora() && (YO===a.vendedorId || esAdmin())) ? `<span class="ebtn cm-ico${a.evaluada?'':' apagado'}" title="${a.evaluada?'Ver la evaluación de esta consulta':'Todavía no la evaluaron'}"${a.evaluada?` onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')"`:''}>📊</span>` : ''}
         ${puedeMarcarIntervencion() ? `<span class="ebtn cm-ico interv-ico${intervinoCintia(a)?' on':''}" title="${intervinoCintia(a)?('Intervino '+nombreDe(a.cintiaIntervino.porId)+' — clic para quitar'):'Marcar que Cintia intervino / dio soporte en esta consulta'}" onclick="event.stopPropagation();toggleIntervencionCintia('${a.id}')">🤝</span>` : ''}
         ${solPendiente
