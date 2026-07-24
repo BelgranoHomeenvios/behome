@@ -1379,7 +1379,8 @@ textarea{resize:vertical;min-height:60px}
 .dir-seg button{padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:var(--sec);border:0;background:none;cursor:pointer}
 .dir-seg button.on{background:linear-gradient(90deg,#1e5fce,#2a6be0);color:#fff}
 .dir-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:13px;margin:14px 0}
-@media(max-width:1100px){.dir-kpis{grid-template-columns:repeat(2,1fr)}}
+.dir-kpis.dir-kpis-4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:1100px){.dir-kpis,.dir-kpis.dir-kpis-4{grid-template-columns:repeat(2,1fr)}}
 .dir-kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 15px;position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(15,26,42,.05)}
 .dir-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--dk,var(--blue))}
 .dir-kpi .l{font-size:11.5px;color:var(--sec);font-weight:600}
@@ -6753,8 +6754,9 @@ function renderPanelCintia(){
   renderCintiaFecha();
   renderCintiaMain();
   // Una sola barra de período: la de arriba (cintiaFechaBox). La de abajo (verMasBox,
-  // pensada para el vendedor) se esconde en el tablero de Cintia/dirección.
-  $('cintiaFechaBox').classList.remove('hidden');
+  // pensada para el vendedor) se esconde en el tablero de Cintia/dirección. En el Panel de
+  // dirección la barra de arriba también se esconde: ahí el período se muestra abajo del título.
+  $('cintiaFechaBox').classList.toggle('hidden', cintiaSeccion==='direccion');
   { const _vm=$('verMasBox'); if(_vm) _vm.classList.add('hidden'); }
   // La tabla de Consultas reutiliza colaOperativa. En Brian se ve en "Consultas" (todo el
   // equipo) y en "Mis consultas" (lo suyo); en Cintia, solo en "Consultas".
@@ -6861,28 +6863,35 @@ function mostrarCargandoPeriodo(activo){
     }
   } else if(el) el.remove();
 }
+/* Chips del período (7/15/30/hoy/ayer/todo/fechas a elección). Se usa tanto en la barra de
+   arriba (cintiaFechaBox) como adentro del Panel de dirección, para que sea un solo control. */
+function periodoChipsHtml(){
+  const presets=[['d7','7 días'],['d15','15 días'],['d30','30 días'],['hoy','Hoy'],['ayer','Ayer'],['todo','Todo']];
+  const chips=presets.map(([id,lbl])=>`<span class="mini ${cintiaPresetActivo===id?'on':''}" onclick="aplicarPresetCintiaFecha('${id}')">${lbl}</span>`).join('');
+  const esCustom = cintiaPresetActivo==='custom';
+  const inputs = esCustom
+    ? `<input type="date" value="${cintiaFechaDesde||''}" onchange="setCintiaFecha('desde',this.value)"><span class="tiny">hasta</span><input type="date" value="${cintiaFechaHasta||''}" onchange="setCintiaFecha('hasta',this.value)">`
+    : '';
+  return `<b class="tiny" style="color:var(--sec);text-transform:uppercase;letter-spacing:.03em">Período</b>
+    ${chips}
+    <span class="mini ${esCustom?'on':''}" onclick="cintiaFechaCustom()">Fechas a elección</span>
+    ${inputs}`;
+}
+/* Etiqueta corta del período elegido, para los subtítulos ("del 1/7 al 24/7", "todo", etc.). */
+function periodoLabel(){
+  if(!cintiaFechaDesde && !cintiaFechaHasta) return 'todo';
+  const f=x=>{const p=String(x).split('-');return p[2]+'/'+p[1];};
+  if(cintiaFechaDesde && cintiaFechaHasta && cintiaFechaDesde===cintiaFechaHasta) return f(cintiaFechaDesde);
+  return `${cintiaFechaDesde?f(cintiaFechaDesde):'…'} al ${cintiaFechaHasta?f(cintiaFechaHasta):'…'}`;
+}
 function renderCintiaFecha(){
-  const sinFiltro = !cintiaFechaDesde && !cintiaFechaHasta;
   // El período ahora también filtra Consultas, así que el conteo de esa sección va acá al
   // lado, en la misma línea — es la única sección donde el número tiene sentido en este lugar,
   // el resto ya muestra su propio total en el título de la tarjeta.
   const conteoHtml = cintiaSeccion==='consultas'
     ? (()=>{ const n=construirListaFiltrada().length; return `<b class="tiny cnt-periodo">${n} consulta${n===1?'':'s'}</b>`; })()
     : '';
-  const presets=[['d7','7 días'],['d15','15 días'],['d30','30 días'],['hoy','Hoy'],['ayer','Ayer'],['todo','Todo']];
-  const chips=presets.map(([id,lbl])=>`<span class="mini ${cintiaPresetActivo===id?'on':''}" onclick="aplicarPresetCintiaFecha('${id}')">${lbl}</span>`).join('');
-  const esCustom = cintiaPresetActivo==='custom';
-  // Los campos de fecha solo aparecen al elegir "Fechas a elección"; si no, ni se muestran.
-  const inputs = esCustom
-    ? `<input type="date" value="${cintiaFechaDesde||''}" onchange="setCintiaFecha('desde',this.value)"><span class="tiny">hasta</span><input type="date" value="${cintiaFechaHasta||''}" onchange="setCintiaFecha('hasta',this.value)">`
-    : '';
-  $('cintiaFechaBox').innerHTML=`
-    <b class="tiny" style="color:var(--sec);text-transform:uppercase;letter-spacing:.03em">Período</b>
-    ${chips}
-    <span class="mini ${esCustom?'on':''}" onclick="cintiaFechaCustom()">Fechas a elección</span>
-    ${inputs}
-    ${conteoHtml}
-  `;
+  $('cintiaFechaBox').innerHTML = periodoChipsHtml() + conteoHtml;
 }
 
 function renderCintiaBotones(){
@@ -11477,7 +11486,9 @@ function dirEnPer(t){
 }
 function dirFmtDia(x){ if(!x)return '–'; const p=x.split('-'); return p[2]+'/'+p[1]; }
 function dirBase(){
-  return atenciones.filter(a=>dirEnPer(new Date(a.ts).getTime()));
+  // El Panel de dirección usa el MISMO período que la barra de arriba (dentroDePeriodoCintia),
+  // así hay un solo control que contabiliza todo lo de abajo.
+  return atenciones.filter(a=>dentroDePeriodoCintia(a.ts));
 }
 function dirCotizado(a){return montoRepresentativo(a.muebles||[])||0;}
 function renderDireccion(){
@@ -11493,7 +11504,10 @@ function renderDireccion(){
   const enJuego=abiertas.reduce((s,a)=>s+dirCotizado(a),0);
   const perdida=rech.filter(esClienteReal).reduce((s,a)=>s+(+a.montoPerdido||dirCotizado(a)),0);
   const cierre=B.length?Math.round(conc.length/B.length*100):0;
-  const perLbl={todo:'histórico',mes:'últimos 30 días',semana:'últimos 7 días',hoy:'hoy',custom:'del '+dirFmtDia(dirDesde)+' al '+dirFmtDia(dirHasta)}[dirPer];
+  const pctConc=B.length?Math.round(conc.length/B.length*100):0;
+  const pctSeg=B.length?Math.round(abiertas.length/B.length*100):0;
+  const pctRech=B.length?Math.round(rech.length/B.length*100):0;
+  const perLbl=periodoLabel();
 
   // comparativa por vendedor
   const vends=Object.keys(USUARIOS).filter(u=>rolDe(u)==='vendedor');
@@ -11531,7 +11545,7 @@ function renderDireccion(){
   const ahora=Date.now();
   const evalPer=atenciones.filter(a=>{
     if(!a.evaluada)return false;
-    return dirEnPer(new Date(a.evaluadoTs||a.ts).getTime());
+    return dentroDePeriodoCintia(a.evaluadoTs||a.ts);
   });
   const promEje=k=>{const xs=evalPer.filter(a=>a[k]);return xs.length?(xs.reduce((s,a)=>s+a[k],0)/xs.length).toFixed(1):'–';};
   const oportPerd=evalPer.filter(a=>a.oportunidadPerdida);
@@ -11542,28 +11556,16 @@ function renderDireccion(){
   const AVC=['#1e5fce','#0d9488','#7c3aed','#db2777','#ea580c'];
 
   box.innerHTML=`
-    <div style="margin-bottom:10px">
+    <div style="margin-bottom:8px">
       <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Solo lo ves vos</div>
       <h2 style="margin:2px 0 0;font-size:19px">Panel de dirección</h2>
     </div>
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-      <span class="dir-seg">
-        ${[['todo','Todo'],['mes','Mes'],['semana','Semana'],['hoy','Hoy'],['custom','Personalizado']].map(x=>`<button class="${dirPer===x[0]?'on':''}" onclick="dirSetPer('${x[0]}')">${x[1]}</button>`).join('')}
-      </span>
-      ${dirPer==='custom'?`
-      <span class="dir-rango">
-        <input type="date" id="dirDesde" value="${dirDesde||''}" onchange="dirSetRango()">
-        <span class="tiny" style="color:var(--muted)">al</span>
-        <input type="date" id="dirHasta" value="${dirHasta||''}" onchange="dirSetRango()">
-      </span>`:''}
-    </div>
-    <div class="dir-kpis">
-      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='generada'?'on':''}" style="--dk:var(--green);--dkc:var(--green)" onclick="dirToggleDetalle('generada')"><div class="l">Plata generada <span class="dir-kpi-chev">${dirDetalle==='generada'?'▲':'▾'}</span></div><div class="v">$ ${miles(generada)}</div><div class="s">${conc.length} ventas · ${perLbl}</div></div>
-      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='enjuego'?'on':''}" style="--dk:#0369a1" onclick="dirToggleDetalle('enjuego')"><div class="l">En juego <span class="dir-kpi-chev">${dirDetalle==='enjuego'?'▲':'▾'}</span></div><div class="v">$ ${miles(enJuego)}</div><div class="s">${abiertas.length} abiertas</div></div>
-      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='perdida'?'on':''}" style="--dk:var(--red);--dkc:var(--red)" onclick="dirToggleDetalle('perdida')"><div class="l">Plata perdida <span class="dir-kpi-chev">${dirDetalle==='perdida'?'▲':'▾'}</span></div><div class="v">$ ${miles(perdida)}</div><div class="s">solo clientes reales</div></div>
-      <div class="dir-kpi" style="--dk:var(--blue)"><div class="l">Tasa de cierre</div><div class="v">${cierre}%</div><div class="s">sobre ${B.length} consultas</div></div>
-      <div class="dir-kpi" style="--dk:#7c3aed"><div class="l">Consultas</div><div class="v">${B.length}</div><div class="s">${perLbl}</div></div>
-      <div class="dir-kpi" style="--dk:#b45309"><div class="l">Sin cotización</div><div class="v">${sinCotTotal}</div><div class="s">abiertas · últimos 30 días</div></div>
+    <div class="fecha-permanente" style="margin-bottom:14px">${periodoChipsHtml()}</div>
+    <div class="dir-kpis dir-kpis-4">
+      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='generada'?'on':''}" style="--dk:var(--green);--dkc:var(--green)" onclick="dirToggleDetalle('generada')"><div class="l">Concretados <span class="dir-kpi-chev">${dirDetalle==='generada'?'▲':'▾'}</span></div><div class="v">${conc.length}</div><div class="s"><b style="color:var(--green)">$ ${miles(generada)}</b> generada · ${pctConc}% del total</div></div>
+      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='enjuego'?'on':''}" style="--dk:#0369a1;--dkc:#0369a1" onclick="dirToggleDetalle('enjuego')"><div class="l">En seguimiento <span class="dir-kpi-chev">${dirDetalle==='enjuego'?'▲':'▾'}</span></div><div class="v">${abiertas.length}</div><div class="s"><b style="color:#0369a1">$ ${miles(enJuego)}</b> en juego · ${pctSeg}% seguimiento</div></div>
+      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='perdida'?'on':''}" style="--dk:var(--red);--dkc:var(--red)" onclick="dirToggleDetalle('perdida')"><div class="l">Rechazados <span class="dir-kpi-chev">${dirDetalle==='perdida'?'▲':'▾'}</span></div><div class="v">${rech.length}</div><div class="s"><b style="color:var(--red)">$ ${miles(perdida)}</b> perdida · ${pctRech}% del total</div></div>
+      <div class="dir-kpi" style="--dk:#b45309;--dkc:#b45309"><div class="l">Sin cotización</div><div class="v">${sinCotTotal}</div><div class="s">abiertas · últimos 30 días</div></div>
     </div>
     ${dirDetalle ? htmlDirDetalle(dirDetalle, {generada:conc, enjuego:abiertas, perdida:rech.filter(esClienteReal)}[dirDetalle]) : ''}
 
