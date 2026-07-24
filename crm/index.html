@@ -1469,7 +1469,7 @@ textarea{resize:vertical;min-height:60px}
     </div>
   </aside>
   <div class="admin-view-bar hidden" id="adminViewBar">
-    <span>Modo admin · ver la app como:</span>
+    <span id="adminViewLbl">Modo admin · ver la app como:</span>
     <select id="adminViewSelect" onchange="cambiarVistaComo(this.value)"></select>
   </div>
   <div class="app-header">
@@ -2003,6 +2003,7 @@ async function entrarConUsuarioCRM(user){
     usuarioActualEmail=email;
     YO=data.uid;
     ADMIN_UID=(rolDe(YO)==='admin')?YO:null;
+    VER_COMO_REAL=(rolDe(YO)==='admin'||rolDe(YO)==='auditora')?YO:null;
     await loadState();
     pintarConfigLocales();
     entrarApp();
@@ -2163,6 +2164,7 @@ function pintarAdminViewBar(){
   $('adminViewBar').classList.remove('hidden');
   // El admin puede ver a todos (vendedores + Cintia); Cintia solo a los vendedores.
   const esAdminReal = rolDe(VER_COMO_REAL)==='admin';
+  const lbl=$('adminViewLbl'); if(lbl) lbl.textContent = esAdminReal ? 'Modo admin · ver la app como:' : 'Ver la pantalla de:';
   const uids = esAdminReal
     ? ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor'||rolDe(uid)==='auditora')
     : ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor');
@@ -6967,9 +6969,10 @@ function htmlCintiaResumen(){
     </table>
   </div>`;
 
-  // El módulo de pantallas del equipo va en el Resumen SOLO para Cintia (auditora).
-  // Brian (dirección) ya lo tiene en su Panel de dirección, así que no se le duplica acá.
-  return activosBar + canalPills + rankingHtml + (esAuditora()?htmlEquipoPantallas():'') + detalleHtml
+  // Ni Cintia ni Brian ven las tarjetas de pantallas acá: se entra a la pantalla de un
+  // vendedor desde el desplegable de arriba ("Ver la pantalla de:"), que queda siempre
+  // visible para volver a la propia sesión con un clic.
+  return activosBar + canalPills + rankingHtml + detalleHtml
        + graficoContactosPorTiempo(actual) + graficoContactosPorCanal(actual);
 }
 /* Módulo para que Cintia entre a la pantalla de cada vendedor y le dé soporte. Solo
