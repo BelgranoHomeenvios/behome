@@ -5593,37 +5593,28 @@ function renderPanelGestion(listaVisible){
   const n = z => base.filter(a=>zonaDe(a)===z).length;
   const mias = atenciones.filter(a=>a.vendedorId===YO);
 
-  const zonas=[
-    {id:'hoy',      label:'Para hoy',      cnt:n('hoy')},
-    {id:'atrasada', label:'Atrasadas',     cnt:n('atrasada')},
-    {id:'sinclas',  label:'Sin clasificar',cnt:n('sinclas')},
-    {id:'semana',   label:'Esta semana',   cnt:n('semana')}
+  // "Pendientes" reemplaza a "Atrasadas": es el buzón del vendedor con todo lo que Cintia le
+  // marca (comentarios, 2da oportunidad, recordatorios, revisiones). Abre la sección, no filtra.
+  const pendCount = recordatoriosDeVendedor().length;
+  const ICO={hoy:'evaluar',pendientes:'bajas',sinclas:'consultas',semana:'estados',
+             estadisticas:'ventas',evaluacion:'evaluar',oportunidad:'pulso'};
+  const items=[
+    {label:'Para hoy',       ico:'hoy',         cnt:n('hoy'),    activo:(!seccionVendedor && zonaActiva==='hoy'),      act:`setZona('hoy')`},
+    {label:'Pendientes',     ico:'pendientes',  cnt:pendCount,   activo:(seccionVendedor==='recordatorio'),            act:`abrirSeccionVendedor('recordatorio')`},
+    {label:'Sin clasificar', ico:'sinclas',     cnt:n('sinclas'),activo:(!seccionVendedor && zonaActiva==='sinclas'),  act:`setZona('sinclas')`},
+    {label:'Esta semana',    ico:'semana',      cnt:n('semana'), activo:(!seccionVendedor && zonaActiva==='semana'),   act:`setZona('semana')`},
+    {label:'Estadísticas',   ico:'estadisticas',cnt:undefined,   activo:(seccionVendedor==='estadisticas'),            act:`abrirSeccionVendedor('estadisticas')`},
+    {label:'Evaluación',     ico:'evaluacion',  cnt:undefined,   activo:(seccionVendedor==='evaluacion'),              act:`abrirSeccionVendedor('evaluacion')`},
+    {label:'Oportunidad',    ico:'oportunidad', cnt:mias.filter(a=>esOportunidadCaliente(a)).length, activo:(seccionVendedor==='oportunidad'), act:`abrirSeccionVendedor('oportunidad')`}
   ];
-  const secciones=[
-    {id:'recordatorio', label:'Recordatorio', cnt:recordatoriosDeVendedor().length},
-    {id:'estadisticas', label:'Estadísticas', cnt:undefined},
-    /* Sin número: los contadores de los otros botones significan "tenés N cosas
-       para hacer". Acá 285 era el histórico de lo ya evaluado y se leía como una
-       pila de tareas pendientes que no existe. */
-    {id:'evaluacion',   label:'Evaluación',   cnt:undefined},
-    {id:'oportunidad',  label:'Oportunidad',  cnt:mias.filter(a=>esOportunidadCaliente(a)).length}
-  ];
-  const ICO={hoy:'evaluar',atrasada:'invalidas',sinclas:'consultas',semana:'estados',
-             recordatorio:'bajas',estadisticas:'ventas',evaluacion:'evaluar',oportunidad:'pulso'};
-
-  const btn=(it,activo,accion)=>`
-    <div class="gb ${activo?'on':''}" role="button" tabindex="0" aria-pressed="${activo?'true':'false'}"
-         onclick="${accion}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${accion}}">
-      <div class="top"><span class="lbl">${it.label}</span><span class="ic">${CIN_ICONS[ICO[it.id]]||''}</span></div>
+  const btn=(it)=>`
+    <div class="gb ${it.activo?'on':''}" role="button" tabindex="0" aria-pressed="${it.activo?'true':'false'}"
+         onclick="${it.act}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${it.act}}">
+      <div class="top"><span class="lbl">${it.label}</span><span class="ic">${CIN_ICONS[ICO[it.ico]]||''}</span></div>
       ${it.cnt!==undefined?`<div class="cnt">${it.cnt}</div>`:''}
     </div>`;
 
-  box.innerHTML = `
-    <div class="gridbtn">
-      ${zonas.map(z=>btn(z, !seccionVendedor && zonaActiva===z.id, `setZona('${z.id}')`)).join('')}
-      ${secciones.map(sc=>btn(sc, seccionVendedor===sc.id, `abrirSeccionVendedor('${sc.id}')`)).join('')}
-    </div>
-  `;
+  box.innerHTML = `<div class="gridbtn">${items.map(btn).join('')}</div>`;
 }
 
 /* Resumen de situación del vendedor, debajo de la barra de período (así se actualiza
@@ -5739,6 +5730,18 @@ function recordatoriosDeVendedor(){
   mias.filter(a=>a.revisionEval && a.revisionEval.respuesta && !a.revisionEval.vistoVendedor && a.revisionEval.paraId===YO)
       .forEach(a=>items.push({tipo:'consulta', a, monto:0,
         texto:a.revisionEval.respuesta, porId:a.revisionEval.resueltoPorId, ts:a.revisionEval.resueltoTs}));
+  // 4) Comentarios/asistencia (🙏) que Cintia o dirección le dejaron y todavía no resolvió.
+  //    Cuando Cintia comenta, queda acá automáticamente para que el vendedor sepa qué hacer.
+  mias.filter(a=>{
+    const h=a.asistencia;
+    if(!h || h.estado==='resuelta' || !h.mensajes || !h.mensajes.length) return false;
+    const ult=h.mensajes[h.mensajes.length-1];
+    return ult && ult.deId!==YO;   // el último mensaje no es del propio vendedor: hay algo para leer/hacer
+  }).forEach(a=>{
+    const ult=a.asistencia.mensajes[a.asistencia.mensajes.length-1];
+    items.push({tipo:'asistencia', a, monto:montoRepresentativo(a.muebles)||0,
+      texto:ult.texto, porId:ult.deId, ts:ult.ts});
+  });
   items.sort((x,y)=> (x.tipo==='segunda'?0:1)-(y.tipo==='segunda'?0:1) || y.monto-x.monto);
   return items;
 }
@@ -5777,14 +5780,18 @@ function mostrarTablaVendedor(mostrar){
   if(filtros && !mostrar) filtros.classList.add('hidden');
   if(titulo) titulo.textContent = mostrar ? (esAuditora()?'Consultas':'Mis consultas') : TITULOS_SECCION_VENDEDOR[seccionVendedor]||'Mis consultas';
 }
-const TITULOS_SECCION_VENDEDOR={recordatorio:'Recordatorio', estadisticas:'Estadísticas', evaluacion:'Evaluación', oportunidad:'Oportunidad'};
+const TITULOS_SECCION_VENDEDOR={recordatorio:'Pendientes', estadisticas:'Estadísticas', evaluacion:'Evaluación', oportunidad:'Oportunidad'};
 
 function svRecItemHtml(it){
   const a=it.a;
-  const cls = it.tipo==='segunda'?'segunda':(it.tipo==='eval'?'eval':'consulta');
-  const label = it.tipo==='segunda'?'2da oportunidad':(it.tipo==='eval'?'Evaluación':'Llamada de atención');
+  const cls = it.tipo==='segunda'?'segunda':(it.tipo==='asistencia'?'segunda':(it.tipo==='eval'?'eval':'consulta'));
+  const label = it.tipo==='segunda'?'2da oportunidad':(it.tipo==='asistencia'?'Comentario de Cintia':(it.tipo==='eval'?'Evaluación':'Llamada de atención'));
   const fecha = it.ts ? new Date(it.ts).toLocaleDateString('es-AR',{day:'numeric',month:'long'}) : '';
   const quien = it.porId ? nombreDe(it.porId) : 'Cintia';
+  // La asistencia es una conversación: en vez de "✓ Visto" abre el hilo para leer y responder.
+  const accion = it.tipo==='asistencia'
+    ? `<button class="sv-rec-visto" onclick="abrirAsistencia('${a.id}')">💬 Ver y responder</button>`
+    : `<button class="sv-rec-visto" onclick="svMarcarVisto('${a.id}','${it.tipo}')">✓ Visto</button>`;
   return `<div class="sv-rec-item" data-recid="${a.id}" data-rectipo="${it.tipo}">
     <button class="sv-rec-head" onclick="svToggleRec(this)">
       <div style="flex:1">
@@ -5798,7 +5805,7 @@ function svRecItemHtml(it){
     </button>
     <div class="sv-rec-body">
       <div class="sv-rec-comment">💬 <b>${escapeHtml(quien)} dice:</b> ${escapeHtml(it.texto)}</div>
-      <button class="sv-rec-visto" onclick="svMarcarVisto('${a.id}','${it.tipo}')">✓ Visto</button>
+      ${accion}
     </div>
   </div>`;
 }
@@ -6119,8 +6126,8 @@ function svSetComparar(v){ svComparar=v; renderSolapasVendedor(); }
 
 function svRecordatorioHtml(){
   const recs = recordatoriosDeVendedor();
-  if(!recs.length) return `<p class="cin-empty">No tenés recordatorios pendientes. Tocá la 🔔 de cualquier consulta para anotarte uno.</p>`;
-  return `<p class="tiny" style="margin:0 0 12px">Lo que te pidió Cintia y lo que te anotaste vos. Tocá la 🔔 en la tabla para agregar uno nuevo.</p>
+  if(!recs.length) return `<p class="cin-empty">No tenés nada pendiente. Cuando Cintia te deje un comentario o un recordatorio, aparece acá.</p>`;
+  return `<p class="tiny" style="margin:0 0 12px">Todo lo que tenés para hacer: comentarios de Cintia, recordatorios y avisos. Tocá la 🔔 o el 🙏 en la tabla para agregar uno nuevo.</p>
     ${recs.map(svRecItemHtml).join('')}`;
 }
 
