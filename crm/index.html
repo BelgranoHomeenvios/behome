@@ -2889,18 +2889,43 @@ async function borrarDuplicado(id){
 /* Marca un grupo (mismo N° de orden) como VENTA COMPARTIDA entre vendedores: deja de ser
    duplicado, cada uno conserva su parte del monto y en ambas filas se ve "🤝 Compartida". */
 async function marcarCompartida(ids){
-  if(!esAdmin()) return;
+  // Solo Cintia o dirección: marcar una venta como compartida es una intervención de Cintia.
+  if(!puedeMarcarIntervencion()){ toast('Solo Cintia o dirección pueden marcar una venta como compartida.'); return; }
   const arr=(ids||[]).map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
   if(arr.length<2) return;
   const vends=[...new Set(arr.map(a=>nombreDe(a.vendedorId)))];
-  if(!window.confirm(`¿Marcar como VENTA COMPARTIDA entre ${vends.join(' y ')}?\n\nDeja de contarse como duplicado y cada uno queda con su parte del monto. Después podés editar el monto de cada uno con el botón "Editar".`)) return;
+  if(!window.confirm(`¿Marcar como VENTA COMPARTIDA entre ${vends.join(' y ')}?\n\nDeja de contarse como duplicado y cada uno queda con su parte del monto (editable). Queda registrada como intervención de ${nombreDe(YO)}.`)) return;
+  const ts=new Date().toISOString();
   arr.forEach(a=>{
     a.ventaCompartida=true;
     a.compartidaConNombres=[...new Set(arr.filter(x=>x.id!==a.id).map(x=>nombreDe(x.vendedorId)))].join(', ');
+    // Compartida = intervención de Cintia: se marca como tal (mismo dato que el 🛟).
+    if(!a.cintiaIntervino){
+      a.cintiaIntervino={ts, porId:YO};
+      a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
+      a.historialContacto.push({ts, texto:'🛟 Intervino '+nombreDe(YO)+' (marcó venta compartida)', porId:YO, intervencion:true});
+    }
   });
   await saveAtenciones();
   toast('Marcada como venta compartida');
+  render();
   if(typeof renderPanelCintia==='function') renderPanelCintia();
+}
+/* Todas las concretadas que forman el duplicado con `a` (mismo N° de orden, o mismo
+   teléfono + monto), incluida `a`. Sirve para marcar compartida desde la fila. */
+function grupoDuplicadoDe(a){
+  const ord=(a.nroOrden||'').trim().toLowerCase();
+  const tel=normContacto(a.clienteTelefono||'');
+  const monto=+a.montoVendido||0;
+  return atenciones.filter(x=>estadoDe(x)==='Concretado' && (x.id===a.id ||
+    (ord && (x.nroOrden||'').trim().toLowerCase()===ord) ||
+    (tel && normContacto(x.clienteTelefono||'')===tel && monto && (+x.montoVendido||0)===monto)));
+}
+function marcarCompartidaDesdeRow(id){
+  const a=atenciones.find(x=>x.id===id); if(!a) return;
+  const grupo=grupoDuplicadoDe(a);
+  if(grupo.length<2){ toast('No encuentro con cuál está duplicada.'); return; }
+  marcarCompartida(grupo.map(x=>x.id));
 }
 async function guardarVinculacionCliente(id){
   const a=atenciones.find(x=>x.id===id);
@@ -4110,17 +4135,22 @@ let cerrandoId=null, cerrandoTipo=null;
 function htmlFormConcretado(a){
   const cotizado=montoRepresentativo(a.muebles||[]);
   const mueblesCot = (a.muebles||[]);
+  // Si ya se había cargado la venta, se muestran los datos que se pusieron antes.
+  const fueCerrada = !!(a.montoVendido||a.cerradoTs||a.mueblesVendidos);
+  const motivosSel = a.motivosVenta||[];
+  const otroMotivo = motivosSel.find(mv=>!MOTIVOS_CONCRETADO.some(m=>m.t===mv)) || '';
+  const extrasPrev = (a.muebles||[]).filter(m=>m.agregadoEnCierre);
   return `
 
       <div class="row">
         <div class="field" style="flex:1">
           <label>N° de orden <span class="req">obligatorio</span></label>
-          <input type="text" id="cierreOrden" placeholder="Ej: 4142" oninput="this.classList.remove('campo-falta')">
+          <input type="text" id="cierreOrden" value="${a.nroOrden?escAttr(a.nroOrden):''}" placeholder="Ej: 4142" oninput="this.classList.remove('campo-falta')">
         </div>
         <div class="field" style="flex:1">
           <label>Monto vendido <span class="req">obligatorio</span></label>
           <div class="money-input"><span>$</span>
-            <input type="text" inputmode="numeric" id="cierreMonto" value="${cotizado?miles(cotizado):''}" placeholder="" oninput="formatearMontoInput(this);this.classList.remove('campo-falta')">
+            <input type="text" inputmode="numeric" id="cierreMonto" value="${a.montoVendido?miles(a.montoVendido):(cotizado?miles(cotizado):'')}" placeholder="" oninput="formatearMontoInput(this);this.classList.remove('campo-falta')">
           </div>
         </div>
       </div>
@@ -4133,7 +4163,7 @@ function htmlFormConcretado(a){
       <div class="field" style="margin-bottom:2px">
         <label>Método de pago</label>
         <div class="cierre-chips" id="cierrePago">
-          ${METODOS_PAGO.map(m=>`<span class="cierre-chip" data-v="${m.t}" onclick="pickPago(this)">${m.ic} ${m.t}</span>`).join('')}
+          ${METODOS_PAGO.map(m=>`<span class="cierre-chip ${a.metodoPago===m.t?'on':''}" data-v="${m.t}" onclick="pickPago(this)">${m.ic} ${m.t}</span>`).join('')}
         </div>
       </div>
 
@@ -4144,7 +4174,7 @@ function htmlFormConcretado(a){
         <p class="tiny" style="margin-top:-2px;margin-bottom:8px;color:var(--sec)">Tocá los que se concretaron. Podés agregar alguno que no estaba cotizado.</p>
         <div id="cierreMuebles">
           ${mueblesCot.map((m,i)=>`
-            <div class="cm-item ${m.elegido!==false?'on':''}" data-i="${i}" onclick="toggleMuebleVendido(this)">
+            <div class="cm-item ${(fueCerrada ? !!m.vendido : (m.elegido!==false))?'on':''}" data-i="${i}" onclick="toggleMuebleVendido(this)">
               <span class="cm-check">✓</span>
               <span class="cm-nom">${escapeHtml(nombreMueble(m))}${m.monto?` · $${miles(m.monto)}`:''}</span>
             </div>`).join('')}
@@ -4156,10 +4186,10 @@ function htmlFormConcretado(a){
       <div class="field">
         <label>¿Por qué se vendió? <span class="opt">(podés marcar varios)</span></label>
         <div class="cierre-chips" id="cierreMotivosVenta">
-          ${MOTIVOS_CONCRETADO.map(m=>`<span class="cierre-chip" data-v="${m.t}" onclick="toggleMotivoVenta(this)">${m.ic} ${m.t}</span>`).join('')}
-          <span class="cierre-chip" id="cierreMotivoOtroChip" onclick="toggleMotivoOtroVenta(this)">➕ Agregar motivo</span>
+          ${MOTIVOS_CONCRETADO.map(m=>`<span class="cierre-chip ${motivosSel.includes(m.t)?'on':''}" data-v="${m.t}" onclick="toggleMotivoVenta(this)">${m.ic} ${m.t}</span>`).join('')}
+          <span class="cierre-chip ${otroMotivo?'on':''}" id="cierreMotivoOtroChip" onclick="toggleMotivoOtroVenta(this)">➕ Agregar motivo</span>
         </div>
-        <input type="text" id="cierreMotivoOtro" class="hidden" placeholder="Escribí el motivo…" style="margin-top:8px;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;box-sizing:border-box">
+        <input type="text" id="cierreMotivoOtro" class="${otroMotivo?'':'hidden'}" value="${escAttr(otroMotivo)}" placeholder="Escribí el motivo…" style="margin-top:8px;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;box-sizing:border-box">
       </div>
 
       <button type="button" class="btn btn-guardar" onclick="guardarCierre()">✓ Confirmar venta</button>
@@ -4172,7 +4202,7 @@ function htmlFormRechazado(a){
       <div class="field">
         <label>Motivo</label>
         <div class="cierre-chips cierre-chips-rojo" id="cierreMotivos">
-          ${MOTIVOS_RECHAZO.map((m,i)=>`<span class="cierre-chip" data-motivo="${m.t}" data-nocuenta="${m.noCuenta?1:0}" onclick="pickMotivoRechazo(this)"><b class="motivo-n">${i+1}</b> ${m.t}</span>`).join('')}
+          ${MOTIVOS_RECHAZO.map((m,i)=>`<span class="cierre-chip ${a.resultadoMotivo===m.t?'on':''}" data-motivo="${m.t}" data-nocuenta="${m.noCuenta?1:0}" onclick="pickMotivoRechazo(this)"><b class="motivo-n">${i+1}</b> ${m.t}</span>`).join('')}
         </div>
       </div>
 
@@ -4184,12 +4214,12 @@ function htmlFormRechazado(a){
 
       <div class="field">
         <label>Observaciones <span class="opt">(opcional)</span></label>
-        <input type="text" id="cierreObservaciones" placeholder="Ej: dijo que vuelve en 2 meses cuando se mude">
+        <input type="text" id="cierreObservaciones" value="${escAttr(a.rechazoObservaciones||'')}" placeholder="Ej: dijo que vuelve en 2 meses cuando se mude">
       </div>
 
       <div class="field">
         <label>Comentario <span class="opt">(opcional)</span></label>
-        <textarea id="cierreComentario" rows="2" placeholder="Algo más que quieras dejar anotado"></textarea>
+        <textarea id="cierreComentario" rows="2" placeholder="Algo más que quieras dejar anotado">${escapeHtml(a.rechazoComentario||'')}</textarea>
       </div>
 
       <button type="button" class="btn" style="background:var(--red);color:#fff;width:100%" onclick="guardarCierre()">Confirmar rechazo</button>
@@ -4298,6 +4328,14 @@ async function guardarCierre(){if(esSoloLectura())return avisoLectura();
     if(!monto){
       toast('Cargá el monto vendido para confirmar la venta');
       $('cierreMonto').classList.add('campo-falta'); $('cierreMonto').focus();
+      return;
+    }
+    // Mueble vendido obligatorio: al menos uno de los cotizados marcado, o un extra cargado.
+    const _algunMueble = !!document.querySelector('#cierreMuebles .cm-item.on');
+    const _algunExtra = [...document.querySelectorAll('#cierreMueblesExtra .mueble-entry-row input[type=text]')].some(inp=>inp.value.trim());
+    if(!_algunMueble && !_algunExtra){
+      toast('Marcá al menos un mueble vendido');
+      const cm=$('cierreMuebles'); if(cm && cm.scrollIntoView) cm.scrollIntoView({behavior:'smooth',block:'center'});
       return;
     }
     // Anti-duplicado: 1 venta por N° de orden. Si ya hay una concretada con ese número (o
@@ -4838,7 +4876,7 @@ function logItemHtml(a){
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         ${canalIco}
         <div class="c-nom-inner">
-        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`:''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🛟 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🛟 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
