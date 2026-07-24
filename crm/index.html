@@ -1394,6 +1394,17 @@ textarea{resize:vertical;min-height:60px}
 .dir-card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 1px 2px rgba(15,26,42,.05);margin-bottom:14px}
 .dir-card .dh{display:flex;align-items:center;gap:8px;padding:13px 17px 11px;border-bottom:1px solid var(--line2);font-weight:800;font-size:14px}
 .dir-card .dh .r{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:700}
+/* Barra de navegación por día del registro de jornadas */
+.jorn-nav{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 17px 4px}
+.jorn-stepper{display:flex;align-items:center;background:var(--surface-1,#f4f6f8);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.jorn-stepper button{border:0;background:transparent;color:var(--sec,#5b6675);font:inherit;font-size:15px;font-weight:700;line-height:1;padding:0 12px;height:34px;cursor:pointer;transition:background .12s,color .12s}
+.jorn-stepper button:hover:not(:disabled){background:#e9edf3;color:var(--navy,#16324f)}
+.jorn-stepper button:disabled{opacity:.35;cursor:default}
+.jorn-stepper input[type=date]{border:0;border-left:1px solid var(--line);border-right:1px solid var(--line);background:#fff;font:inherit;font-size:12.5px;font-weight:600;color:var(--ink,#1f2a37);padding:0 8px;height:34px;width:132px}
+.jorn-fecha{font-size:14.5px;font-weight:800;text-transform:capitalize;color:var(--navy,#16324f)}
+.jorn-refresh{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--sec,#5b6675);font:inherit;font-size:12.5px;font-weight:600;padding:0 14px;height:34px;border-radius:10px;cursor:pointer;transition:border-color .12s,color .12s}
+.jorn-refresh:hover{border-color:var(--navy,#16324f);color:var(--navy,#16324f)}
+@media(max-width:560px){.jorn-refresh{margin-left:0}}
 .dir-tbl{width:100%;border-collapse:collapse;font-size:12.8px}
 .dir-tbl th{text-align:left;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:9px 15px;border-bottom:1px solid var(--line2)}
 .dir-tbl th.n,.dir-tbl td.n{text-align:right}
@@ -11604,16 +11615,18 @@ function htmlRegistroJornadas(){
     const pausasCell = ps.length ? `<b>${ps.length}</b> · <span class="muted" style="font-size:12px">${rangos}</span>` : '—';
     return `<tr><td>${escapeHtml(nombreDe(uid))}</td><td>${fh(j.conexion)}</td><td>${fh(j.ultima)}</td><td>${pausasCell}</td><td>${j.ultimaEdicion?fh(j.ultimaEdicion):'<span class="muted">—</span>'}</td></tr>`;
   }).join('') || `<tr><td colspan="5" class="muted" style="text-align:center;padding:14px">Nadie registró actividad ese día.</td></tr>`;
-  const nav=`<div class="daynav" style="display:flex;align-items:center;gap:8px;margin:2px 0 10px">
-    <button class="btn btn-ghost btn-sm" ${i<=0?'disabled':''} onclick="jornNavDia(-1)">‹ Día anterior</button>
-    <input type="date" value="${_jornKeyToInput(jornDiaSel)}" max="${_jornKeyToInput(dias[dias.length-1])}" min="${_jornKeyToInput(dias[0])}" onchange="jornSetDia(this.value)">
-    <button class="btn btn-ghost btn-sm" ${i>=dias.length-1?'disabled':''} onclick="jornNavDia(1)">Día siguiente ›</button>
-    <b style="font-size:13px;text-transform:capitalize;margin-left:6px">${fecha}</b>
-    <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="jornRefrescar()">↻ Actualizar</button>
+  const nav=`<div class="jorn-nav">
+    <div class="jorn-stepper">
+      <button ${i<=0?'disabled':''} onclick="jornNavDia(-1)" title="Día anterior">‹</button>
+      <input type="date" value="${_jornKeyToInput(jornDiaSel)}" max="${_jornKeyToInput(dias[dias.length-1])}" min="${_jornKeyToInput(dias[0])}" onchange="jornSetDia(this.value)">
+      <button ${i>=dias.length-1?'disabled':''} onclick="jornNavDia(1)" title="Día siguiente">›</button>
+    </div>
+    <span class="jorn-fecha">${fecha}</span>
+    <button class="jorn-refresh" onclick="jornRefrescar()">↻ Actualizar</button>
   </div>`;
   return `<div class="dir-card"><div class="dh">Conexiones del equipo<span class="r">conexión, pausas (30 min sin usar) y última edición</span></div>
     ${nav}
-    <div class="dir-scroll" style="overflow-x:auto"><table class="est-tabla" style="min-width:560px">
+    <div class="dir-scroll" style="overflow-x:auto;padding:0 4px 4px"><table class="est-tabla" style="min-width:560px">
       <tr><th>Usuario</th><th>Conexión</th><th>Última señal</th><th>Pausas</th><th>Última edición</th></tr>${filas}</table></div></div>`;
 }
 /* Entrar a la pantalla de un usuario usando tu "ver como" de siempre */
