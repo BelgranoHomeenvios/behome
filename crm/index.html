@@ -11584,6 +11584,23 @@ function renderDireccion(){
   const promEje=k=>{const xs=evalPer.filter(a=>a[k]);return xs.length?(xs.reduce((s,a)=>s+a[k],0)/xs.length).toFixed(1):'–';};
   const oportPerd=evalPer.filter(a=>a.oportunidadPerdida);
   const oportMonto=oportPerd.reduce((s,a)=>s+(+a.montoOportunidadPerdida||dirCotizado(a)),0);
+  // Total de consultas partido en virtuales y presenciales (local), para tener el total claro.
+  const esFisicoDir = a => a.canal==='presencial' || canalReal(a)==='Local';
+  const nLocal = B.filter(esFisicoDir).length;
+  const nVirtual = B.length - nLocal;
+  // % de evaluadas sobre el total de consultas del período.
+  const pctEval = B.length ? Math.round(evalPer.length/B.length*100) : 0;
+  // Distribución de las evaluadas por cada eje: cuántas cayeron en cada categoría.
+  const distEje = (campo, scale) => scale.map(([v,lbl])=>({lbl, n:evalPer.filter(a=>a[campo]===v).length}));
+  const distAtencion = distEje('evalAtencion', EV_ATENCION);
+  const distConsulta = distEje('evalConsulta', EV_CONSULTA);
+  const distCliente  = distEje('evalCliente',  EV_CLIENTE);
+  const distBlock = (titulo, dist) => {
+    const tot=dist.reduce((s,d)=>s+d.n,0);
+    const max=Math.max(1,...dist.map(d=>d.n));
+    return `<div style="margin-top:13px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">${titulo}</b>
+      <div style="margin-top:6px">${dist.map(d=>`<div class="dir-bar"><span class="bl">${d.lbl}</span><span class="bt"><i style="width:${Math.round(d.n/max*100)}%;background:#7c3aed"></i></span><span class="bv" style="width:78px"><b>${d.n}</b><span style="color:var(--muted);font-weight:600">${tot?` · ${Math.round(d.n/tot*100)}%`:''}</span></span></div>`).join('')}</div></div>`;
+  };
 
   const calTxt=c=>c==null?'–':c.toFixed(1);
   const calPill=c=>c==null?'':c<=1.8?'g':c<=2.6?'a':'r';
@@ -11600,6 +11617,11 @@ function renderDireccion(){
       <div class="dir-kpi dir-kpi-btn ${dirDetalle==='enjuego'?'on':''}" style="--dk:#0369a1;--dkc:#0369a1" onclick="dirToggleDetalle('enjuego')"><div class="l">En seguimiento <span class="dir-kpi-chev">${dirDetalle==='enjuego'?'▲':'▾'}</span></div><div class="v">${abiertas.length}</div><div class="s"><b style="color:#0369a1">$ ${miles(enJuego)}</b> en juego · ${pctSeg}% seguimiento</div></div>
       <div class="dir-kpi dir-kpi-btn ${dirDetalle==='perdida'?'on':''}" style="--dk:var(--red);--dkc:var(--red)" onclick="dirToggleDetalle('perdida')"><div class="l">Rechazados <span class="dir-kpi-chev">${dirDetalle==='perdida'?'▲':'▾'}</span></div><div class="v">${rech.length}</div><div class="s"><b style="color:var(--red)">$ ${miles(perdida)}</b> perdida · ${pctRech}% del total</div></div>
       <div class="dir-kpi" style="--dk:#b45309;--dkc:#b45309"><div class="l">Sin cotización</div><div class="v">${sinCotTotal}</div><div class="s">abiertas · últimos 30 días</div></div>
+    </div>
+    <div class="dir-kpis" style="grid-template-columns:repeat(3,1fr)">
+      <div class="dir-kpi" style="--dk:#7c3aed;--dkc:#7c3aed"><div class="l">Consultas virtuales</div><div class="v">${nVirtual}</div><div class="s">${B.length?Math.round(nVirtual/B.length*100):0}% del total</div></div>
+      <div class="dir-kpi" style="--dk:#1e5fce;--dkc:#1e5fce"><div class="l">Consultas en local</div><div class="v">${nLocal}</div><div class="s">${B.length?Math.round(nLocal/B.length*100):0}% del total</div></div>
+      <div class="dir-kpi" style="--dk:var(--navy);--dkc:var(--navy)"><div class="l">Total de consultas</div><div class="v">${B.length}</div><div class="s">${perLbl}</div></div>
     </div>
     ${dirDetalle ? htmlDirDetalle(dirDetalle, {generada:conc, enjuego:abiertas, perdida:rech.filter(esClienteReal)}[dirDetalle]) : ''}
 
@@ -11624,14 +11646,18 @@ function renderDireccion(){
       <div class="dir-card" style="margin:0"><div class="dh">¿Quién necesita una mano?<span class="r">atrasadas + seguimiento / consultas</span></div>
         <div style="padding:13px 17px">${rank.map(r=>{const col=r.carga>=45?'var(--red)':r.carga>=30?'var(--amber)':'var(--green)';
           return `<div class="dir-bar"><span class="bl">${r.n}${r.atr?` <span style="color:var(--red);font-weight:800">(${r.atr} atr.)</span>`:''}</span><span class="bt"><i style="width:${Math.round(r.carga/maxCar*100)}%;background:${col}"></i></span><span class="bv" style="color:${col}">${r.carga}%</span></div>`;}).join('')||'<div style="color:var(--muted);padding:8px">Sin datos en el período.</div>'}</div></div>
-      <div class="dir-card" style="margin:0"><div class="dh">Evaluaciones de Cintia<span class="r">${perLbl}</span></div>
-        <div style="padding:13px 17px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div class="dir-kpi" style="--dk:#0369a1"><div class="l">Evaluadas</div><div class="v">${evalPer.length}</div></div>
-          <div class="dir-kpi" style="--dk:var(--amber)"><div class="l">Oportunidades perdidas</div><div class="v">${oportPerd.length}</div><div class="s">$ ${miles(oportMonto)}</div></div>
-          <div class="dir-kpi" style="--dk:var(--blue)"><div class="l">Atención (prom.)</div><div class="v">${promEje('evalAtencion')}<span style="font-size:12px;color:var(--muted)"> /4</span></div></div>
-          <div class="dir-kpi" style="--dk:#7c3aed"><div class="l">Consulta · Cliente</div><div class="v">${promEje('evalConsulta')} · ${promEje('evalCliente')}</div><div class="s">1 = excelente</div></div>
-        </div></div>
     </div>
+
+    <div class="dir-card"><div class="dh">Evaluaciones de Cintia<span class="r">${perLbl}</span></div>
+      <div style="padding:13px 17px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="dir-kpi" style="--dk:#0369a1;--dkc:#0369a1"><div class="l">Evaluadas</div><div class="v">${evalPer.length}</div><div class="s">de ${B.length} consultas · <b>${pctEval}%</b> evaluado</div></div>
+          <div class="dir-kpi" style="--dk:var(--red);--dkc:var(--red)"><div class="l">Oportunidades perdidas</div><div class="v">${oportPerd.length}</div><div class="s"><b style="color:var(--red)">$ ${miles(oportMonto)}</b> que se podían cerrar</div></div>
+        </div>
+        ${distBlock('Atención', distAtencion)}
+        ${distBlock('Consulta', distConsulta)}
+        ${distBlock('Tipo de cliente', distCliente)}
+      </div></div>
 
     <div class="dir-grid2">
       <div class="dir-card" style="margin:0"><div class="dh">Consultas por local</div>
