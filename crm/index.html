@@ -153,15 +153,18 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-oport,.chead .h-oport{flex:1.4}
 .c-plazo,.chead .h-plazo{flex:1}
 .c-emo,.chead .h-emo{flex:1;display:flex;gap:6px;justify-content:flex-end}
-.c-coment,.chead .h-coment{flex:1.5;display:flex;align-items:center;gap:9px;min-width:158px;justify-content:flex-end}
+.c-coment,.chead .h-coment{flex:1;display:flex;align-items:center;gap:9px;min-width:112px;justify-content:flex-end}
 .c-estado,.chead .h-estado{flex:1.2;display:flex;align-items:center;gap:4px}
 .c-fecha,.chead .h-fecha{flex:.7;color:var(--sec);font-weight:600;font-size:12.5px}
 .c-vendedor,.chead .h-vendedor{flex:1;color:var(--sec);font-weight:600}
 .c-canal,.chead .h-canal{flex:1.1;min-width:0;color:var(--sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .c-vendedor,.chead .h-vendedor{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* ===== Columnas fusionadas: Situación (estado+oportunidad) y Origen (vendedor+canal) ===== */
-.c-situacion,.chead .h-situacion{flex:1.5;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
+.c-situacion,.chead .h-situacion{flex:1.9;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
 .c-situacion{overflow:visible}
+/* Primera línea de la columna Estado: el pill de estado + editar (✏️) y foto (🖼️) al lado. */
+.c-situacion .sit-top{display:flex;align-items:center;gap:5px;max-width:100%}
+.c-situacion .sit-ico{font-size:13px;line-height:1}
 .c-situacion .sit-op{font-size:11.5px;color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block}
 /* El contenedor NO recorta: si lo hiciera, el menú desplegable quedaría cortado
    dentro de la celda. El recorte del texto largo vive en .sit-op. */
@@ -5100,18 +5103,22 @@ function logItemHtml(a){
         </span>`}
       </div>
       <div class="c-situacion">
-        ${esPostventa(a) ? `
-        <span class="ebtn est-btn rap-btn" title="Cambiar estado de la consulta" onclick="event.stopPropagation();togPop(this)">
-          <span class="est ${PV_CLS[estadoPostventaDe(a)]||'es-sin'}">${estadoPostventaDe(a)}</span>
-          <span class="pop pop-rapido">
-            <b>Estado de la consulta</b>
-            ${estadosPostventaDe(a).map(s=>`<div class="menu-op${estadoPostventaDe(a)===s?' on':''}" onclick="event.stopPropagation();setEstadoPostventa('${a.id}','${s}')">${s}</div>`).join('')}
-          </span>
-        </span>` : `
-        <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
-          <span class="est ${est?ESTADO_CLS[est]:'es-sin'}">${est||'Sin clasificar'}</span>
-        </span>
-        ${cerrada
+        <div class="sit-top">
+          ${esPostventa(a) ? `
+          <span class="ebtn est-btn rap-btn" title="Cambiar estado de la consulta" onclick="event.stopPropagation();togPop(this)">
+            <span class="est ${PV_CLS[estadoPostventaDe(a)]||'es-sin'}">${estadoPostventaDe(a)}</span>
+            <span class="pop pop-rapido">
+              <b>Estado de la consulta</b>
+              ${estadosPostventaDe(a).map(s=>`<div class="menu-op${estadoPostventaDe(a)===s?' on':''}" onclick="event.stopPropagation();setEstadoPostventa('${a.id}','${s}')">${s}</div>`).join('')}
+            </span>
+          </span>` : `
+          <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
+            <span class="est ${est?ESTADO_CLS[est]:'es-sin'}">${est||'Sin clasificar'}</span>
+          </span>`}
+          <span class="ebtn cm-ico sit-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
+          <span class="ebtn cm-ico sit-ico${(tieneFoto(a))?'':' apagado'}" title="${(tieneFoto(a))?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
+        </div>
+        ${esPostventa(a) ? '' : (cerrada
           ? `<span class="sit-op sit-cerrada" title="Consulta ${est.toLowerCase()}">Cerrada</span>`
           : `<span class="ebtn rap-btn rap-op" title="Cambiar cómo viste al cliente" onclick="event.stopPropagation();togPop(this)">
           <span class="sit-op">${a.percepcion?`${emo} ${a.percepcion}`:'–'}</span>
@@ -5119,7 +5126,7 @@ function logItemHtml(a){
             <b>¿Cómo viste al cliente?</b>
             ${PERCEPCIONES.map(p=>`<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${OPORT_EMOJI[p]||''} ${p}</div>`).join('')}
           </span>
-        </span>`}`}
+        </span>`)}
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         ${canalIco}
@@ -5148,8 +5155,6 @@ function logItemHtml(a){
             </div>
           </span>
         </span>
-        <span class="ebtn cm-ico${(tieneFoto(a))?'':' apagado'}" title="${(tieneFoto(a))?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
-        <span class="ebtn cm-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
         ${puedeMarcarIntervencion() ? `<span class="ebtn cm-ico interv-ico${intervinoCintia(a)?' on':''}" title="${intervinoCintia(a)?('Intervino '+nombreDe(a.cintiaIntervino.porId)+' — clic para quitar'):'Marcar que Cintia intervino / dio soporte en esta consulta'}" onclick="event.stopPropagation();toggleIntervencionCintia('${a.id}')">🚒</span>` : ''}
         ${solPendiente
           ? `<span class="ebtn cm-ico apagado" title="Baja ya solicitada">🗑️</span>`
