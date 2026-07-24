@@ -787,7 +787,20 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .cr-mas{font-size:12.5px;font-weight:700;color:var(--blue);cursor:pointer;margin:2px 0 10px}
 .cr-mas:hover{text-decoration:underline}
 @media(max-width:760px){.cr-split{flex-direction:column}.cr-lado{width:100%}}
-.turno-contador{display:block;color:#fff;font-size:20px;font-weight:800;letter-spacing:-.01em;margin-bottom:12px}
+.turno-contador{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;color:#fff;font-size:14px;font-weight:700;margin:12px 0 0}
+.turno-contador .ad-tot b{font-size:18px}
+.turno-contador .ad-split{font-size:12.5px;font-weight:600;color:#cdddf0;background:rgba(255,255,255,.08);padding:3px 11px;border-radius:999px}
+.turno-contador .ad-split b{color:#fff}
+.calc-sena{margin-top:12px;text-align:left;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:10px;overflow:hidden}
+.calc-sena-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:9px 13px;font-size:13px;font-weight:700;color:#fff;user-select:none}
+.calc-sena-head:hover{background:rgba(255,255,255,.05)}
+.calc-chev{font-size:10px;opacity:.8}
+.calc-sena-body{padding:2px 13px 13px}
+.calc-sena .calc-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.calc-sena .calc-f{flex:1;min-width:118px}
+.calc-sena .calc-f label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#a8c2ea;font-weight:700;margin-bottom:5px}
+.calc-sena .calc-f .money-input{background:#fff}
+.calc-sena .calc-val{font-size:17px;font-weight:800;color:#8fe3b0;padding:9px 0}
 .panel-section{padding:16px 20px;border-top:1px solid var(--line2)}
 .turno-label{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.65;margin-bottom:3px}
 .turno-nombre{font-size:22px;font-weight:800;line-height:1.15;margin-bottom:3px}
@@ -1522,10 +1535,23 @@ textarea{resize:vertical;min-height:60px}
           <div class="turno-nombre" id="turnoActual">—</div>
           <div class="turno-sub" id="turnoSub"></div>
           <div id="badgeTurno"></div>
-          <div class="turno-contador hidden" id="turnoContador"></div>
           <div class="row" id="accionesSecundarias" style="margin-top:4px">
             <button class="btn btn-primary" id="btnPrincipal" onclick="abrirModalNueva()">Registrar mi atención</button>
             <button class="btn btn-secondary hidden" id="btnRegistroRapido" onclick="abrirModalRapido()">Registro rápido</button>
+          </div>
+          <div class="turno-contador hidden" id="turnoContador"></div>
+          <div class="calc-sena" id="calcSenaBox">
+            <div class="calc-sena-head" onclick="toggleCalcSena()">
+              <span>🧮 Calculadora de seña</span>
+              <span class="calc-chev" id="calcSenaChev">▼</span>
+            </div>
+            <div class="calc-sena-body hidden" id="calcSenaBody">
+              <div class="calc-row">
+                <div class="calc-f"><label>Monto total de la orden</label><div class="money-input"><span>$</span><input type="text" inputmode="numeric" id="calcSenaTotal" placeholder="0" oninput="calcSenaCalcular(this)"></div></div>
+                <div class="calc-f"><label>Seña a solicitar</label><div class="calc-val" id="calcSenaSena">$ 0</div></div>
+                <div class="calc-f"><label>Saldo restante</label><div class="calc-val" id="calcSenaResto">$ 0</div></div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3497,11 +3523,13 @@ function renderChipsHoy(){
   }else{
     $('chipsTitle').classList.add('hidden');
     $('chipsCard').classList.add('hidden');
-    const mias=hoy.filter(a=>a.vendedorId===YO).length;
+    const misHoy=hoy.filter(a=>a.vendedorId===YO);
+    const local=misHoy.filter(a=>a.canal==='presencial'||canalReal(a)==='Local').length;
+    const virtual=misHoy.length-local;
     const contador=$('turnoContador');
     if(yaConectadoHoy(YO) && !forzandoSelector && !estaPausado(YO)){
       contador.classList.remove('hidden');
-      contador.textContent=`Atención del día: ${mias}`;
+      contador.innerHTML=`<span class="ad-tot">Atenciones del día: <b>${misHoy.length}</b></span><span class="ad-split">📲 <b>${virtual}</b> virtual${virtual===1?'':'es'} · 👥 <b>${local}</b> local</span>`;
     }else{
       contador.classList.add('hidden');
     }
@@ -9821,6 +9849,23 @@ function onSenaInput(el){
   const sena = parseInt((el.value||'').replace(/\D/g,''))||0;
   _senaEditada = true; _senaManual = sena;
   const r=$('senaResto'); if(r) r.textContent='$ '+miles(Math.max(0, total - sena));
+}
+/* Calculadora de seña suelta del header del vendedor: pone el total y calcula la seña
+   sugerida y el saldo, con la misma cuenta que el cierre. */
+function toggleCalcSena(){
+  const b=$('calcSenaBody'), c=$('calcSenaChev');
+  if(!b) return;
+  const oculto=b.classList.toggle('hidden');
+  if(c) c.textContent = oculto?'▼':'▲';
+  if(!oculto){ const i=$('calcSenaTotal'); if(i) setTimeout(()=>i.focus(),30); }
+}
+function calcSenaCalcular(el){
+  formatearMontoInput(el);
+  const total=parseInt((el.value||'').replace(/\D/g,''))||0;
+  const c=calcSena(total);
+  const s=$('calcSenaSena'), r=$('calcSenaResto');
+  if(s) s.textContent = c?'$ '+miles(c.sena):'$ 0';
+  if(r) r.textContent = c?'$ '+miles(c.resto):'$ 0';
 }
 
 /* ---------------- Paso 3 ---------------- */
