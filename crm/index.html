@@ -5255,27 +5255,8 @@ function renderHistorial(){
     $('sbtn-equipo').style.color = scopeActual==='equipo'?'#fff':'var(--ink)';
   }
 
-  if(esAdmin()){
-    // Turnos normales vs saltos de cola — solo tiene sentido en locales con rotación
-    const enRotacion = l.filter(a=>LOCALES[a.localId] && LOCALES[a.localId].modo==='rotacion');
-    const normales = enRotacion.filter(a=>!a.fueraDeTurno).length;
-    const saltos = enRotacion.filter(a=>a.fueraDeTurno).length;
-    const totalRot = normales+saltos;
-    $('statsTurnosBox').classList.remove('hidden');
-    if(!totalRot){
-      $('statsTurnosBox').innerHTML = `<h3>Turnos vs saltos de cola</h3><p class="tiny" style="margin:0">No hay atenciones en locales con rotación para este filtro.</p>`;
-      const pctSaltos = Math.round((saltos/totalRot)*100);
-      $('statsTurnosBox').innerHTML = `
-        <h3>Turnos vs saltos de cola</h3>
-        <div class="chips" style="margin-top:0">
-          <div class="chip total"><b>${normales}</b> turnos normales</div>
-          <div class="chip"><b>${saltos}</b> saltos de cola</div>
-        </div>
-        <p class="tiny" style="margin-top:10px">${pctSaltos}% de las atenciones en locales con rotación se salteó el orden de la cola (derivaciones a otro vendedor o atención fuera de turno). Solo cuenta locales en modo rotación — no aplica a locales de vendedor fijo.</p>`;
-    }
-  }else{
-    $('statsTurnosBox').classList.add('hidden');
-  }
+  // "Turnos vs saltos de cola" quitado por ahora (no se usa).
+  { const stb=$('statsTurnosBox'); if(stb){ stb.classList.add('hidden'); stb.innerHTML=''; } }
 
   if(esAuditora() && cintiaSeccion==='consultas') renderCintiaFecha();
 }
@@ -11200,6 +11181,13 @@ function renderDireccion(){
   const maxGen=Math.max(1,...S.map(s=>s.gen));
   const rank=[...S].sort((a,b)=>b.carga-a.carga);const maxCar=Math.max(1,...rank.map(r=>r.carga));
 
+  // Consultas SIN cotización (abiertas, últimos 30 días): cuántas hay y quién tiene más.
+  const _h30=Date.now()-30*86400000;
+  const sinCotBase=atenciones.filter(a=>cuentaParaVendedor(a) && new Date(a.ts).getTime()>=_h30 && !esConsultaGestion(a) && (()=>{const e=estadoDe(a);return e!=='Concretado'&&e!=='Rechazado';})() && dirCotizado(a)===0);
+  const sinCotTotal=sinCotBase.length;
+  const sinCotVend=vends.map(u=>({u,n:nombreDe(u),c:sinCotBase.filter(a=>a.vendedorId===u).length})).sort((a,b)=>b.c-a.c);
+  const maxSinCot=Math.max(1,...sinCotVend.map(s=>s.c));
+
   // por local / canal
   const porLocal={};B.forEach(a=>{const k=a.localId?nombreLocal(a.localId):'Virtual';porLocal[k]=(porLocal[k]||0)+1;});
   const locs=Object.entries(porLocal).sort((a,b)=>b[1]-a[1]);const maxL=Math.max(1,...locs.map(l=>l[1]));
@@ -11243,8 +11231,14 @@ function renderDireccion(){
       <div class="dir-kpi dir-kpi-btn ${dirDetalle==='perdida'?'on':''}" style="--dk:var(--red);--dkc:var(--red)" onclick="dirToggleDetalle('perdida')"><div class="l">Plata perdida <span class="dir-kpi-chev">${dirDetalle==='perdida'?'▲':'▾'}</span></div><div class="v">$ ${miles(perdida)}</div><div class="s">solo clientes reales</div></div>
       <div class="dir-kpi" style="--dk:var(--blue)"><div class="l">Tasa de cierre</div><div class="v">${cierre}%</div><div class="s">sobre ${B.length} consultas</div></div>
       <div class="dir-kpi" style="--dk:#7c3aed"><div class="l">Consultas</div><div class="v">${B.length}</div><div class="s">${perLbl}</div></div>
+      <div class="dir-kpi" style="--dk:#b45309"><div class="l">Sin cotización</div><div class="v">${sinCotTotal}</div><div class="s">abiertas · últimos 30 días</div></div>
     </div>
     ${dirDetalle ? htmlDirDetalle(dirDetalle, {generada:conc, enjuego:abiertas, perdida:rech.filter(esClienteReal)}[dirDetalle]) : ''}
+
+    <div class="dir-card"><div class="dh">Consultas sin cotización<span class="r">abiertas de los últimos 30 días · con quién trabajar más</span></div>
+      <div style="padding:13px 17px">${sinCotVend.some(s=>s.c>0)
+        ? sinCotVend.map((s,i)=>`<div class="dir-bar"><span class="bl">${escapeHtml(s.n)}${(i===0&&s.c>0)?' <span class="dir-pill r">a trabajar</span>':''}</span><span class="bt"><i style="width:${Math.round(s.c/maxSinCot*100)}%;background:#b45309"></i></span><span class="bv">${s.c}</span></div>`).join('')
+        : '<div style="color:var(--muted)">Ninguna consulta sin cotización en los últimos 30 días 🎉</div>'}</div></div>
 
     <div class="dir-card"><div class="dh">Comparativa del equipo<span class="r">clic en un vendedor = ver su pantalla</span></div>
       <div style="overflow-x:auto"><table class="dir-tbl">
