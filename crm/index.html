@@ -15,6 +15,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 
 .admin-view-bar{background:#fde68a;color:#7a4a00;display:flex;align-items:center;gap:10px;padding:8px 18px;font-size:12.5px;font-weight:600}
 .admin-view-bar select{border:1px solid #d9a12b;border-radius:6px;padding:5px 8px;font-size:12.5px;font-family:inherit;font-weight:700;background:#fff;color:#7a4a00}
+.admin-view-lectura{background:#7a4a00;color:#fff;border-radius:6px;padding:4px 9px;font-size:12px;font-weight:700}
 
 .app-header{background:var(--navy);color:#fff;height:54px;display:flex;align-items:center;gap:12px;padding:0 18px}
 .app-header .logo{width:30px;height:30px;border-radius:6px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
@@ -1471,6 +1472,7 @@ textarea{resize:vertical;min-height:60px}
   <div class="admin-view-bar hidden" id="adminViewBar">
     <span id="adminViewLbl">Modo admin · ver la app como:</span>
     <select id="adminViewSelect" onchange="cambiarVistaComo(this.value)"></select>
+    <span id="adminViewLectura" class="admin-view-lectura hidden">👁 Modo lectura — no se pueden hacer cambios</span>
   </div>
   <div class="app-header">
     <span class="logo">BH</span>
@@ -2111,6 +2113,17 @@ function esConsultaIG(a){ return !!(a && a.canal==='virtual' && /instagram/i.tes
 function esAdmin(){return rolDe(YO)==='admin';}
 function esAuditora(){return rolDe(YO)==='auditora';}
 function puedeVerEquipo(){return esAdmin()||esAuditora();}
+/* Modo lectura: cuando Cintia (auditora) entra a la pantalla de un vendedor
+   con "ver como", ve TODO pero no puede modificar nada de esa pantalla. Su
+   laburo de auditora (evaluar, marcar 🤝, etc.) lo hace desde su propia vista,
+   donde YO===VER_COMO_REAL y esto es false. Al admin nunca lo bloquea. */
+function esSoloLectura(){return !!VER_COMO_REAL && rolDe(VER_COMO_REAL)==='auditora' && YO!==VER_COMO_REAL;}
+let _avisoLecturaTs=0;
+function avisoLectura(){
+  const ahora=Date.now();
+  if(ahora-_avisoLecturaTs>1500){ _avisoLecturaTs=ahora; try{toast('👁 Modo lectura: estás viendo la pantalla de '+nombreDe(YO)+', no podés hacer cambios.');}catch(e){} }
+  return false;
+}
 function nombreDe(uid){return (USUARIOS[uid]||{n:uid}).n;}
 /* El "Vino de la publicidad: X" es info interna de Cintia — al vendedor no le
    sirve. Consultas viejas lo tienen guardado como comentario; lo filtramos en
@@ -2164,7 +2177,7 @@ function pintarAdminViewBar(){
   $('adminViewBar').classList.remove('hidden');
   // El admin puede ver a todos (vendedores + Cintia); Cintia solo a los vendedores.
   const esAdminReal = rolDe(VER_COMO_REAL)==='admin';
-  const lbl=$('adminViewLbl'); if(lbl) lbl.textContent = esAdminReal ? 'Modo admin · ver la app como:' : 'Ver la pantalla de:';
+  const lbl=$('adminViewLbl'); if(lbl) lbl.textContent = esAdminReal ? 'Modo admin · ver la app como:' : 'Entrar a la planilla de:';
   const uids = esAdminReal
     ? ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor'||rolDe(uid)==='auditora')
     : ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor');
@@ -2172,6 +2185,7 @@ function pintarAdminViewBar(){
     `<option value="__real__">${nombreDe(VER_COMO_REAL)} (vos)</option>` +
     uids.map(uid=>`<option value="${uid}">${nombreDe(uid)}</option>`).join('');
   $('adminViewSelect').value = (YO===VER_COMO_REAL) ? '__real__' : YO;
+  const lec=$('adminViewLectura'); if(lec) lec.classList.toggle('hidden', !esSoloLectura());
 }
 
 function cambiarVistaComo(valor){
@@ -2282,9 +2296,9 @@ function entrarApp(){
   }else if(esAuditora()){
     $('whoRol').textContent='Auditora / Coordinadora';
     $('localLineVendedor').classList.add('hidden');
-    $('filtroLocalAdmin').classList.remove('hidden');
-    $('filtroLocalAdmin').innerHTML = `<option value="todos">Todos los locales</option>` +
-      Object.keys(LOCALES).map(id=>`<option value="${id}">${nombreLocal(id)}</option>`).join('');
+    // Cintia no filtra por local: entra a la planilla de cada vendedor desde la
+    // barra de arriba ("Entrar a la planilla de:"). Trabaja siempre sobre todo el equipo.
+    $('filtroLocalAdmin').classList.add('hidden');
     FILTRO_LOCAL_ADMIN='todos';
     scopeActual='equipo';
   }else{
@@ -2888,6 +2902,7 @@ function consultaAFila(a){
 let _timerGuardado = null;
 async function saveAtenciones(){
   if(!sb || _aplicandoRemoto) return;
+  if(esSoloLectura()) return; // Cintia mirando la planilla de un vendedor: nunca persiste
   for(const a of atenciones){
     const j = JSON.stringify(a);
     if(_snapConsultas[a.id] !== j){ _colaGuardado.add(a.id); _snapConsultas[a.id] = j; }
@@ -3988,7 +4003,7 @@ function cerrarModalCierre(){
 }
 /* Marcó Concretado/Rechazado por error: se vuelve a dejar la consulta En seguimiento y
    se cierra el modal, sin registrar cierre. */
-async function volverASeguimiento(){
+async function volverASeguimiento(){if(esSoloLectura())return avisoLectura();
   const a=atenciones.find(x=>x.id===cerrandoId);
   if(a){
     a.rechazoPorBaja=false;
@@ -4000,7 +4015,7 @@ async function volverASeguimiento(){
   render();
   toast('Volvió a seguimiento');
 }
-async function guardarCierre(){
+async function guardarCierre(){if(esSoloLectura())return avisoLectura();
   const a=atenciones.find(x=>x.id===cerrandoId);
   if(!a) return;
   const cotizado=montoRepresentativo(a.muebles||[]);
@@ -4320,7 +4335,7 @@ async function ejecutarBajaContacto(s){
   await saveAtenciones();
   await saveContactos();
 }
-async function restaurarBaja(id){
+async function restaurarBaja(id){if(esSoloLectura())return avisoLectura();
   const s=solicitudesEliminacion.find(x=>x.id===id);
   if(!s || !s.snapshotAtencion) return;
   if(!atenciones.some(a=>a.id===s.snapshotAtencion.id)) atenciones.push({...s.snapshotAtencion});
@@ -6284,7 +6299,7 @@ function renderEliminacionesAdmin(){
 /* Baja definitiva: borra la consulta de la base (Supabase) y saca la solicitud, así ya no
    se puede restaurar. Purga de verdad, a diferencia de la baja normal que guarda un
    snapshot por si hay que reponerla. */
-async function eliminarDefinitivamente(id){
+async function eliminarDefinitivamente(id){if(esSoloLectura())return avisoLectura();
   const s=solicitudesEliminacion.find(x=>x.id===id);
   if(!s) return;
   if(!window.confirm('¿Eliminar DEFINITIVAMENTE este contacto del sistema? No se va a poder restaurar.')) return;
@@ -6302,7 +6317,7 @@ async function eliminarDefinitivamente(id){
   render();
   toast('Contacto eliminado definitivamente');
 }
-async function eliminarTodasDefinitivamente(){
+async function eliminarTodasDefinitivamente(){if(esSoloLectura())return avisoLectura();
   const aprobadas=solicitudesEliminacion.filter(s=>s.estado==='aprobada');
   if(!aprobadas.length){ toast('No hay bajas para eliminar'); return; }
   if(!window.confirm(`¿Eliminar DEFINITIVAMENTE las ${aprobadas.length} bajas del sistema? No se van a poder restaurar.`)) return;
@@ -6753,7 +6768,7 @@ function esConsultaGestion(a){
    después de que ella intervino). Solo Cintia y dirección pueden marcarlo. */
 function intervinoCintia(a){ return !!(a && a.cintiaIntervino); }
 function puedeMarcarIntervencion(){ return esAuditora() || esAdmin(); }
-async function toggleIntervencionCintia(id){
+async function toggleIntervencionCintia(id){if(esSoloLectura())return avisoLectura();
   const a=atenciones.find(x=>x.id===id); if(!a) return;
   if(a.cintiaIntervino){
     a.cintiaIntervino=null;
@@ -8842,7 +8857,7 @@ function verNotaSegunda(id){
   document.body.style.overflow='hidden';
 }
 
-async function guardarEvaluacionCintia(){
+async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura();
   const a=atenciones.find(x=>x.id===evaluandoId);
   if(!a){cerrarEvaluar();return;}
   guardarBorradorEvaluar();
@@ -8951,7 +8966,7 @@ async function guardarEvaluacionCintia(){
 }
 
 /* -------- Estados de pedido: marcar respondido -------- */
-async function marcarEstadoRespondido(id){
+async function marcarEstadoRespondido(id){if(esSoloLectura())return avisoLectura();
   const e=estadosPedido.find(x=>x.id===id);
   if(!e) return;
   e.respondido=true;
@@ -9145,7 +9160,7 @@ function pickAdminLocal(el){
   document.querySelectorAll('#adminLocPills .pill').forEach(p=>p.classList.remove('on'));
   el.classList.add('on');
 }
-async function crearAtencionAdminLocal(){
+async function crearAtencionAdminLocal(){if(esSoloLectura())return avisoLectura();
   const sel=document.querySelector('#adminLocPills .pill.on');
   if(!sel){toast('Elegí el local');return;}
   const id='at_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
@@ -10179,7 +10194,7 @@ function limpiarModal(){
 /* Estado elegido al registrar una atención nueva. Si es Concretado/Rechazado, al
    guardar se encadena la ficha de cierre (orden/monto/motivo), sin pasar por seguimiento. */
 let nuevaEstadoSel='En seguimiento';
-function pickNuevaEstado(el){
+function pickNuevaEstado(el){if(esSoloLectura())return avisoLectura();
   document.querySelectorAll('#nuevaEstadoPills .pill').forEach(p=>p.classList.remove('on'));
   el.classList.add('on');
   nuevaEstadoSel=el.dataset.est;
@@ -10575,7 +10590,7 @@ async function aplicarProximaAccion(rec){
   await saveContactos();
 }
 
-async function guardarAtencion(){
+async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
   const nombreInput=$('clienteNombre').value.trim();
   const noTomoNombre=$('noTomoNombre').checked;
   const noTomo=$('noTomoTel').checked;
