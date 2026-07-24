@@ -5095,9 +5095,9 @@ function cheadHtml(){
       <span class="ebtn filtro-head sub ${oportActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Oportunidad<span class="arrow">▾</span>
         <span class="pop pop-down"><b>Filtrar por oportunidad</b>${popFiltroOpciones('oport',FILTRO_OPORT_OPCIONES,filtroOportunidad)}</span>
       </span>
-      <span class="ebtn filtro-head sub ${filtroPostventa!=='pendientes'?'activo':''}" onclick="event.stopPropagation();togPop(this)">Post-venta<span class="arrow">▾</span>
+      ${puedeVerEquipo() ? `<span class="ebtn filtro-head sub ${filtroPostventa!=='pendientes'?'activo':''}" onclick="event.stopPropagation();togPop(this)">Post-venta<span class="arrow">▾</span>
         <span class="pop pop-down"><b>Consultas de estado / reclamos</b>${popFiltroOpciones('postventa',[['pendientes','Pendientes / En gestión'],['resueltas','Resueltas'],['todas','Todas']],filtroPostventa)}</span>
-      </span>
+      </span>` : ''}
     </span>
     <span class="h-nom"><span class="ebtn filtro-head ${buscActivo||filtroCanalGrupo!=='todos'?'activo':''}" onclick="event.stopPropagation();togPop(this)">Contacto<span class="arrow">▾</span>
       <span class="pop pop-down pop-buscar" onclick="event.stopPropagation()"><b>Buscar</b>
