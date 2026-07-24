@@ -9568,6 +9568,12 @@ function abrirVistaEvaluacion(id){
       ${chip('consulta',a.evalConsulta)}
       ${chip('cliente',a.evalCliente)}
     </div>`;
+  }else if(a.evaluada && a.nuncaRespondio){
+    // No es evaluación con ejes: la consulta se marcó como "nunca respondió",
+    // así que en vez de quedar vacía muestra el motivo bien claro.
+    ejes=`<div class="vev-ejes"><div class="vev-eje" style="flex:1">
+      <span class="ev-chip a">🚫 No es cliente · Nunca respondió</span>
+    </div></div>`;
   }
 
   const estadoRev = rev ? (
