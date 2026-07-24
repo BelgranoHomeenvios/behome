@@ -6008,13 +6008,11 @@ async function aplicarCorreccionesBaseUI(){
   const btn=$('btnAplicarCorr'); if(btn) btn.disabled=true;
   try{
     const r=await correccionesBaseCore(false);
-    if(box) box.innerHTML=`<span style="color:var(--green)">✓ Listo. Se actualizaron <b>${r.total}</b> consultas en la base: ${r.cN} nombres, ${r.cC} canales, ${r.cE} estados, ${r.cV} archivadas limpiadas.</span>`;
+    if(box) box.innerHTML=`<span style="color:var(--green)">✓ Listo. Se actualizaron <b>${r.total}</b> consultas en la base: ${r.cN} nombres, ${r.cE} estados, ${r.cV} archivadas limpiadas.</span>`;
     render();
   }catch(e){ console.error(e); if(box) box.innerHTML='<span style="color:var(--red)">Se cortó al aplicar: '+(e.message||e)+'. Podés volver a apretar Aplicar — retoma lo que faltó.</span>'; if(btn) btn.disabled=false; }
 }
-function renderEliminacionesAdmin(){
-  const box=$('eliminacionesAdminBox');
-  if(!box) return;
+function htmlEliminaciones(){
   const aprobadas=solicitudesEliminacion.filter(s=>s.estado==='aprobada');
   const pendientes=solicitudesEliminacion.filter(s=>s.estado==='pendiente');
   // Los registros viejos (de antes de distinguir el origen) los tratamos como "vendedor",
@@ -6049,6 +6047,7 @@ function renderEliminacionesAdmin(){
             <div style="display:flex;gap:6px;flex-shrink:0">
               <button class="btn btn-outline btn-sm" onclick="toggleReclamoBaja('${s.id}')">${s.reclamo?'Editar reclamo':'Reclamar'}</button>
               ${s.snapshotAtencion?`<button class="btn btn-outline btn-sm" onclick="if(confirm('¿Restaurar este contacto y su consulta?'))restaurarBaja('${s.id}')">Restaurar</button>`:''}
+              <button class="btn btn-sm" style="background:var(--red);color:#fff;border:none" onclick="eliminarDefinitivamente('${s.id}')" title="Borrar del sistema — no se puede restaurar">Eliminar definitivo</button>
             </div>`}
           </div>
           ${restaurada?'':`
@@ -6060,16 +6059,59 @@ function renderEliminacionesAdmin(){
       }).join('')
     : '';
 
-  box.innerHTML = `
+  if(!aprobadas.length) return '';
+  return `
     <div class="chips" style="margin-top:0">
       <div class="chip" style="background:var(--amber-l)"><b style="color:var(--amber)">${propias.length}</b> <span style="color:var(--amber)">por iniciativa de Cintia</span></div>
       <div class="chip" style="background:var(--blue-l)"><b style="color:var(--blue)">${porPedido.length}</b> <span style="color:var(--blue)">por pedido de vendedores</span></div>
     </div>
     <div class="section-title">Por vendedor (de las pedidas)</div>
     ${resumenVendHtml}
-    ${pendientes.length?`<p class="tiny" style="margin-top:10px">${pendientes.length} solicitud${pendientes.length===1?'':'es'} esperando que Cintia la${pendientes.length===1?'':'s'} apruebe.</p>`:''}
-    ${detalleHtml?`<div class="section-title">Detalle completo</div>${detalleHtml}`:''}
+    ${detalleHtml?`<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">Detalle completo <button class="btn btn-sm" style="background:var(--red);color:#fff;border:none;text-transform:none;letter-spacing:0" onclick="eliminarTodasDefinitivamente()">🗑️ Eliminar todas definitivamente</button></div>${detalleHtml}`:''}
   `;
+}
+function renderEliminacionesAdmin(){
+  const box=$('eliminacionesAdminBox'); if(box) box.innerHTML=htmlEliminaciones();
+}
+/* Baja definitiva: borra la consulta de la base (Supabase) y saca la solicitud, así ya no
+   se puede restaurar. Purga de verdad, a diferencia de la baja normal que guarda un
+   snapshot por si hay que reponerla. */
+async function eliminarDefinitivamente(id){
+  const s=solicitudesEliminacion.find(x=>x.id===id);
+  if(!s) return;
+  if(!window.confirm('¿Eliminar DEFINITIVAMENTE este contacto del sistema? No se va a poder restaurar.')) return;
+  const atId = s.atencionId || (s.snapshotAtencion && s.snapshotAtencion.id);
+  if(atId){
+    if(sb){ try{ await sb.from('consultas').delete().eq('id', atId); }catch(e){ console.error('borrar consulta', e); } }
+    const i=atenciones.findIndex(a=>a.id===atId);
+    if(i>-1){ atenciones.splice(i,1); delete _snapConsultas[atId]; }
+  }
+  const j=solicitudesEliminacion.findIndex(x=>x.id===id);
+  if(j>-1) solicitudesEliminacion.splice(j,1);
+  await saveSolicitudes();
+  renderEliminacionesAdmin();
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+  render();
+  toast('Contacto eliminado definitivamente');
+}
+async function eliminarTodasDefinitivamente(){
+  const aprobadas=solicitudesEliminacion.filter(s=>s.estado==='aprobada');
+  if(!aprobadas.length){ toast('No hay bajas para eliminar'); return; }
+  if(!window.confirm(`¿Eliminar DEFINITIVAMENTE las ${aprobadas.length} bajas del sistema? No se van a poder restaurar.`)) return;
+  for(const s of aprobadas){
+    const atId = s.atencionId || (s.snapshotAtencion && s.snapshotAtencion.id);
+    if(atId){
+      if(sb){ try{ await sb.from('consultas').delete().eq('id', atId); }catch(e){ console.error('borrar consulta', e); } }
+      const i=atenciones.findIndex(a=>a.id===atId);
+      if(i>-1){ atenciones.splice(i,1); delete _snapConsultas[atId]; }
+    }
+  }
+  solicitudesEliminacion = solicitudesEliminacion.filter(s=>s.estado!=='aprobada');
+  await saveSolicitudes();
+  renderEliminacionesAdmin();
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+  render();
+  toast('Bajas eliminadas definitivamente');
 }
 
 /* ---------------- panel de derivación inline ---------------- */
@@ -6367,11 +6409,6 @@ function htmlAdminConfig(){
       <p class="tiny" style="margin-top:0;margin-bottom:12px">Cada local tiene su propia cola y su propio historial. "Rotación" reparte turnos entre varios vendedores; "Fijo" es un solo vendedor de cabecera con suplentes ocasionales que suman sus atenciones aparte, sin turnos ni derivación.</p>
       <div id="localesConfigBox"></div>
       <button class="btn btn-navy" onclick="guardarLocales()">Guardar locales</button>
-    </div>
-    <div class="card">
-      <h3>Eliminaciones de contacto</h3>
-      <p class="tiny" style="margin-bottom:12px">Cada vendedor puede pedir borrar un contacto desde su lista, pero la aprueba Cintia. Acá queda quién pidió qué y cuánto se terminó borrando.</p>
-      <div id="eliminacionesAdminBox"></div>
     </div>
     <div class="card">
       <h3>Canales y Derivar a (tablero de Cintia)</h3>
@@ -7456,7 +7493,8 @@ function htmlCintiaMisPendientes(){
   const revisiones=atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).sort((a,b)=>new Date(a.revisionEval.ts)-new Date(b.revisionEval.ts));
   const fusiones=notasSinAccion.filter(n=>n.tipo==='fusion' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   const conflictos=notasSinAccion.filter(n=>n.tipo==='conflicto_vendedor' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
-  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
+  const elimHtml = esAdmin() ? htmlEliminaciones() : '';
+  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length && !elimHtml) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
   let html='';
   if(conflictos.length) html+=`<div class="cin-card">
     <h3>Cliente en dos vendedores <span class="cnt-pill">${conflictos.length}</span></h3>
@@ -7556,6 +7594,11 @@ function htmlCintiaMisPendientes(){
     <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Las tuyas con plazo vencido.</p>
     ${cheadEstaticoHtml()}
     ${misAtrasados.map(logItemHtml).join('')}
+  </div>`;
+  if(elimHtml) html+=`<div class="cin-card">
+    <h3>Bajas de contacto</h3>
+    <p class="tiny" style="margin-top:-8px">Contactos ya dados de baja. Podés restaurarlos, reclamar, o eliminarlos definitivamente del sistema (no se pueden recuperar).</p>
+    ${elimHtml}
   </div>`;
   return html;
 }
