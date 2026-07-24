@@ -897,6 +897,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .chip b{font-size:14px;color:var(--navy)}
 .chip.total{background:var(--navy);color:#fff;border-color:var(--navy)}
 .chip.total b{color:#fff}
+.chip-btn{cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;color:var(--ink,#1f2a37);transition:border-color .1s,background .1s}
+.chip-btn:hover{border-color:var(--navy)}
+.chip-btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.chip-btn.on b{color:#fff}
 
 .log-item{display:flex;gap:12px;padding:13px 0;border-bottom:1px solid var(--line2)}
 .log-item:last-child{border-bottom:none}
@@ -3721,6 +3725,18 @@ function renderPendientes(){
 
 function esHoy(iso){const d=new Date(iso),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();}
 
+/* Botones del Conteo: filtran la lista de Consultas por vendedor + virtual/físico.
+   Solo para quien ve el equipo (Cintia y dirección). */
+function toggleConteoFiltro(uid,tipo){
+  if(!puedeVerEquipo()) return;
+  if(filtroConteoVendedor===uid && filtroConteoTipo===tipo){ filtroConteoVendedor=null; filtroConteoTipo=null; }
+  else { filtroConteoVendedor=uid; filtroConteoTipo=tipo; }
+  reiniciarPaginado();
+  scopeActual='equipo';   // el conteo es del equipo, no de "mías"
+  if(cintiaSeccion!=='consultas'){ cintiaIrSeccion('consultas'); return; }
+  renderHistorial();
+}
+
 function renderChipsHoy(){
   const base = puedeVerEquipo() ? registrosLocal(FILTRO_LOCAL_ADMIN) : atenciones.filter(a=>a.localId===LOCAL_ACTUAL);
   const hoy=base.filter(a=>esHoy(a.ts));
@@ -3740,10 +3756,15 @@ function renderChipsHoy(){
     const cv=countBy(virt), cf=countBy(fis);
     const todosVendedores=[...new Set(Object.keys(LOCALES).flatMap(id=>vendedoresDeLocal(id)))];
     const ids=[...new Set([...Object.keys(cv),...Object.keys(cf),...todosVendedores])].filter(uid=>uid && USUARIOS[uid]);
-    const fila=(cnt,total)=>`<div class="chips">${ids.map(uid=>`<div class="chip"><b>${cnt[uid]||0}</b> ${nombreDe(uid)}</div>`).join('')}<div class="chip total"><b>${total}</b> Total</div></div>`;
+    // Cada número es un botón: Cintia o dirección filtran la lista de Consultas por ese
+    // vendedor y si la atención fue virtual o física. Se vuelve a tocar para quitar el filtro.
+    const fila=(cnt,total,tipo)=>`<div class="chips">${ids.map(uid=>{
+        const on = filtroConteoVendedor===uid && filtroConteoTipo===tipo;
+        return `<button type="button" class="chip chip-btn${on?' on':''}" onclick="toggleConteoFiltro('${uid}','${tipo}')"><b>${cnt[uid]||0}</b> ${nombreDe(uid)}</button>`;
+      }).join('')}<div class="chip total"><b>${total}</b> Total</div></div>`;
     box.style.display='block';
-    box.innerHTML=`<div class="conteo-sub">📲 Conteo virtual</div>${fila(cv,virt.length)}
-      <div class="conteo-sub" style="margin-top:12px">🚶‍♂️ Conteo físico (local)</div>${fila(cf,fis.length)}`;
+    box.innerHTML=`<div class="conteo-sub">📲 Conteo virtual</div>${fila(cv,virt.length,'virtual')}
+      <div class="conteo-sub" style="margin-top:12px">🚶‍♂️ Conteo físico (local)</div>${fila(cf,fis.length,'fisico')}`;
     $('chipsTitle').textContent='Conteo';
   }else{
     $('chipsTitle').classList.add('hidden');
@@ -5146,7 +5167,7 @@ function construirListaFiltrada(){
   // nada que hacer con ellas y solo ensucian lo que el vendedor tiene que trabajar.
   // Si hay búsqueda activa, no se filtra por estado: se busca en todas las situaciones.
   if(!buscar){
-    if(filtroEstado==='activas') l=l.filter(a=>{const e=estadoDe(a); return e!=='Concretado' && e!=='Rechazado';});
+    if(filtroEstado==='activas') l=l.filter(a=>esPostventa(a) || (()=>{const e=estadoDe(a); return e!=='Concretado' && e!=='Rechazado';})());
     else if(filtroEstado==='sin') l=l.filter(a=>!estadoDe(a));
     else if(filtroEstado!=='todos') l=l.filter(a=>estadoDe(a)===filtroEstado);
   }
@@ -5185,6 +5206,14 @@ function construirListaFiltrada(){
     if(filtroEvaluacion==='evaluadas') l=l.filter(a=>a.evaluada);
     else if(filtroEvaluacion==='sinevaluar') l=l.filter(a=>!a.evaluada);
     if(!buscar) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
+  }
+
+  // Filtro por los botones de Conteo (vendedor + virtual/físico) — Cintia y dirección.
+  if(puedeVerEquipo() && filtroConteoVendedor){
+    l=l.filter(a=>a.vendedorId===filtroConteoVendedor);
+    const esFisico=a=>a.canal==='presencial'||canalReal(a)==='Local';
+    if(filtroConteoTipo==='virtual') l=l.filter(a=>!esFisico(a));
+    else if(filtroConteoTipo==='fisico') l=l.filter(a=>esFisico(a));
   }
 
   return l;
@@ -5346,7 +5375,7 @@ function renderHistorial(){
   // "Turnos vs saltos de cola" quitado por ahora (no se usa).
   { const stb=$('statsTurnosBox'); if(stb){ stb.classList.add('hidden'); stb.innerHTML=''; } }
 
-  if(esAuditora() && cintiaSeccion==='consultas') renderCintiaFecha();
+  if(puedeVerEquipo() && (cintiaSeccion==='consultas'||cintiaSeccion==='misconsultas')) renderCintiaFecha();
 }
 function formatDateInput(d){
   const yyyy=d.getFullYear();
@@ -6638,8 +6667,10 @@ function renderPanelCintia(){
   renderCintiaBotones();
   renderCintiaFecha();
   renderCintiaMain();
-  // El filtro de Período es propio del tablero de Cintia; en Brian lo dejamos fuera.
-  $('cintiaFechaBox').classList.toggle('hidden', admin);
+  // Una sola barra de período: la de arriba (cintiaFechaBox). La de abajo (verMasBox,
+  // pensada para el vendedor) se esconde en el tablero de Cintia/dirección.
+  $('cintiaFechaBox').classList.remove('hidden');
+  { const _vm=$('verMasBox'); if(_vm) _vm.classList.add('hidden'); }
   // La tabla de Consultas reutiliza colaOperativa. En Brian se ve en "Consultas" (todo el
   // equipo) y en "Mis consultas" (lo suyo); en Cintia, solo en "Consultas".
   const mostrarTabla = admin
@@ -6649,6 +6680,7 @@ function renderPanelCintia(){
 }
 function cintiaIrSeccion(id){
   cintiaSeccion=id; resumenVendedor=null;
+  if(id!=='consultas'){ filtroConteoVendedor=null; filtroConteoTipo=null; }
   if(esAdmin()){
     if(id==='consultas') scopeActual='equipo';
     else if(id==='misconsultas') scopeActual='mias';
@@ -6669,6 +6701,12 @@ function _rangoDefectoPeriodo(){
   return [f(d), f(hoy)];
 }
 let [cintiaFechaDesde, cintiaFechaHasta] = _rangoDefectoPeriodo();
+/* Chip de período activo en la barra de arriba (única barra desde ahora). null = ventana
+   por defecto sin resaltar; 'custom' abre los campos de fecha a elección. */
+let cintiaPresetActivo=null;
+/* Filtro por los botones de Conteo (Cintia/dirección): un vendedor + si fue virtual o
+   físico. Se aplica sobre la lista de Consultas. */
+let filtroConteoVendedor=null, filtroConteoTipo=null;
 function dentroDePeriodoCintia(iso){
   if(!iso) return true;
   const t=new Date(iso).getTime();
@@ -6678,17 +6716,27 @@ function dentroDePeriodoCintia(iso){
 }
 function setCintiaFecha(campo,valor){
   if(campo==='desde') cintiaFechaDesde=valor||null; else cintiaFechaHasta=valor||null;
+  cintiaPresetActivo='custom';
   asegurarPeriodoCargado();
-  renderCintiaBotones(); renderCintiaMain(); renderHistorial();
+  renderCintiaBotones(); renderCintiaFecha(); renderCintiaMain(); renderHistorial();
+}
+/* Abre los campos de fecha a elección sin cambiar todavía el rango (arranca con la
+   ventana por defecto si no había ninguno). */
+function cintiaFechaCustom(){
+  cintiaPresetActivo='custom';
+  if(!cintiaFechaDesde && !cintiaFechaHasta){ [cintiaFechaDesde,cintiaFechaHasta]=_rangoDefectoPeriodo(); }
+  renderCintiaFecha();
 }
 function aplicarPresetCintiaFecha(preset){
   const hoy=new Date(); hoy.setHours(0,0,0,0);
+  cintiaPresetActivo=preset;
   if(preset==='todo'){ cintiaFechaDesde=null; cintiaFechaHasta=null; }
   else if(preset==='hoy'){ cintiaFechaDesde=formatDateInput(hoy); cintiaFechaHasta=formatDateInput(hoy); }
   else if(preset==='ayer'){ const ay=new Date(hoy); ay.setDate(ay.getDate()-1); cintiaFechaDesde=formatDateInput(ay); cintiaFechaHasta=formatDateInput(ay); }
   else{
-    const dias={semana:7,mes:30,d7:7,d15:15,d30:30,d60:60}[preset]||7;
-    const desde=new Date(hoy); desde.setDate(desde.getDate()-dias);
+    // "7 días" abarca 7 días contando hoy (igual que la barra vieja): resta dias-1.
+    const dias={d7:7,d15:15,d30:30}[preset]||7;
+    const desde=new Date(hoy); desde.setDate(desde.getDate()-(dias-1));
     cintiaFechaDesde=formatDateInput(desde);
     cintiaFechaHasta=formatDateInput(hoy);
   }
@@ -6736,18 +6784,18 @@ function renderCintiaFecha(){
   const conteoHtml = cintiaSeccion==='consultas'
     ? (()=>{ const n=construirListaFiltrada().length; return `<b class="tiny cnt-periodo">${n} consulta${n===1?'':'s'}</b>`; })()
     : '';
+  const presets=[['d7','7 días'],['d15','15 días'],['d30','30 días'],['hoy','Hoy'],['ayer','Ayer'],['todo','Todo']];
+  const chips=presets.map(([id,lbl])=>`<span class="mini ${cintiaPresetActivo===id?'on':''}" onclick="aplicarPresetCintiaFecha('${id}')">${lbl}</span>`).join('');
+  const esCustom = cintiaPresetActivo==='custom';
+  // Los campos de fecha solo aparecen al elegir "Fechas a elección"; si no, ni se muestran.
+  const inputs = esCustom
+    ? `<input type="date" value="${cintiaFechaDesde||''}" onchange="setCintiaFecha('desde',this.value)"><span class="tiny">hasta</span><input type="date" value="${cintiaFechaHasta||''}" onchange="setCintiaFecha('hasta',this.value)">`
+    : '';
   $('cintiaFechaBox').innerHTML=`
     <b class="tiny" style="color:var(--sec);text-transform:uppercase;letter-spacing:.03em">Período</b>
-    <input type="date" value="${cintiaFechaDesde||''}" onchange="setCintiaFecha('desde',this.value)">
-    <span class="tiny">hasta</span>
-    <input type="date" value="${cintiaFechaHasta||''}" onchange="setCintiaFecha('hasta',this.value)">
-    <span class="mini" onclick="aplicarPresetCintiaFecha('hoy')">Hoy</span>
-    <span class="mini" onclick="aplicarPresetCintiaFecha('ayer')">Ayer</span>
-    <span class="mini" onclick="aplicarPresetCintiaFecha('d7')">7 días</span>
-    <span class="mini" onclick="aplicarPresetCintiaFecha('d15')">15 días</span>
-    <span class="mini" onclick="aplicarPresetCintiaFecha('d30')">30 días</span>
-    <span class="mini" onclick="aplicarPresetCintiaFecha('d60')">60 días</span>
-    <span class="mini ${sinFiltro?'on':''}" onclick="aplicarPresetCintiaFecha('todo')">Todo</span>
+    ${chips}
+    <span class="mini ${esCustom?'on':''}" onclick="cintiaFechaCustom()">Fechas a elección</span>
+    ${inputs}
     ${conteoHtml}
   `;
 }
@@ -6786,7 +6834,7 @@ function renderCintiaBotones(){
     {id:'resumen', label:'Resumen', ic:'resumen'},
     {id:'consultas', label:'Consultas', ic:'consultas'},
     {id:'evaluar', label:'Para evaluar', ic:'evaluar', cnt:colaEvaluarCintia().length},
-    {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts) && estadoPostventaDe(a)!=='Resuelto').length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
+    {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts) && consultaAbiertaCintia(a)).length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
     {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)).length},
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
     {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length},
@@ -6983,12 +7031,21 @@ function esConsultaGestion(a){
 /* Consultas de POST-VENTA (por canal): el cliente ya compró y pregunta por el estado de su
    pedido o hace un reclamo. No siguen el circuito de venta (concretado/rechazado/seguimiento)
    sino Pendiente / Resuelto (y "En gestión" para reclamos), y no llevan percepción del cliente. */
-function esPostventa(a){ const c=canalReal(a); return c==='Consulta de estado' || c==='Reclamo' || rolDe(a.vendedorId)==='auditora'; }
+function esPostventa(a){ const c=canalReal(a); return c==='Consulta de estado' || c==='Reclamo'; }
 function esReclamo(a){ return canalReal(a)==='Reclamo'; }
 const EST_PV_ESTADO=['Pendiente','Resuelto'];
 const EST_PV_RECLAMO=['Pendiente','En gestión','Resuelto'];
 function estadosPostventaDe(a){ return esReclamo(a) ? EST_PV_RECLAMO : EST_PV_ESTADO; }
-function estadoPostventaDe(a){ return a.estadoPostventa || 'Resuelto'; }   // las que ya existían quedan resueltas; las nuevas se crean en "Pendiente"
+// Las consultas de post-venta que ya existían (histórico importado, previas al corte) ya
+// estaban contestadas → Resueltas. Cualquier consulta nueva arranca SÍ o SÍ en Pendiente.
+const POSTVENTA_CORTE=new Date('2026-07-24T00:00:00').getTime();
+function estadoPostventaDe(a){
+  if(a.estadoPostventa) return a.estadoPostventa;
+  return (a.ts && new Date(a.ts).getTime() < POSTVENTA_CORTE) ? 'Resuelto' : 'Pendiente';
+}
+/* Una consulta "abierta"/pendiente para Cintia: post-venta = no Resuelta; venta = no cerrada.
+   Se usa para que el contador de "Mis consultas" coincida con lo que muestra la lista. */
+function consultaAbiertaCintia(a){ return esPostventa(a) ? estadoPostventaDe(a)!=='Resuelto' : (()=>{const e=estadoDe(a);return e!=='Concretado'&&e!=='Rechazado';})(); }
 const PV_CLS={'Pendiente':'es-pend','En gestión':'es-pend','Resuelto':'es-conc'};
 async function setEstadoPostventa(id, estado){ if(esSoloLectura())return avisoLectura(); const a=atenciones.find(x=>x.id===id); if(!a)return; a.estadoPostventa=estado; cerrarPops(); await saveAtenciones(); render(); }
 /* ===== Intervención de Cintia =====
@@ -7391,7 +7448,9 @@ function htmlCintiaEvaluar(){
    así que siguen viviendo acá aunque no entren en el mismo formato de fila. */
 function htmlCintiaMisConsultas(){
   // Las archivadas (viejas, sin resultado) no son trabajo: no aparecen en Mis consultas.
-  const mias=atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts));
+  // Por defecto solo las abiertas: las resueltas/cerradas se ocultan para que coincida
+  // con el contador del botón.
+  const mias=atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts) && consultaAbiertaCintia(a));
   const estados=estadosPedido.filter(e=>dentroDePeriodoCintia(e.ts)).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
   const invalidas=consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   if(!mias.length && !estados.length && !invalidas.length) return `<div class="cin-card"><p class="cin-empty">No tenés consultas propias en este período.</p></div>`;
