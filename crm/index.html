@@ -4651,6 +4651,9 @@ function setFiltroHeader(campo,valor){
   else if(campo==='recordatorio') filtroRecordatorio=valor;
   document.querySelectorAll('.ebtn.open').forEach(x=>x.classList.remove('open'));
   renderHistorial();
+  // Si Cintia está en una sección propia (Atrasadas, etc.), también se repinta para que
+  // los filtros de columna se apliquen ahí.
+  if(esAuditora() && typeof renderCintiaMain==='function') renderCintiaMain();
 }
 /* ===== Filtros activos visibles =====
    El problema: al filtrar desde el tablero o desde un encabezado, el filtro queda puesto
@@ -4731,6 +4734,10 @@ function setFiltroBusqueda(valor, origen){
   renderSituResumen();
   renderSolapasVendedor();
   renderFiltrosActivos();
+  // Buscar desde la barra de arriba también filtra las secciones de Cintia (Atrasadas).
+  // No se repinta cuando se tipea en el buscador del encabezado ('head') para no perder
+  // el foco del cursor — para eso está la barra de arriba, que no se recrea.
+  if(origen!=='head' && esAuditora() && typeof renderCintiaMain==='function') renderCintiaMain();
 }
 function construirListaFiltrada(){
   let l = puedeVerEquipo() ? registrosLocal(FILTRO_LOCAL_ADMIN) : atenciones.filter(a=>a.vendedorId===YO);
@@ -4796,6 +4803,44 @@ function construirListaFiltrada(){
     if(!buscar) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
   }
 
+  return l;
+}
+/* Aplica los MISMOS filtros de encabezado (vendedor, canal, oportunidad, comentario,
+   plazo, búsqueda, evaluación, recordatorio) a una lista ya armada — se usa para que las
+   secciones curadas de Cintia (Atrasadas) también se puedan filtrar/buscar por columna,
+   sin tocar su propio criterio de estado. */
+function filtrosColumna(l){
+  const buscar=(filtroBusqueda||'').trim().toLowerCase();
+  if(filtroOportunidad==='sin') l=l.filter(a=>!a.percepcion);
+  else if(filtroOportunidad!=='todos') l=l.filter(a=>a.percepcion===filtroOportunidad);
+  if(filtroComentario==='con') l=l.filter(a=>!!(a.notas||a.resultadoMotivo));
+  else if(filtroComentario==='sin') l=l.filter(a=>!(a.notas||a.resultadoMotivo));
+  if(filtroPlazo!=='todos'){
+    const hoy0=new Date(); hoy0.setHours(0,0,0,0);
+    const manana0=new Date(hoy0.getTime()+86400000);
+    const en7=new Date(hoy0.getTime()+7*86400000);
+    l=l.filter(a=>{
+      const p=proximaAccionDe(a); const prox=p?new Date(p):null;
+      if(filtroPlazo==='sin') return !prox;
+      if(!prox) return false;
+      if(filtroPlazo==='vencidas') return prox<hoy0;
+      if(filtroPlazo==='hoy') return prox>=hoy0 && prox<manana0;
+      if(filtroPlazo==='semana') return prox>=manana0 && prox<en7;
+      if(filtroPlazo==='mas') return prox>=en7;
+      return true;
+    });
+  }
+  if(buscar) l=l.filter(a=>(nombreCliente(a)||'').toLowerCase().includes(buscar) || (a.clienteTelefono||'').includes(buscar) || (a.clienteInstagram||'').toLowerCase().includes(buscar));
+  if(puedeRecordar()){
+    if(filtroRecordatorio==='con')      l=l.filter(a=>!!a.recordatorioPendiente);
+    else if(filtroRecordatorio==='sin') l=l.filter(a=>!a.recordatorioPendiente);
+  }
+  if(esAuditora()){
+    if(filtroVendedorCintia!=='todos') l=l.filter(a=>a.vendedorId===filtroVendedorCintia);
+    if(filtroCanalCintia!=='todos') l=l.filter(a=>canalReal(a)===filtroCanalCintia);
+    if(filtroEvaluacion==='evaluadas') l=l.filter(a=>a.evaluada);
+    else if(filtroEvaluacion==='sinevaluar') l=l.filter(a=>!a.evaluada);
+  }
   return l;
 }
 /* Orden de la tabla. Por defecto manda la urgencia (lo que hay que hacer ya);
@@ -5986,6 +6031,7 @@ function cintiaEsAtrasada(a){
    Es el mismo umbral con el que la consulta se archiva sola. */
 function evaluable(a){
   if(esConsultaGestion(a)) return false;   // gestión (estado/reclamo) no se evalúa
+  if(a.soloVolumen) return false;          // archivada: no hay forma de rastrear el chat, no se evalúa
   return diasDesdeISO(fechaUltimoMovimiento(a)) <= DIAS_PARA_ARCHIVAR;
 }
 
@@ -6374,11 +6420,12 @@ function construirRecuperacionIG(){
     const [v,f,name]=fila;
     (map[v]=map[v]||{}); (map[v][f]=map[v][f]||[]).push(name);
   }
-  // Consultas de IG sin teléfono y sin nombre = las que hay que recuperar.
+  // TODAS las consultas de IG sin teléfono (aunque tengan un nombre parcial cargado):
+  // el nombre del Excel es la fuente de verdad y tiene que quedar EXACTO. Incluir también
+  // las que ya tienen un nombre parcial mantiene alineado el orden con el Excel.
   const rows={};
   for(const a of atenciones){
     if(normContacto(a.clienteTelefono)) continue;
-    if(a.clienteNombre) continue;
     const cr=canalReal(a);
     if(cr!=='Instagram' && cr!=='Publicidad Instagram') continue;
     const v=a.vendedorId||'', f=_igFechaKey(a.ts);
@@ -6392,8 +6439,9 @@ function construirRecuperacionIG(){
     }
   }
 }
-/* Nombre a mostrar de una consulta: el cargado, o el recuperado de Instagram. */
-function nombreCliente(a){ return a.clienteNombre || IG_NOMBRES[a.id] || ''; }
+/* Nombre a mostrar de una consulta: para las de Instagram, el recuperado del Excel manda
+   (es el nombre exacto de la planilla); si no, el que tenga cargado. */
+function nombreCliente(a){ return IG_NOMBRES[a.id] || a.clienteNombre || ''; }
 function coincideCanal(a){
   if(resumenCanal==='todos') return true;
   // "__publicidad__" es un agregado: junta los canales pagos, que es la comparación que
@@ -6743,9 +6791,9 @@ function paginadorHtml(actual, total, fn){
   return `<div class="paginador">${out}</div>`;
 }
 function htmlCintiaAtrasadas(){
-  const todo=atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts))
+  const todo=filtrosColumna(atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)))
     .sort((a,b)=> new Date(fechaUltimoMovimiento(b)).getTime() - new Date(fechaUltimoMovimiento(a)).getTime());
-  if(!todo.length) return `<div class="cin-card"><p class="cin-empty">No hay nada atrasado ni sin clasificar en este período.</p></div>`;
+  if(!todo.length) return `<div class="cin-card"><p class="cin-empty">No hay nada atrasado ni sin clasificar con estos filtros.</p></div>`;
   const POR=50;
   const totalPag=Math.ceil(todo.length/POR);
   if(_cintiaAtrPagina>totalPag) _cintiaAtrPagina=totalPag;
@@ -6754,8 +6802,8 @@ function htmlCintiaAtrasadas(){
   const l=todo.slice(desde, desde+POR);
   return `<div class="cin-card" style="padding:4px 18px">
     <h3 style="padding-top:10px">Atrasadas <span class="cnt-pill">${todo.length}</span></h3>
-    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma plazo vencido y consultas todavía sin oportunidad clasificada, de todos los vendedores. De a 50 por página, de la más reciente a la más vieja${totalPag>1?` · página ${_cintiaAtrPagina} de ${totalPag}`:''}.</p>
-    ${cheadEstaticoHtml()}
+    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma plazo vencido y consultas todavía sin oportunidad clasificada, de todos los vendedores. Podés filtrar y buscar desde los títulos. De a 50 por página, de la más reciente a la más vieja${totalPag>1?` · página ${_cintiaAtrPagina} de ${totalPag}`:''}.</p>
+    ${cheadHtml()}
     ${l.map(logItemHtml).join('')}
     ${paginadorHtml(_cintiaAtrPagina, totalPag, 'irPaginaCintiaAtr')}
   </div>`;
