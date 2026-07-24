@@ -833,7 +833,8 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .fic-kpi .v{font-size:16px;font-weight:800}
 .fic-kpi .k{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:2px}
 .fic-timeline{border-top:1px solid var(--line2)}
-.fic-item{display:flex;gap:14px;padding:13px 2px;border-bottom:1px solid var(--line2)}
+.fic-item{display:flex;gap:14px;padding:13px 8px;margin:0 -8px;border-bottom:1px solid var(--line2);border-radius:8px;transition:background .12s}
+.fic-item:hover{background:var(--blue-l)}
 .fic-item:last-child{border-bottom:none}
 .fic-fecha{width:72px;flex-shrink:0;font-size:11px;font-weight:800;color:var(--muted);padding-top:2px}
 .fic-cuerpo{flex:1;min-width:0}
@@ -9221,13 +9222,19 @@ function htmlFichaCliente(id){
     const histor=(Array.isArray(a.historialContacto)?a.historialContacto:[]).slice(-3)
       .map(h=>`<div class="fic-nota">· ${escapeHtml(typeof h==='string'?h:(h.nota||h.texto||''))}</div>`).join('');
     const notaSimple = (!Array.isArray(a.historialContacto) && a.notas) ? `<div class="fic-nota">· ${escapeHtml(a.notas)}</div>` : '';
-    return `<div class="fic-item">
+    // Datos de la venta que se muestran directo en la ficha (para verlos sin abrir):
+    // N° de orden y monto vendido cuando está concretada.
+    const nroOrd = (e==='Concretado' && a.nroOrden) ? String(a.nroOrden) : '';
+    const montoVend = (e==='Concretado' && a.montoVendido) ? (+a.montoVendido) : 0;
+    return `<div class="fic-item" style="cursor:pointer" title="Abrir la consulta" onclick="abrirModalCompletar('${a.id}')">
       <div class="fic-fecha">${new Date(a.ts).toLocaleDateString('es-AR',{day:'numeric',month:'short',year:'2-digit'})}</div>
       <div class="fic-cuerpo">
         <div class="fic-linea1">
           <span class="fic-estado ${esPV?'seg':(e==='Concretado'?'ok':e==='Rechazado'?'mal':'seg')}">${esPV?estadoPostventaDe(a):(e||'Sin definir')}</span>
           <span class="tiny">${estCanalDe(a)} · atendió ${nombreDe(a.vendedorId)}</span>
-          ${monto?`<span class="fic-monto">$ ${miles(monto)}</span>`:''}
+          ${nroOrd?`<span class="tiny" style="color:var(--sec);font-weight:700">N° ${escapeHtml(nroOrd)}</span>`:''}
+          ${(montoVend||monto)?`<span class="fic-monto">$ ${miles(montoVend||monto)}</span>`:''}
+          <span class="tiny" style="color:var(--blue);margin-left:auto">Abrir ›</span>
         </div>
         ${muebles?`<div class="tiny" style="margin-top:2px">${escapeHtml(muebles)}</div>`:''}
         ${evalHtml}
