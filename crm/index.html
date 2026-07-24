@@ -2869,6 +2869,17 @@ async function descartarConsultaLocal(id){
   toast('Consulta eliminada');
   render();
 }
+/* Borra una venta concretada duplicada (solo dirección), desde el módulo de limpieza. */
+async function borrarDuplicado(id){
+  if(!esAdmin()) return;
+  const a=atenciones.find(x=>x.id===id); if(!a) return;
+  if(!window.confirm(`¿Borrar la venta duplicada de ${nombreCliente(a)||'sin nombre'} (N° ${a.nroOrden||'—'} · $ ${miles(+a.montoVendido||0)})?\nNo se puede recuperar.`)) return;
+  const i=atenciones.findIndex(x=>x.id===id); if(i>-1) atenciones.splice(i,1);
+  if(sb){ try{ await sb.from('consultas').delete().eq('id', id); }catch(e){ console.error('borrar duplicado', e); } }
+  delete _snapConsultas[id];
+  toast('Venta duplicada borrada');
+  if(typeof renderPanelCintia==='function') renderPanelCintia();
+}
 async function guardarVinculacionCliente(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
@@ -11643,6 +11654,14 @@ function renderDireccion(){
     return `<div style="margin-top:13px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">${titulo}</b>
       <div style="margin-top:6px">${dist.map(d=>`<div class="dir-bar"><span class="bl">${d.lbl}</span><span class="bt"><i style="width:${Math.round(d.n/max*100)}%;background:#7c3aed"></i></span><span class="bv" style="width:78px"><b>${d.n}</b><span style="color:var(--muted);font-weight:600">${tot?` · ${Math.round(d.n/tot*100)}%`:''}</span></span></div>`).join('')}</div></div>`;
   };
+  // Limpieza de concretadas: mismas por N° de orden (borrar dejando 1), sin N° de orden, y
+  // mismas por teléfono (para unificar a mano). Sobre las concretadas del período elegido.
+  const _gOrd={}; conc.forEach(a=>{const k=(a.nroOrden||'').trim().toLowerCase(); if(k)(_gOrd[k]=_gOrd[k]||[]).push(a);});
+  const dupOrden=Object.entries(_gOrd).filter(([,arr])=>arr.length>1);
+  const sinOrden=conc.filter(a=>!(a.nroOrden||'').trim());
+  const _gTel={}; conc.forEach(a=>{const t=normContacto(a.clienteTelefono||''); if(t)(_gTel[t]=_gTel[t]||[]).push(a);});
+  const dupTel=Object.entries(_gTel).filter(([,arr])=>arr.length>1);
+  const _lineaCons=a=>`${escapeHtml(nombreCliente(a)||'sin nombre')} · ${escapeHtml(nombreDe(a.vendedorId))} · $ ${miles(+a.montoVendido||0)}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}`;
 
   const calTxt=c=>c==null?'–':c.toFixed(1);
   const calPill=c=>c==null?'':c<=1.8?'g':c<=2.6?'a':'r';
@@ -11671,6 +11690,34 @@ function renderDireccion(){
       <div style="padding:13px 17px">${sinCotVend.some(s=>s.c>0)
         ? sinCotVend.map((s,i)=>`<div class="dir-bar"><span class="bl">${escapeHtml(s.n)}${(i===0&&s.c>0)?' <span class="dir-pill r">a trabajar</span>':''}</span><span class="bt"><i style="width:${Math.round(s.c/maxSinCot*100)}%;background:#b45309"></i></span><span class="bv">${s.c}</span></div>`).join('')
         : '<div style="color:var(--muted)">Ninguna consulta sin cotización en los últimos 30 días 🎉</div>'}</div></div>
+
+    ${(dupOrden.length||sinOrden.length||dupTel.length) ? `
+    <div class="dir-card"><div class="dh">🧹 Limpieza de concretadas<span class="r">${perLbl} · elegí el período arriba (ej. Ayer / Hoy)</span></div>
+      <div style="padding:13px 17px">
+        ${dupOrden.length ? `<div style="margin-bottom:12px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--red)">Mismo N° de orden — dejá 1 y borrá el resto (${dupOrden.length})</b>
+          ${dupOrden.map(([ord,arr])=>`<div style="margin-top:7px;padding:8px 10px;background:var(--red-l,#fdecea);border-radius:8px">
+            <b>N° ${escapeHtml(arr[0].nroOrden||ord)}</b> — ${arr.length} cargadas
+            ${arr.map((a,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px;font-size:12.5px">
+              <span>${_lineaCons(a)}</span>
+              ${i===0?'<span class="dir-pill g" style="flex:0 0 auto">se queda</span>':`<button class="btn btn-outline btn-sm" style="flex:0 0 auto;color:var(--red)" onclick="borrarDuplicado('${a.id}')">🗑 Borrar</button>`}
+            </div>`).join('')}
+          </div>`).join('')}
+        </div>` : ''}
+        ${sinOrden.length ? `<div style="margin-bottom:12px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--amber)">Concretadas SIN N° de orden — hay que cargarles el número (${sinOrden.length})</b>
+          ${sinOrden.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px;font-size:12.5px;padding:5px 10px">
+            <span>${_lineaCons(a)}</span>
+            <button class="btn btn-outline btn-sm" style="flex:0 0 auto" onclick="abrirModalCompletar('${a.id}')">Editar</button>
+          </div>`).join('')}
+        </div>` : ''}
+        ${dupTel.length ? `<div><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">Mismo teléfono — revisá si hay que unificar (${dupTel.length})</b>
+          ${dupTel.map(([,arr])=>`<div style="margin-top:7px;padding:8px 10px;background:var(--line2);border-radius:8px">
+            ${arr.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:3px;font-size:12.5px">
+              <span>${_lineaCons(a)} · N° ${escapeHtml(a.nroOrden||'—')}</span>
+              <button class="btn btn-outline btn-sm" style="flex:0 0 auto" onclick="abrirModalCompletar('${a.id}')">Ver</button>
+            </div>`).join('')}
+          </div>`).join('')}
+        </div>` : ''}
+      </div></div>` : ''}
 
     <div class="dir-card"><div class="dh">Comparativa del equipo<span class="r">clic en un vendedor = ver su pantalla</span></div>
       <div style="overflow-x:auto"><table class="dir-tbl">
