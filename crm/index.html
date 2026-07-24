@@ -3719,7 +3719,8 @@ function htmlFormConcretado(a){
         <input type="text" id="cierreMotivoOtro" class="hidden" placeholder="Escribí el motivo…" style="margin-top:8px;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;box-sizing:border-box">
       </div>
 
-      <button type="button" class="btn btn-guardar" onclick="guardarCierre()">✓ Confirmar venta</button>`;
+      <button type="button" class="btn btn-guardar" onclick="guardarCierre()">✓ Confirmar venta</button>
+      <div class="modal-close" onclick="volverASeguimiento()">← Me equivoqué, volver a seguimiento</div>`;
 }
 function htmlFormRechazado(a){
   const cotizado=montoRepresentativo(a.muebles||[]);
@@ -3748,7 +3749,8 @@ function htmlFormRechazado(a){
         <textarea id="cierreComentario" rows="2" placeholder="Algo más que quieras dejar anotado"></textarea>
       </div>
 
-      <button type="button" class="btn" style="background:var(--red);color:#fff;width:100%" onclick="guardarCierre()">Confirmar rechazo</button>`;
+      <button type="button" class="btn" style="background:var(--red);color:#fff;width:100%" onclick="guardarCierre()">Confirmar rechazo</button>
+      <div class="modal-close" onclick="volverASeguimiento()">← Me equivoqué, volver a seguimiento</div>`;
 }
 function abrirModalCierre(id,tipo){
   const a=atenciones.find(x=>x.id===id);
@@ -3819,6 +3821,20 @@ function cerrarModalCierre(){
   const me=$('modalEtapa'); if(me) me.classList.add('hidden');  // el guardado puede venir del modal de etapa
   document.body.style.overflow='';
   cerrandoId=null; cerrandoTipo=null; etapaSel=null;
+}
+/* Marcó Concretado/Rechazado por error: se vuelve a dejar la consulta En seguimiento y
+   se cierra el modal, sin registrar cierre. */
+async function volverASeguimiento(){
+  const a=atenciones.find(x=>x.id===cerrandoId);
+  if(a){
+    a.rechazoPorBaja=false;
+    a.resultadoMotivo=null; a.montoVendido=null; a.montoPerdido=null;
+    await aplicarEstado(a,'En seguimiento');
+    await saveAtenciones();
+  }
+  cerrarModalCierre();
+  render();
+  toast('Volvió a seguimiento');
 }
 async function guardarCierre(){
   const a=atenciones.find(x=>x.id===cerrandoId);
@@ -9694,6 +9710,12 @@ function pickNuevaEstado(el){
   document.querySelectorAll('#nuevaEstadoPills .pill').forEach(p=>p.classList.remove('on'));
   el.classList.add('on');
   nuevaEstadoSel=el.dataset.est;
+  // "Ir directo al cierre": al marcar Concretado/Rechazado se guarda lo que haya cargado y
+  // se salta a la planilla de cierre. Si fue un error, desde el cierre puede volver a
+  // seguimiento. "En seguimiento" queda como estaba (sigue completando la planilla normal).
+  if(nuevaEstadoSel==='Concretado' || nuevaEstadoSel==='Rechazado'){
+    guardarAtencion();
+  }
 }
 function resetNuevaEstado(){
   nuevaEstadoSel='En seguimiento';
@@ -10093,10 +10115,13 @@ async function guardarAtencion(){
   const muebles=calcularEstadosMuebles(mueblesActuales.filter(m=>m.mueble && m.mueble.trim()));
   const hayMuebleOPrecio = muebles.length>0;
 
+  // "Ir directo al cierre": si se marcó Concretado/Rechazado, la planilla de cierre ya pide
+  // nombre/teléfono/monto/motivo, así que no se exigen acá — se puede saltar directo.
+  const cierreDirecto = ['Concretado','Rechazado'].includes(nuevaEstadoSel) || ['Concretado','Rechazado'].includes(origenAutoEstado);
   if(modalRapido){
     // Registro rápido: nombre y teléfono opcionales; exige al menos un mueble con monto.
-    if(!hayMuebleOPrecio || !muebles.some(m=>Number(m.monto)>0)){ toast('Cargá al menos un mueble con su monto'); return; }
-  }else{
+    if(!cierreDirecto && (!hayMuebleOPrecio || !muebles.some(m=>Number(m.monto)>0))){ toast('Cargá al menos un mueble con su monto'); return; }
+  }else if(!cierreDirecto){
     if(!nombreInput && !noTomoNombre){toast('Cargá el nombre o marcá "No lo tomé"');return;}
     if(!noTomo && !tel && !telIGval){toast('Cargá el teléfono o marcá "No lo tomé"');return;}
   }
