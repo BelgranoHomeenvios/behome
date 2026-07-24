@@ -3026,9 +3026,10 @@ function marcarCompartidaDesdeRow(id){
   if(grupo.length<2){ toast('No encuentro con cuál está duplicada.'); return; }
   marcarCompartida(grupo.map(x=>x.id));
 }
-/* Fusionar cliente: para consultas del mismo teléfono, elegir con qué datos quedan todas. */
+/* Unificar cliente (limpieza): para consultas del mismo teléfono, elegir con qué datos quedan
+   todas. Nombre propio para no chocar con la fusionarClientes(tel,...) del sistema de clientes. */
 let _fusionIds=[];
-function fusionarClientes(ids){
+function unificarClientesLimpieza(ids){
   if(!puedeMarcarIntervencion()){ toast('Solo Cintia o dirección pueden unificar.'); return; }
   const arr=(ids||[]).map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
   if(arr.length<2) return;
@@ -3094,7 +3095,7 @@ function htmlLimpiezaConcretadas(){
     </div>` : ''}
     ${dupTel.length ? `<div><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">Mismo teléfono — unificá o borrá (${dupTel.length})</b>
       ${dupTel.map(([,arr])=>`<div style="margin-top:7px;padding:8px 10px;background:var(--line2);border-radius:8px">
-        <div style="display:flex;justify-content:flex-end"><button class="btn btn-outline btn-sm" style="color:#0369a1" onclick="fusionarClientes([${arr.map(a=>`'${a.id}'`).join(',')}])">🔗 Fusionar cliente</button></div>
+        <div style="display:flex;justify-content:flex-end"><button class="btn btn-outline btn-sm" style="color:#0369a1" onclick="unificarClientesLimpieza([${arr.map(a=>`'${a.id}'`).join(',')}])">🔗 Fusionar cliente</button></div>
         ${arr.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px;font-size:12.5px"><span>${_lc(a)} · N° ${escapeHtml(a.nroOrden||'—')}</span>${editarBorrar(a)}</div>`).join('')}
       </div>`).join('')}
     </div>` : ''}
