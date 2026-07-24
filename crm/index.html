@@ -1712,7 +1712,7 @@ textarea{resize:vertical;min-height:60px}
               <input type="tel" id="clienteTelefonoIG" placeholder="11 xxxx xxxx" oninput="chequearDupModal()">
             </div>
             <div id="modalDupAviso"></div>
-            <div class="field">
+            <div class="field" id="campoPercepcion">
               <label>¿Cómo viste al cliente?</label>
               <div class="pills pills-nowrap" id="percepcionPills"></div>
             </div>
@@ -10428,6 +10428,8 @@ function abrirModalCompletar(id, paso){
   const esVirtual = a.canal==='virtual';
   const esInstagram = esConsultaIG(a);
   $('campoTiempoTurno').classList.toggle('hidden', esVirtual);
+  // Post-venta (consulta de estado / reclamo): no lleva "cómo viste al cliente".
+  { const cp=$('campoPercepcion'); if(cp) cp.classList.toggle('hidden', esPostventa(a)); }
   $('campoTelefonoIG').classList.toggle('hidden', !esInstagram);
   if(esInstagram){
     // El campo principal queda como el usuario de IG; el teléfono es su propio campo,
