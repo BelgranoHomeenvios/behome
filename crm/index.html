@@ -535,7 +535,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-nom b{color:var(--navy)}
 .c-sub{font-size:11px;color:var(--muted);margin-top:1px}
 /* Contacto invertido: teléfono grande arriba, nombre debajo (más legible) */
-.c-nom{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px}
+.c-nom{display:flex;flex-direction:row;align-items:center;gap:8px}
+.c-nom-inner{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px;min-width:0}
+.c-emoji-side{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;flex-shrink:0;font-size:14px;line-height:1}
+.nueva-ico{font-size:12px}
 .c-tel{font-size:12px;font-weight:700;color:var(--ink);line-height:1.2}
 .c-tel .tel-copy{cursor:pointer}
 .nom-copy{cursor:pointer}
@@ -1294,7 +1297,7 @@ textarea{resize:vertical;min-height:60px}
 .crow:hover{background:var(--blue-l)!important}
 .seg-badge{border-radius:999px!important;padding:4px 11px!important;font-size:11.5px!important;letter-spacing:0!important}
 .cierre-chip{border-radius:999px!important}
-.tel-copy{border-bottom-style:dotted!important}
+.tel-copy{border-bottom:none!important}
 /* la tarjeta que envuelve la tabla, más aireada */
 #colaOperativa .card, #view-cola .card{border-radius:16px!important}
 
@@ -4474,8 +4477,9 @@ function logItemHtml(a){
   // De un vistazo: 📲 si la consulta es virtual, 👥 si fue presencial (en el local).
   const _cr = canalReal(a);
   const _esPres = a.canal==='presencial' || _cr==='Local';
-  const canalEmoji = _esPres ? '👥' : (_cr!=='Sin definir' ? '📲' : '');
-  const canalEmojiHtml = canalEmoji ? `<span class="canal-emoji" title="${_esPres?'Consulta del local':'Consulta virtual'}">${canalEmoji}</span> ` : '';
+  const canalEmoji = _esPres ? '🚶‍♂️' : (_cr!=='Sin definir' ? '📲' : '');
+  // Emojis al costado (canal + ✨ si es nueva) para no invadir el texto del nombre/teléfono.
+  const emojiSide = `<div class="c-emoji-side">${canalEmoji?`<span class="canal-emoji" title="${_esPres?'Consulta del local':'Consulta virtual'}">${canalEmoji}</span>`:''}${pend?`<span class="nueva-ico" title="Consulta nueva">✨</span>`:''}</div>`;
 
   const mueblesTxt = muebles.length
     ? muebles.map(m=>`${nombreMueble(m)}${m.observacion?' ('+m.observacion+')':''}${m.monto?' — $'+miles(m.monto):''}${m.elegido?' ✓ elegido':''}`).join('<br>')
@@ -4546,11 +4550,14 @@ function logItemHtml(a){
         </span>
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
-        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="Copiar nombre para LiveConnect">${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        ${emojiSide}
+        <div class="c-nom-inner">
+        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="Copiar nombre para LiveConnect">${nombreMostrar}</b>${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
-        <div class="c-tel">${canalEmojiHtml}${telCopiable
+        <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}</span>`
           : tel}</div>
+        </div>
       </div>
       ${colsCintia}
       ${montoCol}
