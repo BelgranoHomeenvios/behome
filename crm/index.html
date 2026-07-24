@@ -2387,7 +2387,7 @@ function entrarApp(){
   // Auto-pausa por inactividad: si el vendedor pasa 30 min sin tocar la app, se pausa solo.
   // Para Cintia no hay pausado de turnos, pero sí se anota la pausa en su jornada (registro).
   _ultimaActividad=Date.now();
-  if(!window._autoPausaInterval) window._autoPausaInterval=setInterval(()=>{ chequearAutoPausa(); tickRegistroAuditora(); }, 60*1000);
+  if(!window._autoPausaInterval) window._autoPausaInterval=setInterval(()=>{ chequearAutoPausa(); tickRegistroPausa(); }, 60*1000);
   /* Cintia y dirección trabajan sobre lo que falta evaluar: se les suma esa
      cola aunque alguna consulta quede fuera de la ventana de 2 meses. */
   if(esAuditora()||esAdmin()) cargarPendientesEvaluacion().then(()=>render());
@@ -2563,28 +2563,39 @@ function purgarJornadas(){
   const dias=Object.keys(JORNADAS).sort();
   while(dias.length>75) delete JORNADAS[dias.shift()];
 }
-/* Cintia (auditora) no está en el sistema de turnos, así que no tiene el pausado manual.
-   Igual queremos registrar sus pausas (30 min sin usar el sistema) para el tablero de
-   dirección: se detecta por inactividad y se anota en su jornada, sin tocar nada más. */
-function tickRegistroAuditora(){
+/* Registro de pausas por INACTIVIDAD (para el tablero de dirección), igual para vendedores
+   y para Cintia. Una pausa = un solo período continuo de +30 min sin ningún movimiento en
+   la app, medido DESDE que se quedó inactivo HASTA que volvió a moverse. No se fragmenta:
+   hay una sola pausa abierta por vez y se cierra recién cuando hay actividad posterior. */
+function tickRegistroPausa(){
   try{
-    if(!YO || !esAuditora()) return;
+    if(!YO || esAdmin()) return;   // el admin no se registra a sí mismo
+    // El vendedor cuenta solo si está conectado y trabajando (no en la pantalla de selección).
+    if(!esAuditora() && (!yaConectadoHoy(YO) || (typeof forzandoSelector!=='undefined' && forzandoSelector))) return;
     const j=(JORNADAS[hoyStr()]||{})[YO];
     if(!j) return;
+    if(!j.pausas) j.pausas=[];
     const idle=Date.now()-_ultimaActividad;
-    const ult=j.pausas&&j.pausas.length?j.pausas[j.pausas.length-1]:null;
-    const abierta=ult&&!ult.h;
+    const ult=j.pausas.length?j.pausas[j.pausas.length-1]:null;
+    const abierta=ult && !ult.h;
     if(!abierta){
-      // Empezó una pausa: la marca desde el momento en que se quedó inactiva (hace 30 min).
+      // Abre la pausa recién a los 30 min de inactividad, pero fechada DESDE que se quedó
+      // quieto (la última actividad). Así el tiempo cuenta desde el minuto 0, no desde el 30.
       if(idle>=AUTO_PAUSA_MS){ j.pausas.push({d:new Date(_ultimaActividad).toISOString(), h:null}); saveJornadas(); }
-    }else if(idle<AUTO_PAUSA_MS){
-      // Volvió a haber actividad: cierra la pausa en el momento en que retomó.
-      ult.h=new Date(_ultimaActividad).toISOString();
-      j.ultima=new Date().toISOString();
-      saveJornadas();
+    }else{
+      // Cierra solo cuando hubo una actividad POSTERIOR al inicio de la pausa (volvió a moverse).
+      // Al fechar el fin en ese momento, la pausa queda de corrido, sin cortes de 0 min.
+      if(_ultimaActividad > Date.parse(ult.d)){
+        ult.h=new Date(_ultimaActividad).toISOString();
+        j.ultima=new Date().toISOString();
+        saveJornadas();
+      }
     }
   }catch(e){}
 }
+/* Duración mínima para que una pausa cuente/aparezca (limpia además los cortes viejos de
+   la versión anterior que fragmentaba). Toda pausa real por inactividad es de +30 min. */
+const PAUSA_MIN_MS=25*60*1000;
 async function marcarActivoHoy(localId,uid){
   if(!localId) return;
   asegurarActivosHoy();
@@ -2629,7 +2640,8 @@ async function pausarme(auto){
   if(!ACTIVOS.historialPausas) ACTIVOS.historialPausas=[];
   ACTIVOS.pausados[YO]=true;
   ACTIVOS.historialPausas.push({uid:YO, localId:LOCAL_ACTUAL, desde:new Date().toISOString(), hasta:null, auto:!!auto});
-  registrarPausa(YO,'desde');
+  // El registro de pausas del tablero se maneja aparte, por inactividad (tickRegistroPausa),
+  // para que no se fragmente. Acá solo se toca el pausado de turnos.
   await saveActivos();
   render();
   toast(auto?'Te pausamos solos: pasaste 30 min sin usar la app. Tocá "Reanudar" cuando vuelvas.':'Pausado — no vas a sumar en los turnos hasta que vuelvas.');
@@ -2641,7 +2653,6 @@ async function reanudarme(){
     const abierta=[...ACTIVOS.historialPausas].reverse().find(p=>p.uid===YO && !p.hasta);
     if(abierta) abierta.hasta=new Date().toISOString();
   }
-  registrarPausa(YO,'hasta');
   await saveActivos();
   render();
   toast('De vuelta en los turnos.');
@@ -11631,7 +11642,9 @@ function htmlRegistroJornadas(){
   const fecha=`${_wd.charAt(0).toUpperCase()+_wd.slice(1)} ${_z(+_p[2])}/${_z(+_p[1])}/${String(+_p[0]).slice(-2)}`;
   const filas=uids.map(uid=>{
     const j=us[uid];
-    const ps=(j.pausas||[]).filter(p=>p.d);
+    // Solo pausas reales: en curso, o cerradas de al menos ~30 min (descarta los cortes de 0 min
+    // que dejó la versión anterior).
+    const ps=(j.pausas||[]).filter(p=>p.d && (!p.h || (new Date(p.h)-new Date(p.d))>=PAUSA_MIN_MS));
     const rangos=ps.map(p=>{const min=p.h?Math.max(0,Math.round((new Date(p.h)-new Date(p.d))/60000)):null;return `<div class="jp-item">${fh(p.d)} – ${p.h?fh(p.h):'en curso'}${min!=null?` <span class="muted">(${min} min)</span>`:''}</div>`;}).join('');
     const pausasCell = ps.length
       ? `<details class="jp-det"><summary>${ps.length} pausa${ps.length===1?'':'s'}</summary><div class="jp-list">${rangos}</div></details>`
