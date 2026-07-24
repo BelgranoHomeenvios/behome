@@ -2886,6 +2886,22 @@ async function borrarDuplicado(id){
   toast('Venta duplicada borrada');
   if(typeof renderPanelCintia==='function') renderPanelCintia();
 }
+/* Marca un grupo (mismo N° de orden) como VENTA COMPARTIDA entre vendedores: deja de ser
+   duplicado, cada uno conserva su parte del monto y en ambas filas se ve "🤝 Compartida". */
+async function marcarCompartida(ids){
+  if(!esAdmin()) return;
+  const arr=(ids||[]).map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
+  if(arr.length<2) return;
+  const vends=[...new Set(arr.map(a=>nombreDe(a.vendedorId)))];
+  if(!window.confirm(`¿Marcar como VENTA COMPARTIDA entre ${vends.join(' y ')}?\n\nDeja de contarse como duplicado y cada uno queda con su parte del monto. Después podés editar el monto de cada uno con el botón "Editar".`)) return;
+  arr.forEach(a=>{
+    a.ventaCompartida=true;
+    a.compartidaConNombres=[...new Set(arr.filter(x=>x.id!==a.id).map(x=>nombreDe(x.vendedorId)))].join(', ');
+  });
+  await saveAtenciones();
+  toast('Marcada como venta compartida');
+  if(typeof renderPanelCintia==='function') renderPanelCintia();
+}
 async function guardarVinculacionCliente(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
@@ -4287,7 +4303,7 @@ async function guardarCierre(){if(esSoloLectura())return avisoLectura();
     // Anti-duplicado: 1 venta por N° de orden. Si ya hay una concretada con ese número (o
     // el mismo cliente con el mismo monto), avisa y pide confirmar para no cargarla dos veces.
     const _telC=normContacto(a.clienteTelefono||'');
-    const dupV=atenciones.find(x=>x.id!==a.id && estadoDe(x)==='Concretado' && (
+    const dupV=a.ventaCompartida ? null : atenciones.find(x=>x.id!==a.id && estadoDe(x)==='Concretado' && !x.ventaCompartida && (
       (x.nroOrden && x.nroOrden.trim().toLowerCase()===nroOrden.toLowerCase()) ||
       (_telC && normContacto(x.clienteTelefono||'')===_telC && (+x.montoVendido||0)===monto)
     ));
@@ -4683,7 +4699,7 @@ async function resolverSolicitud(id, estado){
    con otra concretada, o si es del mismo cliente (mismo teléfono) con el mismo monto. Sirve
    para marcarlas en la planilla y para frenar la doble carga. Devuelve el motivo o ''. */
 function motivoDuplicado(a){
-  if(!a || estadoDe(a)!=='Concretado') return '';
+  if(!a || estadoDe(a)!=='Concretado' || a.ventaCompartida) return '';
   const ord=(a.nroOrden||'').trim().toLowerCase();
   const tel=normContacto(a.clienteTelefono||'');
   const monto=+a.montoVendido||0;
@@ -4822,7 +4838,7 @@ function logItemHtml(a){
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         ${canalIco}
         <div class="c-nom-inner">
-        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${dupMotivo?`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`:''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`:''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🛟 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
@@ -4849,7 +4865,7 @@ function logItemHtml(a){
         <span class="ebtn cm-ico${(tieneFoto(a))?'':' apagado'}" title="${(tieneFoto(a))?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
         <span class="ebtn cm-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
         ${(!esAuditora() && (YO===a.vendedorId || esAdmin())) ? `<span class="ebtn cm-ico${a.evaluada?'':' apagado'}" title="${a.evaluada?'Ver la evaluación de esta consulta':'Todavía no la evaluaron'}"${a.evaluada?` onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')"`:''}>📊</span>` : ''}
-        ${puedeMarcarIntervencion() ? `<span class="ebtn cm-ico interv-ico${intervinoCintia(a)?' on':''}" title="${intervinoCintia(a)?('Intervino '+nombreDe(a.cintiaIntervino.porId)+' — clic para quitar'):'Marcar que Cintia intervino / dio soporte en esta consulta'}" onclick="event.stopPropagation();toggleIntervencionCintia('${a.id}')">🤝</span>` : ''}
+        ${puedeMarcarIntervencion() ? `<span class="ebtn cm-ico interv-ico${intervinoCintia(a)?' on':''}" title="${intervinoCintia(a)?('Intervino '+nombreDe(a.cintiaIntervino.porId)+' — clic para quitar'):'Marcar que Cintia intervino / dio soporte en esta consulta'}" onclick="event.stopPropagation();toggleIntervencionCintia('${a.id}')">🛟</span>` : ''}
         ${solPendiente
           ? `<span class="ebtn cm-ico apagado" title="Baja ya solicitada">🗑️</span>`
           : `<span class="ebtn cm-ico" title="${esAuditora()?'Eliminar contacto':'Solicitar eliminar contacto'}" onclick="event.stopPropagation();abrirSolicitudEliminar('${a.id}')">🗑️</span>`}
@@ -7252,7 +7268,7 @@ async function toggleIntervencionCintia(id){if(esSoloLectura())return avisoLectu
     const ts=new Date().toISOString();
     a.cintiaIntervino={ts, porId:YO};
     a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
-    a.historialContacto.push({ts, texto:'🤝 Intervino '+nombreDe(YO)+' en el seguimiento', porId:YO, intervencion:true});
+    a.historialContacto.push({ts, texto:'🛟 Intervino '+nombreDe(YO)+' en el seguimiento', porId:YO, intervencion:true});
     toast('Marcada: intervino '+nombreDe(YO));
   }
   await saveAtenciones();
@@ -8038,12 +8054,12 @@ function estCardApoyoCintia(base){
   const totJuego=filas.reduce((s,f)=>s+f.juego,0);
   const totConc=filas.reduce((s,f)=>s+f.conc,0);
   if(!totN) return `<div class="est-card">
-    <div class="est-hd"><div><h3>Apoyo de Cintia 🤝</h3><p class="cap">Consultas donde Cintia se metió a dar soporte o seguimiento.</p></div></div>
-    <p class="cin-empty" style="margin:6px 0">Todavía no hay consultas marcadas con intervención de Cintia en este período. Se marcan con el 🤝 en cada fila.</p></div>`;
+    <div class="est-hd"><div><h3>Apoyo de Cintia 🛟</h3><p class="cap">Consultas donde Cintia se metió a dar soporte o seguimiento.</p></div></div>
+    <p class="cin-empty" style="margin:6px 0">Todavía no hay consultas marcadas con intervención de Cintia en este período. Se marcan con el 🛟 en cada fila.</p></div>`;
   const masApoyo=[...filas].sort((a,b)=>b.n-a.n)[0];
   return `<div class="est-card">
     <div class="est-hd">
-      <div><h3>Apoyo de Cintia 🤝</h3>
+      <div><h3>Apoyo de Cintia 🛟</h3>
       <p class="cap">Consultas donde Cintia intervino (soporte/seguimiento) y cuánta plata se generó después.</p></div>
       <div class="est-tot"><div class="n">${totN}</div><div class="l">apoyadas</div></div>
     </div>
@@ -9195,7 +9211,7 @@ function renderEvaluar(){
   const intervineOn = (ev.intervine!==undefined ? ev.intervine : intervinoCintia(a));
   const intervineHtml = puedeMarcarIntervencion() ? `<div class="ev-nunca ${intervineOn?'on':''}" onclick="evToggleIntervine()">
     <span class="ic">${intervineOn?'☑':'☐'}</span>
-    <div><b>🤝 Intervine</b><span>Marca que te metiste / diste soporte en esta consulta.</span></div>
+    <div><b>🛟 Intervine</b><span>Marca que te metiste / diste soporte en esta consulta.</span></div>
   </div>` : '';
 
   $('evaluarCaja').innerHTML=`
@@ -9404,7 +9420,7 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
     if(ev.intervine && !a.cintiaIntervino){
       a.cintiaIntervino={ts:new Date().toISOString(), porId:YO};
       a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
-      a.historialContacto.push({ts:a.cintiaIntervino.ts, texto:'🤝 Intervino '+nombreDe(YO)+' en el seguimiento', porId:YO, intervencion:true});
+      a.historialContacto.push({ts:a.cintiaIntervino.ts, texto:'🛟 Intervino '+nombreDe(YO)+' en el seguimiento', porId:YO, intervencion:true});
     }else if(!ev.intervine && a.cintiaIntervino){
       a.cintiaIntervino=null;
       a.historialContacto=(Array.isArray(a.historialContacto)?a.historialContacto:[]).filter(h=>!(h && h.intervencion));
@@ -9488,7 +9504,7 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
     if(!a.cintiaIntervino){
       a.cintiaIntervino={ts:new Date().toISOString(), porId:YO};
       a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
-      a.historialContacto.push({ts:new Date().toISOString(), texto:'🤝 Intervino '+nombreDe(YO)+' (derivó a 2da oportunidad)', porId:YO, intervencion:true});
+      a.historialContacto.push({ts:new Date().toISOString(), texto:'🛟 Intervino '+nombreDe(YO)+' (derivó a 2da oportunidad)', porId:YO, intervencion:true});
     }
     toast('Levantada a 2da oportunidad — '+nombreDe(destino));
   }else if(ev.decision==='pedirConcretada' || ev.decision==='pedirRechazada'){
@@ -9498,7 +9514,7 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
     if(!a.cintiaIntervino){
       a.cintiaIntervino={ts:new Date().toISOString(), porId:YO};
       a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
-      a.historialContacto.push({ts:new Date().toISOString(), texto:'🤝 Intervino '+nombreDe(YO)+' (pidió marcar '+estPed+')', porId:YO, intervencion:true});
+      a.historialContacto.push({ts:new Date().toISOString(), texto:'🛟 Intervino '+nombreDe(YO)+' (pidió marcar '+estPed+')', porId:YO, intervencion:true});
     }
     toast('Le va a llegar al vendedor para que la marque '+(estPed==='Concretado'?'Concretada':'Rechazada'));
   }else{
@@ -11681,7 +11697,8 @@ function renderDireccion(){
   // Limpieza de concretadas: mismas por N° de orden (borrar dejando 1), sin N° de orden, y
   // mismas por teléfono (para unificar a mano). Sobre las concretadas del período elegido.
   const _gOrd={}; conc.forEach(a=>{const k=(a.nroOrden||'').trim().toLowerCase(); if(k)(_gOrd[k]=_gOrd[k]||[]).push(a);});
-  const dupOrden=Object.entries(_gOrd).filter(([,arr])=>arr.length>1);
+  // Las ya marcadas como "compartida" no son duplicados: salen de la lista.
+  const dupOrden=Object.entries(_gOrd).filter(([,arr])=>arr.length>1 && !arr.some(a=>a.ventaCompartida));
   // Solo se piden número las concretadas nuevas (desde ORDEN_OBLIGATORIA_DESDE); las viejas
   // sin número quedan como están, no van a la lista de "hay que cargarles el número".
   const sinOrden=conc.filter(a=>!(a.nroOrden||'').trim() && new Date(a.ts).getTime()>=ORDEN_OBLIGATORIA_DESDE);
@@ -11722,7 +11739,8 @@ function renderDireccion(){
       <div style="padding:13px 17px">
         ${dupOrden.length ? `<div style="margin-bottom:12px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--red)">Mismo N° de orden — dejá 1 y borrá el resto (${dupOrden.length})</b>
           ${dupOrden.map(([ord,arr])=>`<div style="margin-top:7px;padding:8px 10px;background:var(--red-l,#fdecea);border-radius:8px">
-            <b>N° ${escapeHtml(arr[0].nroOrden||ord)}</b> — ${arr.length} cargadas
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>N° ${escapeHtml(arr[0].nroOrden||ord)}</b> — ${arr.length} cargadas
+              <button class="btn btn-outline btn-sm" style="flex:0 0 auto;color:#0d9488" onclick="marcarCompartida([${arr.map(a=>`'${a.id}'`).join(',')}])">🤝 Es compartida</button></div>
             ${arr.map((a,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px;font-size:12.5px">
               <span>${_lineaCons(a)}</span>
               ${i===0?'<span class="dir-pill g" style="flex:0 0 auto">se queda</span>':`<button class="btn btn-outline btn-sm" style="flex:0 0 auto;color:var(--red)" onclick="borrarDuplicado('${a.id}')">🗑 Borrar</button>`}
