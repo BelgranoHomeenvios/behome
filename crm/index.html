@@ -2109,7 +2109,7 @@ let filtroPostventa='pendientes'; // 'pendientes' | 'resueltas' | 'todas' — pa
 function grupoCanalDe(a){
   const cr=canalReal(a);
   if(a.canal==='presencial' || cr==='Local') return 'local';
-  if(cr==='WhatsApp' || cr==='Publicidad Mensajería') return 'whatsapp';
+  if(cr==='WhatsApp' || cr==='Publicidad Mensajería' || cr==='Google Shopping' || cr==='Tienda Nube') return 'whatsapp';
   if(cr==='Instagram' || cr==='Publicidad Instagram' || cr==='Facebook') return 'instagram';
   return 'otro';
 }
@@ -6915,11 +6915,9 @@ const SVG_IG=`<svg viewBox="0 0 32 32" width="15" height="15" style="display:blo
 function canalIconHtml(a){
   const cr=canalReal(a);
   if(a.canal==='presencial' || cr==='Local') return '<span class="c-canal-emoji" title="Consulta del local">🚶‍♂️</span>';
-  if(cr==='WhatsApp' || cr==='Publicidad Mensajería') return `<span class="c-canal-ico" title="WhatsApp">${SVG_WA}</span>`;
+  if(cr==='WhatsApp' || cr==='Publicidad Mensajería' || cr==='Google Shopping' || cr==='Tienda Nube') return `<span class="c-canal-ico" title="${escAttr(cr)}">${SVG_WA}</span>`;
   if(cr==='Instagram' || cr==='Publicidad Instagram' || cr==='Facebook') return `<span class="c-canal-ico" title="${escAttr(cr)}">${SVG_IG}</span>`;
   if(cr==='Email') return '<span class="c-canal-emoji" title="Email">✉️</span>';
-  if(cr==='Google Shopping') return '<span class="c-canal-emoji" title="Google Shopping">🛒</span>';
-  if(cr==='Tienda Nube') return '<span class="c-canal-emoji" title="Tienda Nube">🛒</span>';
   if(cr==='Consulta de estado' || cr==='Reclamo') return '<span class="c-canal-emoji" title="Post-venta">📋</span>';
   if(!cr || cr==='Sin definir') return '';
   return '<span class="c-canal-emoji" title="Consulta virtual">📲</span>';
