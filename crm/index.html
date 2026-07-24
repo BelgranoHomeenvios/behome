@@ -2228,6 +2228,7 @@ async function conectarEnLocal(localId){
   LOCAL_ACTUAL=localId;
   forzandoSelector=false;
   await marcarActivoHoy(localId,YO);
+  registrarConexion(YO, localId);
   ULTIMO_LOCAL[YO]=localId;
   await saveUltimoLocal();
   $('whoRol').textContent=`Vendedor · ${nombreLocal(LOCAL_ACTUAL)}`;
@@ -2261,6 +2262,11 @@ function entrarApp(){
   // Aviso de "muchas en seguimiento": primer chequeo al entrar y después cada 2 horas.
   setTimeout(()=>chequearSeguimientoAlto(false), 6000);
   if(!window._segInterval) window._segInterval=setInterval(()=>chequearSeguimientoAlto(false), 2*3600*1000);
+  // Latido para la "última señal" (proxy de la hora de desconexión): cada 4 min mientras
+  // esté conectado y no en pausa.
+  if(!window._jornInterval) window._jornInterval=setInterval(()=>{
+    if(YO && !esAdmin() && !esAuditora() && yaConectadoHoy(YO) && !forzandoSelector && !estaPausado(YO)) registrarSenal(YO);
+  }, 4*60*1000);
   /* Cintia y dirección trabajan sobre lo que falta evaluar: se les suma esa
      cola aunque alguna consulta quede fuera de la ventana de 2 meses. */
   if(esAuditora()||esAdmin()) cargarPendientesEvaluacion().then(()=>render());
@@ -2349,6 +2355,57 @@ async function loadActivos(){
 async function saveActivos(){
   try{await window.storage.set('activos-hoy',JSON.stringify(ACTIVOS),true);}catch(e){}
 }
+
+/* ===== Registro de jornadas (conexión / última señal / pausas por usuario y día) =====
+   A diferencia de ACTIVOS (que se resetea cada día), esto se guarda acumulado, día a día,
+   para que dirección pueda ver a qué hora se conectó/desconectó cada uno. La "última señal"
+   es el proxy de la desconexión: la última vez que la app supo que la persona estaba activa
+   (no hay logout explícito). Empieza a acumular desde ahora — no hay histórico previo. */
+let JORNADAS={};
+let _timerJorn=null;
+async function loadJornadas(){
+  try{ const r=await window.storage.get('registro-jornadas',true); if(r&&r.value) JORNADAS=JSON.parse(r.value)||{}; }catch(e){ JORNADAS={}; }
+}
+function saveJornadas(){
+  clearTimeout(_timerJorn);
+  _timerJorn=setTimeout(()=>{ try{ window.storage.set('registro-jornadas',JSON.stringify(JORNADAS),true); }catch(e){} }, 900);
+}
+function _jornDia(uid){
+  const d=hoyStr();
+  if(!JORNADAS[d]) JORNADAS[d]={};
+  if(!JORNADAS[d][uid]) JORNADAS[d][uid]={conexion:null, ultima:null, localId:null, pausas:[]};
+  return JORNADAS[d][uid];
+}
+function registrarConexion(uid, localId){
+  if(!uid) return;
+  const j=_jornDia(uid);
+  const ahora=new Date().toISOString();
+  if(!j.conexion) j.conexion=ahora;
+  if(localId) j.localId=localId;
+  j.ultima=ahora;
+  purgarJornadas();
+  saveJornadas();
+}
+function registrarSenal(uid){
+  if(!uid) return;
+  const d=hoyStr();
+  if(!JORNADAS[d]||!JORNADAS[d][uid]) return;   // solo si ya hubo conexión hoy
+  JORNADAS[d][uid].ultima=new Date().toISOString();
+  saveJornadas();
+}
+function registrarPausa(uid, tipo){
+  if(!uid) return;
+  const j=_jornDia(uid);
+  const ahora=new Date().toISOString();
+  if(tipo==='desde'){ j.pausas.push({d:ahora, h:null}); }
+  else { const p=[...j.pausas].reverse().find(x=>!x.h); if(p) p.h=ahora; }
+  j.ultima=ahora;
+  saveJornadas();
+}
+function purgarJornadas(){
+  const dias=Object.keys(JORNADAS).sort();
+  while(dias.length>75) delete JORNADAS[dias.shift()];
+}
 async function marcarActivoHoy(localId,uid){
   if(!localId) return;
   asegurarActivosHoy();
@@ -2379,6 +2436,7 @@ async function pausarme(){
   if(!ACTIVOS.historialPausas) ACTIVOS.historialPausas=[];
   ACTIVOS.pausados[YO]=true;
   ACTIVOS.historialPausas.push({uid:YO, localId:LOCAL_ACTUAL, desde:new Date().toISOString(), hasta:null});
+  registrarPausa(YO,'desde');
   await saveActivos();
   render();
   toast('Pausado — no vas a sumar en los turnos hasta que vuelvas.');
@@ -2390,6 +2448,7 @@ async function reanudarme(){
     const abierta=[...ACTIVOS.historialPausas].reverse().find(p=>p.uid===YO && !p.hasta);
     if(abierta) abierta.hasta=new Date().toISOString();
   }
+  registrarPausa(YO,'hasta');
   await saveActivos();
   render();
   toast('De vuelta en los turnos.');
@@ -2629,6 +2688,7 @@ function diasSinHablarle(a){
 async function loadState(){
   await loadLocales();
   await loadActivos();
+  await loadJornadas();
   await loadUltimoLocal();
   await loadContactos();
   await loadSolicitudes();
@@ -10978,7 +11038,30 @@ function renderDireccion(){
           <span class="av2" style="background:${rolDe(u)==='auditora'?'#0369a1':AVC[i%AVC.length]}">${nombreDe(u).slice(0,2).toUpperCase()}</span>
           <div><b style="font-size:13px">${nombreDe(u)}</b><div style="font-size:11px;color:var(--muted)">${rolDe(u)==='auditora'?'Auditora':'Vendedor'}</div></div>
           <span class="go">Ver pantalla →</span>
-        </div>`).join('')}</div></div>`;
+        </div>`).join('')}</div></div>${htmlRegistroJornadas()}`;
+}
+/* Registro de conexiones: a qué hora se conectó y su última señal (≈ desconexión) cada
+   uno, por día, más las pausas. Se guarda día a día desde ahora. */
+function htmlRegistroJornadas(){
+  const dias=Object.keys(JORNADAS).sort((a,b)=>b.localeCompare(a)).slice(0,14);
+  const fh=iso=>{try{return new Date(iso).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});}catch(e){return '—';}};
+  const cuerpo = !dias.length
+    ? `<p class="muted" style="margin:0">Todavía no hay registros. Se empiezan a guardar desde ahora — cada día vas a ver acá a qué hora se conectó y se desconectó cada uno.</p>`
+    : dias.map(d=>{
+        const us=JORNADAS[d]||{};
+        const uids=Object.keys(us).sort((a,b)=>String(us[a].conexion||'').localeCompare(String(us[b].conexion||'')));
+        if(!uids.length) return '';
+        const filas=uids.map(uid=>{
+          const j=us[uid];
+          const paus=(j.pausas||[]).filter(p=>p.d).map(p=>`${fh(p.d)}–${p.h?fh(p.h):'…'}`).join(', ');
+          return `<tr><td>${escapeHtml(nombreDe(uid))}</td><td>${fh(j.conexion)}</td><td>${fh(j.ultima)}</td><td class="muted" style="font-size:12px">${paus||'—'}</td></tr>`;
+        }).join('');
+        const fecha=new Date(d+'T00:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'short'});
+        return `<div style="margin-top:12px"><b style="font-size:13px;text-transform:capitalize">${fecha}</b>
+          <div class="dir-scroll" style="overflow-x:auto"><table class="est-tabla" style="min-width:460px;margin-top:5px">
+            <tr><th>Usuario</th><th>Conexión</th><th>Última señal</th><th>Pausas</th></tr>${filas}</table></div></div>`;
+      }).join('');
+  return `<div class="dir-card"><div class="dh">Conexiones del equipo<span class="r">hora de conexión y última señal (≈ desconexión), por día</span></div>${cuerpo}</div>`;
 }
 /* Entrar a la pantalla de un usuario usando tu "ver como" de siempre */
 function dirVerComo(uid){
