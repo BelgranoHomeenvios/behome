@@ -2748,7 +2748,10 @@ async function buscarClienteEnBase(telefono){
 /* Las columnas sueltas de la fila son las que se usan para filtrar y paginar.
    El registro completo va en 'data'. */
 function consultaAFila(a){
-  const estado = ({concretado:'Concretado', rechazado:'Rechazado',
+  // El estado de la columna sale del estado real (estadoManual). Antes salía solo de
+  // a.status/a.resultado, y las consultas importadas (que traen el estado en estadoManual
+  // pero no en resultado) se guardaban con estado vacío si se tocaba cualquier otro campo.
+  const estado = a.estadoManual || ({concretado:'Concretado', rechazado:'Rechazado',
                    seguimiento:'En seguimiento'})[a.status] || a.resultado || null;
   // Guarda el identificador tal como sirve para contactar: el número si es un teléfono,
   // el usuario si vino de Instagram o Facebook. Antes se quedaba solo con los dígitos y
@@ -5948,6 +5951,70 @@ async function guardarConfigCanalesDestinos(){
   renderConfigCanalesDestinos();
   toast('Canales y destinos actualizados');
 }
+
+/* ===== Aplicar a la base las correcciones que hoy se ven en pantalla =====
+   Escribe en Supabase: nombres de Instagram recuperados, canal corregido del Excel,
+   estado (viejas sin estado -> Rechazado) y limpia el flag "archivada". Corre en el
+   navegador (que sí tiene acceso a Supabase, a diferencia del entorno de desarrollo).
+   Con dryRun=true no escribe: solo cuenta qué tocaría. Es idempotente. */
+async function correccionesBaseCore(dryRun){
+  if(!_historicoCompleto){ await completarHistoricoEnSegundoPlano(); }
+  construirRecuperacionIG();
+  let cN=0,cC=0,cE=0,cV=0;
+  const cambiados=new Set();
+  const muestras=[];
+  for(const a of atenciones){
+    let toco=false;
+    // 1) Nombre de Instagram recuperado del Excel (queda exacto).
+    const ig=IG_NOMBRES[a.id];
+    if(ig && a.clienteNombre!==ig){ if(!dryRun) a.clienteNombre=ig; cN++; toco=true; if(muestras.length<6) muestras.push(ig); }
+    // 2) Canal corregido (el Excel manda). Solo si canalReal da un canal real distinto de
+    //    lo guardado; las presenciales ya están bien por a.canal.
+    const cr=canalReal(a);
+    if(cr && cr!=='Sin definir' && a.canal!=='presencial' && a.canalDetalle!==cr){ if(!dryRun) a.canalDetalle=cr; cC++; toco=true; }
+    // 3) Estado: consulta vieja sin estado -> Rechazado (queda registrada, sin evaluación).
+    if(!a.estadoManual || a.estadoManual==='-' || a.estadoManual==='#REF!'){
+      if(estadoDe(a)==='Rechazado'){ if(!dryRun){ a.estadoManual='Rechazado'; a.resultado='Rechazado'; } cE++; toco=true; }
+    }
+    // 4) "Archivada" no existe: se limpia el flag.
+    if(a.soloVolumen){ if(!dryRun) a.soloVolumen=false; cV++; toco=true; }
+    if(toco) cambiados.add(a.id);
+  }
+  if(!dryRun && cambiados.size){
+    const filas=[...cambiados].map(id=>consultaAFila(atenciones.find(x=>x.id===id))).filter(Boolean);
+    for(let i=0;i<filas.length;i+=400){
+      const {error}=await sb.from('consultas').upsert(filas.slice(i,i+400),{onConflict:'id'});
+      if(error) throw new Error('lote '+i+': '+(error.message||error.code||'error'));
+    }
+    cambiados.forEach(id=>{ const a=atenciones.find(x=>x.id===id); if(a) _snapConsultas[id]=JSON.stringify(a); });
+  }
+  return {cN,cC,cE,cV,total:cambiados.size,muestras,totalConsultas:atenciones.length};
+}
+async function analizarCorreccionesBase(){
+  if(!esAdmin()){ toast('Solo dirección'); return; }
+  const box=$('correccionesResultado'); if(box) box.innerHTML='Analizando… (primero se termina de cargar todo el histórico, puede tardar unos segundos).';
+  try{
+    const r=await correccionesBaseCore(true);
+    if(box) box.innerHTML=`Sobre <b>${r.totalConsultas}</b> consultas cargadas, se tocarían:<br>
+      · <b>${r.cN}</b> nombres de Instagram a completar${r.muestras.length?` <span style="color:var(--muted)">(${r.muestras.slice(0,5).join(', ')}…)</span>`:''}<br>
+      · <b>${r.cC}</b> canales a corregir<br>
+      · <b>${r.cE}</b> estados (viejas sin estado → Rechazado)<br>
+      · <b>${r.cV}</b> con flag "archivada" a limpiar<br>
+      <b>Total de consultas a modificar: ${r.total}</b>`;
+    const btn=$('btnAplicarCorr'); if(btn) btn.disabled = r.total===0;
+  }catch(e){ console.error(e); if(box) box.innerHTML='<span style="color:var(--red)">Error al analizar: '+(e.message||e)+'</span>'; }
+}
+async function aplicarCorreccionesBaseUI(){
+  if(!esAdmin()){ toast('Solo dirección'); return; }
+  if(!window.confirm('Se van a ESCRIBIR estos cambios en la base de datos (Supabase). Conviene haber apretado "Analizar" antes. ¿Seguir?')) return;
+  const box=$('correccionesResultado'); if(box) box.innerHTML='Aplicando… no cierres ni recargues la app hasta que termine.';
+  const btn=$('btnAplicarCorr'); if(btn) btn.disabled=true;
+  try{
+    const r=await correccionesBaseCore(false);
+    if(box) box.innerHTML=`<span style="color:var(--green)">✓ Listo. Se actualizaron <b>${r.total}</b> consultas en la base: ${r.cN} nombres, ${r.cC} canales, ${r.cE} estados, ${r.cV} archivadas limpiadas.</span>`;
+    render();
+  }catch(e){ console.error(e); if(box) box.innerHTML='<span style="color:var(--red)">Se cortó al aplicar: '+(e.message||e)+'. Podés volver a apretar Aplicar — retoma lo que faltó.</span>'; if(btn) btn.disabled=false; }
+}
 function renderEliminacionesAdmin(){
   const box=$('eliminacionesAdminBox');
   if(!box) return;
@@ -6326,6 +6393,15 @@ function htmlAdminConfig(){
         </div>
       </div>
       <button class="btn btn-navy" style="margin-top:14px" onclick="guardarConfigCanalesDestinos()">Guardar canales y destinos</button>
+    </div>
+    <div class="card">
+      <h3>🔧 Aplicar correcciones a la base (una vez)</h3>
+      <p class="tiny" style="margin-bottom:12px">Escribe en la base de datos los arreglos que hoy se ven en pantalla: <b>nombres de Instagram</b> recuperados del Excel, <b>canales</b> corregidos, <b>estados</b> (consultas viejas sin estado → Rechazado) y limpia el flag <b>"archivada"</b>. Primero <b>Analizá</b> (no escribe nada) para ver cuántos registros toca; después Aplicás. Es re-ejecutable por si algo falla.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="analizarCorreccionesBase()">Analizar (no escribe)</button>
+        <button class="btn btn-navy" id="btnAplicarCorr" onclick="aplicarCorreccionesBaseUI()" disabled>Aplicar a la base</button>
+      </div>
+      <div id="correccionesResultado" class="tiny" style="margin-top:12px;line-height:1.6"></div>
     </div>
     <div class="card">
       <h3>Datos</h3>
