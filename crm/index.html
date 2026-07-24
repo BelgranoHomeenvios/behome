@@ -3026,6 +3026,44 @@ function marcarCompartidaDesdeRow(id){
   if(grupo.length<2){ toast('No encuentro con cuál está duplicada.'); return; }
   marcarCompartida(grupo.map(x=>x.id));
 }
+/* Editar el canal de una consulta desde el ⋮ de la tabla (Cintia / dirección). Es el primer
+   ítem del menú; más adelante se pueden sumar otras acciones ahí. */
+function abrirEditarCanal(id){
+  if(!puedeVerEquipo()){ toast('Solo Cintia o dirección pueden editar el canal.'); return; }
+  const a=atenciones.find(x=>x.id===id); if(!a) return;
+  const actual=canalReal(a);
+  const opts=CANALES.map(c=>`<option value="${escAttr(c)}" ${c===actual?'selected':''}>${escapeHtml(c)}</option>`).join('');
+  let ov=$('modalEditarCanal');
+  if(!ov){ ov=document.createElement('div'); ov.id='modalEditarCanal'; ov.className='cmp-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML=`<div class="cmp-modal">
+    <h3 style="margin:0 0 4px">✎ Editar canal</h3>
+    <p class="tiny" style="margin:0 0 12px;color:var(--muted)">${escapeHtml(nombreCliente(a)||'Consulta')}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}</p>
+    <div class="cmp-sec" style="border:0"><b>Canal de la consulta</b>
+      <select id="edCanalSel" class="ev-sel" style="margin-top:6px">${opts}</select>
+    </div>
+    <div class="cmp-actions">
+      <button class="btn btn-outline" onclick="cerrarEditarCanal()">Cancelar</button>
+      <button class="btn btn-navy" onclick="guardarEditarCanal('${a.id}')">Guardar</button>
+    </div>
+  </div>`;
+  ov.classList.remove('hidden');
+}
+function cerrarEditarCanal(){ const ov=$('modalEditarCanal'); if(ov) ov.classList.add('hidden'); }
+async function guardarEditarCanal(id){
+  if(!puedeVerEquipo()) return;
+  const a=atenciones.find(x=>x.id===id); if(!a) return;
+  const nuevo=$('edCanalSel')?$('edCanalSel').value:'';
+  if(!nuevo) return;
+  a.canalDetalle=nuevo;
+  // canalReal() devuelve 'Local' si a.canal==='presencial', así que hay que ajustarlo también.
+  if(nuevo==='Local') a.canal='presencial';
+  else if(a.canal==='presencial') a.canal='virtual';
+  await saveAtenciones();
+  cerrarEditarCanal();
+  toast('Canal actualizado: '+nuevo);
+  render();
+  if(typeof renderPanelCintia==='function') renderPanelCintia();
+}
 /* Unificar cliente (limpieza): para consultas del mismo teléfono, elegir con qué datos quedan
    todas. Nombre propio para no chocar con la fusionarClientes(tel,...) del sistema de clientes. */
 let _fusionIds=[];
@@ -5086,10 +5124,11 @@ function logItemHtml(a){
         ${solPendiente
           ? `<span class="ebtn cm-ico apagado" title="Baja ya solicitada">🗑️</span>`
           : `<span class="ebtn cm-ico" title="${esAuditora()?'Eliminar contacto':'Solicitar eliminar contacto'}" onclick="event.stopPropagation();abrirSolicitudEliminar('${a.id}')">🗑️</span>`}
-        ${(( esAuditora() && _ctxLista!=='evaluar') || (a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora())))
+        ${(( puedeVerEquipo() && _ctxLista!=='evaluar') || (a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora())))
           ? `<span class="ebtn" onclick="event.stopPropagation();togPop(this)" title="Más opciones">⋮
               <span class="pop pop-menu">
-                ${(esAuditora() && _ctxLista!=='evaluar') ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">Reasignar a otro vendedor</div>` : ''}
+                ${(puedeVerEquipo() && _ctxLista!=='evaluar') ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirEditarCanal('${a.id}')">✎ Editar canal</div>` : ''}
+                ${(puedeVerEquipo() && _ctxLista!=='evaluar') ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">Reasignar a otro vendedor</div>` : ''}
                 ${a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora()) ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">Marcar recordatorio como atendido</div>` : ''}
               </span>
             </span>`
