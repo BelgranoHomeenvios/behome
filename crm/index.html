@@ -1429,6 +1429,12 @@ textarea{resize:vertical;min-height:60px}
 .dir-bar .bt{flex:1;height:8px;border-radius:6px;background:var(--line2);overflow:hidden}
 .dir-bar .bt i{display:block;height:100%;border-radius:6px}
 .dir-bar .bv{width:40px;text-align:right;font-weight:800;font-size:12px}
+/* Distribución de evaluaciones como botones compactos (en vez de barras largas) */
+.ev-dist{display:flex;flex-wrap:wrap;gap:8px;margin-top:7px}
+.ev-dist-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:12.5px;font-weight:600;color:var(--sec)}
+.ev-dist-chip::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--c,#6b7280);flex:0 0 auto}
+.ev-dist-chip .n{font-size:16px;font-weight:800;color:var(--c,var(--ink))}
+.ev-dist-chip .p{font-size:11.5px;color:var(--muted);font-weight:700}
 .dir-team{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 17px}
 @media(max-width:1000px){.dir-team{grid-template-columns:1fr 1fr}}
 .dir-tcard{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#f7f9fb;cursor:pointer;transition:.13s}
@@ -11644,15 +11650,15 @@ function renderDireccion(){
   // % de evaluadas sobre el total de consultas del período.
   const pctEval = B.length ? Math.round(evalPer.length/B.length*100) : 0;
   // Distribución de las evaluadas por cada eje: cuántas cayeron en cada categoría.
-  const distEje = (campo, scale) => scale.map(([v,lbl])=>({lbl, n:evalPer.filter(a=>a[campo]===v).length}));
+  const distEje = (campo, scale) => scale.map(([v,lbl,cls])=>({lbl, cls, n:evalPer.filter(a=>a[campo]===v).length}));
   const distAtencion = distEje('evalAtencion', EV_ATENCION);
   const distConsulta = distEje('evalConsulta', EV_CONSULTA);
   const distCliente  = distEje('evalCliente',  EV_CLIENTE);
+  const _DCOL={g1:'#15803d',g2:'#0369a1',g3:'#b45309',g4:'#b42318'};
   const distBlock = (titulo, dist) => {
     const tot=dist.reduce((s,d)=>s+d.n,0);
-    const max=Math.max(1,...dist.map(d=>d.n));
     return `<div style="margin-top:13px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">${titulo}</b>
-      <div style="margin-top:6px">${dist.map(d=>`<div class="dir-bar"><span class="bl">${d.lbl}</span><span class="bt"><i style="width:${Math.round(d.n/max*100)}%;background:#7c3aed"></i></span><span class="bv" style="width:78px"><b>${d.n}</b><span style="color:var(--muted);font-weight:600">${tot?` · ${Math.round(d.n/tot*100)}%`:''}</span></span></div>`).join('')}</div></div>`;
+      <div class="ev-dist">${dist.map(d=>`<span class="ev-dist-chip" style="--c:${_DCOL[d.cls]||'#6b7280'}"><span class="l">${d.lbl}</span><b class="n">${d.n}</b><span class="p">${tot?Math.round(d.n/tot*100):0}%</span></span>`).join('')}</div></div>`;
   };
   // Limpieza de concretadas: mismas por N° de orden (borrar dejando 1), sin N° de orden, y
   // mismas por teléfono (para unificar a mano). Sobre las concretadas del período elegido.
