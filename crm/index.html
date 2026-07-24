@@ -4487,7 +4487,10 @@ function logItemHtml(a){
   const _esPres = a.canal==='presencial' || _cr==='Local';
   // Ícono del canal (logos de WhatsApp/Instagram, emoji para el resto) al costado del contacto.
   const canalIco = canalIconHtml(a);
-  const nuevaIco = pend ? `<span class="nueva-ico" title="Consulta nueva">✨</span>` : '';
+  // La ✨ marca una consulta NUEVA sin tocar. Apenas el vendedor le pone situación,
+  // una próxima acción, la percepción o la edita (deja de estar pendiente), desaparece.
+  const esNuevaSinTocar = pend && !a.percepcion && !estadoDe(a) && !proximaAccionDe(a);
+  const nuevaIco = esNuevaSinTocar ? `<span class="nueva-ico" title="Consulta nueva sin trabajar">✨</span>` : '';
 
   const mueblesTxt = muebles.length
     ? muebles.map(m=>`${nombreMueble(m)}${m.observacion?' ('+m.observacion+')':''}${m.monto?' — $'+miles(m.monto):''}${m.elegido?' ✓ elegido':''}`).join('<br>')
@@ -4568,11 +4571,11 @@ function logItemHtml(a){
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         ${canalIco}
         <div class="c-nom-inner">
-        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="Copiar nombre para LiveConnect">${nombreMostrar}</b>${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
-          ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}</span>`
-          : tel}</div>
+          ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
+          : escapeHtml(truncPalabras(tel,2))}</div>
         </div>
         ${nuevaIco}
       </div>
@@ -6869,6 +6872,9 @@ function canalReal(a){
 function canalCorto(name){
   return ({'Publicidad Mensajería':'P. Mensajería','Publicidad Instagram':'P. Instagram','Consulta de estado':'C. Estado'})[name] || name;
 }
+/* Nombres/contactos muy largos: se muestran cortados a las primeras N palabras con "…",
+   pero el valor completo queda en el title (hover) y se copia entero al tocar. */
+function truncPalabras(s,n){ s=String(s==null?'':s); const w=s.trim().split(/\s+/).filter(Boolean); return w.length<=n ? s : w.slice(0,n).join(' ')+'…'; }
 /* Íconos de canal: logos de WhatsApp e Instagram (SVG inline) + emojis para el resto.
    WhatsApp agrupa WhatsApp y Publicidad Mensajería; Instagram agrupa Instagram, Publicidad
    Instagram y Facebook. */
@@ -8657,6 +8663,7 @@ function guardarBorradorEvaluar(){
   const d=g('evDerivar'); if(d!==undefined) evTmp.derivar=d;
   const n=g('evNota'); if(n!==undefined) evTmp.nota=n;
   const e=g('evEjemploMotivo'); if(e!==undefined) evTmp.ejemploMotivo=e;
+  const ed=g('evEjemploMotivoDir'); if(ed!==undefined) evTmp.ejemploMotivoDir=ed;
 }
 async function evCaptura(input){
   const f=input.files&&input.files[0];
@@ -8815,16 +8822,21 @@ function renderEvaluar(){
       <option value="" ${!ev.ejemploTarget?'selected':''}>— No —</option>
       <option value="vendedor" ${ev.ejemploTarget==='vendedor'?'selected':''}>Para el vendedor (${escapeHtml(vNom)})</option>
       <option value="direccion" ${ev.ejemploTarget==='direccion'?'selected':''}>Para dirección (solo ${escapeHtml(brianNom)})</option>
+      <option value="ambos" ${ev.ejemploTarget==='ambos'?'selected':''}>Para ambos (vendedor y dirección)</option>
     </select>`;
+  const ejVerVend = ev.ejemploTarget==='vendedor' || ev.ejemploTarget==='ambos';
+  const ejVerDir  = ev.ejemploTarget==='direccion' || ev.ejemploTarget==='ambos';
   const ejSub = ev.ejemploTarget ? `
     <div class="ev-field"><label>¿Buen o mal ejemplo?</label>
       <select id="evSelEjTipo" class="ev-sel" onchange="evTmp.ejemploTipo=this.value">
         <option value="bueno" ${ev.ejemploTipo!=='malo'?'selected':''}>👍 Buen ejemplo</option>
         <option value="malo" ${ev.ejemploTipo==='malo'?'selected':''}>👎 Mal ejemplo</option>
       </select></div>
-    <div class="ev-field"><label>¿Por qué? <span class="opt">${ev.ejemploTarget==='vendedor'?'(lo ve '+escapeHtml(vNom)+')':'(solo lo ves vos)'}</span></label>
-      <textarea id="evEjemploMotivo" class="ev-ta" rows="2" placeholder="Por qué lo querés mostrar…" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.ejemploMotivo||'')}</textarea>
-      ${ev.ejemploCaptura
+    ${ejVerVend?`<div class="ev-field"><label>Observación para ${escapeHtml(vNom)} <span class="opt">(la ve el vendedor)</span></label>
+      <textarea id="evEjemploMotivo" class="ev-ta" rows="2" placeholder="Lo que querés que vea el vendedor…" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.ejemploMotivo||'')}</textarea></div>`:''}
+    ${ejVerDir?`<div class="ev-field"><label>Observación para dirección <span class="opt">(solo ${escapeHtml(brianNom)})</span></label>
+      <textarea id="evEjemploMotivoDir" class="ev-ta" rows="2" placeholder="Nota interna para dirección…" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.ejemploMotivoDir||'')}</textarea></div>`:''}
+    <div class="ev-field">${ev.ejemploCaptura
         ? `<div class="ev-adj" onclick="evQuitarCapturaEjemplo()"><img src="${ev.ejemploCaptura}"> Captura adjunta — clic para quitar</div>`
         : `<label class="ev-adj">📎 Adjuntar captura<input type="file" accept="image/*" style="display:none" onchange="evCapturaEjemplo(this)"></label>`}
     </div>` : '';
@@ -9079,10 +9091,11 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
 
   // Ejemplo del mes: puede ir al vendedor (lo ve él) o a dirección (solo lo ve Brian).
   a.ejemploDelMes = ev.ejemploTarget ? {
-    motivo:(ev.ejemploMotivo||'').trim(),
+    motivo:(ev.ejemploMotivo||'').trim(),          // observación para el vendedor
+    motivoDir:(ev.ejemploMotivoDir||'').trim(),    // observación para dirección (solo Brian)
     tipo: ev.ejemploTipo==='malo' ? 'malo' : 'bueno',
-    target: ev.ejemploTarget,                 // 'vendedor' | 'direccion'
-    visibleVendedor: ev.ejemploTarget==='vendedor',
+    target: ev.ejemploTarget,                 // 'vendedor' | 'direccion' | 'ambos'
+    visibleVendedor: ev.ejemploTarget==='vendedor' || ev.ejemploTarget==='ambos',
     captura: ev.ejemploCaptura||null,
     ts:new Date().toISOString(), porId:YO, leido:false
   } : null;
