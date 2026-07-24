@@ -7223,6 +7223,9 @@ function estadosPostventaDe(a){ return esReclamo(a) ? EST_PV_RECLAMO : EST_PV_ES
 // Las consultas de post-venta que ya existían (histórico importado, previas al corte) ya
 // estaban contestadas → Resueltas. Cualquier consulta nueva arranca SÍ o SÍ en Pendiente.
 const POSTVENTA_CORTE=new Date('2026-07-24T00:00:00').getTime();
+/* Desde esta fecha se empezó a pedir el N° de orden en las ventas. Las concretadas ANTERIORES
+   quedan válidas sin número (antes no se cargaba) y no se marcan como "falta el número". */
+const ORDEN_OBLIGATORIA_DESDE=new Date('2026-07-23T00:00:00').getTime();
 function estadoPostventaDe(a){
   if(a.estadoPostventa) return a.estadoPostventa;
   return (a.ts && new Date(a.ts).getTime() < POSTVENTA_CORTE) ? 'Resuelto' : 'Pendiente';
@@ -11679,7 +11682,9 @@ function renderDireccion(){
   // mismas por teléfono (para unificar a mano). Sobre las concretadas del período elegido.
   const _gOrd={}; conc.forEach(a=>{const k=(a.nroOrden||'').trim().toLowerCase(); if(k)(_gOrd[k]=_gOrd[k]||[]).push(a);});
   const dupOrden=Object.entries(_gOrd).filter(([,arr])=>arr.length>1);
-  const sinOrden=conc.filter(a=>!(a.nroOrden||'').trim());
+  // Solo se piden número las concretadas nuevas (desde ORDEN_OBLIGATORIA_DESDE); las viejas
+  // sin número quedan como están, no van a la lista de "hay que cargarles el número".
+  const sinOrden=conc.filter(a=>!(a.nroOrden||'').trim() && new Date(a.ts).getTime()>=ORDEN_OBLIGATORIA_DESDE);
   const _gTel={}; conc.forEach(a=>{const t=normContacto(a.clienteTelefono||''); if(t)(_gTel[t]=_gTel[t]||[]).push(a);});
   const dupTel=Object.entries(_gTel).filter(([,arr])=>arr.length>1);
   const _lineaCons=a=>`${escapeHtml(nombreCliente(a)||'sin nombre')} · ${escapeHtml(nombreDe(a.vendedorId))} · $ ${miles(+a.montoVendido||0)}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}`;
