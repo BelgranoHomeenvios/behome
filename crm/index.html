@@ -180,10 +180,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .h-bell .pop{width:190px}
 .eval-ok{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;font-size:13px;font-weight:800;cursor:default;flex-shrink:0}
 .eval-vieja{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;color:var(--muted);font-size:14px;cursor:default;flex-shrink:0}
-/* Campanita: columna fija angosta al principio de la fila */
-.c-bell,.chead .h-bell{flex:0 0 26px;display:flex;align-items:center;justify-content:center}
+/* Campanita + 🙏: columna fija al principio de la fila, los dos íconos uno al lado del otro */
+.c-bell,.chead .h-bell{flex:0 0 46px;display:flex;align-items:center;justify-content:center;gap:5px}
 .bell-btn{cursor:pointer;font-size:15px;line-height:1;filter:grayscale(1);opacity:.35;transition:all .12s}
-.c-bell{flex-direction:column!important;gap:3px}
+.c-bell{flex-direction:row!important;gap:5px}
 .asist-btn{cursor:pointer;font-size:14px;line-height:1;opacity:.4;position:relative}
 .asist-btn.activo{opacity:1}
 .asist-btn.sinleer::after{content:'';position:absolute;top:-2px;right:-4px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid #fff}
@@ -1118,7 +1118,7 @@ textarea{resize:vertical;min-height:60px}
 .fa-todo:hover{color:var(--red)}
 .gb:focus-visible,.sv-chip:focus-visible,.bell-btn:focus-visible,.cm-ico:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .bell-btn{padding:5px;border-radius:6px}
-.c-bell,.chead .h-bell{flex:0 0 32px}
+.c-bell,.chead .h-bell{flex:0 0 46px}
 .c-coment .ebtn{padding:4px 5px}
 .sv-chip{min-height:34px}
 @media (max-width:900px){
@@ -4402,7 +4402,10 @@ function pintarEtapa(){
   // guardarCierre() lee cerrandoTipo, así que se fija acá según lo elegido
   cerrandoTipo = (etapaSel==='Concretado'||etapaSel==='Rechazado') ? etapaSel : null;
   let cuerpo='';
-  if(a.status==='pendiente' && etapaSel && etapaSel!=='Concretado' && etapaSel!=='Rechazado'){
+  if(etapaSel==='Sin clasificar'){
+    cuerpo=`<p class="tiny" style="margin-bottom:12px">Vuelve a quedar <b>sin clasificar</b> (sin estado), como una consulta nueva sin trabajar.</p>
+      <button class="btn btn-navy" style="width:100%" onclick="guardarEtapaSinClasificar()">Guardar</button>`;
+  }else if(a.status==='pendiente' && etapaSel && etapaSel!=='Concretado' && etapaSel!=='Rechazado'){
     // Para "En seguimiento" sobre una consulta sin ficha todavía pedimos completarla.
     // Concretado y Rechazado, en cambio, van directo a su ficha (que ya pide todo lo
     // necesario), sin el paso intermedio del wizard.
@@ -4453,9 +4456,20 @@ function pintarEtapa(){
     <p class="tiny" style="margin-top:-6px;margin-bottom:14px">${est?`Hoy está <b>${est}</b>. `:''}El origen de la consulta (canal, local) no se toca — es histórico.</p>
     <div class="etapa-pills">
       ${ESTADOS.map(e=>`<span class="etapa-pill ${ESTADO_CLS[e]} ${etapaSel===e?'on':''}" onclick="elegirEtapa('${e}')">${e}</span>`).join('')}
+      <span class="etapa-pill es-sin ${etapaSel==='Sin clasificar'?'on':''}" onclick="elegirEtapa('Sin clasificar')">Sin clasificar</span>
     </div>
     <div id="etapaCuerpo">${cuerpo}</div>
     <div class="modal-close" onclick="cerrarEtapa()">Cancelar</div>`;
+}
+async function guardarEtapaSinClasificar(){
+  if(esSoloLectura())return avisoLectura();
+  const a=atenciones.find(x=>x.id===cerrandoId); if(!a) return;
+  // Vuelve a "sin clasificar": se limpia el estado y los datos de cierre, sin borrar la consulta.
+  a.estadoManual=null; a.resultado=null;
+  a.montoVendido=null; a.montoPerdido=null; a.resultadoMotivo=null;
+  await saveAtenciones();
+  cerrarEtapa(); render();
+  toast('Consulta marcada como sin clasificar');
 }
 function etapaCompletarFicha(){
   const id=cerrandoId, est=etapaSel;
@@ -4757,17 +4771,19 @@ function logItemHtml(a){
   const tieneHilo = !!(a.asistencia && a.asistencia.mensajes && a.asistencia.mensajes.length);
   // La campanita queda sola en su columna. El 🙏 de comentarios/asistencia se movió al
   // costado, con el resto de los íconos de acción de la fila.
-  const bellCol = puedeRecordar()
-    ? `<div class="c-bell">
-        <span class="bell-btn ${a.recordatorioPendiente?'on':''}" role="button" tabindex="0"
-              title="${a.recordatorioPendiente?('Recordatorio pendiente: '+escAttr(a.recordatorioComentario||'')):(a.vendedorId===YO?'Recordarme esto':'Enviar recordatorio al vendedor')}"
-              onclick="event.stopPropagation();abrirRecordarConsulta('${a.id}')">🔔</span>
-      </div>`
-    : '';
+  // 🙏 (comentarios/asistencia) va al lado de la campanita 🔔, en la misma columna.
   const asistBtn = puedeAsist
-    ? `<span class="asist-btn ebtn cm-ico ${asistenciaSinLeer(a)?'sinleer':''} ${tieneHilo?'activo':''}" role="button" tabindex="0"
+    ? `<span class="asist-btn ${asistenciaSinLeer(a)?'sinleer':''} ${tieneHilo?'activo':''}" role="button" tabindex="0"
           title="${tieneHilo?((a.asistencia.estado==='resuelta'?'Conversación (resuelta)':'Conversación interna')+' — '+a.asistencia.mensajes.length+' mensaje(s)'):'Pedir asistencia o comentar (interno, no es WhatsApp)'}"
           onclick="event.stopPropagation();abrirAsistencia('${a.id}')">🙏</span>`
+    : '';
+  const bellCol = (puedeRecordar()||puedeAsist)
+    ? `<div class="c-bell">
+        ${puedeRecordar()?`<span class="bell-btn ${a.recordatorioPendiente?'on':''}" role="button" tabindex="0"
+              title="${a.recordatorioPendiente?('Recordatorio pendiente: '+escAttr(a.recordatorioComentario||'')):(a.vendedorId===YO?'Recordarme esto':'Enviar recordatorio al vendedor')}"
+              onclick="event.stopPropagation();abrirRecordarConsulta('${a.id}')">🔔</span>`:''}
+        ${asistBtn}
+      </div>`
     : '';
 
   return `
@@ -4793,7 +4809,7 @@ function logItemHtml(a){
           </span>
         </span>` : `
         <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
-          <span class="est ${est?ESTADO_CLS[est]:'es-sin'}">${est||'–'}</span>
+          <span class="est ${est?ESTADO_CLS[est]:'es-sin'}">${est||'Sin clasificar'}</span>
         </span>
         <span class="ebtn rap-btn rap-op" title="Cambiar cómo viste al cliente" onclick="event.stopPropagation();togPop(this)">
           <span class="sit-op">${a.percepcion?`${emo} ${a.percepcion}`:'–'}</span>
@@ -4832,7 +4848,6 @@ function logItemHtml(a){
         </span>
         <span class="ebtn cm-ico${(tieneFoto(a))?'':' apagado'}" title="${(tieneFoto(a))?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
         <span class="ebtn cm-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
-        ${asistBtn}
         ${(!esAuditora() && (YO===a.vendedorId || esAdmin())) ? `<span class="ebtn cm-ico${a.evaluada?'':' apagado'}" title="${a.evaluada?'Ver la evaluación de esta consulta':'Todavía no la evaluaron'}"${a.evaluada?` onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')"`:''}>📊</span>` : ''}
         ${puedeMarcarIntervencion() ? `<span class="ebtn cm-ico interv-ico${intervinoCintia(a)?' on':''}" title="${intervinoCintia(a)?('Intervino '+nombreDe(a.cintiaIntervino.porId)+' — clic para quitar'):'Marcar que Cintia intervino / dio soporte en esta consulta'}" onclick="event.stopPropagation();toggleIntervencionCintia('${a.id}')">🤝</span>` : ''}
         ${solPendiente
@@ -5067,7 +5082,7 @@ function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
 function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 const FILTRO_ESTADO_OPCIONES=[
-  ['activas','Activas (sin cerrar)'],['sin','Sin definir'],['En seguimiento','En seguimiento'],
+  ['activas','Activas (sin cerrar)'],['sin','Sin clasificar'],['En seguimiento','En seguimiento'],
   ['Concretado','Concretado'],['Rechazado','Rechazado'],['todos','Todas, incluidas cerradas']
 ];
 const FILTRO_PLAZO_OPCIONES=[
@@ -5143,7 +5158,7 @@ function cheadHtml(){
       <span class="pop pop-down"><b>Filtrar por plazo</b>${popFiltroOpciones('plazo',FILTRO_PLAZO_OPCIONES,filtroPlazo)}</span>
     </span></span>
     <span class="h-situacion">
-      <span class="ebtn filtro-head ${estActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Situación<span class="arrow">▾</span>
+      <span class="ebtn filtro-head ${estActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Estado<span class="arrow">▾</span>
         <span class="pop pop-down"><b>Filtrar por estado</b>${popFiltroOpciones('estado',FILTRO_ESTADO_OPCIONES,filtroEstado)}</span>
       </span>
       <span class="ebtn filtro-head sub ${oportActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Oportunidad<span class="arrow">▾</span>
@@ -5422,7 +5437,7 @@ function cheadEstaticoHtml(){
     ${puedeRecordar()?'<span class="h-bell" title="Recordatorio al vendedor">🔔</span>':''}
     <span class="h-fecha">Fecha</span>
     <span class="h-plazo">Acción</span>
-    <span class="h-situacion">Situación</span>
+    <span class="h-situacion">Estado</span>
     <span class="h-nom">Contacto</span>
     <span class="h-origen">Vendedor</span>
     <span class="h-coment"></span>
@@ -5708,7 +5723,7 @@ function renderSituResumen(){
   const segAlto = pct(cSeg) > TOPE_SEGUIMIENTO;   // más de 30% en seguimiento => alerta roja
   const chip = (cls,lbl,c,alerta)=>`<span class="situ-chip ${cls}${alerta?' alerta':''}"><span class="dot"></span>${lbl} <b>${c}</b> <span class="pct">${pct(c)}%</span></span>`;
   box.innerHTML = `<div class="situ-barra${segAlto?' seg-alto':''}">
-    <span class="sb-lbl">Situación</span>
+    <span class="sb-lbl">Estado</span>
     <div class="sb-chips">
       ${chip('conc','Concretadas',cConc)}
       ${chip('seg','En seguimiento',cSeg, segAlto)}
@@ -10510,17 +10525,15 @@ function montoRepresentativo(muebles){
 }
 
 /* ---------------- percepción del cliente → estado macro ---------------- */
+/* Una consulta nueva arranca SIN CLASIFICAR (sin estado): el vendedor decide después si es
+   En seguimiento, Concretado o Rechazado. Solo las percepciones que ya son una decisión
+   clara (Decidido / Rechazó) mueven el estado al cargarla; el resto queda sin clasificar. */
 const PERCEPCION_ESTADO={
-  'Muy interesado':'En seguimiento',
-  'Potable':'En seguimiento',
-  'No sé todavía':'En seguimiento',
-  'Poco interesado':'En seguimiento',
   'Decidido':'Concretado',
-  'Rechazó':'Rechazado',
-  'Otros':'En seguimiento'
+  'Rechazó':'Rechazado'
 };
 function estadoDesdePercepcion(percepcion){
-  return PERCEPCION_ESTADO[percepcion] || 'En seguimiento';
+  return PERCEPCION_ESTADO[percepcion] || null;   // null = sin clasificar
 }
 /* ---------------- tiempo de atención ---------------- */
 /* ---------------- navegación del wizard ---------------- */
@@ -10960,13 +10973,15 @@ function abrirModoSeguimiento(a){
   $('modalTitulo').classList.add('hidden');
   $('modalBadge').classList.add('hidden');
 
-  const primerNombre=(a.clienteNombre||'').split(' ')[0]||'la consulta';
-  $('segTitulo').textContent='Seguimiento de '+primerNombre;
+  // Si no hay nombre real ("Sin nombre"), no mostramos "Seguimiento de Sin": va genérico.
+  const nomReal=(a.clienteNombre||'').trim();
+  const primerNombre=(!nomReal||/^sin\b/i.test(nomReal)) ? '' : nomReal.split(' ')[0];
+  $('segTitulo').textContent = primerNombre ? ('Seguimiento de '+primerNombre) : 'Estado de la consulta';
 
   // Badges: estado + percepción (ej. "En seguimiento" · "Muy interesado")
   const est=estadoDe(a);
   const estCls = est==='En seguimiento'?'estado-seg':(est==='Concretado'?'estado-conc':(est==='Rechazado'?'estado-rech':'estado-sin'));
-  let badges=`<span class="seg-badge ${estCls}">${est||'Sin definir'}</span>`;
+  let badges=`<span class="seg-badge ${estCls}">${est||'Sin clasificar'}</span>`;
   if(a.percepcion) badges+=`<span class="seg-badge percep">${a.percepcion}</span>`;
   $('segBadges').innerHTML=badges;
 
