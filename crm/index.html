@@ -265,11 +265,11 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .ev-cerrada{background:var(--green-l);border-radius:9px;padding:13px 15px;font-size:14px;color:var(--green)}
 .ev-cerrada b{display:block;margin-bottom:2px}
 /* Evaluación en una sola columna con desplegables, para cargar con Tab/Enter */
-.ev-form{padding:16px 20px 8px;display:flex;flex-direction:column;gap:11px;max-height:80vh;overflow-y:auto}
-.ev-form .ev-field{display:flex;flex-direction:column;gap:4px}
-.ev-form .ev-field>label{font-size:11.5px;font-weight:800;color:var(--sec);text-transform:uppercase;letter-spacing:.03em}
+.ev-form{padding:18px 22px 10px;display:flex;flex-direction:column;gap:15px;max-height:80vh;overflow-y:auto}
+.ev-form .ev-field{display:flex;flex-direction:column;gap:6px}
+.ev-form .ev-field>label{font-size:12.5px;font-weight:800;color:var(--ink,#1f2a37);text-transform:uppercase;letter-spacing:.04em}
 .ev-form .ev-field>label .opt{font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted)}
-.ev-sel,.ev-inp,.ev-ta{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit;font-size:14px;background:#fff;box-sizing:border-box}
+.ev-sel,.ev-inp,.ev-ta{width:100%;border:1px solid var(--line);border-radius:8px;padding:11px 13px;font:inherit;font-size:15px;line-height:1.35;background:#fff;box-sizing:border-box}
 .ev-sel:focus,.ev-inp:focus,.ev-ta:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-l)}
 .ev-ta{resize:vertical;min-height:44px}
 .ev-form .ev-nunca{margin-bottom:2px}
@@ -299,8 +299,8 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .ev-nunca{display:flex;align-items:center;gap:11px;border:1px dashed var(--line);border-radius:9px;padding:11px 13px;cursor:pointer;background:#fff;margin-bottom:13px}
 .ev-nunca:hover{border-color:var(--sec)}
 .ev-nunca .ic{font-size:18px;line-height:1;flex-shrink:0;color:var(--muted)}
-.ev-nunca b{display:block;font-size:13.5px;margin-bottom:1px}
-.ev-nunca span:not(.ic){font-size:12.5px;color:var(--muted)}
+.ev-nunca b{display:block;font-size:14.5px;margin-bottom:2px}
+.ev-nunca span:not(.ic){font-size:13px;color:var(--muted);line-height:1.4}
 .ev-nunca.on{border-style:solid;border-color:var(--navy);background:var(--line2)}
 .ev-nunca.on .ic{color:var(--navy)}
 
@@ -373,6 +373,8 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 /* ===== Cierre de venta: chips multi + muebles vendidos ===== */
 .cierre-chips{display:flex;flex-wrap:wrap;gap:7px}
 .cierre-chip{font-size:12.5px;font-weight:600;padding:8px 13px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--sec);user-select:none;transition:all .12s}
+.cierre-chip .motivo-n{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--line2);color:var(--sec);font-size:11px;font-weight:800;margin-right:3px;vertical-align:middle}
+.cierre-chip.on .motivo-n{background:rgba(255,255,255,.3);color:#fff}
 .cierre-chip:hover{border-color:var(--green)}
 .cierre-chip.on{background:var(--green-l);border-color:var(--green);color:var(--green)}
 .cm-item{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;cursor:pointer;background:var(--line2);transition:all .12s}
@@ -4002,6 +4004,8 @@ const MOTIVOS_RECHAZO=[
   {t:'Cerró con otro vendedor',  ic:'🤝'},
   {t:'Ya lo resolvió',           ic:'✅', noCuenta:true},
   {t:'Mueble que no hacíamos',   ic:'🪑', noCuenta:true},
+  {t:'Descuido en la consulta',  ic:'🙈'},
+  {t:'Demora en la respuesta',   ic:'🐢'},
   {t:'No sé',                    ic:'❓'},
   {t:'Otros',                    ic:'…'}
 ];
@@ -4133,7 +4137,7 @@ function htmlFormRechazado(a){
       <div class="field">
         <label>Motivo</label>
         <div class="cierre-chips cierre-chips-rojo" id="cierreMotivos">
-          ${MOTIVOS_RECHAZO.map(m=>`<span class="cierre-chip" data-motivo="${m.t}" data-nocuenta="${m.noCuenta?1:0}" onclick="pickMotivoRechazo(this)">${m.ic} ${m.t}</span>`).join('')}
+          ${MOTIVOS_RECHAZO.map((m,i)=>`<span class="cierre-chip" data-motivo="${m.t}" data-nocuenta="${m.noCuenta?1:0}" onclick="pickMotivoRechazo(this)"><b class="motivo-n">${i+1}</b> ${m.t}</span>`).join('')}
         </div>
       </div>
 
@@ -8856,6 +8860,7 @@ function abrirEvaluar(id){
     ejemploCaptura:(a.ejemploDelMes&&a.ejemploDelMes.captura)||null,
     ejemploMotivo:(a.ejemploDelMes&&a.ejemploDelMes.motivo)||'',
     obs:a.evaluacionComentario||'',
+    oportunidadPerdida:!!a.oportunidadPerdida,
     nuncaRespondio:!!a.nuncaRespondio
   };
   renderEvaluar();
@@ -8961,6 +8966,7 @@ async function evCargarEjemplo(){
 }
 function evEditarEjemplo(){ evTmp.ejemploCargado=false; renderEvaluar(); }
 function evToggleIntervine(){ const a=atenciones.find(x=>x.id===evaluandoId); const cur=(evTmp.intervine!==undefined?evTmp.intervine:intervinoCintia(a)); evTmp.intervine=!cur; guardarBorradorEvaluar(); renderEvaluar(); }
+function evToggleOportunidad(){ evTmp.oportunidadPerdida=!evTmp.oportunidadPerdida; guardarBorradorEvaluar(); renderEvaluar(); }
 function evTeclaEjemplo(e){
   if(e.key==='Enter'){ e.preventDefault(); evCargarEjemplo(); }
 }
@@ -9050,7 +9056,7 @@ function renderEvaluar(){
       sub=`<div class="ev-field"><label>Motivo real</label>
         <select id="evSelMotivo" class="ev-sel" onchange="evSetMotivo(this.value)">
           <option value="" ${!ev.motivoCintia?'selected':''}>↔ Mismo motivo que el vendedor (${escapeHtml(a.resultadoMotivo||'sin motivo')})</option>
-          ${MOTIVOS_RECHAZO.map(m=>`<option value="${escAttr(m.t)}" ${ev.motivoCintia===m.t?'selected':''}>${m.ic} ${m.t}</option>`).join('')}
+          ${MOTIVOS_RECHAZO.map((m,i)=>`<option value="${escAttr(m.t)}" ${ev.motivoCintia===m.t?'selected':''}>${i+1} · ${m.t}</option>`).join('')}
           <option value="__otro__" ${ev.motivoCintia==='__otro__'?'selected':''}>✏️ Otro (escribir)…</option>
         </select>
         <input type="text" id="evMotivoOtro" class="ev-inp ${ev.motivoCintia==='__otro__'?'':'hidden'}" placeholder="Escribí el motivo…" value="${escAttr(ev.motivoOtro||'')}" oninput="guardarBorradorEvaluar()">
@@ -9063,6 +9069,14 @@ function renderEvaluar(){
 
   const obsHtml=`<div class="ev-field"><label>Observaciones <span class="opt">(notas internas)</span></label>
     <textarea id="evObs" class="ev-ta" rows="2" placeholder="Notas internas…" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.obs||'')}</textarea></div>`;
+
+  // Oportunidad perdida: SIEMPRE disponible (no depende de cómo se evaluó la atención). Una
+  // consulta puede ser una oportunidad perdida aunque la atención haya sido buena. Solo no
+  // aplica a las concretadas (esas se ganaron) ni si nunca respondió (no hubo consulta real).
+  const oportHtml = (esConcretada || ev.nuncaRespondio) ? '' : `<div class="ev-nunca ${ev.oportunidadPerdida?'on':''}" onclick="evToggleOportunidad()">
+    <span class="ic">${ev.oportunidadPerdida?'☑':'☐'}</span>
+    <div><b>⚠ Oportunidad perdida</b><span>Se podría haber vendido y no se cerró. Marca esta consulta como oportunidad perdida${monto?' ($ '+miles(monto)+' en juego)':''}.</span></div>
+  </div>`;
 
   // Ejemplo del mes: para el vendedor (lo ve él) o para dirección (solo lo ve Brian).
   const brianNom=nombreDe('brian')||'dirección';
@@ -9109,6 +9123,7 @@ function renderEvaluar(){
       ${ejesHtml}
       ${comentarioHtml}
       ${decisionHtml}
+      ${oportHtml}
       ${obsHtml}
       ${ejemploHtml}
       ${intervineHtml}
@@ -9321,7 +9336,9 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
     a.evalCliente=ev.cliente;
     // Compatibilidad con lo que ya existía (la columna "Evaluada · X" de la planilla).
     a.evaluacionCalidad=EV_TXT.atencion[ev.atencion];
-    a.oportunidadPerdida = calificaPerdida(ev);
+    // Oportunidad perdida: ahora la marca Cintia a mano (checkbox), sin depender de la nota
+    // de atención. Así una consulta bien atendida igual puede quedar como oportunidad perdida.
+    a.oportunidadPerdida = !!ev.oportunidadPerdida;
     a.montoOportunidadPerdida = a.oportunidadPerdida ? montoRepresentativo(a.muebles) : 0;
   }
 
