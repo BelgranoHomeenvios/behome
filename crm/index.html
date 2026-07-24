@@ -5988,7 +5988,7 @@ async function guardarConfigCanalesDestinos(){
 async function correccionesBaseCore(dryRun){
   if(!_historicoCompleto){ await completarHistoricoEnSegundoPlano(); }
   construirRecuperacionIG();
-  let cN=0,cE=0,cV=0;
+  let cN=0,cE=0,cV=0,cEv=0;
   const cambiados=new Set();
   const muestras=[];
   for(const a of atenciones){
@@ -6003,6 +6003,22 @@ async function correccionesBaseCore(dryRun){
     }
     // 3) "Archivada" no existe: se limpia el flag.
     if(a.soloVolumen){ if(!dryRun) a.soloVolumen=false; cV++; toco=true; }
+    // 4) Evaluación que Cintia ya hizo en el Excel: marca evaluada + las 3 calificaciones y
+    //    su observación interna, así no la evalúa dos veces. No pisa una ya evaluada en la app.
+    if(!a.evaluada && !esConsultaGestion(a)){
+      const e=evalRecuperada(a);
+      if(e){
+        if(!dryRun){
+          a.evaluada=true; a.evaluable=true;
+          a.evaluadoTs=a.evaluadoTs||new Date().toISOString();
+          if(e[0]){ a.evalAtencion=e[0]; a.evaluacionCalidad=EV_TXT.atencion[e[0]]; }
+          if(e[1]) a.evalConsulta=e[1];
+          if(e[2]) a.evalCliente=e[2];
+          if(e[3]) a.evaluacionComentario=e[3];
+        }
+        cEv++; toco=true;
+      }
+    }
     if(toco) cambiados.add(a.id);
   }
   if(!dryRun && cambiados.size){
@@ -6013,7 +6029,7 @@ async function correccionesBaseCore(dryRun){
     }
     cambiados.forEach(id=>{ const a=atenciones.find(x=>x.id===id); if(a) _snapConsultas[id]=JSON.stringify(a); });
   }
-  return {cN,cE,cV,total:cambiados.size,muestras,totalConsultas:atenciones.length};
+  return {cN,cE,cV,cEv,total:cambiados.size,muestras,totalConsultas:atenciones.length};
 }
 async function analizarCorreccionesBase(){
   if(!esAdmin()){ toast('Solo dirección'); return; }
@@ -6024,6 +6040,7 @@ async function analizarCorreccionesBase(){
       · <b>${r.cN}</b> nombres de Instagram a completar${r.muestras.length?` <span style="color:var(--muted)">(${r.muestras.slice(0,5).join(', ')}…)</span>`:''}<br>
       · <b>${r.cE}</b> estados (viejas sin estado → Rechazado)<br>
       · <b>${r.cV}</b> con flag "archivada" a limpiar<br>
+      · <b>${r.cEv}</b> evaluaciones de Cintia a importar (calificaciones + obs interna)<br>
       <span style="color:var(--muted)">(el canal se corrige solo en la app, no hace falta escribirlo en la base)</span><br>
       <b>Total de consultas a modificar: ${r.total}</b>`;
     const btn=$('btnAplicarCorr'); if(btn) btn.disabled = r.total===0;
@@ -6036,7 +6053,7 @@ async function aplicarCorreccionesBaseUI(){
   const btn=$('btnAplicarCorr'); if(btn) btn.disabled=true;
   try{
     const r=await correccionesBaseCore(false);
-    if(box) box.innerHTML=`<span style="color:var(--green)">✓ Listo. Se actualizaron <b>${r.total}</b> consultas en la base: ${r.cN} nombres, ${r.cE} estados, ${r.cV} archivadas limpiadas.</span>`;
+    if(box) box.innerHTML=`<span style="color:var(--green)">✓ Listo. Se actualizaron <b>${r.total}</b> consultas en la base: ${r.cN} nombres, ${r.cE} estados, ${r.cV} archivadas limpiadas, ${r.cEv} evaluaciones importadas.</span>`;
     render();
   }catch(e){ console.error(e); if(box) box.innerHTML='<span style="color:var(--red)">Se cortó al aplicar: '+(e.message||e)+'. Podés volver a apretar Aplicar — retoma lo que faltó.</span>'; if(btn) btn.disabled=false; }
 }
@@ -6598,17 +6615,18 @@ function canalDe(a){ return canalReal(a); }
    consultas cargadas por (vendedor + fecha), y el nombre recuperado se MUESTRA (no se
    escribe en la base todavía: primero hay que confirmar que quedó bien). */
 let IG_NOMBRES = {};   // id de consulta -> nombre recuperado
+let IG_EVAL = {};      // id de consulta -> evaluacion recuperada [atencion,consulta,cliente,obs]
 function _igFechaKey(ts){
   try{ const s=new Date(ts).toISOString(); return s.slice(0,10); }catch(e){ return ''; }
 }
 function construirRecuperacionIG(){
-  IG_NOMBRES = {};
+  IG_NOMBRES = {}; IG_EVAL = {};
   if(!Array.isArray(window.IG_RECUP)) return;
-  // Mapa del Excel: vendedor -> fecha -> [nombres en orden]
+  // Mapa del Excel: vendedor -> fecha -> [{name, ev} en orden]
   const map={};
   for(const fila of window.IG_RECUP){
-    const [v,f,name]=fila;
-    (map[v]=map[v]||{}); (map[v][f]=map[v][f]||[]).push(name);
+    const [v,f,name,ev]=fila;
+    (map[v]=map[v]||{}); (map[v][f]=map[v][f]||[]).push({name,ev});
   }
   // TODAS las consultas de IG sin teléfono (aunque tengan un nombre parcial cargado):
   // el nombre del Excel es la fuente de verdad y tiene que quedar EXACTO. Incluir también
@@ -6624,10 +6642,24 @@ function construirRecuperacionIG(){
   for(const v in rows){
     for(const f in rows[v]){
       const rs=rows[v][f].sort((x,y)=>(x.ts||0)-(y.ts||0)||String(x.id).localeCompare(String(y.id)));
-      const names=(map[v]&&map[v][f])?map[v][f]:[];
-      rs.forEach((a,i)=>{ if(names[i]) IG_NOMBRES[a.id]=names[i]; });
+      const items=(map[v]&&map[v][f])?map[v][f]:[];
+      rs.forEach((a,i)=>{ if(items[i]){ if(items[i].name) IG_NOMBRES[a.id]=items[i].name; if(items[i].ev) IG_EVAL[a.id]=items[i].ev; } });
     }
   }
+}
+/* Evaluación que Cintia ya hizo en el Excel para una consulta: [atencion,consulta,cliente,obs]
+   o null. Por teléfono+fecha (±1 día por huso) o, para IG sin teléfono, por el emparejamiento
+   por orden. Solo cubre los últimos ~60 días (la cola real de evaluación). */
+function evalRecuperada(a){
+  const tel=normContacto(a.clienteTelefono);
+  if(tel && window.EVAL_TF){
+    const base=new Date(a.ts).getTime();
+    if(!isNaN(base)) for(const off of [0,-86400000,86400000]){
+      const e=window.EVAL_TF[tel+'|'+_igFechaKey(base+off)];
+      if(e) return e;
+    }
+  }
+  return IG_EVAL[a.id] || null;
 }
 /* Nombre a mostrar de una consulta: para las de Instagram, el recuperado del Excel manda
    (es el nombre exacto de la planilla); si no, el que tenga cargado. */
