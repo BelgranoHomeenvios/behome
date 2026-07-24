@@ -3015,7 +3015,7 @@ async function confirmarCompartida(){
     if(!a.cintiaIntervino){
       a.cintiaIntervino={ts, porId:YO};
       a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
-      a.historialContacto.push({ts, texto:'🛟 Intervino '+nombreDe(YO)+' (venta compartida $ '+miles(montoA)+' / $ '+miles(montoB)+')', porId:YO, intervencion:true});
+      a.historialContacto.push({ts, texto:'🚒 Intervino '+nombreDe(YO)+' (venta compartida $ '+miles(montoA)+' / $ '+miles(montoB)+')', porId:YO, intervencion:true});
     }
   });
   await saveAtenciones();
@@ -5124,7 +5124,7 @@ function logItemHtml(a){
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         ${canalIco}
         <div class="c-nom-inner">
-        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🛟 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
@@ -5150,20 +5150,27 @@ function logItemHtml(a){
         </span>
         <span class="ebtn cm-ico${(tieneFoto(a))?'':' apagado'}" title="${(tieneFoto(a))?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
         <span class="ebtn cm-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
-        ${(!esAuditora() && (YO===a.vendedorId || esAdmin())) ? `<span class="ebtn cm-ico${a.evaluada?'':' apagado'}" title="${a.evaluada?'Ver la evaluación de esta consulta':'Todavía no la evaluaron'}"${a.evaluada?` onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')"`:''}>📊</span>` : ''}
-        ${puedeMarcarIntervencion() ? `<span class="ebtn cm-ico interv-ico${intervinoCintia(a)?' on':''}" title="${intervinoCintia(a)?('Intervino '+nombreDe(a.cintiaIntervino.porId)+' — clic para quitar'):'Marcar que Cintia intervino / dio soporte en esta consulta'}" onclick="event.stopPropagation();toggleIntervencionCintia('${a.id}')">🛟</span>` : ''}
+        ${puedeMarcarIntervencion() ? `<span class="ebtn cm-ico interv-ico${intervinoCintia(a)?' on':''}" title="${intervinoCintia(a)?('Intervino '+nombreDe(a.cintiaIntervino.porId)+' — clic para quitar'):'Marcar que Cintia intervino / dio soporte en esta consulta'}" onclick="event.stopPropagation();toggleIntervencionCintia('${a.id}')">🚒</span>` : ''}
         ${solPendiente
           ? `<span class="ebtn cm-ico apagado" title="Baja ya solicitada">🗑️</span>`
           : `<span class="ebtn cm-ico" title="${esAuditora()?'Eliminar contacto':'Solicitar eliminar contacto'}" onclick="event.stopPropagation();abrirSolicitudEliminar('${a.id}')">🗑️</span>`}
-        ${(( puedeVerEquipo() && _ctxLista!=='evaluar') || (a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora())))
-          ? `<span class="ebtn" onclick="event.stopPropagation();togPop(this)" title="Más opciones">⋮
+        ${(() => {
+          // El ⋮ agrupa acciones: ver la evaluación de Cintia, reasignar (cualquiera puede,
+          // Cintia confirma), editar canal (dirección/Cintia) y atender recordatorio.
+          const verEval = a.evaluada && (YO===a.vendedorId || esAdmin() || esAuditora());
+          const reasig  = _ctxLista!=='evaluar';
+          const editCanal = puedeVerEquipo() && _ctxLista!=='evaluar';
+          const recAt = a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora());
+          if(!(verEval||reasig||editCanal||recAt)) return `<span class="ebtn cm-ico" style="visibility:hidden" aria-hidden="true">⋮</span>`;
+          return `<span class="ebtn" onclick="event.stopPropagation();togPop(this)" title="Más opciones">⋮
               <span class="pop pop-menu">
-                ${(puedeVerEquipo() && _ctxLista!=='evaluar') ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirEditarCanal('${a.id}')">✎ Editar canal</div>` : ''}
-                ${(puedeVerEquipo() && _ctxLista!=='evaluar') ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">Reasignar a otro vendedor</div>` : ''}
-                ${a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora()) ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">Marcar recordatorio como atendido</div>` : ''}
+                ${verEval ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirVistaEvaluacion('${a.id}')">📊 Ver evaluación de Cintia</div>` : ''}
+                ${reasig ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">↪ Reasignar a otro vendedor</div>` : ''}
+                ${editCanal ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirEditarCanal('${a.id}')">✎ Editar canal</div>` : ''}
+                ${recAt ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">✓ Marcar recordatorio como atendido</div>` : ''}
               </span>
-            </span>`
-          : `<span class="ebtn cm-ico" style="visibility:hidden" aria-hidden="true">⋮</span>`}
+            </span>`;
+        })()}
       </div>
       ${evalCol}
     </div>`;
@@ -7581,7 +7588,7 @@ async function toggleIntervencionCintia(id){if(esSoloLectura())return avisoLectu
     const ts=new Date().toISOString();
     a.cintiaIntervino={ts, porId:YO};
     a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
-    a.historialContacto.push({ts, texto:'🛟 Intervino '+nombreDe(YO)+' en el seguimiento', porId:YO, intervencion:true});
+    a.historialContacto.push({ts, texto:'🚒 Intervino '+nombreDe(YO)+' en el seguimiento', porId:YO, intervencion:true});
     toast('Marcada: intervino '+nombreDe(YO));
   }
   await saveAtenciones();
@@ -8405,12 +8412,12 @@ function estCardApoyoCintia(base){
   const totJuego=filas.reduce((s,f)=>s+f.juego,0);
   const totConc=filas.reduce((s,f)=>s+f.conc,0);
   if(!totN) return `<div class="est-card">
-    <div class="est-hd"><div><h3>Apoyo de Cintia 🛟</h3><p class="cap">Consultas donde Cintia se metió a dar soporte o seguimiento.</p></div></div>
-    <p class="cin-empty" style="margin:6px 0">Todavía no hay consultas marcadas con intervención de Cintia en este período. Se marcan con el 🛟 en cada fila.</p></div>`;
+    <div class="est-hd"><div><h3>Apoyo de Cintia 🚒</h3><p class="cap">Consultas donde Cintia se metió a dar soporte o seguimiento.</p></div></div>
+    <p class="cin-empty" style="margin:6px 0">Todavía no hay consultas marcadas con intervención de Cintia en este período. Se marcan con el 🚒 en cada fila.</p></div>`;
   const masApoyo=[...filas].sort((a,b)=>b.n-a.n)[0];
   return `<div class="est-card">
     <div class="est-hd">
-      <div><h3>Apoyo de Cintia 🛟</h3>
+      <div><h3>Apoyo de Cintia 🚒</h3>
       <p class="cap">Consultas donde Cintia intervino (soporte/seguimiento) y cuánta plata se generó después.</p></div>
       <div class="est-tot"><div class="n">${totN}</div><div class="l">apoyadas</div></div>
     </div>
@@ -8600,8 +8607,27 @@ function htmlCintiaMisPendientes(){
   const conflictos=notasSinAccion.filter(n=>n.tipo==='conflicto_vendedor' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   const elimHtml = esAdmin() ? htmlEliminaciones() : '';
   const limpieza = htmlLimpiezaConcretadas();   // duplicados / sin N° de orden / mismo teléfono
-  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length && !elimHtml && !limpieza) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
+  // Reasignaciones que pidieron los vendedores y esperan que Cintia (o dirección) las confirme.
+  const reasignaciones=atenciones.filter(a=>a.reasignacionPedida && a.reasignacionPedida.paraId && dentroDePeriodoCintia(a.ts))
+    .sort((a,b)=>new Date(a.reasignacionPedida.ts)-new Date(b.reasignacionPedida.ts));
+  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length && !reasignaciones.length && !elimHtml && !limpieza) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
   let html=limpieza;
+  if(reasignaciones.length) html+=`<div class="cin-card">
+    <h3>Reasignaciones para confirmar <span class="cnt-pill">${reasignaciones.length}</span></h3>
+    <p class="tiny" style="margin-top:-8px">Un vendedor pidió pasarle la consulta a otro. Confirmá o rechazá el cambio.</p>
+    ${reasignaciones.map(a=>{const r=a.reasignacionPedida;return `
+      <div class="solic-item">
+        <div>
+          <div class="pend-name">${escapeHtml(nombreCliente(a)||'Sin nombre')}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}</div>
+          <div class="pend-sub"><b>${escapeHtml(nombreDe(r.deId))}</b> → <b>${escapeHtml(nombreDe(r.paraId))}</b> · pedido por ${escapeHtml(nombreDe(r.porId))} · ${new Date(r.ts).toLocaleDateString('es-AR')}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="editarDesdeHistorial('${a.id}')">Ver</button>
+          <button class="btn btn-outline btn-sm" onclick="confirmarReasignacion('${a.id}',false)">Rechazar</button>
+          <button class="btn btn-navy btn-sm" onclick="confirmarReasignacion('${a.id}',true)">Confirmar</button>
+        </div>
+      </div>`;}).join('')}
+  </div>`;
   if(conflictos.length) html+=`<div class="cin-card">
     <h3>Cliente en dos vendedores <span class="cnt-pill">${conflictos.length}</span></h3>
     <p class="tiny" style="margin-top:-8px">El mismo cliente lo están atendiendo dos vendedores (por ejemplo uno por IG y otro por teléfono). Elegí quién lo sigue — solo se mueven las consultas abiertas, las ventas ya cerradas quedan como están.</p>
@@ -9563,7 +9589,7 @@ function renderEvaluar(){
   const intervineOn = (ev.intervine!==undefined ? ev.intervine : intervinoCintia(a));
   const intervineHtml = puedeMarcarIntervencion() ? `<div class="ev-nunca ${intervineOn?'on':''}" onclick="evToggleIntervine()">
     <span class="ic">${intervineOn?'☑':'☐'}</span>
-    <div><b>🛟 Intervine</b><span>Marca que te metiste / diste soporte en esta consulta.</span></div>
+    <div><b>🚒 Intervine</b><span>Marca que te metiste / diste soporte en esta consulta.</span></div>
   </div>` : '';
 
   $('evaluarCaja').innerHTML=`
@@ -9778,7 +9804,7 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
     if(ev.intervine && !a.cintiaIntervino){
       a.cintiaIntervino={ts:new Date().toISOString(), porId:YO};
       a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
-      a.historialContacto.push({ts:a.cintiaIntervino.ts, texto:'🛟 Intervino '+nombreDe(YO)+' en el seguimiento', porId:YO, intervencion:true});
+      a.historialContacto.push({ts:a.cintiaIntervino.ts, texto:'🚒 Intervino '+nombreDe(YO)+' en el seguimiento', porId:YO, intervencion:true});
     }else if(!ev.intervine && a.cintiaIntervino){
       a.cintiaIntervino=null;
       a.historialContacto=(Array.isArray(a.historialContacto)?a.historialContacto:[]).filter(h=>!(h && h.intervencion));
@@ -9862,7 +9888,7 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
     if(!a.cintiaIntervino){
       a.cintiaIntervino={ts:new Date().toISOString(), porId:YO};
       a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
-      a.historialContacto.push({ts:new Date().toISOString(), texto:'🛟 Intervino '+nombreDe(YO)+' (derivó a 2da oportunidad)', porId:YO, intervencion:true});
+      a.historialContacto.push({ts:new Date().toISOString(), texto:'🚒 Intervino '+nombreDe(YO)+' (derivó a 2da oportunidad)', porId:YO, intervencion:true});
     }
     toast('Levantada a 2da oportunidad — '+nombreDe(destino));
   }else if(ev.decision==='pedirConcretada' || ev.decision==='pedirRechazada'){
@@ -9872,7 +9898,7 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
     if(!a.cintiaIntervino){
       a.cintiaIntervino={ts:new Date().toISOString(), porId:YO};
       a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
-      a.historialContacto.push({ts:new Date().toISOString(), texto:'🛟 Intervino '+nombreDe(YO)+' (pidió marcar '+estPed+')', porId:YO, intervencion:true});
+      a.historialContacto.push({ts:new Date().toISOString(), texto:'🚒 Intervino '+nombreDe(YO)+' (pidió marcar '+estPed+')', porId:YO, intervencion:true});
     }
     toast('Le va a llegar al vendedor para que la marque '+(estPed==='Concretado'?'Concretada':'Rechazada'));
   }else{
@@ -10129,11 +10155,40 @@ async function guardarReasignacion(){
   if(!sel){toast('Elegí un vendedor');return;}
   const nuevoUid=sel.dataset.uid, anteriorUid=a.vendedorId;
   if(nuevoUid===anteriorUid){cerrarRecordar();return;}
-  a.vendedorId=nuevoUid;
-  await saveAtenciones();
-  toast(`Reasignada de ${nombreDe(anteriorUid)} a ${nombreDe(nuevoUid)}`);
+  // Cintia o dirección reasignan directo. Un vendedor puede pedir la reasignación, pero
+  // queda pendiente de que Cintia la confirme (le aparece en Mis pendientes).
+  if(esAuditora() || esAdmin()){
+    a.vendedorId=nuevoUid;
+    a.reasignacionPedida=null;
+    await saveAtenciones();
+    toast(`Reasignada de ${nombreDe(anteriorUid)} a ${nombreDe(nuevoUid)}`);
+  }else{
+    a.reasignacionPedida={ deId:anteriorUid, paraId:nuevoUid, porId:YO, ts:new Date().toISOString() };
+    await saveAtenciones();
+    toast(`Le pediste a Cintia pasar la consulta a ${nombreDe(nuevoUid)}. Queda pendiente de su confirmación.`);
+  }
   cerrarRecordar();
   render();
+}
+/* Cintia/dirección confirma o rechaza una reasignación que pidió un vendedor. */
+async function confirmarReasignacion(id, ok){
+  if(!(esAuditora()||esAdmin())) return;
+  const a=atenciones.find(x=>x.id===id);
+  if(!a||!a.reasignacionPedida){ render(); return; }
+  const r=a.reasignacionPedida;
+  if(ok){
+    const anterior=a.vendedorId;
+    a.vendedorId=r.paraId;
+    a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
+    a.historialContacto.push({ts:new Date().toISOString(), texto:'↪ Reasignada de '+nombreDe(anterior)+' a '+nombreDe(r.paraId)+' (pedido por '+nombreDe(r.porId)+', confirmado por '+nombreDe(YO)+')', porId:YO, intervencion:true});
+    toast('Reasignación confirmada — '+nombreDe(r.paraId));
+  }else{
+    toast('Reasignación rechazada');
+  }
+  a.reasignacionPedida=null;
+  await saveAtenciones();
+  render();
+  if(typeof renderPanelCintia==='function') renderPanelCintia();
 }
 
 /* -------- Registro de atención de la dirección (Brian): presencial, a su nombre --------
