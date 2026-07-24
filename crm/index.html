@@ -5653,6 +5653,12 @@ function construirListaFiltrada(){
    sin tocar su propio criterio de estado. */
 function filtrosColumna(l){
   const buscar=(filtroBusqueda||'').trim().toLowerCase();
+  // Filtro por estado desde la columna "Estado" (antes no aplicaba en Atrasadas).
+  // 'activas'/'todos' quedan como no-op acá: estas listas (Atrasadas, cola de evaluación
+  // de Cintia) ya traen su propio conjunto y no queremos esconder cerradas pendientes de
+  // evaluar. Las opciones concretas (Sin clasificar / En seguimiento / Concretado / Rechazado) sí filtran.
+  if(filtroEstado==='sin') l=l.filter(a=>!estadoDe(a));
+  else if(filtroEstado!=='activas' && filtroEstado!=='todos') l=l.filter(a=>estadoDe(a)===filtroEstado);
   if(filtroOportunidad==='sin') l=l.filter(a=>!a.percepcion);
   else if(filtroOportunidad!=='todos') l=l.filter(a=>a.percepcion===filtroOportunidad);
   if(filtroComentario==='con') l=l.filter(a=>!!(a.notas||a.resultadoMotivo));
