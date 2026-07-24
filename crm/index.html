@@ -3584,7 +3584,18 @@ function infoPlazo(a){
 const OPORT_EMOJI={'Decidido':'🔴','Muy interesado':'🟠','Potable':'🟡','No sé todavía':'🔵','Poco interesado':'⚪'};
 
 /* Estado de la consulta. Arranca sin definir: lo marca el vendedor, no se adivina. */
-function estadoDe(a){ return a.estadoManual || null; }
+/* "Archivado" NO existe como estado: una consulta está En seguimiento, Rechazada o
+   Concretada. El estado real viene de estadoManual (columna J de la planilla). Si una
+   consulta quedó SIN estado y ya es vieja (más de 60 días sin ningún movimiento), se da
+   por Rechazada — no se evalúa, queda registrada como rechazada. Si es reciente, sigue
+   sin clasificar (se trabaja). Los '-' / '#REF!' de la planilla se tratan como sin estado. */
+const DIAS_VIEJA_RECHAZA = 60;
+function estadoDe(a){
+  const em=a.estadoManual;
+  if(em && em!=='-' && em!=='#REF!') return em;
+  if(diasDesdeISO(fechaUltimoMovimiento(a)) > DIAS_VIEJA_RECHAZA) return 'Rechazado';
+  return null;
+}
 /* El nombre del mueble puede venir en 'mueble' (cargado en el CRM) o en 'nombre'
    (importado de las planillas viejas). Leer solo el primero mostraba "undefined". */
 function nombreMueble(m){ return (m && (m.mueble || m.nombre)) || 'Sin nombre'; }
@@ -4304,7 +4315,7 @@ function logItemHtml(a){
         </span>
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
-        <span class="c-nom-txt"><b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${canalEmojiHtml}${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
@@ -4766,11 +4777,9 @@ function construirListaFiltrada(){
   // rechazadas incluidas) y cualquier fecha. Los filtros de estado y período se saltean.
   const buscar=(filtroBusqueda||'').trim().toLowerCase();
 
-  /* Las consultas archivadas (anteriores a mayo 2026 que nunca se cerraron) no son
-     trabajo: en esa época no se registraba el resultado. Cuentan como volumen en las
-     estadísticas, pero no tienen por qué aparecerle a un vendedor como algo pendiente.
-     Se ven igual si las busca por teléfono. */
-  if(!filtroBusqueda) l=l.filter(a=>!a.soloVolumen);
+  /* "Archivado" no existe: las consultas se muestran por su estado real. Las viejas sin
+     estado ya salen como Rechazadas (estadoDe), así que el filtro por defecto ('activas')
+     las deja afuera solo — no hace falta esconder nada aparte. */
 
   if(filtroOportunidad==='sin') l=l.filter(a=>!a.percepcion);
   else if(filtroOportunidad!=='todos') l=l.filter(a=>a.percepcion===filtroOportunidad);
@@ -5092,7 +5101,6 @@ function diasSinContacto(a){
 function zonaDe(a){
   // Histórico viejo: solo sabemos que la consulta entró. No hay nada que hacer con
   // ella, así que no puede aparecer como pendiente ni como atrasada.
-  if(a.soloVolumen) return 'cerrada';
   // Consultas de gestión (estado/reclamo/inválida o de Cintia): no son trabajo de
   // venta, nunca figuran como atrasadas ni pendientes.
   if(esConsultaGestion(a)) return 'cerrada';
@@ -5193,7 +5201,7 @@ function renderSituResumen(){
   const box=$('situResumenBox'); if(!box) return;
   if(puedeVerEquipo()){ box.classList.add('hidden'); box.innerHTML=''; return; }
   box.classList.remove('hidden');
-  const mias = atenciones.filter(a=>a.vendedorId===YO && !a.soloVolumen && dentroDePeriodoCintia(a.ts));
+  const mias = atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts));
   const tot  = mias.length;
   const cConc= mias.filter(a=>estadoDe(a)==='Concretado').length;
   const cRech= mias.filter(a=>estadoDe(a)==='Rechazado').length;
@@ -6037,8 +6045,8 @@ function cintiaEsAtrasada(a){
   if(rolDe(a.vendedorId)!=='vendedor') return false;
   if(esConsultaGestion(a)) return false;   // consulta de estado / reclamo: no se atrasan
   const e=estadoDe(a);
-  if(e==='Concretado' || e==='Rechazado') return false;
-  if(a.soloVolumen || a.nuncaRespondio) return false;
+  if(e==='Concretado' || e==='Rechazado') return false;   // las viejas sin estado ya son Rechazado
+  if(a.nuncaRespondio) return false;
   const prox=proximaAccionDe(a);
   if(prox){ const h0=new Date(); h0.setHours(0,0,0,0); if(new Date(prox).getTime()>=h0.getTime()) return false; }
   return (Date.now()-tsUltimoMovimiento(a))/86400000 > DIAS_ATRASO_CINTIA;
@@ -6051,7 +6059,8 @@ function cintiaEsAtrasada(a){
    Es el mismo umbral con el que la consulta se archiva sola. */
 function evaluable(a){
   if(esConsultaGestion(a)) return false;   // gestión (estado/reclamo) no se evalúa
-  if(a.soloVolumen) return false;          // archivada: no hay forma de rastrear el chat, no se evalúa
+  // Las viejas (más de DIAS_PARA_ARCHIVAR sin movimiento) no se evalúan: no hay forma de
+  // rastrear el chat. Eso incluye a las que quedaron Rechazadas solas por antigüedad.
   return diasDesdeISO(fechaUltimoMovimiento(a)) <= DIAS_PARA_ARCHIVAR;
 }
 
@@ -6247,7 +6256,7 @@ function renderCintiaBotones(){
     {id:'resumen', label:'Resumen', ic:'resumen'},
     {id:'consultas', label:'Consultas', ic:'consultas'},
     {id:'evaluar', label:'Para evaluar', ic:'evaluar', cnt:colaEvaluarCintia().length},
-    {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && !a.soloVolumen && dentroDePeriodoCintia(a.ts)).length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
+    {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts)).length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
     {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)).length},
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
     {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length},
@@ -6530,7 +6539,7 @@ function metricasVendedor(cs){
   // DIAS_PARA_ARCHIVAR días sin actividad.
   const archivadaPorInactividad = a => !estadoDe(a) && !a.soloVolumen && !a.nuncaRespondio
                                        && diasSinContacto(a) > DIAS_PARA_ARCHIVAR;
-  const hist=cs.filter(a=>a.soloVolumen || archivadaPorInactividad(a)).length;
+  const hist=cs.filter(a=>!estadoDe(a) && (a.soloVolumen || archivadaPorInactividad(a))).length;
   const sinClas=cs.filter(a=>!estadoDe(a) && !a.soloVolumen && !archivadaPorInactividad(a)).length;
   // Atrasadas NO suma aparte: es un subconjunto de las abiertas que está fuera de
   // plazo. Marca urgencia, no volumen.
@@ -6780,7 +6789,7 @@ function htmlCintiaEvaluar(){
    así que siguen viviendo acá aunque no entren en el mismo formato de fila. */
 function htmlCintiaMisConsultas(){
   // Las archivadas (viejas, sin resultado) no son trabajo: no aparecen en Mis consultas.
-  const mias=atenciones.filter(a=>a.vendedorId===YO && !a.soloVolumen && dentroDePeriodoCintia(a.ts));
+  const mias=atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts));
   const estados=estadosPedido.filter(e=>dentroDePeriodoCintia(e.ts)).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
   const invalidas=consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   if(!mias.length && !estados.length && !invalidas.length) return `<div class="cin-card"><p class="cin-empty">No tenés consultas propias en este período.</p></div>`;
