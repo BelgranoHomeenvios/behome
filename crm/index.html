@@ -104,6 +104,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .total-presu-top{display:flex;justify-content:space-between;align-items:center}
 .sena-box{margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;gap:6px}
 .sena-row{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;gap:12px}
+.sena-toggle{cursor:pointer;align-items:center;user-select:none}
+.sena-toggle:hover .k{opacity:1}
+.sena-chevron{font-size:10px;opacity:.7;margin-left:4px}
 .sena-row .k{opacity:.82;font-weight:600}
 .sena-row .v{font-weight:800;white-space:nowrap}
 .sena-row.es-sena .v{color:#8fe3b0}
@@ -2198,12 +2201,12 @@ function entrarApp(){
   $('screen-login').classList.add('hidden');
   $('screen-app').classList.remove('hidden');
   $('tabConfig').classList.toggle('hidden', !esAdmin());
-  // Default de período por rol: el vendedor arranca viendo los últimos 60 días
+  // Default de período por rol: el vendedor arranca viendo los últimos 30 días
   // (Cintia y dirección siguen con la ventana más amplia de 120).
   if(!esAdmin() && !esAuditora()){
-    pbActivo='60';
+    pbActivo='30';
     const hoy=new Date(); hoy.setHours(0,0,0,0);
-    const d=new Date(hoy); d.setDate(d.getDate()-59);
+    const d=new Date(hoy); d.setDate(d.getDate()-29);
     cintiaFechaDesde=formatDateInput(d); cintiaFechaHasta=formatDateInput(hoy);
   }
   pintarAdminViewBar();
@@ -2678,6 +2681,7 @@ async function cargarConsultas(desde){
     migrarSeguimientoLocal();
     _snapConsultas = {};
     atenciones.forEach(a => _snapConsultas[a.id] = JSON.stringify(a));
+    normalizarBajasPendientes();   // arregla bajas viejas que quedaron "En seguimiento"
     suscribirConsultas();
   }catch(e){
     console.error('cargarConsultas', e);
@@ -2827,6 +2831,28 @@ function suscribirConsultas(){
 /* 'Seguimiento Local' quedó unificado dentro de 'Local'. Los registros viejos que lo
    tenían pasan a 'Local' + presencial. El localId de esos no se puede recuperar
    (nunca se guardó), así que quedan sin local: se los ve como presencial sin asignar. */
+/* Consultas con una baja pendiente que quedaron abiertas (bajas pedidas antes de que
+   pedir la baja marcara Rechazado automáticamente). Se pasan a Rechazado para que
+   salgan del trabajo activo, igual que las bajas nuevas. Si Cintia rechaza la baja se
+   reabren solas (rechazoPorBaja). Idempotente: una vez arregladas no vuelve a tocar. */
+function normalizarBajasPendientes(){
+  const pend = new Set(solicitudesEliminacion.filter(s=>s.estado==='pendiente').map(s=>s.atencionId));
+  if(!pend.size) return;
+  let tocados=0;
+  atenciones.forEach(a=>{
+    if(!pend.has(a.id)) return;
+    const e=a.estadoManual;
+    if(e==='Rechazado' || e==='Concretado') return;
+    a.estadoManual='Rechazado'; a.resultado='Rechazado';
+    a.rechazoPorBaja=true;
+    if(!a.resultadoMotivo) a.resultadoMotivo='Baja de contacto solicitada';
+    a.montoPerdido=null; a.montoVendido=null;
+    a.cerradoTs=a.cerradoTs||new Date().toISOString();
+    tocados++;
+  });
+  if(tocados) saveAtenciones();
+}
+
 function migrarSeguimientoLocal(){
   let tocados=0;
   atenciones.forEach(a=>{
@@ -2951,20 +2977,18 @@ async function recargarEjemplos(){
    navegador, trae esas consultas de la base. Así "Todas" muestra todo el
    histórico de verdad, no solo la ventana inicial. */
 const PB_PRESETS=[
-  ['hoy',   'Hoy',      0],
-  ['ayer',  'Ayer',     1],
   ['7',     '7 días',   7],
   ['15',    '15 días',  15],
   ['30',    '30 días',  30],
   ['60',    '60 días',  60],
-  ['120',   '120 días', 120],
-  ['todas', 'Todas',    null]
+  ['90',    '90 días',  90],
+  ['todas', 'Todo',     null]
 ];
 /* Días de la ventana con la que arranca la app para todos los roles. Con "Todas"
    los gráficos mezclaban 12 meses y el pico de agosto 2025 aplastaba la escala:
    no se veía lo que pasó el último mes, que es lo que sirve para decidir. */
-const PB_DIAS_DEFECTO = 120;
-let pbActivo='120';   // arranca en el último cuatrimestre, no en todo el histórico
+const PB_DIAS_DEFECTO = 90;
+let pbActivo='90';   // arranca en los últimos 90 días, no en todo el histórico
 
 /* La app abre con la ventana corta para que arranque rápido, y completa el resto
    por detrás. El vendedor ya puede trabajar mientras el histórico termina de bajar;
@@ -2983,7 +3007,7 @@ function renderBarraPeriodo(){
   const box=$('pbChips'); if(!box) return;
   box.innerHTML = PB_PRESETS.map(([id,lbl])=>
     `<button type="button" class="pb-chip${pbActivo===id?' on':''}" onclick="pbSet('${id}')">${lbl}</button>`
-  ).join('') + `<button type="button" class="pb-chip${pbActivo==='custom'?' on':''}" onclick="abrirVerMas()">Fecha exacta</button>`;
+  ).join('') + `<button type="button" class="pb-chip${pbActivo==='custom'?' on':''}" onclick="abrirVerMas()">Fechas a elección</button>`;
 }
 
 function pbSet(id){
@@ -6462,7 +6486,7 @@ function htmlCintiaResumen(){
       <span class="pb-lbl">Período</span>
       <div class="pb-chips">${PB_PRESETS.map(([id,lbl])=>
         `<button type="button" class="pb-chip${pbActivo===id?' on':''}" onclick="pbSet('${id}')">${lbl}</button>`).join('')}
-        <button type="button" class="pb-chip${pbActivo==='custom'?' on':''}" onclick="abrirPeriodoResumen()">Fecha exacta</button>
+        <button type="button" class="pb-chip${pbActivo==='custom'?' on':''}" onclick="abrirPeriodoResumen()">Fechas a elección</button>
       </div>
       <div class="${pbActivo==='custom'?'':'hidden'}" id="periodoResumenPanel" style="width:100%;margin-top:8px">
         <div class="row">
@@ -9402,20 +9426,28 @@ function actualizarTotal(){
       // Si el vendedor ya tocó la seña a mano, se respeta ese número; si no, va la sugerida.
       const sena = _senaEditada ? _senaManual : c.sena;
       const resto = Math.max(0, t - sena);
+      // Colapsado por defecto: una sola línea (título + monto sugerido) para no
+      // empastar la planilla. Se abre al tocarlo y ahí se puede ajustar.
       sb.innerHTML=`
-        <div class="sena-row es-sena">
+        <div class="sena-row sena-toggle" onclick="toggleSena()">
           <span class="k">Cálculo de seña mínima a solicitar</span>
+          <span class="v">${_senaAbierta?'<span class="sena-chevron">▲</span>':`$ ${miles(sena)} <span class="sena-chevron">▼</span>`}</span>
+        </div>
+        ${_senaAbierta?`
+        <div class="sena-row es-sena">
+          <span class="k">Seña a solicitar</span>
           <span class="v"><span class="sena-cur">$</span><input type="text" inputmode="numeric" id="senaInput" class="sena-input" value="${miles(sena)}" oninput="onSenaInput(this)"></span>
         </div>
         <div class="sena-row"><span class="k">Saldo restante</span><span class="v" id="senaResto">$ ${miles(resto)}</span></div>
-        <div class="sena-hint">Sugerida ~30%, redondeada para que el resto quede lindo. Podés ajustarla y el resto se recalcula.</div>`;
+        <div class="sena-hint">Sugerida ~30%, redondeada para que el resto quede lindo. Podés ajustarla y el resto se recalcula.</div>`:''}`;
     }
   }
 }
 /* Seña de fabricación: ~30% del total, ajustada para que el RESTO quede redondo
    (múltiplo de $10.000). Es solo una sugerencia — el número final lo redondea el
    vendedor a mano (por eso el campo es editable). Ej: $953.000 → ~$303.000. */
-let _senaEditada=false, _senaManual=0;
+let _senaEditada=false, _senaManual=0, _senaAbierta=false;
+function toggleSena(){ _senaAbierta=!_senaAbierta; actualizarTotal(); }
 function calcSena(total){
   if(!total || total<=0) return null;
   // El "paso" de redondeo escala con el monto: montos chicos redondean fino, así no
