@@ -8205,6 +8205,7 @@ function htmlCintiaMisPendientes(){
         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
           <input type="text" id="vinc-tel-${a.id}" placeholder="Teléfono / usuario" style="width:130px">
           <button class="btn btn-navy btn-sm" onclick="guardarVinculacionCliente('${a.id}')">Vincular</button>
+          <button class="btn btn-outline btn-sm" title="Ver y editar lo que cargó el vendedor (muebles, notas, foto)" onclick="abrirModalCompletar('${a.id}')">✎ Editar</button>
           <button class="btn btn-outline btn-sm" title="Eliminar la consulta (no hay nada para vincular)" onclick="descartarConsultaLocal('${a.id}')" style="color:var(--red)">🗑</button>
         </div>
       </div>`}).join('')}
