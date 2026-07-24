@@ -4223,7 +4223,7 @@ function logItemHtml(a){
   // Para las que carga el propio vendedor (registro rápido, derivada entre vendedores, o
   // registrada in situ) no hay canalDetalle guardado — son de local, así que lo mostramos así
   // en vez de dejarlo vacío, que es justo lo que pediste.
-  const canalMostrar = canalReal(a);
+  const canalMostrar = canalCorto(canalReal(a));
   const colsCintia = esAuditora()
     ? `<div class="c-origen" ondblclick="editarDesdeHistorial('${a.id}')">
          <span class="or-vend">${nombreDe(a.vendedorId)}</span>
@@ -5028,6 +5028,9 @@ function zonaDe(a){
   // Histórico viejo: solo sabemos que la consulta entró. No hay nada que hacer con
   // ella, así que no puede aparecer como pendiente ni como atrasada.
   if(a.soloVolumen) return 'cerrada';
+  // Consultas de gestión (estado/reclamo/inválida o de Cintia): no son trabajo de
+  // venta, nunca figuran como atrasadas ni pendientes.
+  if(esConsultaGestion(a)) return 'cerrada';
   const est=estadoDe(a);
   const cerradaPorResultado = est==='Concretado' || est==='Rechazado';
   // El cliente nunca contestó: para el vendedor la consulta está cerrada. No se la seguimos
@@ -5967,6 +5970,7 @@ function cintiaEsAtrasada(a){
   // de Cintia o de dirección (consultas de estado, reclamos, etc.) no son seguimiento de
   // ventas: ya fueron respondidas, no se atrasan.
   if(rolDe(a.vendedorId)!=='vendedor') return false;
+  if(esConsultaGestion(a)) return false;   // consulta de estado / reclamo: no se atrasan
   const e=estadoDe(a);
   if(e==='Concretado' || e==='Rechazado') return false;
   if(a.soloVolumen || a.nuncaRespondio) return false;
@@ -5981,6 +5985,7 @@ function cintiaEsAtrasada(a){
    de Cintia es el recurso escaso — mejor usarlo en lo que todavía se puede recuperar.
    Es el mismo umbral con el que la consulta se archiva sola. */
 function evaluable(a){
+  if(esConsultaGestion(a)) return false;   // gestión (estado/reclamo) no se evalúa
   return diasDesdeISO(fechaUltimoMovimiento(a)) <= DIAS_PARA_ARCHIVAR;
 }
 
@@ -6315,11 +6320,38 @@ function limpiarCanal(raw){
    'canalDetalle' (las que se cargan en el CRM) o 'canal' (las importadas de las
    planillas viejas, que traen el canal ahí y por eso salían todas "Sin definir"). */
 function canalReal(a){
+  // Corrección por Excel: muchas consultas importadas quedaron con el canal mal en la
+  // base (ej: "Consulta de estado" guardada como Local). El Excel es la fuente de
+  // verdad; se matchea por teléfono + fecha (casi único). Se prueba la fecha exacta y
+  // ±1 día por si el huso horario la corrió. Solo pisa cuando hay match, así las
+  // consultas cargadas en la app (que no están en el Excel) no se tocan.
+  const tel = normContacto(a.clienteTelefono);
+  if(tel && window.CANAL_TF && window.CANAL_LIST){
+    const base = new Date(a.ts).getTime();
+    if(!isNaN(base)){
+      for(const off of [0,-86400000,86400000]){
+        const idx = window.CANAL_TF[tel+'|'+_igFechaKey(base+off)];
+        if(idx!==undefined && window.CANAL_LIST[idx]) return window.CANAL_LIST[idx];
+      }
+    }
+  }
   if(a.canal==='presencial') return 'Local';
   const d=a.canalDetalle?limpiarCanal(a.canalDetalle):'';
   if(d) return d;
   if(a.canal && a.canal!=='virtual'){ const c=limpiarCanal(a.canal); if(c) return c; }
   return 'Sin definir';
+}
+/* Etiqueta corta para mostrar en las filas (los filtros usan el nombre completo). */
+function canalCorto(name){
+  return ({'Publicidad Mensajería':'P. Mensajería','Publicidad Instagram':'P. Instagram'})[name] || name;
+}
+/* Consultas de gestión de Cintia (consulta de estado, reclamo, consulta inválida): NO
+   son oportunidades de venta. No se evalúan (no hay calidad de atención que medir) ni
+   figuran como atrasadas/pendientes. Se identifican por canal o porque están asignadas
+   a la auditora. Van a tener su propia solapa aparte. */
+const CANALES_GESTION=['Consulta de estado','Reclamo','Consulta invalida'];
+function esConsultaGestion(a){
+  return CANALES_GESTION.includes(canalReal(a)) || rolDe(a.vendedorId)==='auditora';
 }
 function canalDe(a){ return canalReal(a); }
 
