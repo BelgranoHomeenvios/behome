@@ -550,6 +550,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .cf-chip.on{border-color:var(--navy);background:var(--navy);color:#fff}
 .pop-buscar{min-width:230px}
 .nueva-ico{font-size:13px;margin-left:auto;flex-shrink:0;padding-left:6px}
+.coment-ico{font-size:13px;cursor:pointer;margin-left:6px}
 .c-tel{font-size:12px;font-weight:700;color:var(--ink);line-height:1.2}
 .c-tel .tel-copy{cursor:pointer}
 .nom-copy{cursor:pointer}
@@ -4519,6 +4520,9 @@ function logItemHtml(a){
   // una próxima acción, la percepción o la edita (deja de estar pendiente), desaparece.
   const esNuevaSinTocar = pend && !a.percepcion && !estadoDe(a) && !proximaAccionDe(a);
   const nuevaIco = esNuevaSinTocar ? `<span class="nueva-ico" title="Consulta nueva sin trabajar">✨</span>` : '';
+  // Comentario de Cintia para el vendedor: aparece como 💬 al lado del teléfono; al abrirlo desaparece.
+  const comentIco = (a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()||esAuditora()) && hayComentarioVendedor(a))
+    ? `<span class="coment-ico" title="Tenés un comentario — tocá para verlo" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬</span>` : '';
 
   const mueblesTxt = muebles.length
     ? muebles.map(m=>`${nombreMueble(m)}${m.observacion?' ('+m.observacion+')':''}${m.monto?' — $'+miles(m.monto):''}${m.elegido?' ✓ elegido':''}`).join('<br>')
@@ -4599,11 +4603,11 @@ function logItemHtml(a){
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         ${canalIco}
         <div class="c-nom-inner">
-        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
-          : escapeHtml(truncPalabras(tel,2))}</div>
+          : escapeHtml(truncPalabras(tel,2))}${comentIco}</div>
         </div>
         ${nuevaIco}
       </div>
@@ -8912,6 +8916,8 @@ function renderEvaluar(){
 function verComentarioCintia(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
+  // Al abrirlo el vendedor (destinatario), se marca leído y el 💬 desaparece.
+  if(a.comentarioVendedor && !a.comentarioVendedor.leido && YO===a.comentarioVendedor.paraId){ a.comentarioVendedor.leido=true; saveAtenciones(); }
   abrirVistaEvaluacion(id);
 }
 
