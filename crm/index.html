@@ -5609,16 +5609,20 @@ function renderPanelGestion(listaVisible){
   const n = z => base.filter(a=>zonaDe(a)===z).length;
   const mias = atenciones.filter(a=>a.vendedorId===YO);
 
-  // "Pendientes" reemplaza a "Atrasadas": es el buzón del vendedor con todo lo que Cintia le
-  // marca (comentarios, 2da oportunidad, recordatorios, revisiones). Abre la sección, no filtra.
-  const pendCount = recordatoriosDeVendedor().length;
+  // Dos buzones separados: "Pendientes" junta los comentarios/coaching que Cintia le marca
+  // (2da oportunidad, evaluación, revisión, asistencia 🙏); "Recordatorio" son los avisos con
+  // 🔔 (los que se pone el vendedor o le manda Cintia). Ambos abren una sección, no filtran.
+  const recs = recordatoriosDeVendedor();
+  const pendCount = recs.filter(it=>it.tipo!=='campanita').length;
+  const recCount  = recs.filter(it=>it.tipo==='campanita').length;
   const ICO={hoy:'evaluar',pendientes:'bajas',sinclas:'consultas',semana:'estados',
-             estadisticas:'ventas',evaluacion:'evaluar',oportunidad:'pulso'};
+             recordatorio:'bajas',estadisticas:'ventas',evaluacion:'evaluar',oportunidad:'pulso'};
   const items=[
     {label:'Para hoy',       ico:'hoy',         cnt:n('hoy'),    activo:(!seccionVendedor && zonaActiva==='hoy'),      act:`setZona('hoy')`},
-    {label:'Pendientes',     ico:'pendientes',  cnt:pendCount,   activo:(seccionVendedor==='recordatorio'),            act:`abrirSeccionVendedor('recordatorio')`},
+    {label:'Pendientes',     ico:'pendientes',  cnt:pendCount,   activo:(seccionVendedor==='pendientes'),              act:`abrirSeccionVendedor('pendientes')`},
     {label:'Sin clasificar', ico:'sinclas',     cnt:n('sinclas'),activo:(!seccionVendedor && zonaActiva==='sinclas'),  act:`setZona('sinclas')`},
     {label:'Esta semana',    ico:'semana',      cnt:n('semana'), activo:(!seccionVendedor && zonaActiva==='semana'),   act:`setZona('semana')`},
+    {label:'Recordatorio',   ico:'recordatorio',cnt:recCount,    activo:(seccionVendedor==='recordatorio'),            act:`abrirSeccionVendedor('recordatorio')`},
     {label:'Estadísticas',   ico:'estadisticas',cnt:undefined,   activo:(seccionVendedor==='estadisticas'),            act:`abrirSeccionVendedor('estadisticas')`},
     {label:'Evaluación',     ico:'evaluacion',  cnt:undefined,   activo:(seccionVendedor==='evaluacion'),              act:`abrirSeccionVendedor('evaluacion')`},
     {label:'Oportunidad',    ico:'oportunidad', cnt:mias.filter(a=>esOportunidadCaliente(a)).length, activo:(seccionVendedor==='oportunidad'), act:`abrirSeccionVendedor('oportunidad')`}
@@ -5776,7 +5780,8 @@ function renderSolapasVendedor(){
   mostrarTablaVendedor(false);
 
   let cuerpo='';
-  if(seccionVendedor==='recordatorio')      cuerpo = svRecordatorioHtml();
+  if(seccionVendedor==='pendientes')        cuerpo = svRecordatorioHtml('pendientes');
+  else if(seccionVendedor==='recordatorio') cuerpo = svRecordatorioHtml('recordatorio');
   else if(seccionVendedor==='estadisticas') cuerpo = svEstadisticasHtml();
   else if(seccionVendedor==='evaluacion')   cuerpo = svEvaluacionesHtml();
   else if(seccionVendedor==='oportunidad')  cuerpo = svOportunidadesHtml();
@@ -5796,7 +5801,7 @@ function mostrarTablaVendedor(mostrar){
   if(filtros && !mostrar) filtros.classList.add('hidden');
   if(titulo) titulo.textContent = mostrar ? (esAuditora()?'Consultas':'Mis consultas') : TITULOS_SECCION_VENDEDOR[seccionVendedor]||'Mis consultas';
 }
-const TITULOS_SECCION_VENDEDOR={recordatorio:'Pendientes', estadisticas:'Estadísticas', evaluacion:'Evaluación', oportunidad:'Oportunidad'};
+const TITULOS_SECCION_VENDEDOR={pendientes:'Pendientes', recordatorio:'Recordatorio', estadisticas:'Estadísticas', evaluacion:'Evaluación', oportunidad:'Oportunidad'};
 
 function svRecItemHtml(it){
   const a=it.a;
@@ -6140,10 +6145,22 @@ function svEstadisticasHtml(){
 function svSetPeriodo(v){ svPeriodo=v; renderSolapasVendedor(); }
 function svSetComparar(v){ svComparar=v; renderSolapasVendedor(); }
 
-function svRecordatorioHtml(){
-  const recs = recordatoriosDeVendedor();
-  if(!recs.length) return `<p class="cin-empty">No tenés nada pendiente. Cuando Cintia te deje un comentario o un recordatorio, aparece acá.</p>`;
-  return `<p class="tiny" style="margin:0 0 12px">Todo lo que tenés para hacer: comentarios de Cintia, recordatorios y avisos. Tocá la 🔔 o el 🙏 en la tabla para agregar uno nuevo.</p>
+function svRecordatorioHtml(modo){
+  // 'pendientes' = comentarios/coaching de Cintia (todo menos las campanitas);
+  // 'recordatorio' = los avisos con 🔔. Sin modo, muestra todo (compatibilidad).
+  const todos = recordatoriosDeVendedor();
+  const recs = modo==='recordatorio' ? todos.filter(it=>it.tipo==='campanita')
+             : modo==='pendientes'   ? todos.filter(it=>it.tipo!=='campanita')
+             : todos;
+  if(!recs.length){
+    return modo==='recordatorio'
+      ? `<p class="cin-empty">No tenés recordatorios. Tocá la 🔔 de cualquier consulta para anotarte uno.</p>`
+      : `<p class="cin-empty">No tenés nada pendiente. Cuando Cintia te deje un comentario, aparece acá.</p>`;
+  }
+  const intro = modo==='recordatorio'
+    ? `Avisos con 🔔: los que te anotaste vos o te mandó Cintia. Tocá la 🔔 en la tabla para agregar uno nuevo.`
+    : `Lo que Cintia te marca para hacer: comentarios, 2da oportunidad, revisiones y asistencia (🙏).`;
+  return `<p class="tiny" style="margin:0 0 12px">${intro}</p>
     ${recs.map(svRecItemHtml).join('')}`;
 }
 
