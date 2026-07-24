@@ -2356,13 +2356,19 @@ function entrarApp(){
   // Latido para la "última señal" (proxy de la hora de desconexión): cada 4 min mientras
   // esté conectado y no en pausa.
   if(!window._jornInterval) window._jornInterval=setInterval(()=>{
-    if(YO && !esAdmin() && !esAuditora() && yaConectadoHoy(YO) && !forzandoSelector && !estaPausado(YO)) registrarSenal(YO);
+    if(!YO || esAdmin()) return;
+    if(esAuditora()){ registrarSenal(YO); return; }   // Cintia: siempre que esté en la app
+    if(yaConectadoHoy(YO) && !forzandoSelector && !estaPausado(YO)) registrarSenal(YO);
   }, 4*60*1000);
+  // Cintia (auditora) no elige local: se registra su conexión al entrar para que aparezca
+  // en el tablero de dirección igual que el resto del equipo.
+  if(YO && esAuditora()) registrarConexion(YO, null);
   // Siembra inmediata: si el vendedor ya estaba conectado, que aparezca en el registro sin esperar el latido.
   if(YO && !esAdmin() && !esAuditora() && yaConectadoHoy(YO)){ if(_seedJornadaDesdeActivos(YO)) saveJornadas(); }
   // Auto-pausa por inactividad: si el vendedor pasa 30 min sin tocar la app, se pausa solo.
+  // Para Cintia no hay pausado de turnos, pero sí se anota la pausa en su jornada (registro).
   _ultimaActividad=Date.now();
-  if(!window._autoPausaInterval) window._autoPausaInterval=setInterval(chequearAutoPausa, 60*1000);
+  if(!window._autoPausaInterval) window._autoPausaInterval=setInterval(()=>{ chequearAutoPausa(); tickRegistroAuditora(); }, 60*1000);
   /* Cintia y dirección trabajan sobre lo que falta evaluar: se les suma esa
      cola aunque alguna consulta quede fuera de la ventana de 2 meses. */
   if(esAuditora()||esAdmin()) cargarPendientesEvaluacion().then(()=>render());
@@ -2469,8 +2475,20 @@ function saveJornadas(){
 function _jornDia(uid){
   const d=hoyStr();
   if(!JORNADAS[d]) JORNADAS[d]={};
-  if(!JORNADAS[d][uid]) JORNADAS[d][uid]={conexion:null, ultima:null, localId:null, pausas:[]};
+  if(!JORNADAS[d][uid]) JORNADAS[d][uid]={conexion:null, ultima:null, localId:null, pausas:[], ultimaEdicion:null};
   return JORNADAS[d][uid];
+}
+/* Última vez del día que la persona EDITÓ algo del sistema (guardó una consulta, evaluó,
+   cerró, etc.). Sirve para saber hasta qué hora trabajó de verdad con la planilla. */
+function registrarEdicion(uid){
+  if(!uid) return;
+  const j=_jornDia(uid);
+  const ahora=new Date().toISOString();
+  if(!j.conexion) j.conexion=ahora;   // si editó sin haber “conectado” formalmente, cuenta como inicio
+  j.ultimaEdicion=ahora;
+  j.ultima=ahora;
+  purgarJornadas();
+  saveJornadas();
 }
 function registrarConexion(uid, localId){
   if(!uid) return;
@@ -2525,6 +2543,28 @@ function registrarPausa(uid, tipo){
 function purgarJornadas(){
   const dias=Object.keys(JORNADAS).sort();
   while(dias.length>75) delete JORNADAS[dias.shift()];
+}
+/* Cintia (auditora) no está en el sistema de turnos, así que no tiene el pausado manual.
+   Igual queremos registrar sus pausas (30 min sin usar el sistema) para el tablero de
+   dirección: se detecta por inactividad y se anota en su jornada, sin tocar nada más. */
+function tickRegistroAuditora(){
+  try{
+    if(!YO || !esAuditora()) return;
+    const j=(JORNADAS[hoyStr()]||{})[YO];
+    if(!j) return;
+    const idle=Date.now()-_ultimaActividad;
+    const ult=j.pausas&&j.pausas.length?j.pausas[j.pausas.length-1]:null;
+    const abierta=ult&&!ult.h;
+    if(!abierta){
+      // Empezó una pausa: la marca desde el momento en que se quedó inactiva (hace 30 min).
+      if(idle>=AUTO_PAUSA_MS){ j.pausas.push({d:new Date(_ultimaActividad).toISOString(), h:null}); saveJornadas(); }
+    }else if(idle<AUTO_PAUSA_MS){
+      // Volvió a haber actividad: cierra la pausa en el momento en que retomó.
+      ult.h=new Date(_ultimaActividad).toISOString();
+      j.ultima=new Date().toISOString();
+      saveJornadas();
+    }
+  }catch(e){}
 }
 async function marcarActivoHoy(localId,uid){
   if(!localId) return;
@@ -3038,6 +3078,9 @@ async function saveAtenciones(){
     if(_snapConsultas[a.id] !== j){ _colaGuardado.add(a.id); _snapConsultas[a.id] = j; }
   }
   if(!_colaGuardado.size) return;
+  // Hubo un cambio real hecho por esta persona: queda registrada la hora de la última
+  // edición del día (para el tablero de dirección). El admin no se registra a sí mismo.
+  if(YO && !esAdmin()) registrarEdicion(YO);
   clearTimeout(_timerGuardado);
   _timerGuardado = setTimeout(async () => {
     const ids = [..._colaGuardado]; _colaGuardado.clear();
@@ -11520,28 +11563,58 @@ function renderDireccion(){
 
     ${htmlRegistroJornadas()}`;
 }
-/* Registro de conexiones: a qué hora se conectó y su última señal (≈ desconexión) cada
-   uno, por día, más las pausas. Se guarda día a día desde ahora. */
+/* Registro de conexiones: para un día elegido, a qué hora se conectó cada uno, su última
+   señal (≈ desconexión), cuántas pausas tuvo y entre qué horarios, y a qué hora fue su
+   última edición del sistema. Se navega día por día. Solo dirección lo ve. */
+let jornDiaSel=null;   // clave de día (formato hoyStr, sin ceros: "2026-7-24")
+function _jornKeyToInput(k){ const p=String(k).split('-'); const z=n=>String(n).padStart(2,'0'); return `${p[0]}-${z(+p[1]||1)}-${z(+p[2]||1)}`; }
+function _jornInputToKey(v){ const p=String(v).split('-'); if(p.length<3) return v; return `${+p[0]}-${+p[1]}-${+p[2]}`; }
+function jornDiasDisponibles(){ return Object.keys(JORNADAS).sort(); }
+function jornNavDia(dir){
+  const dias=jornDiasDisponibles(); if(!dias.length) return;
+  let i=dias.indexOf(jornDiaSel||dias[dias.length-1]);
+  if(i<0) i=dias.length-1;
+  i=Math.max(0,Math.min(dias.length-1,i+dir));
+  jornDiaSel=dias[i]; renderDireccion();
+}
+function jornSetDia(v){ if(v) jornDiaSel=_jornInputToKey(v); renderDireccion(); }
+async function jornRefrescar(){ await loadJornadas(); renderDireccion(); toast('Registro actualizado.'); }
 function htmlRegistroJornadas(){
-  const dias=Object.keys(JORNADAS).sort((a,b)=>b.localeCompare(a)).slice(0,14);
+  const dias=jornDiasDisponibles();
   const fh=iso=>{try{return new Date(iso).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});}catch(e){return '—';}};
-  const cuerpo = !dias.length
-    ? `<p class="muted" style="margin:0">Todavía no hay registros. Se empiezan a guardar desde ahora — cada día vas a ver acá a qué hora se conectó y se desconectó cada uno.</p>`
-    : dias.map(d=>{
-        const us=JORNADAS[d]||{};
-        const uids=Object.keys(us).sort((a,b)=>String(us[a].conexion||'').localeCompare(String(us[b].conexion||'')));
-        if(!uids.length) return '';
-        const filas=uids.map(uid=>{
-          const j=us[uid];
-          const paus=(j.pausas||[]).filter(p=>p.d).map(p=>`${fh(p.d)}–${p.h?fh(p.h):'…'}`).join(', ');
-          return `<tr><td>${escapeHtml(nombreDe(uid))}</td><td>${fh(j.conexion)}</td><td>${fh(j.ultima)}</td><td class="muted" style="font-size:12px">${paus||'—'}</td></tr>`;
-        }).join('');
-        const _p=String(d).split('-');const fecha=new Date(+_p[0],(+_p[1]||1)-1,+_p[2]||1).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'short'});
-        return `<div style="margin-top:12px"><b style="font-size:13px;text-transform:capitalize">${fecha}</b>
-          <div class="dir-scroll" style="overflow-x:auto"><table class="est-tabla" style="min-width:460px;margin-top:5px">
-            <tr><th>Usuario</th><th>Conexión</th><th>Última señal</th><th>Pausas</th></tr>${filas}</table></div></div>`;
-      }).join('');
-  return `<div class="dir-card"><div class="dh">Conexiones del equipo<span class="r">hora de conexión y última señal (≈ desconexión), por día</span></div>${cuerpo}</div>`;
+  if(!dias.length){
+    return `<div class="dir-card"><div class="dh">Conexiones del equipo<span class="r">conexión, pausas y última edición, por día</span></div>
+      <p class="muted" style="margin:0">Todavía no hay registros. Se empiezan a guardar desde ahora — cada día vas a ver a qué hora se conectó cada uno, sus pausas y hasta qué hora trabajó.</p></div>`;
+  }
+  // Día elegido: por defecto el más reciente que haya registrado.
+  if(!jornDiaSel || !JORNADAS[jornDiaSel]) jornDiaSel=dias[dias.length-1];
+  const i=dias.indexOf(jornDiaSel);
+  const us=JORNADAS[jornDiaSel]||{};
+  const uids=Object.keys(us).sort((a,b)=>String(us[a].conexion||'').localeCompare(String(us[b].conexion||'')));
+  const _p=String(jornDiaSel).split('-');
+  // Formato pedido: día/mes/año (24/07/26), con el nombre del día adelante para ubicarlo rápido.
+  const _z=n=>String(n).padStart(2,'0');
+  const _dObj=new Date(+_p[0],(+_p[1]||1)-1,+_p[2]||1);
+  const _wd=_dObj.toLocaleDateString('es-AR',{weekday:'long'});
+  const fecha=`${_wd.charAt(0).toUpperCase()+_wd.slice(1)} ${_z(+_p[2])}/${_z(+_p[1])}/${String(+_p[0]).slice(-2)}`;
+  const filas=uids.map(uid=>{
+    const j=us[uid];
+    const ps=(j.pausas||[]).filter(p=>p.d);
+    const rangos=ps.map(p=>`${fh(p.d)}–${p.h?fh(p.h):'…'}`).join(', ');
+    const pausasCell = ps.length ? `<b>${ps.length}</b> · <span class="muted" style="font-size:12px">${rangos}</span>` : '—';
+    return `<tr><td>${escapeHtml(nombreDe(uid))}</td><td>${fh(j.conexion)}</td><td>${fh(j.ultima)}</td><td>${pausasCell}</td><td>${j.ultimaEdicion?fh(j.ultimaEdicion):'<span class="muted">—</span>'}</td></tr>`;
+  }).join('') || `<tr><td colspan="5" class="muted" style="text-align:center;padding:14px">Nadie registró actividad ese día.</td></tr>`;
+  const nav=`<div class="daynav" style="display:flex;align-items:center;gap:8px;margin:2px 0 10px">
+    <button class="btn btn-ghost btn-sm" ${i<=0?'disabled':''} onclick="jornNavDia(-1)">‹ Día anterior</button>
+    <input type="date" value="${_jornKeyToInput(jornDiaSel)}" max="${_jornKeyToInput(dias[dias.length-1])}" min="${_jornKeyToInput(dias[0])}" onchange="jornSetDia(this.value)">
+    <button class="btn btn-ghost btn-sm" ${i>=dias.length-1?'disabled':''} onclick="jornNavDia(1)">Día siguiente ›</button>
+    <b style="font-size:13px;text-transform:capitalize;margin-left:6px">${fecha}</b>
+    <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="jornRefrescar()">↻ Actualizar</button>
+  </div>`;
+  return `<div class="dir-card"><div class="dh">Conexiones del equipo<span class="r">conexión, pausas (30 min sin usar) y última edición</span></div>
+    ${nav}
+    <div class="dir-scroll" style="overflow-x:auto"><table class="est-tabla" style="min-width:560px">
+      <tr><th>Usuario</th><th>Conexión</th><th>Última señal</th><th>Pausas</th><th>Última edición</th></tr>${filas}</table></div></div>`;
 }
 /* Entrar a la pantalla de un usuario usando tu "ver como" de siempre */
 function dirVerComo(uid){
