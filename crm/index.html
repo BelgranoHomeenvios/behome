@@ -541,8 +541,8 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 /* Contacto invertido: teléfono grande arriba, nombre debajo (más legible) */
 .c-nom{display:flex;flex-direction:row;align-items:center;gap:8px}
 .c-nom-inner{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px;min-width:0}
-.c-emoji-side{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;flex-shrink:0;font-size:14px;line-height:1}
-.nueva-ico{font-size:12px}
+.c-canal-emoji{flex-shrink:0;font-size:14px;line-height:1;display:inline-flex;align-items:center}
+.nueva-ico{font-size:13px;margin-left:auto;flex-shrink:0;padding-left:6px}
 .c-tel{font-size:12px;font-weight:700;color:var(--ink);line-height:1.2}
 .c-tel .tel-copy{cursor:pointer}
 .nom-copy{cursor:pointer}
@@ -4483,7 +4483,8 @@ function logItemHtml(a){
   const _esPres = a.canal==='presencial' || _cr==='Local';
   const canalEmoji = _esPres ? '🚶‍♂️' : (_cr!=='Sin definir' ? '📲' : '');
   // Emojis al costado (canal + ✨ si es nueva) para no invadir el texto del nombre/teléfono.
-  const emojiSide = `<div class="c-emoji-side">${canalEmoji?`<span class="canal-emoji" title="${_esPres?'Consulta del local':'Consulta virtual'}">${canalEmoji}</span>`:''}${pend?`<span class="nueva-ico" title="Consulta nueva">✨</span>`:''}</div>`;
+  const canalIco = canalEmoji ? `<span class="c-canal-emoji" title="${_esPres?'Consulta del local':'Consulta virtual'}">${canalEmoji}</span>` : '';
+  const nuevaIco = pend ? `<span class="nueva-ico" title="Consulta nueva">✨</span>` : '';
 
   const mueblesTxt = muebles.length
     ? muebles.map(m=>`${nombreMueble(m)}${m.observacion?' ('+m.observacion+')':''}${m.monto?' — $'+miles(m.monto):''}${m.elegido?' ✓ elegido':''}`).join('<br>')
@@ -4562,7 +4563,7 @@ function logItemHtml(a){
         </span>`}
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
-        ${emojiSide}
+        ${canalIco}
         <div class="c-nom-inner">
         <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="Copiar nombre para LiveConnect">${nombreMostrar}</b>${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
@@ -4570,6 +4571,7 @@ function logItemHtml(a){
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}</span>`
           : tel}</div>
         </div>
+        ${nuevaIco}
       </div>
       ${colsCintia}
       ${montoCol}
@@ -6696,7 +6698,7 @@ function renderCintiaBotones(){
     {id:'resumen', label:'Resumen', ic:'resumen'},
     {id:'consultas', label:'Consultas', ic:'consultas'},
     {id:'evaluar', label:'Para evaluar', ic:'evaluar', cnt:colaEvaluarCintia().length},
-    {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts)).length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
+    {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts) && estadoPostventaDe(a)!=='Resuelto').length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
     {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)).length},
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
     {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length},
@@ -6875,7 +6877,7 @@ function esConsultaGestion(a){
 /* Consultas de POST-VENTA (por canal): el cliente ya compró y pregunta por el estado de su
    pedido o hace un reclamo. No siguen el circuito de venta (concretado/rechazado/seguimiento)
    sino Pendiente / Resuelto (y "En gestión" para reclamos), y no llevan percepción del cliente. */
-function esPostventa(a){ const c=canalReal(a); return c==='Consulta de estado' || c==='Reclamo'; }
+function esPostventa(a){ const c=canalReal(a); return c==='Consulta de estado' || c==='Reclamo' || rolDe(a.vendedorId)==='auditora'; }
 function esReclamo(a){ return canalReal(a)==='Reclamo'; }
 const EST_PV_ESTADO=['Pendiente','Resuelto'];
 const EST_PV_RECLAMO=['Pendiente','En gestión','Resuelto'];
@@ -7338,7 +7340,7 @@ function paginadorHtml(actual, total, fn){
 }
 function htmlCintiaAtrasadas(){
   const todo=filtrosColumna(atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)))
-    .sort((a,b)=> new Date(fechaUltimoMovimiento(b)).getTime() - new Date(fechaUltimoMovimiento(a)).getTime());
+    .sort((a,b)=> new Date(fechaUltimoMovimiento(a)).getTime() - new Date(fechaUltimoMovimiento(b)).getTime());   // más vieja arriba, más nueva abajo
   if(!todo.length) return `<div class="cin-card"><p class="cin-empty">No hay nada atrasado ni sin clasificar con estos filtros.</p></div>`;
   const POR=50;
   const totalPag=Math.ceil(todo.length/POR);
@@ -7348,7 +7350,7 @@ function htmlCintiaAtrasadas(){
   const l=todo.slice(desde, desde+POR);
   return `<div class="cin-card" style="padding:4px 18px">
     <h3 style="padding-top:10px">Atrasadas <span class="cnt-pill">${todo.length}</span></h3>
-    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma plazo vencido y consultas todavía sin oportunidad clasificada, de todos los vendedores. Podés filtrar y buscar desde los títulos. De a 50 por página, de la más reciente a la más vieja${totalPag>1?` · página ${_cintiaAtrPagina} de ${totalPag}`:''}.</p>
+    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma plazo vencido y consultas todavía sin oportunidad clasificada, de todos los vendedores. Podés filtrar y buscar desde los títulos. De a 50 por página, de la más vieja a la más reciente${totalPag>1?` · página ${_cintiaAtrPagina} de ${totalPag}`:''}.</p>
     ${cheadHtml()}
     ${l.map(logItemHtml).join('')}
     ${paginadorHtml(_cintiaAtrPagina, totalPag, 'irPaginaCintiaAtr')}
