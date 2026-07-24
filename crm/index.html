@@ -1737,31 +1737,41 @@ textarea{resize:vertical;min-height:60px}
             <div class="seg-badges" id="segBadges"></div>
           </div>
 
-          <div class="hidden" id="segCierreBox"></div>
+          <!-- Botones de etapa: cambiar de estado sin salir del seguimiento. Si se elige
+               Concretado/Rechazado, abajo cambia la plantilla al formulario de cierre. -->
+          <div class="etapa-pills" id="segEtapaPills" style="margin-bottom:12px"></div>
 
-          <div class="field" id="segProxCampo">
-            <label>¿Cuándo le volvemos a hablar?</label>
-            <div class="pills" id="segProxPills"></div>
+          <!-- Campos del seguimiento (visibles cuando la etapa elegida es "En seguimiento") -->
+          <div id="segCamposSeguimiento">
+            <div class="hidden" id="segCierreBox"></div>
+
+            <div class="field" id="segProxCampo">
+              <label>¿Cuándo le volvemos a hablar?</label>
+              <div class="pills" id="segProxPills"></div>
+            </div>
+
+            <div class="field">
+              <label>¿Qué pasó hoy?</label>
+              <textarea id="segComentario" rows="2" placeholder="Ej: la llamé, quedó de confirmar el viernes"></textarea>
+              <div class="chips-2" id="segAtajos"></div>
+            </div>
+
+            <div class="seg-sep"></div>
+
+            <div class="field" id="segHistorialCampo">
+              <label>Historial de la consulta</label>
+              <div id="segHistorialLista"></div>
+            </div>
+
+            <div class="seg-sep"></div>
+
+            <div class="seg-ficha" id="segFicha"></div>
+
+            <button type="button" class="btn btn-guardar" style="margin-top:14px" onclick="guardarSeguimiento()">✓ Guardar seguimiento</button>
           </div>
 
-          <div class="field">
-            <label>¿Qué pasó hoy?</label>
-            <textarea id="segComentario" rows="2" placeholder="Ej: la llamé, quedó de confirmar el viernes"></textarea>
-            <div class="chips-2" id="segAtajos"></div>
-          </div>
-
-          <div class="seg-sep"></div>
-
-          <div class="field" id="segHistorialCampo">
-            <label>Historial de la consulta</label>
-            <div id="segHistorialLista"></div>
-          </div>
-
-          <div class="seg-sep"></div>
-
-          <div class="seg-ficha" id="segFicha"></div>
-
-          <button type="button" class="btn btn-guardar" style="margin-top:14px" onclick="guardarSeguimiento()">✓ Guardar seguimiento</button>
+          <!-- Formulario de cierre (Concretado/Rechazado) que reemplaza a los campos de arriba -->
+          <div id="segCierreForm" class="hidden"></div>
         </div>
 
         <div id="wizardBox">
@@ -4513,6 +4523,10 @@ function agregarMuebleCierre(){
 function cerrarModalCierre(){
   $('modalCierre').classList.add('hidden');
   const me=$('modalEtapa'); if(me) me.classList.add('hidden');  // el guardado puede venir del modal de etapa
+  // El cierre también puede venir del modal de seguimiento (pills de etapa): al guardar,
+  // se cierra ese modal y se limpia su formulario para no dejar IDs de cierre duplicados.
+  const mf=$('modalFondo'); if(mf) mf.classList.add('hidden');
+  const scf=$('segCierreForm'); if(scf){ scf.classList.add('hidden'); scf.innerHTML=''; }
   document.body.style.overflow='';
   cerrandoId=null; cerrandoTipo=null; etapaSel=null;
 }
@@ -4685,8 +4699,8 @@ function pintarEtapa(){
     // Concretado y Rechazado, en cambio, van directo a su ficha (que ya pide todo lo
     // necesario), sin el paso intermedio del wizard.
     cuerpo=`
-      <p class="tiny" style="margin-bottom:12px">Antes de marcarla como <b>${etapaSel}</b> hay que completar la ficha (cliente, muebles, próxima acción).</p>
-      <button class="btn btn-navy" style="width:100%" onclick="etapaCompletarFicha()">Completar la ficha</button>`;
+      <p class="tiny" style="margin-bottom:12px">Se abre el seguimiento de la consulta para trabajarla (interés, próxima acción, historial). Desde ahí también podés marcarla Concretada o Rechazada.</p>
+      <button class="btn btn-navy" style="width:100%" onclick="etapaCompletarFicha()">Abrir seguimiento →</button>`;
   }else if(etapaSel==='Concretado'){
     cuerpo=htmlFormConcretado(a);
   }else if(etapaSel==='Rechazado'){
@@ -4748,10 +4762,18 @@ async function guardarEtapaSinClasificar(){
 }
 function etapaCompletarFicha(){
   const id=cerrandoId, est=etapaSel;
+  const a=atenciones.find(x=>x.id===id);
   origenAutoEstado=est;
   cerrarEtapa();
-  abrirModalCompletar(id,0);
-  toast('Completá la ficha y después confirmás la etapa');
+  // Si la consulta ya tiene datos (cliente o muebles), va directo al seguimiento enriquecido
+  // —con las pills de etapa arriba— sin el paso extra de la ficha. Si está vacía, sí pide la ficha.
+  const tieneAlgo = a && ((a.clienteNombre && !/^sin/i.test(a.clienteNombre)) || (a.muebles && a.muebles.length));
+  if(tieneAlgo){
+    abrirModalCompletar(id, undefined, true);
+  }else{
+    abrirModalCompletar(id,0);
+    toast('Completá la ficha y después confirmás la etapa');
+  }
 }
 function segElegirCuando(el){
   el.parentElement.querySelectorAll('.cierre-chip').forEach(c=>c.classList.remove('on'));
@@ -11246,7 +11268,7 @@ function abrirModalRapido(){
   $('modalTitulo').textContent='Registro rápido';
 }
 
-function abrirModalCompletar(id, paso){
+function abrirModalCompletar(id, paso, forzarSeg){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
   modalModo='completar';
@@ -11311,7 +11333,7 @@ function abrirModalCompletar(id, paso){
   // modo seguimiento — enfocado en la acción de hoy, con el cliente resumido al pie.
   // Pendiente recién derivada sin datos, o edición explícita (paso especificado): wizard completo.
   const yaCargada = a.status!=='pendiente' && (a.clienteNombre || (a.muebles && a.muebles.length));
-  if(yaCargada && paso===undefined){
+  if((yaCargada && paso===undefined) || forzarSeg){
     abrirModoSeguimiento(a);
   }else{
     $('seguimientoBox').classList.add('hidden');
@@ -11363,6 +11385,44 @@ function abrirModoSeguimiento(a){
 
   // Ficha del cliente al pie: nombre, teléfono (copiable), productos
   pintarSegFicha(a);
+
+  // Botones de etapa arriba: permiten pasar a Concretado/Rechazado sin salir del seguimiento.
+  // guardarCierre() lee estos globales, así que se preparan acá.
+  cerrandoId=a.id; cerrandoTipo=null; etapaSel=est||'En seguimiento';
+  $('segCamposSeguimiento').classList.remove('hidden');
+  const scf=$('segCierreForm'); scf.classList.add('hidden'); scf.innerHTML='';
+  pintarSegEtapaPills(a);
+}
+
+/* Pills de etapa dentro del modal de seguimiento (En seguimiento / Concretado / Rechazado).
+   La activa es la etapa que se está viendo (etapaSel). */
+function pintarSegEtapaPills(a){
+  const cont=$('segEtapaPills'); if(!cont) return;
+  cont.innerHTML = ESTADOS.map(e=>`<span class="etapa-pill ${ESTADO_CLS[e]} ${etapaSel===e?'on':''}" onclick="segElegirEtapaTop('${e}')">${e}</span>`).join('');
+}
+
+/* Cambia la plantilla del modal de seguimiento según la etapa elegida, sin cerrarlo:
+   "En seguimiento" muestra los campos de seguimiento; "Concretado"/"Rechazado" muestran
+   el formulario de cierre correspondiente (mismo que la etapa comercial). Así se marca el
+   estado y se cargan los datos en un solo paso. */
+function segElegirEtapaTop(estado){
+  const a=atenciones.find(x=>x.id===cerrandoId); if(!a) return;
+  etapaSel=estado;
+  const campos=$('segCamposSeguimiento'), scf=$('segCierreForm');
+  // Limpio cajas de los otros modales para que no queden IDs de cierre duplicados en el DOM.
+  const ec=$('etapaCaja'); if(ec) ec.innerHTML='';
+  const cc=$('cierreCaja'); if(cc) cc.innerHTML='';
+  if(estado==='Concretado' || estado==='Rechazado'){
+    cerrandoTipo=estado;
+    scf.innerHTML = estado==='Concretado' ? htmlFormConcretado(a) : htmlFormRechazado(a);
+    scf.classList.remove('hidden');
+    campos.classList.add('hidden');
+  }else{
+    cerrandoTipo=null;
+    scf.classList.add('hidden'); scf.innerHTML='';
+    campos.classList.remove('hidden');
+  }
+  pintarSegEtapaPills(a);
 }
 
 /* Datos del cierre dentro del modo seguimiento, cuando la consulta ya está Concretada o
@@ -11588,6 +11648,10 @@ function cerrarModalReal(){
   $('modalFondo').classList.add('hidden');
   document.body.style.overflow='';
   origenAutoEstado=null;
+  // El seguimiento pudo dejar cargado el estado de cierre (pills de etapa): se limpia para
+  // que no quede colgado si después se abre otro flujo que lee cerrandoId.
+  cerrandoId=null; cerrandoTipo=null; etapaSel=null;
+  const scf=$('segCierreForm'); if(scf){ scf.classList.add('hidden'); scf.innerHTML=''; }
 }
 
 function toggleTelefono(){
