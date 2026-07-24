@@ -542,6 +542,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-nom{display:flex;flex-direction:row;align-items:center;gap:8px}
 .c-nom-inner{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px;min-width:0}
 .c-canal-emoji{flex-shrink:0;font-size:14px;line-height:1;display:inline-flex;align-items:center}
+.c-canal-ico{flex-shrink:0;display:inline-flex;align-items:center;line-height:1}
 .nueva-ico{font-size:13px;margin-left:auto;flex-shrink:0;padding-left:6px}
 .c-tel{font-size:12px;font-weight:700;color:var(--ink);line-height:1.2}
 .c-tel .tel-copy{cursor:pointer}
@@ -1406,6 +1407,7 @@ textarea{resize:vertical;min-height:60px}
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><radialGradient id="igGrad" cx="30%" cy="107%" r="130%"><stop offset="0" stop-color="#f9ed41"/><stop offset=".25" stop-color="#ff833d"/><stop offset=".5" stop-color="#ee2a7b"/><stop offset=".75" stop-color="#a833d1"/><stop offset="1" stop-color="#4c5fd7"/></radialGradient></defs></svg>
 
 <div id="screen-cargando" class="center-wrap">
   <div class="card auth-card" style="text-align:center">
@@ -4483,9 +4485,8 @@ function logItemHtml(a){
   // De un vistazo: 📲 si la consulta es virtual, 👥 si fue presencial (en el local).
   const _cr = canalReal(a);
   const _esPres = a.canal==='presencial' || _cr==='Local';
-  const canalEmoji = _esPres ? '🚶‍♂️' : (_cr!=='Sin definir' ? '📲' : '');
-  // Emojis al costado (canal + ✨ si es nueva) para no invadir el texto del nombre/teléfono.
-  const canalIco = canalEmoji ? `<span class="c-canal-emoji" title="${_esPres?'Consulta del local':'Consulta virtual'}">${canalEmoji}</span>` : '';
+  // Ícono del canal (logos de WhatsApp/Instagram, emoji para el resto) al costado del contacto.
+  const canalIco = canalIconHtml(a);
   const nuevaIco = pend ? `<span class="nueva-ico" title="Consulta nueva">✨</span>` : '';
 
   const mueblesTxt = muebles.length
@@ -6867,6 +6868,23 @@ function canalReal(a){
 /* Etiqueta corta para mostrar en las filas (los filtros usan el nombre completo). */
 function canalCorto(name){
   return ({'Publicidad Mensajería':'P. Mensajería','Publicidad Instagram':'P. Instagram','Consulta de estado':'C. Estado'})[name] || name;
+}
+/* Íconos de canal: logos de WhatsApp e Instagram (SVG inline) + emojis para el resto.
+   WhatsApp agrupa WhatsApp y Publicidad Mensajería; Instagram agrupa Instagram, Publicidad
+   Instagram y Facebook. */
+const SVG_WA=`<svg viewBox="0 0 32 32" width="15" height="15" style="display:block"><path fill="#25D366" d="M16 3C8.8 3 3 8.8 3 16c0 2.3.6 4.5 1.7 6.4L3 29l6.9-1.8C11.6 28.4 13.8 29 16 29c7.2 0 13-5.8 13-13S23.2 3 16 3z"/><path fill="#fff" d="M22.6 19.3c-.3-.2-1.9-1-2.2-1.1-.3-.1-.5-.2-.7.2-.2.3-.8 1-1 1.2-.2.2-.4.2-.7.1-.3-.2-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6.1-.1.3-.4.5-.6.1-.2.2-.3.3-.5.1-.2 0-.4 0-.6 0-.1-.7-1.7-1-2.3-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.2.2 2.2 3.3 5.3 4.7.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.9-.8 2.1-1.5.3-.7.3-1.4.2-1.5-.1-.2-.3-.2-.6-.4z"/></svg>`;
+const SVG_IG=`<svg viewBox="0 0 32 32" width="15" height="15" style="display:block"><rect width="32" height="32" rx="9" fill="url(#igGrad)"/><rect x="8" y="8" width="16" height="16" rx="5" fill="none" stroke="#fff" stroke-width="2.2"/><circle cx="16" cy="16" r="4" fill="none" stroke="#fff" stroke-width="2.2"/><circle cx="21.6" cy="10.4" r="1.35" fill="#fff"/></svg>`;
+function canalIconHtml(a){
+  const cr=canalReal(a);
+  if(a.canal==='presencial' || cr==='Local') return '<span class="c-canal-emoji" title="Consulta del local">🚶‍♂️</span>';
+  if(cr==='WhatsApp' || cr==='Publicidad Mensajería') return `<span class="c-canal-ico" title="WhatsApp">${SVG_WA}</span>`;
+  if(cr==='Instagram' || cr==='Publicidad Instagram' || cr==='Facebook') return `<span class="c-canal-ico" title="${escAttr(cr)}">${SVG_IG}</span>`;
+  if(cr==='Email') return '<span class="c-canal-emoji" title="Email">✉️</span>';
+  if(cr==='Google Shopping') return '<span class="c-canal-emoji" title="Google Shopping">🛒</span>';
+  if(cr==='Tienda Nube') return '<span class="c-canal-emoji" title="Tienda Nube">🛒</span>';
+  if(cr==='Consulta de estado' || cr==='Reclamo') return '<span class="c-canal-emoji" title="Post-venta">📋</span>';
+  if(!cr || cr==='Sin definir') return '';
+  return '<span class="c-canal-emoji" title="Consulta virtual">📲</span>';
 }
 /* Consultas de gestión de Cintia (consulta de estado, reclamo, consulta inválida): NO
    son oportunidades de venta. No se evalúan (no hay calidad de atención que medir) ni
