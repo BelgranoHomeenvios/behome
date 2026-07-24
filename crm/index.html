@@ -6654,8 +6654,15 @@ function renderCintiaBotones(){
   if(esAdmin()){
     const mios=atenciones.filter(a=>a.vendedorId===YO);
     const abiertasMias=mios.filter(a=>{const e=estadoDe(a);return e!=='Concretado'&&e!=='Rechazado';}).length;
-    const pend=atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente').length
-             + atenciones.filter(a=>a.ejemploDelMes && !a.ejemploDelMes.leido).length;
+    // El contador de "Mis pendientes" tiene que coincidir con lo que se ve adentro
+    // (htmlCintiaMisPendientes): solicitudes, atrasadas propias, por vincular, revisiones,
+    // fusiones/conflictos y — para el admin — las bajas de contacto.
+    const pend = solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length
+             + atenciones.filter(a=>cuentaParaVendedor(a) && a.vendedorId===YO && zonaDe(a)==='atrasada' && dentroDePeriodoCintia(a.ts)).length
+             + pendientesVincularCliente().filter(a=>dentroDePeriodoCintia(a.ts)).length
+             + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length
+             + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length
+             + solicitudesEliminacion.filter(s=>s.estado==='aprobada').length;
     const itemsA=[
       {id:'resumen',       label:'Resumen',            ic:'resumen'},
       {id:'consultas',     label:'Consultas',          ic:'consultas'},
