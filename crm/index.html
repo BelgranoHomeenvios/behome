@@ -537,7 +537,8 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 /* Contacto invertido: teléfono grande arriba, nombre debajo (más legible) */
 .c-nom{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px}
 .c-tel{font-size:12px;font-weight:700;color:var(--ink);line-height:1.2}
-.c-tel .tel-copy{border-bottom:1px dashed var(--muted);padding-bottom:1px}
+.c-tel .tel-copy{cursor:pointer}
+.nom-copy{cursor:pointer}
 .c-nom-txt{font-size:11.5px;color:var(--ink);line-height:1.25}
 .c-nom-txt b{font-weight:600;color:var(--ink)}
 .dup-aviso{background:#fff7e6;border:1px solid #f4d58a;border-radius:9px;padding:9px 11px;margin:2px 0 8px}
@@ -559,11 +560,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .pg-b.on{background:var(--navy);color:#fff;border-color:var(--navy);cursor:default}
 .pg-b:disabled{opacity:.4;cursor:default}
 .pg-ell{color:var(--muted);font-weight:700;padding:0 2px}
-.tel-copy{cursor:pointer;border-bottom:1px dashed var(--muted);padding-bottom:1px}
-.tel-copy:hover{color:var(--blue);border-color:var(--blue)}
-.copy-ic{opacity:.55;margin-left:3px;font-size:10.5px}
-.tel-copy:hover .copy-ic{opacity:1}
-.resu .tel-copy{color:var(--navy);border-bottom:1px dashed var(--line)}
+.tel-copy{cursor:pointer}
+.tel-copy:hover{color:var(--blue)}
+.nom-copy:hover{color:var(--blue)}
+.resu .tel-copy{color:var(--navy)}
 .resu .tel-copy:hover{color:var(--blue)}
 .pl{font-weight:800;font-size:12.5px;line-height:1.25;display:block}
 .pl-d{display:block;font-size:10.5px;font-weight:600;color:var(--muted);margin-top:1px}
@@ -794,6 +794,12 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .cr-tabla .ecell .pc{font-size:11px}
 .cr-tabla td b{font-size:14px}
 .cr-libre{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;background:var(--green-l);color:var(--green);padding:2px 6px;border-radius:5px;margin-left:4px}
+.cr-pausa{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;background:var(--amber-l);color:var(--amber);padding:2px 6px;border-radius:5px;margin-left:4px}
+.cr-gris{opacity:.42}
+.cr-perbar{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:0 0 10px}
+.cr-perbar .crp{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--sec);cursor:pointer}
+.cr-perbar .crp.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.cr-perbar input[type=date]{font-size:10.5px;padding:3px 5px;border:1px solid var(--line);border-radius:6px;color:var(--sec)}
 .cr-mas{font-size:12.5px;font-weight:700;color:var(--blue);cursor:pointer;margin:2px 0 10px}
 .cr-mas:hover{text-decoration:underline}
 @media(max-width:760px){.cr-split{flex-direction:column}.cr-lado{width:100%}}
@@ -2118,6 +2124,17 @@ function copiarCampoTelefono(){
   if(!v){ toast('No hay nada para copiar'); return; }
   const esIG = $('lblTelefono').textContent.indexOf('Instagram')>-1;
   copiarTexto(v, esIG?'Usuario copiado':'Teléfono copiado');
+}
+function copiarNombreCons(id){
+  const a=atenciones.find(x=>x.id===id);
+  const nom=(a&&(nombreCliente?nombreCliente(a):a.clienteNombre))||'';
+  if(!nom || nom==='Sin nombre'){ toast('No hay nombre para copiar'); return; }
+  copiarTexto(nom, 'Nombre copiado');
+}
+function copiarCampoNombre(){
+  const v=$('clienteNombre').value.trim();
+  if(!v || $('noTomoNombre').checked){ toast('No hay nombre para copiar'); return; }
+  copiarTexto(v, 'Nombre copiado');
 }
 function rolDe(uid){return (USUARIOS[uid]||{rol:'vendedor'}).rol;}
 // Consulta de Instagram (canalDetalle se guarda capitalizado: 'Instagram' / 'Publicidad Instagram').
@@ -4529,10 +4546,10 @@ function logItemHtml(a){
         </span>
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
-        <span class="c-nom-txt"><b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="Copiar nombre para LiveConnect">${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${canalEmojiHtml}${telCopiable
-          ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
+          ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}</span>`
           : tel}</div>
       </div>
       ${colsCintia}
@@ -6819,7 +6836,7 @@ function canalReal(a){
 }
 /* Etiqueta corta para mostrar en las filas (los filtros usan el nombre completo). */
 function canalCorto(name){
-  return ({'Publicidad Mensajería':'P. Mensajería','Publicidad Instagram':'P. Instagram'})[name] || name;
+  return ({'Publicidad Mensajería':'P. Mensajería','Publicidad Instagram':'P. Instagram','Consulta de estado':'C. Estado'})[name] || name;
 }
 /* Consultas de gestión de Cintia (consulta de estado, reclamo, consulta inválida): NO
    son oportunidades de venta. No se evalúan (no hay calidad de atención que medir) ni
@@ -9534,37 +9551,47 @@ function cerrarCargaRapida(){ $('modalCargaRapida').classList.add('hidden'); doc
 /* La tabla que hace fácil distribuir: cuánto le di a cada uno esta semana
    (últimos 7 días corridos, se actualiza solo), qué tiene trabado y cuánto
    tiene en seguimiento. Ordenada del menos cargado al más cargado. */
+let _crPeriodoDias=7;
+let _crDesde='', _crHasta='';
+function setCrPeriodo(n){ _crPeriodoDias=n; _crDesde=''; _crHasta=''; const el=$('crLado'); if(el) el.innerHTML=tablaDistribucionCr(); }
+function setCrFechas(){ _crDesde=($('crDesde')&&$('crDesde').value)||''; _crHasta=($('crHasta')&&$('crHasta').value)||''; const el=$('crLado'); if(el) el.innerHTML=tablaDistribucionCr(); }
+/* Tabla para distribuir: por cada vendedor y para el período elegido (por defecto los
+   últimos 7 días), cuánto tiene en seguimiento, cuánto concretó y cuánto está atrasado —
+   con el % sobre lo propio de cada uno. Ordenada del que menos seguimiento tiene al que
+   más. Marca "en pausa" (auto-pausa por inactividad) y grisa a los que hace +1h no dan señal. */
 function tablaDistribucionCr(){
-  const hace7=Date.now()-7*86400000;
+  let desdeMs, hastaMs;
+  if(_crDesde && _crHasta){ desdeMs=new Date(_crDesde+'T00:00:00').getTime(); hastaMs=new Date(_crHasta+'T23:59:59').getTime(); }
+  else { hastaMs=Date.now(); desdeMs=Date.now()-_crPeriodoDias*86400000; }
+  const enPeriodo=a=>{ const t=new Date(a.ts).getTime(); return t>=desdeMs && t<=hastaMs; };
   const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
   const filas=vendedores.map(uid=>{
-    const mias=atenciones.filter(a=>cuentaParaVendedor(a) && a.vendedorId===uid);
-    const semana=mias.filter(a=>new Date(a.ts).getTime()>=hace7).length;
-    const abiertas=mias.filter(a=>{const e=estadoDe(a);return e!=='Concretado'&&e!=='Rechazado';});
-    const trabadas=abiertas.filter(a=>cintiaEsAtrasada(a)).length;
-    const seguim=abiertas.filter(a=>estadoDe(a)==='En seguimiento').length;
-    return {uid, semana, trabadas, seguim};
-  }).sort((a,b)=>a.semana-b.semana || a.trabadas-b.trabadas);
-  const totalSemana=filas.reduce((s,f)=>s+f.semana,0);
-  const pc=n=>totalSemana?Math.round(n/totalSemana*100):0;
-  const minSemana=filas.length?filas[0].semana:0;
-  const totalAtrasadas=filas.reduce((s,f)=>s+f.trabadas,0);
-  const totalSeguimiento=filas.reduce((s,f)=>s+f.seguim,0);
-  const pcAtr=n=>totalAtrasadas?Math.round(n/totalAtrasadas*100):0;
-  const pcSeg=n=>totalSeguimiento?Math.round(n/totalSeguimiento*100):0;
+    const base=atenciones.filter(a=>cuentaParaVendedor(a) && a.vendedorId===uid && enPeriodo(a));
+    const total=base.length;
+    const concret=base.filter(a=>estadoDe(a)==='Concretado').length;
+    const seguim=base.filter(a=>{const e=estadoDe(a);return e!=='Concretado'&&e!=='Rechazado';}).length;   // abiertas (incluye sin clasificar)
+    const atras=base.filter(a=>cintiaEsAtrasada(a)).length;                                                  // en seguimiento y sin acción hace rato
+    const vivo=estadoVivoVendedor(uid);
+    const j=(JORNADAS[hoyStr()]||{})[uid];
+    const ultimaMs=j&&j.ultima?new Date(j.ultima).getTime():0;
+    const inactMin=ultimaMs?(Date.now()-ultimaMs)/60000:9999;
+    const pausado=estaPausado(uid);
+    const gris=(vivo.estado==='Sin conectar')||inactMin>60;
+    return {uid,total,concret,seguim,atras,pausado,gris};
+  }).sort((a,b)=>a.seguim-b.seguim || a.total-b.total);
+  const pctOf=(n,d)=>d?Math.round(n/d*100):0;
+  const perBtns=[7,15,30].map(n=>`<button class="crp ${(!_crDesde&&_crPeriodoDias===n)?'on':''}" onclick="setCrPeriodo(${n})">${n} días</button>`).join('');
   return `<div class="cr-lado-t">¿A quién le toca?</div>
-  <p class="tiny" style="margin:0 0 8px">Ordenado del menos cargado al más cargado. "Semana" son los últimos 7 días.</p>
+  <p class="tiny" style="margin:0 0 8px">Ordenado del que menos seguimiento tiene al que más. Los % son sobre lo propio de cada vendedor.</p>
+  <div class="cr-perbar">${perBtns}<input type="date" id="crDesde" value="${_crDesde}" onchange="setCrFechas()" title="Desde"><input type="date" id="crHasta" value="${_crHasta}" onchange="setCrFechas()" title="Hasta"></div>
   <table class="est-tabla cr-tabla">
-    <tr><th>Vendedor</th><th class="r">Semana</th><th class="r">Atrasadas</th><th class="r">Seguimiento</th></tr>
-    ${filas.map(f=>`<tr>
-      <td><b>${nombreDe(f.uid)}</b>${f.semana===minSemana?' <span class="cr-libre">libre</span>':''}</td>
-      <td class="r ecell"><div class="big">${f.semana}</div><div class="pc">${pc(f.semana)}%</div></td>
-      <td class="r ecell" style="${f.trabadas?'color:var(--red);font-weight:800':''}">${f.trabadas?`<div class="big">${f.trabadas}</div><div class="pc">${pcAtr(f.trabadas)}%</div>`:'—'}</td>
-      <td class="r ecell">${f.seguim?`<div class="big">${f.seguim}</div><div class="pc">${pcSeg(f.seguim)}%</div>`:'—'}</td>
+    <tr><th>Vendedor</th><th class="r">Seguimiento</th><th class="r">Concretado</th><th class="r">Atrasadas</th></tr>
+    ${filas.map(f=>`<tr class="${f.gris?'cr-gris':''}">
+      <td><b>${nombreDe(f.uid)}</b>${f.pausado?' <span class="cr-pausa">en pausa</span>':''}</td>
+      <td class="r ecell">${f.seguim?`<div class="big">${f.seguim}</div><div class="pc">${pctOf(f.seguim,f.total)}%</div>`:'—'}</td>
+      <td class="r ecell">${f.concret?`<div class="big" style="color:var(--green)">${f.concret}</div><div class="pc">${pctOf(f.concret,f.total)}%</div>`:'—'}</td>
+      <td class="r ecell" style="${f.atras?'color:var(--red);font-weight:800':''}">${f.atras?`<div class="big">${f.atras}</div><div class="pc">${pctOf(f.atras,f.seguim)}%</div>`:'—'}</td>
     </tr>`).join('')}
-    <tr class="etot-row"><td>Total</td><td class="r"><b>${totalSemana}</b></td>
-      <td class="r"><b>${totalAtrasadas}</b></td>
-      <td class="r"><b>${totalSeguimiento}</b></td></tr>
   </table>`;
 }
 
@@ -10207,13 +10234,16 @@ function pintarResumenPrevio(){
   const telVal = $('clienteTelefono').value.trim();
   const tel = $('noTomoTel').checked ? 'sin teléfono' : (telVal||'—');
   const telHtml = (!$('noTomoTel').checked && telVal)
-    ? `<span class="tel-copy" onclick="copiarCampoTelefono()" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
+    ? `<span class="tel-copy" onclick="copiarCampoTelefono()" title="Copiar para LiveConnect">${tel}</span>`
     : tel;
+  const nombreHtml = (!$('noTomoNombre').checked && nombre && nombre!=='—')
+    ? `<span class="tel-copy" onclick="copiarCampoNombre()" title="Copiar nombre para LiveConnect">${nombre}</span>`
+    : nombre;
   const suman=mueblesActuales.filter(m=>m.elegido);
   const total=suman.reduce((s,m)=>s+((+m.monto)||0),0);
   const emo=OPORT_EMOJI[percepcionSel]||'○';
   $('resumenPrevio').innerHTML=`
-    <div class="r"><span>Cliente</span><b>${nombre} · ${telHtml}</b></div>
+    <div class="r"><span>Cliente</span><b>${nombreHtml} · ${telHtml}</b></div>
     <div class="r"><span>Cómo lo viste</span><b>${emo} ${percepcionSel||'Sin definir'}</b></div>
     <div class="r"><span>Cotizado</span><b>$ ${miles(total)} · ${suman.length} mueble${suman.length===1?'':'s'}</b></div>`;
 }
@@ -10446,12 +10476,14 @@ function pintarSegFicha(a){
   const tel = a.noTomoTelefono ? 'sin teléfono' : (a.clienteTelefono||'—');
   const telCopiable = !a.noTomoTelefono && a.clienteTelefono;
   const telHtml = telCopiable
-    ? `<span class="tel-copy" onclick="copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
+    ? `<span class="tel-copy" onclick="copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}</span>`
     : tel;
+  const nomReal=(nombreCliente?nombreCliente(a):a.clienteNombre)||'';
+  const nomHtml = nomReal ? `<span class="nom-copy" onclick="copiarNombreCons('${a.id}')" title="Copiar nombre para LiveConnect">${escapeHtml(nomReal)}</span>` : 'Sin nombre';
   const prods=(a.muebles||[]).map(m=>`${nombreMueble(m)}${m.monto?' · $'+miles(m.monto):''}`).join(' · ')||'Sin muebles cargados';
   $('segFicha').innerHTML=`
     <button class="seg-ficha-editar" onclick="editarDesdeSeguimiento()">✎ Editar</button>
-    <div class="seg-ficha-nom">${escapeHtml(a.clienteNombre||'Sin nombre')}</div>
+    <div class="seg-ficha-nom">${nomHtml}</div>
     <div class="seg-ficha-tel">${telHtml}</div>
     <div class="seg-ficha-prod">${escapeHtml(prods)}</div>`;
 }
