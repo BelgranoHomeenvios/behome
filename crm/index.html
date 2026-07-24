@@ -516,6 +516,22 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .segc-row{display:flex;gap:10px;padding:3px 0;font-size:13px}
 .segc-k{flex:0 0 130px;color:var(--sec);font-weight:600}
 .segc-v{flex:1;font-weight:700;color:var(--ink,#1f2a37)}
+/* Modal de venta compartida / fusión */
+.cmp-overlay{position:fixed;inset:0;background:rgba(15,26,42,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px}
+.cmp-overlay.hidden{display:none}
+.cmp-modal{background:#fff;border-radius:16px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto;padding:20px 22px;box-shadow:0 20px 50px rgba(15,26,42,.3)}
+.cmp-sec{margin:14px 0;padding-bottom:12px;border-bottom:1px solid var(--line2)}
+.cmp-sec>b{font-size:13.5px}
+.cmp-cli{display:block;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-top:6px;cursor:pointer;font-size:13px}
+.cmp-cli input{margin-right:7px}
+.cmp-rep{display:flex;align-items:center;gap:9px;margin-top:8px}
+.cmp-rep .cmp-vn{flex:1;font-weight:700;font-size:13px}
+.cmp-rep input[type=number]{width:64px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;font-size:14px;text-align:right}
+.cmp-rep .cmp-pctb{width:64px;text-align:right;font-weight:700}
+.cmp-rep .cmp-pc{color:var(--muted);font-weight:700}
+.cmp-rep .cmp-mon{width:110px;text-align:right;color:var(--navy)}
+.cmp-actions{display:flex;gap:10px;margin-top:16px}
+.cmp-actions .btn{flex:1}
 .seg-badge.estado-seg{background:var(--amber-l);color:var(--amber)}
 .seg-badge.estado-conc{background:var(--green-l);color:var(--green)}
 .seg-badge.estado-rech{background:var(--red-l);color:var(--red)}
@@ -2397,9 +2413,13 @@ function entrarApp(){
   if(!window._segInterval) window._segInterval=setInterval(()=>chequearSeguimientoAlto(false), 2*3600*1000);
   // Latido para la "última señal" (proxy de la hora de desconexión): cada 4 min mientras
   // esté conectado y no en pausa.
+  // La "última señal" ahora sigue la ACTIVIDAD real (no solo estar conectado): solo late si
+  // hubo movimiento en los últimos ~5 min. Así los huecos de +20 min se registran como pausas.
   if(!window._jornInterval) window._jornInterval=setInterval(()=>{
     if(!YO || esAdmin()) return;
-    if(esAuditora()){ registrarSenal(YO); return; }   // Cintia: siempre que esté en la app
+    const recienActivo = (Date.now()-_ultimaActividad) < 5*60*1000;
+    if(!recienActivo) return;
+    if(esAuditora()){ registrarSenal(YO); return; }
     if(yaConectadoHoy(YO) && !forzandoSelector && !estaPausado(YO)) registrarSenal(YO);
   }, 4*60*1000);
   // Cintia (auditora) no elige local: se registra su conexión al entrar para que aparezca
@@ -2410,7 +2430,9 @@ function entrarApp(){
   // Auto-pausa por inactividad: si el vendedor pasa 30 min sin tocar la app, se pausa solo.
   // Para Cintia no hay pausado de turnos, pero sí se anota la pausa en su jornada (registro).
   _ultimaActividad=Date.now();
-  if(!window._autoPausaInterval) window._autoPausaInterval=setInterval(()=>{ chequearAutoPausa(); tickRegistroPausa(); }, 60*1000);
+  // Las pausas del registro se derivan de los huecos de actividad (en registrarSenal/Conexion),
+  // así que acá solo queda el auto-pausado de turnos del vendedor.
+  if(!window._autoPausaInterval) window._autoPausaInterval=setInterval(()=>{ chequearAutoPausa(); }, 60*1000);
   /* Cintia y dirección trabajan sobre lo que falta evaluar: se les suma esa
      cola aunque alguna consulta quede fuera de la ventana de 2 meses. */
   if(esAuditora()||esAdmin()) cargarPendientesEvaluacion().then(()=>render());
@@ -2528,9 +2550,22 @@ function registrarEdicion(uid){
   const ahora=new Date().toISOString();
   if(!j.conexion) j.conexion=ahora;   // si editó sin haber “conectado” formalmente, cuenta como inicio
   j.ultimaEdicion=ahora;
+  _registrarGapPausa(j);   // hueco desde la última señal = pausa
   j.ultima=ahora;
   purgarJornadas();
   saveJornadas();
+}
+/* Deriva las pausas de los HUECOS de actividad: si entre la última señal y ahora pasó más de
+   PAUSA_MIN_MS, ese hueco fue una pausa (estuvo sin usar la app). Es robusto porque se detecta
+   al volver, aunque el vendedor haya cerrado la pestaña o se haya auto-pausado. */
+function _registrarGapPausa(j){
+  if(!j) return;
+  const ahora=Date.now();
+  const prev=j.ultima?new Date(j.ultima).getTime():null;
+  if(prev && (ahora-prev)>=PAUSA_MIN_MS){
+    j.pausas=Array.isArray(j.pausas)?j.pausas:[];
+    j.pausas.push({d:new Date(prev).toISOString(), h:new Date(ahora).toISOString()});
+  }
 }
 function registrarConexion(uid, localId){
   if(!uid) return;
@@ -2538,6 +2573,7 @@ function registrarConexion(uid, localId){
   const ahora=new Date().toISOString();
   if(!j.conexion) j.conexion=ahora;
   if(localId) j.localId=localId;
+  _registrarGapPausa(j);   // hueco desde la última señal = pausa
   j.ultima=ahora;
   purgarJornadas();
   saveJornadas();
@@ -2570,7 +2606,9 @@ function registrarSenal(uid){
   const d=hoyStr();
   if(!JORNADAS[d]||!JORNADAS[d][uid]) _seedJornadaDesdeActivos(uid);   // crea la jornada si faltaba
   if(!JORNADAS[d]||!JORNADAS[d][uid]) return;
-  JORNADAS[d][uid].ultima=new Date().toISOString();
+  const j=JORNADAS[d][uid];
+  _registrarGapPausa(j);   // hueco desde la última señal = pausa
+  j.ultima=new Date().toISOString();
   saveJornadas();
 }
 function registrarPausa(uid, tipo){
@@ -2616,9 +2654,9 @@ function tickRegistroPausa(){
     }
   }catch(e){}
 }
-/* Duración mínima para que una pausa cuente/aparezca (limpia además los cortes viejos de
-   la versión anterior que fragmentaba). Toda pausa real por inactividad es de +30 min. */
-const PAUSA_MIN_MS=25*60*1000;
+/* Duración mínima de un hueco de actividad para que cuente como pausa (y aparezca en el
+   registro). Se puede ajustar; hoy: 20 min sin usar la app. */
+const PAUSA_MIN_MS=20*60*1000;
 async function marcarActivoHoy(localId,uid){
   if(!localId) return;
   asegurarActivosHoy();
@@ -2889,7 +2927,7 @@ async function descartarConsultaLocal(id){
 }
 /* Borra una venta concretada duplicada (solo dirección), desde el módulo de limpieza. */
 async function borrarDuplicado(id){
-  if(!esAdmin()) return;
+  if(!puedeMarcarIntervencion()) return;
   const a=atenciones.find(x=>x.id===id); if(!a) return;
   if(!window.confirm(`¿Borrar la venta duplicada de ${nombreCliente(a)||'sin nombre'} (N° ${a.nroOrden||'—'} · $ ${miles(+a.montoVendido||0)})?\nNo se puede recuperar.`)) return;
   const i=atenciones.findIndex(x=>x.id===id); if(i>-1) atenciones.splice(i,1);
@@ -2898,28 +2936,77 @@ async function borrarDuplicado(id){
   toast('Venta duplicada borrada');
   if(typeof renderPanelCintia==='function') renderPanelCintia();
 }
-/* Marca un grupo (mismo N° de orden) como VENTA COMPARTIDA entre vendedores: deja de ser
-   duplicado, cada uno conserva su parte del monto y en ambas filas se ve "🤝 Compartida". */
-async function marcarCompartida(ids){
-  // Solo Cintia o dirección: marcar una venta como compartida es una intervención de Cintia.
+/* VENTA COMPARTIDA entre dos vendedores: abre un modal para (1) unificar el cliente,
+   (2) cargar el monto total y (3) repartirlo con % (por defecto 50/50). Solo Cintia o
+   dirección, y queda como intervención de Cintia. */
+let _compartidaIds=[];
+function marcarCompartida(ids){ abrirModalCompartida(ids); }
+function abrirModalCompartida(ids){
   if(!puedeMarcarIntervencion()){ toast('Solo Cintia o dirección pueden marcar una venta como compartida.'); return; }
   const arr=(ids||[]).map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
-  if(arr.length<2) return;
-  const vends=[...new Set(arr.map(a=>nombreDe(a.vendedorId)))];
-  if(!window.confirm(`¿Marcar como VENTA COMPARTIDA entre ${vends.join(' y ')}?\n\nDeja de contarse como duplicado y cada uno queda con su parte del monto (editable). Queda registrada como intervención de ${nombreDe(YO)}.`)) return;
+  if(arr.length<2){ toast('No encuentro las dos ventas.'); return; }
+  _compartidaIds=arr.map(a=>a.id);
+  const total = Math.max(...arr.map(a=>+a.montoVendido||0)) || 0;
+  const cliOpts=arr.map((a,i)=>`<label class="cmp-cli"><input type="radio" name="cmpCli" value="${i}" ${i===0?'checked':''}> <b>${escapeHtml(nombreCliente(a)||'sin nombre')}</b>${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''} <span class="tiny" style="color:var(--muted)">(${escapeHtml(nombreDe(a.vendedorId))})</span></label>`).join('');
+  const vA=nombreDe(arr[0].vendedorId), vB=nombreDe(arr[1].vendedorId);
+  let ov=$('modalCompartida');
+  if(!ov){ ov=document.createElement('div'); ov.id='modalCompartida'; ov.className='cmp-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML=`<div class="cmp-modal">
+    <h3 style="margin:0 0 4px">🤝 Venta compartida</h3>
+    <p class="tiny" style="margin:0 0 14px;color:var(--muted)">Entre <b>${escapeHtml(vA)}</b> y <b>${escapeHtml(vB)}</b>. Se unifica el cliente y se reparte el monto.</p>
+    <div class="cmp-sec"><b>1) Unificar cliente</b><p class="tiny" style="margin:2px 0 6px;color:var(--muted)">¿Con qué datos queda el cliente en las dos?</p>${cliOpts}</div>
+    <div class="cmp-sec"><b>2) Monto total de la venta</b>
+      <div class="money-input" style="max-width:220px;margin-top:6px"><span>$</span><input type="text" inputmode="numeric" id="cmpTotal" value="${total?miles(total):''}" placeholder="0" oninput="formatearMontoInput(this);cmpRecalc()"></div>
+    </div>
+    <div class="cmp-sec"><b>3) Reparto</b>
+      <div class="cmp-rep"><span class="cmp-vn">${escapeHtml(vA)}</span><input type="number" id="cmpPct" min="0" max="100" step="5" value="50" oninput="cmpRecalc()"><span class="cmp-pc">%</span><b class="cmp-mon" id="cmpMontoA">$ 0</b></div>
+      <div class="cmp-rep"><span class="cmp-vn">${escapeHtml(vB)}</span><span class="cmp-pctb" id="cmpPctB">50</span><span class="cmp-pc">%</span><b class="cmp-mon" id="cmpMontoB">$ 0</b></div>
+    </div>
+    <div class="cmp-actions">
+      <button class="btn btn-outline" onclick="cerrarModalCompartida()">Cancelar</button>
+      <button class="btn btn-navy" onclick="confirmarCompartida()">Confirmar reparto</button>
+    </div>
+  </div>`;
+  ov.classList.remove('hidden');
+  cmpRecalc();
+}
+function cmpRecalc(){
+  const total=montoNumerico($('cmpTotal'))||0;
+  let pct=parseFloat($('cmpPct')?$('cmpPct').value:50); if(isNaN(pct))pct=50; pct=Math.max(0,Math.min(100,pct));
+  const a=Math.round(total*pct/100), b=total-a;
+  if($('cmpMontoA')) $('cmpMontoA').textContent='$ '+miles(a);
+  if($('cmpMontoB')) $('cmpMontoB').textContent='$ '+miles(b);
+  if($('cmpPctB')) $('cmpPctB').textContent=(100-pct);
+}
+function cerrarModalCompartida(){ const ov=$('modalCompartida'); if(ov) ov.classList.add('hidden'); }
+async function confirmarCompartida(){
+  if(!puedeMarcarIntervencion()) return;
+  const arr=_compartidaIds.map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
+  if(arr.length<2){ cerrarModalCompartida(); return; }
+  const total=montoNumerico($('cmpTotal'))||0;
+  if(!total){ toast('Cargá el monto total de la venta'); return; }
+  let pct=parseFloat($('cmpPct').value); if(isNaN(pct))pct=50; pct=Math.max(0,Math.min(100,pct));
+  const montoA=Math.round(total*pct/100), montoB=total-montoA;
+  const sel=document.querySelector('input[name=cmpCli]:checked');
+  const cli=sel?arr[+sel.value]:arr[0];
   const ts=new Date().toISOString();
+  arr[0].montoVendido=montoA; arr[1].montoVendido=montoB;
   arr.forEach(a=>{
     a.ventaCompartida=true;
     a.compartidaConNombres=[...new Set(arr.filter(x=>x.id!==a.id).map(x=>nombreDe(x.vendedorId)))].join(', ');
-    // Compartida = intervención de Cintia: se marca como tal (mismo dato que el 🛟).
+    // Unificar cliente en las dos (fusión).
+    a.clienteNombre=cli.clienteNombre; a.clienteTelefono=cli.clienteTelefono;
+    a.clienteInstagram=cli.clienteInstagram; a.noTomoTelefono=cli.noTomoTelefono; a.noTomoNombre=cli.noTomoNombre;
+    // Compartida = intervención de Cintia.
     if(!a.cintiaIntervino){
       a.cintiaIntervino={ts, porId:YO};
       a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
-      a.historialContacto.push({ts, texto:'🛟 Intervino '+nombreDe(YO)+' (marcó venta compartida)', porId:YO, intervencion:true});
+      a.historialContacto.push({ts, texto:'🛟 Intervino '+nombreDe(YO)+' (venta compartida $ '+miles(montoA)+' / $ '+miles(montoB)+')', porId:YO, intervencion:true});
     }
   });
   await saveAtenciones();
-  toast('Marcada como venta compartida');
+  cerrarModalCompartida();
+  toast('Venta compartida: $ '+miles(montoA)+' / $ '+miles(montoB));
   render();
   if(typeof renderPanelCintia==='function') renderPanelCintia();
 }
@@ -2938,6 +3025,80 @@ function marcarCompartidaDesdeRow(id){
   const grupo=grupoDuplicadoDe(a);
   if(grupo.length<2){ toast('No encuentro con cuál está duplicada.'); return; }
   marcarCompartida(grupo.map(x=>x.id));
+}
+/* Fusionar cliente: para consultas del mismo teléfono, elegir con qué datos quedan todas. */
+let _fusionIds=[];
+function fusionarClientes(ids){
+  if(!puedeMarcarIntervencion()){ toast('Solo Cintia o dirección pueden unificar.'); return; }
+  const arr=(ids||[]).map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
+  if(arr.length<2) return;
+  _fusionIds=arr.map(a=>a.id);
+  const cliOpts=arr.map((a,i)=>`<label class="cmp-cli"><input type="radio" name="fusCli" value="${i}" ${i===0?'checked':''}> <b>${escapeHtml(nombreCliente(a)||'sin nombre')}</b>${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''} <span class="tiny" style="color:var(--muted)">(${escapeHtml(nombreDe(a.vendedorId))} · N° ${escapeHtml(a.nroOrden||'—')} · $ ${miles(+a.montoVendido||0)})</span></label>`).join('');
+  let ov=$('modalCompartida');
+  if(!ov){ ov=document.createElement('div'); ov.id='modalCompartida'; ov.className='cmp-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML=`<div class="cmp-modal">
+    <h3 style="margin:0 0 4px">🔗 Unificar cliente</h3>
+    <p class="tiny" style="margin:0 0 12px;color:var(--muted)">Tienen el mismo teléfono. Elegí con qué datos quedan todas. Si hay que corregir algo más, después tocá "Editar" en cada una.</p>
+    <div class="cmp-sec" style="border:0"><b>Datos del cliente</b>${cliOpts}</div>
+    <div class="cmp-actions">
+      <button class="btn btn-outline" onclick="cerrarModalCompartida()">Cancelar</button>
+      <button class="btn btn-navy" onclick="confirmarFusion()">Unificar</button>
+    </div>
+  </div>`;
+  ov.classList.remove('hidden');
+}
+async function confirmarFusion(){
+  if(!puedeMarcarIntervencion()) return;
+  const arr=_fusionIds.map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
+  if(arr.length<2){ cerrarModalCompartida(); return; }
+  const sel=document.querySelector('input[name=fusCli]:checked');
+  const cli=sel?arr[+sel.value]:arr[0];
+  arr.forEach(a=>{
+    a.clienteNombre=cli.clienteNombre; a.clienteTelefono=cli.clienteTelefono;
+    a.clienteInstagram=cli.clienteInstagram; a.noTomoTelefono=cli.noTomoTelefono; a.noTomoNombre=cli.noTomoNombre;
+  });
+  await saveAtenciones();
+  cerrarModalCompartida();
+  toast('Cliente unificado');
+  render();
+  if(typeof renderPanelCintia==='function') renderPanelCintia();
+}
+/* Módulo de limpieza de concretadas (se muestra en "Mis pendientes" para Cintia y dirección):
+   mismo N° de orden (borrar/compartida), sin N° de orden, y mismo teléfono (unificar). */
+function htmlLimpiezaConcretadas(){
+  const conc = atenciones.filter(a=>estadoDe(a)==='Concretado' && dentroDePeriodoCintia(a.ts));
+  const _gOrd={}; conc.forEach(a=>{const k=(a.nroOrden||'').trim().toLowerCase(); if(k)(_gOrd[k]=_gOrd[k]||[]).push(a);});
+  const dupOrden=Object.entries(_gOrd).filter(([,arr])=>arr.length>1 && !arr.some(a=>a.ventaCompartida));
+  const sinOrden=conc.filter(a=>!(a.nroOrden||'').trim() && new Date(a.ts).getTime()>=ORDEN_OBLIGATORIA_DESDE);
+  const _gTel={}; conc.forEach(a=>{const t=normContacto(a.clienteTelefono||''); if(t)(_gTel[t]=_gTel[t]||[]).push(a);});
+  const dupTel=Object.entries(_gTel).filter(([,arr])=>arr.length>1);
+  if(!(dupOrden.length||sinOrden.length||dupTel.length)) return '';
+  const _lc=a=>`${escapeHtml(nombreCliente(a)||'sin nombre')} · ${escapeHtml(nombreDe(a.vendedorId))} · $ ${miles(+a.montoVendido||0)}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}`;
+  const editarBorrar=a=>`<span style="display:flex;gap:6px;flex:0 0 auto">
+      <button class="btn btn-outline btn-sm" onclick="abrirModalCompletar('${a.id}')">Editar</button>
+      <button class="btn btn-outline btn-sm" style="color:var(--red)" onclick="borrarDuplicado('${a.id}')">🗑 Borrar</button>
+    </span>`;
+  return `<div class="cin-card"><h3>🧹 Limpieza de concretadas <span class="cnt-pill">${dupOrden.length+sinOrden.length+dupTel.length}</span></h3>
+    <p class="tiny" style="margin-top:-8px">Ventas repetidas o incompletas para ordenar. Elegí el período arriba (ej. Ayer / Hoy).</p>
+    ${dupOrden.length ? `<div style="margin-bottom:14px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--red)">Mismo N° de orden — dejá 1 y borrá el resto (${dupOrden.length})</b>
+      ${dupOrden.map(([ord,arr])=>{
+        const vendsDistintos = new Set(arr.map(a=>a.vendedorId)).size>1;
+        return `<div style="margin-top:7px;padding:8px 10px;background:var(--red-l,#fdecea);border-radius:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>N° ${escapeHtml(arr[0].nroOrden||ord)}</b> — ${arr.length} cargadas
+          ${vendsDistintos?`<button class="btn btn-outline btn-sm" style="flex:0 0 auto;color:#0d9488" onclick="marcarCompartida([${arr.map(a=>`'${a.id}'`).join(',')}])" title="Si cada vendedor vendió una parte">🤝 Es compartida</button>`:'<span class="tiny" style="color:var(--muted);flex:0 0 auto">mismo vendedor · dejá una y borrá la otra</span>'}</div>
+        ${arr.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px;font-size:12.5px"><span>${_lc(a)}</span>${editarBorrar(a)}</div>`).join('')}
+      </div>`;}).join('')}
+    </div>` : ''}
+    ${sinOrden.length ? `<div style="margin-bottom:14px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--amber)">Concretadas SIN N° de orden — cargales el número (${sinOrden.length})</b>
+      ${sinOrden.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px;font-size:12.5px;padding:5px 2px"><span>${_lc(a)}</span>${editarBorrar(a)}</div>`).join('')}
+    </div>` : ''}
+    ${dupTel.length ? `<div><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">Mismo teléfono — unificá o borrá (${dupTel.length})</b>
+      ${dupTel.map(([,arr])=>`<div style="margin-top:7px;padding:8px 10px;background:var(--line2);border-radius:8px">
+        <div style="display:flex;justify-content:flex-end"><button class="btn btn-outline btn-sm" style="color:#0369a1" onclick="fusionarClientes([${arr.map(a=>`'${a.id}'`).join(',')}])">🔗 Fusionar cliente</button></div>
+        ${arr.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px;font-size:12.5px"><span>${_lc(a)} · N° ${escapeHtml(a.nroOrden||'—')}</span>${editarBorrar(a)}</div>`).join('')}
+      </div>`).join('')}
+    </div>` : ''}
+  </div>`;
 }
 async function guardarVinculacionCliente(id){
   const a=atenciones.find(x=>x.id===id);
@@ -8303,8 +8464,9 @@ function htmlCintiaMisPendientes(){
   const fusiones=notasSinAccion.filter(n=>n.tipo==='fusion' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   const conflictos=notasSinAccion.filter(n=>n.tipo==='conflicto_vendedor' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   const elimHtml = esAdmin() ? htmlEliminaciones() : '';
-  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length && !elimHtml) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
-  let html='';
+  const limpieza = htmlLimpiezaConcretadas();   // duplicados / sin N° de orden / mismo teléfono
+  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length && !elimHtml && !limpieza) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
+  let html=limpieza;
   if(conflictos.length) html+=`<div class="cin-card">
     <h3>Cliente en dos vendedores <span class="cnt-pill">${conflictos.length}</span></h3>
     <p class="tiny" style="margin-top:-8px">El mismo cliente lo están atendiendo dos vendedores (por ejemplo uno por IG y otro por teléfono). Elegí quién lo sigue — solo se mueven las consultas abiertas, las ventas ya cerradas quedan como están.</p>
@@ -11792,18 +11954,6 @@ function renderDireccion(){
     return `<div style="margin-top:13px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">${titulo}</b>
       <div class="ev-dist">${dist.map(d=>`<span class="ev-dist-chip" style="--c:${_DCOL[d.cls]||'#6b7280'}"><span class="l">${d.lbl}</span><b class="n">${d.n}</b><span class="p">${tot?Math.round(d.n/tot*100):0}%</span></span>`).join('')}</div></div>`;
   };
-  // Limpieza de concretadas: mismas por N° de orden (borrar dejando 1), sin N° de orden, y
-  // mismas por teléfono (para unificar a mano). Sobre las concretadas del período elegido.
-  const _gOrd={}; conc.forEach(a=>{const k=(a.nroOrden||'').trim().toLowerCase(); if(k)(_gOrd[k]=_gOrd[k]||[]).push(a);});
-  // Las ya marcadas como "compartida" no son duplicados: salen de la lista.
-  const dupOrden=Object.entries(_gOrd).filter(([,arr])=>arr.length>1 && !arr.some(a=>a.ventaCompartida));
-  // Solo se piden número las concretadas nuevas (desde ORDEN_OBLIGATORIA_DESDE); las viejas
-  // sin número quedan como están, no van a la lista de "hay que cargarles el número".
-  const sinOrden=conc.filter(a=>!(a.nroOrden||'').trim() && new Date(a.ts).getTime()>=ORDEN_OBLIGATORIA_DESDE);
-  const _gTel={}; conc.forEach(a=>{const t=normContacto(a.clienteTelefono||''); if(t)(_gTel[t]=_gTel[t]||[]).push(a);});
-  const dupTel=Object.entries(_gTel).filter(([,arr])=>arr.length>1);
-  const _lineaCons=a=>`${escapeHtml(nombreCliente(a)||'sin nombre')} · ${escapeHtml(nombreDe(a.vendedorId))} · $ ${miles(+a.montoVendido||0)}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}`;
-
   const calTxt=c=>c==null?'–':c.toFixed(1);
   const calPill=c=>c==null?'':c<=1.8?'g':c<=2.6?'a':'r';
   const AVC=['#1e5fce','#0d9488','#7c3aed','#db2777','#ea580c'];
@@ -11831,40 +11981,6 @@ function renderDireccion(){
       <div style="padding:13px 17px">${sinCotVend.some(s=>s.c>0)
         ? sinCotVend.map((s,i)=>`<div class="dir-bar"><span class="bl">${escapeHtml(s.n)}${(i===0&&s.c>0)?' <span class="dir-pill r">a trabajar</span>':''}</span><span class="bt"><i style="width:${Math.round(s.c/maxSinCot*100)}%;background:#b45309"></i></span><span class="bv">${s.c}</span></div>`).join('')
         : '<div style="color:var(--muted)">Ninguna consulta sin cotización en los últimos 30 días 🎉</div>'}</div></div>
-
-    ${(dupOrden.length||sinOrden.length||dupTel.length) ? `
-    <div class="dir-card"><div class="dh">🧹 Limpieza de concretadas<span class="r">${perLbl} · elegí el período arriba (ej. Ayer / Hoy)</span></div>
-      <div style="padding:13px 17px">
-        ${dupOrden.length ? `<div style="margin-bottom:12px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--red)">Mismo N° de orden — dejá 1 y borrá el resto (${dupOrden.length})</b>
-          ${dupOrden.map(([ord,arr])=>{
-            const vendsDistintos = new Set(arr.map(a=>a.vendedorId)).size>1;
-            return `<div style="margin-top:7px;padding:8px 10px;background:var(--red-l,#fdecea);border-radius:8px">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>N° ${escapeHtml(arr[0].nroOrden||ord)}</b> — ${arr.length} cargadas
-              ${vendsDistintos?`<button class="btn btn-outline btn-sm" style="flex:0 0 auto;color:#0d9488" onclick="marcarCompartida([${arr.map(a=>`'${a.id}'`).join(',')}])" title="Si cada vendedor vendió una parte">🤝 Es compartida</button>`:'<span class="tiny" style="color:var(--muted);flex:0 0 auto">mismo vendedor · dejá una y borrá la otra</span>'}</div>
-            ${arr.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px;font-size:12.5px">
-              <span>${_lineaCons(a)}</span>
-              <span style="display:flex;gap:6px;flex:0 0 auto">
-                <button class="btn btn-outline btn-sm" onclick="abrirModalCompletar('${a.id}')">Ver</button>
-                <button class="btn btn-outline btn-sm" style="color:var(--red)" onclick="borrarDuplicado('${a.id}')">🗑 Borrar</button>
-              </span>
-            </div>`).join('')}
-          </div>`;}).join('')}
-        </div>` : ''}
-        ${sinOrden.length ? `<div style="margin-bottom:12px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--amber)">Concretadas SIN N° de orden — hay que cargarles el número (${sinOrden.length})</b>
-          ${sinOrden.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px;font-size:12.5px;padding:5px 10px">
-            <span>${_lineaCons(a)}</span>
-            <button class="btn btn-outline btn-sm" style="flex:0 0 auto" onclick="abrirModalCompletar('${a.id}')">Editar</button>
-          </div>`).join('')}
-        </div>` : ''}
-        ${dupTel.length ? `<div><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">Mismo teléfono — revisá si hay que unificar (${dupTel.length})</b>
-          ${dupTel.map(([,arr])=>`<div style="margin-top:7px;padding:8px 10px;background:var(--line2);border-radius:8px">
-            ${arr.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:3px;font-size:12.5px">
-              <span>${_lineaCons(a)} · N° ${escapeHtml(a.nroOrden||'—')}</span>
-              <button class="btn btn-outline btn-sm" style="flex:0 0 auto" onclick="abrirModalCompletar('${a.id}')">Ver</button>
-            </div>`).join('')}
-          </div>`).join('')}
-        </div>` : ''}
-      </div></div>` : ''}
 
     <div class="dir-card"><div class="dh">Comparativa del equipo<span class="r">clic en un vendedor = ver su pantalla</span></div>
       <div style="overflow-x:auto"><table class="dir-tbl">
