@@ -4234,10 +4234,10 @@ function pintarEtapa(){
       ${puedeDerivar?`
       <div class="field">
         <label>¿Quién la sigue?</label>
-        <select id="segVendedor">
-          ${vendedores.map(uid=>`<option value="${uid}"${a.vendedorId===uid?' selected':''}>${escapeHtml(nombreDe(uid))}${a.vendedorId===uid?' (la tiene ahora)':''}</option>`).join('')}
+        <select id="segVendedor" class="full">
+          ${ORDEN_LOGIN.filter(uid=>['vendedor','auditora','admin'].includes(rolDe(uid))).map(uid=>`<option value="${uid}"${a.vendedorId===uid?' selected':''}>${escapeHtml(nombreDe(uid))}${a.vendedorId===uid?' (la tiene ahora)':''}</option>`).join('')}
         </select>
-        <p class="tiny" style="margin:4px 0 0;color:var(--muted)">Si la cerró mal, podés pasársela a otro vendedor.</p>
+        <p class="tiny" style="margin:4px 0 0;color:var(--muted)">Podés dejársela a quien la sigue: un vendedor, Cintia o dirección.</p>
       </div>`:''}
       <button class="btn btn-navy" style="width:100%;margin-top:6px" onclick="guardarEtapaSeguimiento()">Guardar</button>`;
   }else{
