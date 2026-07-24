@@ -348,6 +348,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .es-seg{background:var(--blue-l);color:var(--blue)}
 .es-conc{background:var(--green-l);color:var(--green)}
 .es-rech{background:var(--red-l);color:var(--red)}
+.es-pend{background:var(--amber-l);color:var(--amber)}
 .est-btn{padding:0}
 .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .mgc{border:1px solid var(--line);border-radius:11px;padding:14px 10px;text-align:center;cursor:pointer;background:#fff}
@@ -4538,6 +4539,14 @@ function logItemHtml(a){
         </span>
       </div>
       <div class="c-situacion">
+        ${esPostventa(a) ? `
+        <span class="ebtn est-btn rap-btn" title="Cambiar estado de la consulta" onclick="event.stopPropagation();togPop(this)">
+          <span class="est ${PV_CLS[estadoPostventaDe(a)]||'es-sin'}">${estadoPostventaDe(a)}</span>
+          <span class="pop pop-rapido">
+            <b>Estado de la consulta</b>
+            ${estadosPostventaDe(a).map(s=>`<div class="menu-op${estadoPostventaDe(a)===s?' on':''}" onclick="event.stopPropagation();setEstadoPostventa('${a.id}','${s}')">${s}</div>`).join('')}
+          </span>
+        </span>` : `
         <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
           <span class="est ${est?ESTADO_CLS[est]:'es-sin'}">${est||'–'}</span>
         </span>
@@ -4547,7 +4556,7 @@ function logItemHtml(a){
             <b>¿Cómo viste al cliente?</b>
             ${PERCEPCIONES.map(p=>`<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${OPORT_EMOJI[p]||''} ${p}</div>`).join('')}
           </span>
-        </span>
+        </span>`}
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         ${emojiSide}
@@ -6860,6 +6869,17 @@ const CANALES_GESTION=['Consulta de estado','Reclamo','Consulta invalida'];
 function esConsultaGestion(a){
   return CANALES_GESTION.includes(canalReal(a)) || rolDe(a.vendedorId)==='auditora';
 }
+/* Consultas de POST-VENTA (por canal): el cliente ya compró y pregunta por el estado de su
+   pedido o hace un reclamo. No siguen el circuito de venta (concretado/rechazado/seguimiento)
+   sino Pendiente / Resuelto (y "En gestión" para reclamos), y no llevan percepción del cliente. */
+function esPostventa(a){ const c=canalReal(a); return c==='Consulta de estado' || c==='Reclamo'; }
+function esReclamo(a){ return canalReal(a)==='Reclamo'; }
+const EST_PV_ESTADO=['Pendiente','Resuelto'];
+const EST_PV_RECLAMO=['Pendiente','En gestión','Resuelto'];
+function estadosPostventaDe(a){ return esReclamo(a) ? EST_PV_RECLAMO : EST_PV_ESTADO; }
+function estadoPostventaDe(a){ return a.estadoPostventa || 'Resuelto'; }   // las que ya existían quedan resueltas; las nuevas se crean en "Pendiente"
+const PV_CLS={'Pendiente':'es-pend','En gestión':'es-pend','Resuelto':'es-conc'};
+async function setEstadoPostventa(id, estado){ if(esSoloLectura())return avisoLectura(); const a=atenciones.find(x=>x.id===id); if(!a)return; a.estadoPostventa=estado; cerrarPops(); await saveAtenciones(); render(); }
 /* ===== Intervención de Cintia =====
    Cintia muchas veces se mete en el seguimiento de una consulta de un vendedor (insiste,
    da soporte). Con esto lo marca en la consulta: queda registrado quién y cuándo, se ve en
