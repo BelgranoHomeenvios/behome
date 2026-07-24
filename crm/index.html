@@ -433,10 +433,20 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .filt-op.on{background:var(--blue-l);color:var(--blue);font-weight:800}
 .filt-op .chk{color:var(--blue);font-weight:800;flex-shrink:0}
 .pop-buscar input{margin-top:2px}
-.mini-sit{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-.mini-sit .ms-item{flex:1;min-width:88px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 12px;display:flex;flex-direction:column;gap:0}
-.mini-sit .ms-n{font-size:18px;font-weight:800;color:var(--navy);line-height:1.15}
-.mini-sit .ms-l{font-size:10.5px;font-weight:700;color:var(--sec);text-transform:uppercase;letter-spacing:.03em}
+/* Resumen de situación del vendedor, con el mismo formato gris + pastillas que la
+   barra de período que tiene justo arriba. */
+.situ-barra{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:8px 14px;margin:0 0 12px;background:var(--surface-1,#f4f6f8);border:1px solid var(--line,#e3e8ee);border-radius:10px}
+.situ-barra .sb-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#8a94a3)}
+.situ-barra .sb-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;align-items:center}
+.situ-chip{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--line,#d0d7e2);border-radius:20px;padding:5px 13px;font-size:12px;font-weight:600;color:var(--sec,#5b6675);white-space:nowrap}
+.situ-chip .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:var(--muted)}
+.situ-chip b{font-weight:800;color:var(--ink);font-size:13.5px}
+.situ-chip .pct{font-size:11px;font-weight:700;color:var(--muted,#8a94a3)}
+.situ-chip.conc .dot{background:var(--green)}
+.situ-chip.seg .dot{background:var(--amber)}
+.situ-chip.rech .dot{background:var(--red)}
+.sb-total{margin-left:auto;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);white-space:nowrap}
+.sb-total b{font-size:15px;font-weight:800}
 .busqueda-barra{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 11px;margin-bottom:10px;box-shadow:var(--shadow)}
 .busqueda-barra .bb-ico{font-size:12.5px;opacity:.6}
 .busqueda-barra .bb-input{flex:1;border:none;outline:none;font:inherit;font-size:12.5px;background:transparent;color:var(--ink)}
@@ -851,8 +861,8 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .field label{display:block;font-size:11.5px;font-weight:700;color:var(--sec);margin-bottom:6px;text-transform:uppercase;letter-spacing:.03em}
 .field label .req{color:var(--red)}
 .field label .opt{text-transform:none;font-weight:400;color:var(--muted);letter-spacing:0}
-input[type=text],input[type=tel],input[type=number],input[type=date],textarea,select.full{width:100%;border:1px solid var(--line);border-radius:9px;padding:11px 12px;font-size:14px;font-family:inherit;background:#fbfcfd;color:var(--ink);transition:border-color .15s ease,box-shadow .15s ease}
-input[type=text]:focus,input[type=tel]:focus,input[type=number]:focus,input[type=date]:focus,textarea:focus,select.full:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-l)}
+input[type=text],input[type=tel],input[type=number],input[type=email],input[type=date],textarea,select.full{width:100%;border:1px solid var(--line);border-radius:9px;padding:11px 12px;font-size:14px;font-family:inherit;background:#fbfcfd;color:var(--ink);transition:border-color .15s ease,box-shadow .15s ease}
+input[type=text]:focus,input[type=tel]:focus,input[type=number]:focus,input[type=email]:focus,input[type=date]:focus,textarea:focus,select.full:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-l)}
 input[type=date]{cursor:pointer}
 input[type=date]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.55;filter:invert(.2)}
 input[type=date]::-webkit-calendar-picker-indicator:hover{opacity:.9}
@@ -899,7 +909,7 @@ textarea{resize:vertical;min-height:60px}
 .mueble-entry-row .money-input{flex:1}
 .mueble-entry-row .money-input input{font-size:13px}
 /* Campos más grandes dentro del registro Opción B */
-.modal-caja-b input[type=text],.modal-caja-b input[type=tel],.modal-caja-b input[type=number]{padding:14px 13px;font-size:15px}
+.modal-caja-b input[type=text],.modal-caja-b input[type=tel],.modal-caja-b input[type=number],.modal-caja-b input[type=email]{padding:14px 13px;font-size:15px}
 .modal-caja-b .mfila .f1 input,.modal-caja-b .mfila .f2 input,.modal-caja-b .mfila .f3 input{padding:13px 12px;font-size:14px}
 .modal-caja-b .mfila .monto-wrap input{padding-left:26px}
 .modal-caja-b .mfila .monto-wrap .sig{left:12px;font-size:14px}
@@ -1792,6 +1802,7 @@ textarea{resize:vertical;min-height:60px}
           </div>
         </div>
       </div>
+      <div id="situResumenBox" class="hidden"></div>
       <div class="card" id="historialBox" style="padding:4px 18px">
         <div id="cheadBox"></div>
         <div id="filasBox"></div>
@@ -4173,8 +4184,10 @@ function logItemHtml(a){
   const nombreMostrar = a.clienteNombre || (a.origen==='rapido' ? 'Cliente de local nuevo' : 'Sin definir');
   const solPendiente = solicitudesEliminacion.some(s=>s.atencionId===a.id && s.estado==='pendiente');
   // De un vistazo: 📲 si la consulta es virtual, 👥 si fue presencial (en el local).
-  const canalEmoji = a.canal==='virtual' ? '📲' : (a.canal==='presencial' ? '👥' : '');
-  const canalEmojiHtml = canalEmoji ? `<span class="canal-emoji" title="${a.canal==='virtual'?'Consulta virtual':'Consulta del local'}">${canalEmoji}</span> ` : '';
+  const _cr = canalReal(a);
+  const _esPres = a.canal==='presencial' || _cr==='Local';
+  const canalEmoji = _esPres ? '👥' : (_cr!=='Sin definir' ? '📲' : '');
+  const canalEmojiHtml = canalEmoji ? `<span class="canal-emoji" title="${_esPres?'Consulta del local':'Consulta virtual'}">${canalEmoji}</span> ` : '';
 
   const mueblesTxt = muebles.length
     ? muebles.map(m=>`${nombreMueble(m)}${m.observacion?' ('+m.observacion+')':''}${m.monto?' — $'+miles(m.monto):''}${m.elegido?' ✓ elegido':''}`).join('<br>')
@@ -4183,7 +4196,7 @@ function logItemHtml(a){
   // Para las que carga el propio vendedor (registro rápido, derivada entre vendedores, o
   // registrada in situ) no hay canalDetalle guardado — son de local, así que lo mostramos así
   // en vez de dejarlo vacío, que es justo lo que pediste.
-  const canalMostrar = a.canal==='presencial' ? 'Local' : (a.canalDetalle || 'Sin definir');
+  const canalMostrar = canalReal(a);
   const colsCintia = esAuditora()
     ? `<div class="c-origen" ondblclick="editarDesdeHistorial('${a.id}')">
          <span class="or-vend">${nombreDe(a.vendedorId)}</span>
@@ -4688,6 +4701,7 @@ function setFiltroBusqueda(valor, origen){
   if(zonaActiva) l=l.filter(a=>zonaDe(a)===zonaActiva);
   renderFilas(ordenarLista(l));
   renderPanelGestion(baseTablero);
+  renderSituResumen();
   renderSolapasVendedor();
   renderFiltrosActivos();
 }
@@ -4749,7 +4763,7 @@ function construirListaFiltrada(){
   // valer para Consultas igual que para el resto de sus secciones.
   if(esAuditora()){
     if(filtroVendedorCintia!=='todos') l=l.filter(a=>a.vendedorId===filtroVendedorCintia);
-    if(filtroCanalCintia!=='todos') l=l.filter(a=>(a.canal==='presencial'?'Local':(a.canalDetalle||'Sin definir'))===filtroCanalCintia);
+    if(filtroCanalCintia!=='todos') l=l.filter(a=>canalReal(a)===filtroCanalCintia);
     if(filtroEvaluacion==='evaluadas') l=l.filter(a=>a.evaluada);
     else if(filtroEvaluacion==='sinevaluar') l=l.filter(a=>!a.evaluada);
     if(!buscar) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
@@ -4861,6 +4875,7 @@ function renderHistorial(){
   renderFilas(l);
 
   renderPanelGestion(baseTablero);
+  renderSituResumen();
   renderSolapasVendedor();
   renderFiltrosActivos();
 
@@ -5067,26 +5082,38 @@ function renderPanelGestion(listaVisible){
       ${it.cnt!==undefined?`<div class="cnt">${it.cnt}</div>`:''}
     </div>`;
 
-  // Situación rápida del vendedor en el período elegido: concretadas / en seguimiento /
-  // rechazadas / total. Chico y simple, para ver de un vistazo cómo viene.
-  const real = mias.filter(a=>dentroDePeriodoCintia(a.ts) && !a.soloVolumen);
-  const cConc = real.filter(a=>estadoDe(a)==='Concretado').length;
-  const cSeg  = real.filter(a=>estadoDe(a)==='En seguimiento').length;
-  const cRech = real.filter(a=>estadoDe(a)==='Rechazado').length;
-  const miniSit = `<div class="mini-sit">
-    <div class="ms-item"><span class="ms-n" style="color:var(--green)">${cConc}</span><span class="ms-l">Concretadas</span></div>
-    <div class="ms-item"><span class="ms-n" style="color:var(--amber)">${cSeg}</span><span class="ms-l">En seguimiento</span></div>
-    <div class="ms-item"><span class="ms-n" style="color:var(--red)">${cRech}</span><span class="ms-l">Rechazadas</span></div>
-    <div class="ms-item"><span class="ms-n">${real.length}</span><span class="ms-l">Consultas</span></div>
-  </div>`;
-
   box.innerHTML = `
     <div class="gridbtn">
       ${zonas.map(z=>btn(z, !seccionVendedor && zonaActiva===z.id, `setZona('${z.id}')`)).join('')}
       ${secciones.map(sc=>btn(sc, seccionVendedor===sc.id, `abrirSeccionVendedor('${sc.id}')`)).join('')}
     </div>
-    ${miniSit}
   `;
+}
+
+/* Resumen de situación del vendedor, debajo de la barra de período (así se actualiza
+   con el período elegido). Concretadas + En seguimiento + Rechazadas SIEMPRE suman el
+   total: lo que no está cerrado (incluido lo "sin clasificar") cuenta como seguimiento,
+   por eso antes faltaban consultas. Muestra además el % de cada una. */
+function renderSituResumen(){
+  const box=$('situResumenBox'); if(!box) return;
+  if(puedeVerEquipo()){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  box.classList.remove('hidden');
+  const mias = atenciones.filter(a=>a.vendedorId===YO && !a.soloVolumen && dentroDePeriodoCintia(a.ts));
+  const tot  = mias.length;
+  const cConc= mias.filter(a=>estadoDe(a)==='Concretado').length;
+  const cRech= mias.filter(a=>estadoDe(a)==='Rechazado').length;
+  const cSeg = tot - cConc - cRech;   // todo lo no cerrado (incluye sin clasificar)
+  const pct  = c => tot ? Math.round(c/tot*100) : 0;
+  const chip = (cls,lbl,c)=>`<span class="situ-chip ${cls}"><span class="dot"></span>${lbl} <b>${c}</b> <span class="pct">${pct(c)}%</span></span>`;
+  box.innerHTML = `<div class="situ-barra">
+    <span class="sb-lbl">Situación</span>
+    <div class="sb-chips">
+      ${chip('conc','Concretadas',cConc)}
+      ${chip('seg','En seguimiento',cSeg)}
+      ${chip('rech','Rechazadas',cRech)}
+      <span class="sb-total"><b>${tot}</b> consultas</span>
+    </div>
+  </div>`;
 }
 
 /* Oportunidad caliente: el cliente mostró intención real de comprar y la consulta sigue viva. */
@@ -6247,7 +6274,27 @@ function setResumenCanal(v){ resumenCanal=v; renderCintiaMain(); }
 function abrirResumenVendedor(uid){ resumenVendedor=uid; renderCintiaMain(); }
 function volverResumen(){ resumenVendedor=null; renderCintiaMain(); }
 
-function canalDe(a){ return a.canal==='presencial' ? 'Local' : (a.canalDetalle||'Sin definir'); }
+/* Limpia el nombre del canal como quedó en las planillas viejas ("2Instagram" ->
+   "Instagram", "4Publicidad Mensajería" -> "Publicidad Mensajería") y unifica los
+   que ya no usamos como categoría aparte. Sirve tanto si la base guardó el número
+   adelante como si guardó el nombre limpio. */
+function limpiarCanal(raw){
+  if(!raw) return '';
+  let c=String(raw).trim().replace(/^\d+\s*/,'').trim();
+  const map={'Seguimiento Local':'Local','Vino del local':'Local','Publicidad WhatsApp':'Publicidad Mensajería'};
+  return map[c]||c;
+}
+/* Canal real de una consulta, mirando TODOS los lugares donde puede estar guardado:
+   'canalDetalle' (las que se cargan en el CRM) o 'canal' (las importadas de las
+   planillas viejas, que traen el canal ahí y por eso salían todas "Sin definir"). */
+function canalReal(a){
+  if(a.canal==='presencial') return 'Local';
+  const d=a.canalDetalle?limpiarCanal(a.canalDetalle):'';
+  if(d) return d;
+  if(a.canal && a.canal!=='virtual'){ const c=limpiarCanal(a.canal); if(c) return c; }
+  return 'Sin definir';
+}
+function canalDe(a){ return canalReal(a); }
 function coincideCanal(a){
   if(resumenCanal==='todos') return true;
   // "__publicidad__" es un agregado: junta los canales pagos, que es la comparación que
@@ -6644,10 +6691,7 @@ function setEst(campo,valor){
 /* El canal puede venir en 'canalDetalle' (consultas cargadas en el CRM) o en 'canal'
    (las que vienen de las planillas viejas). Leer solo el primero mandaba todo el
    histórico a "Sin definir". */
-function estCanalDe(a){
-  if(a.canal==='presencial') return 'Local';
-  return a.canalDetalle || (a.canal && a.canal!=='virtual' ? a.canal : null) || 'Sin definir';
-}
+function estCanalDe(a){ return canalReal(a); }
 
 function estRango(){
   const hoy=new Date();
@@ -10241,7 +10285,7 @@ function renderDireccion(){
   // por local / canal
   const porLocal={};B.forEach(a=>{const k=a.localId?nombreLocal(a.localId):'Virtual';porLocal[k]=(porLocal[k]||0)+1;});
   const locs=Object.entries(porLocal).sort((a,b)=>b[1]-a[1]);const maxL=Math.max(1,...locs.map(l=>l[1]));
-  const porCanal={};B.forEach(a=>{const k=a.canalDetalle||(a.canal==='presencial'?'Local':'Sin definir');porCanal[k]=(porCanal[k]||0)+1;});
+  const porCanal={};B.forEach(a=>{const k=canalReal(a);porCanal[k]=(porCanal[k]||0)+1;});
   const cans=Object.entries(porCanal).sort((a,b)=>b[1]-a[1]).slice(0,6);const maxC=Math.max(1,...cans.map(c=>c[1]));
   const CCOL={'WhatsApp':'#15803d','Local':'#1e5fce','Instagram':'#7c3aed','Tienda Nube':'#ea580c','Facebook':'#0369a1'};
 
