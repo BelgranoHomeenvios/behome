@@ -6967,7 +6967,9 @@ function htmlCintiaResumen(){
     </table>
   </div>`;
 
-  return activosBar + canalPills + rankingHtml + htmlEquipoPantallas() + detalleHtml
+  // El módulo de pantallas del equipo va en el Resumen SOLO para Cintia (auditora).
+  // Brian (dirección) ya lo tiene en su Panel de dirección, así que no se le duplica acá.
+  return activosBar + canalPills + rankingHtml + (esAuditora()?htmlEquipoPantallas():'') + detalleHtml
        + graficoContactosPorTiempo(actual) + graficoContactosPorCanal(actual);
 }
 /* Módulo para que Cintia entre a la pantalla de cada vendedor y le dé soporte. Solo
