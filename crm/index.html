@@ -1405,6 +1405,14 @@ textarea{resize:vertical;min-height:60px}
 .jorn-refresh{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--sec,#5b6675);font:inherit;font-size:12.5px;font-weight:600;padding:0 14px;height:34px;border-radius:10px;cursor:pointer;transition:border-color .12s,color .12s}
 .jorn-refresh:hover{border-color:var(--navy,#16324f);color:var(--navy,#16324f)}
 @media(max-width:560px){.jorn-refresh{margin-left:0}}
+/* Pausas como desplegable: se ve "N pausas" y al abrir aparecen una debajo de la otra */
+.jp-det{display:inline-block}
+.jp-det>summary{list-style:none;cursor:pointer;font-weight:700;color:var(--navy,#16324f);white-space:nowrap;user-select:none}
+.jp-det>summary::-webkit-details-marker{display:none}
+.jp-det>summary::before{content:'▸ ';color:var(--muted,#8a94a3);font-weight:700}
+.jp-det[open]>summary::before{content:'▾ '}
+.jp-list{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.jp-item{font-size:12px;color:var(--sec,#5b6675);white-space:nowrap}
 .dir-tbl{width:100%;border-collapse:collapse;font-size:12.8px}
 .dir-tbl th{text-align:left;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:9px 15px;border-bottom:1px solid var(--line2)}
 .dir-tbl th.n,.dir-tbl td.n{text-align:right}
@@ -11611,8 +11619,10 @@ function htmlRegistroJornadas(){
   const filas=uids.map(uid=>{
     const j=us[uid];
     const ps=(j.pausas||[]).filter(p=>p.d);
-    const rangos=ps.map(p=>`${fh(p.d)}–${p.h?fh(p.h):'…'}`).join(', ');
-    const pausasCell = ps.length ? `<b>${ps.length}</b> · <span class="muted" style="font-size:12px">${rangos}</span>` : '—';
+    const rangos=ps.map(p=>{const min=p.h?Math.max(0,Math.round((new Date(p.h)-new Date(p.d))/60000)):null;return `<div class="jp-item">${fh(p.d)} – ${p.h?fh(p.h):'en curso'}${min!=null?` <span class="muted">(${min} min)</span>`:''}</div>`;}).join('');
+    const pausasCell = ps.length
+      ? `<details class="jp-det"><summary>${ps.length} pausa${ps.length===1?'':'s'}</summary><div class="jp-list">${rangos}</div></details>`
+      : '<span class="muted">—</span>';
     return `<tr><td>${escapeHtml(nombreDe(uid))}</td><td>${fh(j.conexion)}</td><td>${fh(j.ultima)}</td><td>${pausasCell}</td><td>${j.ultimaEdicion?fh(j.ultimaEdicion):'<span class="muted">—</span>'}</td></tr>`;
   }).join('') || `<tr><td colspan="5" class="muted" style="text-align:center;padding:14px">Nadie registró actividad ese día.</td></tr>`;
   const nav=`<div class="jorn-nav">
