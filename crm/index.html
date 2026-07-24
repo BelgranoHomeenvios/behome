@@ -806,7 +806,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .cr-perbar{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:0 0 10px}
 .cr-perbar .crp{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--sec);cursor:pointer}
 .cr-perbar .crp.on{background:var(--navy);color:#fff;border-color:var(--navy)}
-.cr-perbar input[type=date]{font-size:10.5px;padding:3px 5px;border:1px solid var(--line);border-radius:6px;color:var(--sec)}
+.cr-perdates{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.cr-perdates input[type=date]{font-size:11px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;color:var(--sec)}
+.cr-perdates .tiny{color:var(--muted)}
 .cr-mas{font-size:12.5px;font-weight:700;color:var(--blue);cursor:pointer;margin:2px 0 10px}
 .cr-mas:hover{text-decoration:underline}
 @media(max-width:760px){.cr-split{flex-direction:column}.cr-lado{width:100%}}
@@ -1116,7 +1118,7 @@ textarea{resize:vertical;min-height:60px}
 .gb.on .ic{color:var(--blue)}
 .gb .cnt{font-size:19px;font-weight:800;color:var(--navy);letter-spacing:-.02em}
 
-.fecha-permanente{display:flex;align-items:center;gap:10px;background:#fff;border:1px dashed var(--line);border-radius:10px;padding:11px 14px;margin-bottom:16px;flex-wrap:wrap}
+.fecha-permanente{display:flex;align-items:center;gap:10px;background:#fff;border:1px dashed var(--line);border-radius:10px;padding:11px 14px;margin-bottom:0;flex-wrap:wrap}
 .fecha-permanente input[type=date]{width:auto;padding:7px 9px;font-size:12.5px}
 .fecha-permanente .mini{font-size:11px;padding:6px 11px;border-radius:7px;background:var(--line2);border:1px solid var(--line);cursor:pointer;font-weight:700;color:var(--sec)}
 .fecha-permanente .mini.on{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -1541,7 +1543,7 @@ textarea{resize:vertical;min-height:60px}
       </div>
 
       <div class="modal-fondo hidden" id="modalCargaRapida" onclick="if(event.target===this)cerrarCargaRapida()">
-        <div class="modal-caja" style="max-width:1020px">
+        <div class="modal-caja" style="max-width:1160px">
           <div class="card" id="cargaRapidaCaja" style="margin-bottom:0"></div>
         </div>
       </div>
@@ -9603,15 +9605,18 @@ function cerrarCargaRapida(){ $('modalCargaRapida').classList.add('hidden'); doc
    tiene en seguimiento. Ordenada del menos cargado al más cargado. */
 let _crPeriodoDias=7;
 let _crDesde='', _crHasta='';
-function setCrPeriodo(n){ _crPeriodoDias=n; _crDesde=''; _crHasta=''; const el=$('crLado'); if(el) el.innerHTML=tablaDistribucionCr(); }
-function setCrFechas(){ _crDesde=($('crDesde')&&$('crDesde').value)||''; _crHasta=($('crHasta')&&$('crHasta').value)||''; const el=$('crLado'); if(el) el.innerHTML=tablaDistribucionCr(); }
+let _crPersonalizado=false;
+function _crRepintar(){ const el=$('crLado'); if(el) el.innerHTML=tablaDistribucionCr(); }
+function setCrPeriodo(n){ _crPeriodoDias=n; _crDesde=''; _crHasta=''; _crPersonalizado=false; _crRepintar(); }
+function setCrPersonalizado(){ _crPersonalizado=true; _crRepintar(); }
+function setCrFechas(){ _crDesde=($('crDesde')&&$('crDesde').value)||''; _crHasta=($('crHasta')&&$('crHasta').value)||''; _crRepintar(); }
 /* Tabla para distribuir: por cada vendedor y para el período elegido (por defecto los
    últimos 7 días), cuánto tiene en seguimiento, cuánto concretó y cuánto está atrasado —
    con el % sobre lo propio de cada uno. Ordenada del que menos seguimiento tiene al que
    más. Marca "en pausa" (auto-pausa por inactividad) y grisa a los que hace +1h no dan señal. */
 function tablaDistribucionCr(){
   let desdeMs, hastaMs;
-  if(_crDesde && _crHasta){ desdeMs=new Date(_crDesde+'T00:00:00').getTime(); hastaMs=new Date(_crHasta+'T23:59:59').getTime(); }
+  if(_crPersonalizado && _crDesde && _crHasta){ desdeMs=new Date(_crDesde+'T00:00:00').getTime(); hastaMs=new Date(_crHasta+'T23:59:59').getTime(); }
   else { hastaMs=Date.now(); desdeMs=Date.now()-_crPeriodoDias*86400000; }
   const enPeriodo=a=>{ const t=new Date(a.ts).getTime(); return t>=desdeMs && t<=hastaMs; };
   const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
@@ -9630,10 +9635,12 @@ function tablaDistribucionCr(){
     return {uid,total,concret,seguim,atras,pausado,gris};
   }).sort((a,b)=>a.seguim-b.seguim || a.total-b.total);
   const pctOf=(n,d)=>d?Math.round(n/d*100):0;
-  const perBtns=[7,15,30].map(n=>`<button class="crp ${(!_crDesde&&_crPeriodoDias===n)?'on':''}" onclick="setCrPeriodo(${n})">${n} días</button>`).join('');
+  const perBtns=[7,15,30].map(n=>`<button class="crp ${(!_crPersonalizado&&_crPeriodoDias===n)?'on':''}" onclick="setCrPeriodo(${n})">${n} días</button>`).join('')
+    + `<button class="crp ${_crPersonalizado?'on':''}" onclick="setCrPersonalizado()">Personalizado</button>`;
+  const perDates = _crPersonalizado ? `<div class="cr-perdates"><span class="tiny">Desde</span><input type="date" id="crDesde" value="${_crDesde}" onchange="setCrFechas()"><span class="tiny">hasta</span><input type="date" id="crHasta" value="${_crHasta}" onchange="setCrFechas()"></div>` : '';
   return `<div class="cr-lado-t">¿A quién le toca?</div>
   <p class="tiny" style="margin:0 0 8px">Ordenado del que menos seguimiento tiene al que más. Los % son sobre lo propio de cada vendedor.</p>
-  <div class="cr-perbar">${perBtns}<input type="date" id="crDesde" value="${_crDesde}" onchange="setCrFechas()" title="Desde"><input type="date" id="crHasta" value="${_crHasta}" onchange="setCrFechas()" title="Hasta"></div>
+  <div class="cr-perbar">${perBtns}</div>${perDates}
   <table class="est-tabla cr-tabla">
     <tr><th>Vendedor</th><th class="r">Seguimiento</th><th class="r">Concretado</th><th class="r">Atrasadas</th></tr>
     ${filas.map(f=>`<tr class="${f.gris?'cr-gris':''}">
