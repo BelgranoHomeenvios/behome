@@ -508,6 +508,14 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .seg-titulo{margin:0 0 4px;font-size:19px;font-weight:800;color:var(--navy)}
 .seg-badges{display:flex;gap:6px;flex-wrap:wrap}
 .seg-badge{font-size:12px;font-weight:700;padding:4px 11px;border-radius:6px}
+/* Datos del cierre dentro del modo seguimiento (consulta concretada/rechazada) */
+.segc-box{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:2px 0 14px}
+.segc-box.segc-conc{background:var(--green-l,#e7f5ec);border-color:#bfe3cd}
+.segc-box.segc-rech{background:var(--red-l,#fdecea);border-color:#f3c9c3}
+.segc-tit{font-weight:800;font-size:13.5px;margin-bottom:8px}
+.segc-row{display:flex;gap:10px;padding:3px 0;font-size:13px}
+.segc-k{flex:0 0 130px;color:var(--sec);font-weight:600}
+.segc-v{flex:1;font-weight:700;color:var(--ink,#1f2a37)}
 .seg-badge.estado-seg{background:var(--amber-l);color:var(--amber)}
 .seg-badge.estado-conc{background:var(--green-l);color:var(--green)}
 .seg-badge.estado-rech{background:var(--red-l);color:var(--red)}
@@ -1709,7 +1717,9 @@ textarea{resize:vertical;min-height:60px}
             <div class="seg-badges" id="segBadges"></div>
           </div>
 
-          <div class="field">
+          <div class="hidden" id="segCierreBox"></div>
+
+          <div class="field" id="segProxCampo">
             <label>¿Cuándo le volvemos a hablar?</label>
             <div class="pills" id="segProxPills"></div>
           </div>
@@ -11049,6 +11059,18 @@ function abrirModoSeguimiento(a){
   if(a.percepcion) badges+=`<span class="seg-badge percep">${a.percepcion}</span>`;
   $('segBadges').innerHTML=badges;
 
+  // Consulta cerrada (Concretada/Rechazada): no hay "¿cuándo le volvemos a hablar?" —
+  // en su lugar se muestran los datos del cierre (orden/monto/motivos o el motivo del rechazo).
+  const cerrada = est==='Concretado' || est==='Rechazado';
+  const cbox=$('segCierreBox');
+  if(cerrada){
+    $('segProxCampo').classList.add('hidden');
+    cbox.innerHTML=htmlSegCierre(a, est); cbox.classList.remove('hidden');
+  }else{
+    $('segProxCampo').classList.remove('hidden');
+    cbox.classList.add('hidden'); cbox.innerHTML='';
+  }
+
   // Próxima acción + comentario + atajos
   proxSeguimientoSel=null;
   pintarSegProxPills();
@@ -11062,6 +11084,37 @@ function abrirModoSeguimiento(a){
   pintarSegFicha(a);
 }
 
+/* Datos del cierre dentro del modo seguimiento, cuando la consulta ya está Concretada o
+   Rechazada. Muestra lo que se cargó (orden, monto, motivos, etc.). El motivo real de Cintia
+   (si en la devolución cambió el que puso el vendedor) también aparece. */
+function htmlSegCierre(a, est){
+  const fila=(k,v)=>v?`<div class="segc-row"><span class="segc-k">${k}</span><span class="segc-v">${v}</span></div>`:'';
+  if(est==='Concretado'){
+    const muebV=(a.mueblesVendidos&&a.mueblesVendidos.length)?a.mueblesVendidos.join(', ')
+      :((a.muebles||[]).filter(m=>m.vendido).map(nombreMueble).join(', '));
+    const motivos=(a.motivosVenta||[]).join(', ');
+    return `<div class="segc-box segc-conc">
+      <div class="segc-tit">✅ Venta finalizada</div>
+      ${fila('N° de orden', a.nroOrden?escapeHtml(a.nroOrden):'—')}
+      ${fila('Monto vendido', a.montoVendido?'$ '+miles(a.montoVendido):'—')}
+      ${fila('Método de pago', a.metodoPago?escapeHtml(a.metodoPago):'')}
+      ${fila('Muebles vendidos', muebV?escapeHtml(muebV):'')}
+      ${fila('Por qué se vendió', motivos?escapeHtml(motivos):'')}
+      <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="cerrarModal();abrirEtapaComercial('${a.id}')">✎ Editar la venta</button>
+    </div>`;
+  }
+  // Rechazado
+  const motivoV=a.resultadoMotivo||'';
+  const motivoCintia=(a.motivoCintia && a.motivoCintia!==a.resultadoMotivo)?a.motivoCintia:'';
+  return `<div class="segc-box segc-rech">
+    <div class="segc-tit">🚫 Rechazo</div>
+    ${fila('Motivo del rechazo', motivoV?escapeHtml(motivoV):'—')}
+    ${motivoCintia?fila('Motivo real (Cintia)', escapeHtml(motivoCintia)):''}
+    ${fila('Observaciones', a.rechazoObservaciones?escapeHtml(a.rechazoObservaciones):'')}
+    ${fila('Comentario', a.rechazoComentario?escapeHtml(a.rechazoComentario):'')}
+    <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="cerrarModal();abrirEtapaComercial('${a.id}')">✎ Editar el rechazo</button>
+  </div>`;
+}
 function pintarSegFicha(a){
   const tel = a.noTomoTelefono ? 'sin teléfono' : (a.clienteTelefono||'—');
   const telCopiable = !a.noTomoTelefono && a.clienteTelefono;
