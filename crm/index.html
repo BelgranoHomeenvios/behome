@@ -802,7 +802,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 /* ===== Cargar consulta: dos columnas + tabla de distribución ===== */
 .cr-split{display:flex;gap:22px;align-items:flex-start}
 .cr-form{flex:1;min-width:0}
-.cr-lado{width:460px;flex-shrink:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.cr-lado{width:520px;flex-shrink:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.cr-tabla th,.cr-tabla td{padding-left:6px;padding-right:6px}
+.cr-tabla .cr-pausa{display:inline-block;margin-top:2px}
 .cr-lado-t{font-size:15px;font-weight:800;margin-bottom:3px}
 .cr-tabla th,.cr-tabla td{padding:11px 10px;font-size:13.5px}
 .cr-tabla .ecell .big{font-size:16px}
@@ -1552,7 +1554,7 @@ textarea{resize:vertical;min-height:60px}
       </div>
 
       <div class="modal-fondo hidden" id="modalCargaRapida" onclick="if(event.target===this)cerrarCargaRapida()">
-        <div class="modal-caja" style="max-width:1160px">
+        <div class="modal-caja" style="max-width:1240px">
           <div class="card" id="cargaRapidaCaja" style="margin-bottom:0"></div>
         </div>
       </div>
@@ -2762,6 +2764,16 @@ function contactoPorId(id){
 // puede hacer esa conexión — por eso viven en "Mis pendientes" y no en ningún otro lado.
 function pendientesVincularCliente(){
   return atenciones.filter(a=>a.canal==='presencial' && !a.contactoId && a.status==='completa');
+}
+async function descartarConsultaLocal(id){
+  if(esSoloLectura())return avisoLectura();
+  const a=atenciones.find(x=>x.id===id);
+  if(!a) return;
+  if(!window.confirm('¿Eliminar esta consulta de local? No hay nada para vincular y no se va a poder recuperar.')) return;
+  const i=atenciones.findIndex(x=>x.id===id); if(i>-1) atenciones.splice(i,1);
+  if(sb){ try{ await sb.from('consultas').delete().eq('id', id); }catch(e){ console.error('borrar consulta local', e); } }
+  toast('Consulta eliminada');
+  render();
 }
 async function guardarVinculacionCliente(id){
   const a=atenciones.find(x=>x.id===id);
@@ -8023,17 +8035,24 @@ function htmlCintiaMisPendientes(){
   if(porVincular.length) html+=`<div class="cin-card">
     <h3>Clientes de local para vincular <span class="cnt-pill">${porVincular.length}</span></h3>
     <p class="tiny" style="margin-top:-8px">Un vendedor cargó la atención en el local pero no tomó teléfono — solo vos podés sumarlo a la base de clientes.</p>
-    ${porVincular.map(a=>`
+    ${porVincular.map(a=>{
+      const cotiz=montoRepresentativo(a.muebles||[])||0;
+      const muebles=(a.muebles||[]).filter(m=>m.elegido!==false).map(m=>m.nombre||m.mueble).filter(Boolean).join(', ');
+      const notas=(a.notas||'').trim();
+      const detalle=[muebles,cotiz?('cotizó $'+miles(cotiz)):'',notas].filter(Boolean).join(' · ');
+      return `
       <div class="solic-item">
-        <div>
-          <div class="pend-name">${a.clienteNombre||'Cliente de local nuevo'} · ${nombreDe(a.vendedorId)}</div>
+        <div style="min-width:0">
+          <div class="pend-name">${escapeHtml(a.clienteNombre||'Cliente de local nuevo')} · ${nombreDe(a.vendedorId)}</div>
           <div class="pend-sub">Atendido en el local · hace ${diasDesdeISO(a.ts)}d</div>
+          <div class="tiny" style="margin-top:3px;${detalle?'color:var(--sec)':'color:var(--muted)'}">${detalle?('📝 '+escapeHtml(detalle)):'Sin datos cargados por el vendedor'}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
-          <input type="text" id="vinc-tel-${a.id}" placeholder="Teléfono" style="width:130px">
+          <input type="text" id="vinc-tel-${a.id}" placeholder="Teléfono / usuario" style="width:130px">
           <button class="btn btn-navy btn-sm" onclick="guardarVinculacionCliente('${a.id}')">Vincular</button>
+          <button class="btn btn-outline btn-sm" title="Eliminar la consulta (no hay nada para vincular)" onclick="descartarConsultaLocal('${a.id}')" style="color:var(--red)">🗑</button>
         </div>
-      </div>`).join('')}
+      </div>`}).join('')}
   </div>`;
   if(misAtrasados.length) html+=`<div class="cin-card" style="padding:4px 18px">
     <h3 style="padding-top:10px">Tus clientes atrasados <span class="cnt-pill">${misAtrasados.length}</span></h3>
@@ -9709,7 +9728,7 @@ function tablaDistribucionCr(){
   <p class="tiny" style="margin:0 0 8px">Ordenado del que menos seguimiento tiene al que más. Los % son sobre lo propio de cada vendedor.</p>
   <div class="cr-perbar">${perBtns}</div>${perDates}
   <table class="est-tabla cr-tabla">
-    <tr><th>Vendedor</th><th class="r">Seguimiento</th><th class="r">Concretado</th><th class="r">Atrasadas</th></tr>
+    <tr><th>Vendedor</th><th class="r">Seguim.</th><th class="r">Concret.</th><th class="r">Atras.</th></tr>
     ${filas.map(f=>`<tr class="${f.gris?'cr-gris':''}">
       <td><b>${nombreDe(f.uid)}</b>${f.pausado?' <span class="cr-pausa">en pausa</span>':''}</td>
       <td class="r ecell">${f.seguim?`<div class="big">${f.seguim}</div><div class="pc">${pctOf(f.seguim,f.total)}%</div>`:'—'}</td>
