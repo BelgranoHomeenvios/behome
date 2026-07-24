@@ -349,6 +349,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .es-conc{background:var(--green-l);color:var(--green)}
 .es-rech{background:var(--red-l);color:var(--red)}
 .es-pend{background:var(--amber-l);color:var(--amber)}
+.conteo-sub{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--sec);margin-bottom:6px}
 .fic-consfiltro{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
 .fic-consfiltro button{font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--sec);cursor:pointer}
 .fic-consfiltro button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -3203,14 +3204,13 @@ const PB_PRESETS=[
   ['15',    '15 días',  15],
   ['30',    '30 días',  30],
   ['60',    '60 días',  60],
-  ['90',    '90 días',  90],
   ['todas', 'Todo',     null]
 ];
 /* Días de la ventana con la que arranca la app para todos los roles. Con "Todas"
    los gráficos mezclaban 12 meses y el pico de agosto 2025 aplastaba la escala:
    no se veía lo que pasó el último mes, que es lo que sirve para decidir. */
-const PB_DIAS_DEFECTO = 90;
-let pbActivo='90';   // arranca en los últimos 90 días, no en todo el histórico
+const PB_DIAS_DEFECTO = 60;
+let pbActivo='60';   // arranca en los últimos 60 días, no en todo el histórico
 
 /* La app abre con la ventana corta para que arranque rápido, y completa el resto
    por detrás. El vendedor ya puede trabajar mientras el histórico termina de bajar;
@@ -3704,12 +3704,17 @@ function renderChipsHoy(){
     // sin importar el canal. Las que después se marquen inválidas se descuentan de las
     // estadísticas, pero acá cuenta el volumen crudo de lo que entró.
     const enPeriodo = base.filter(a=>dentroDePeriodoCintia(a.ts));
-    const counts={};
-    enPeriodo.forEach(a=>counts[a.vendedorId]=(counts[a.vendedorId]||0)+1);
+    const esFisico = a => a.canal==='presencial' || canalReal(a)==='Local';
+    const virt = enPeriodo.filter(a=>!esFisico(a));
+    const fis  = enPeriodo.filter(a=>esFisico(a));
+    const countBy = arr => { const c={}; arr.forEach(a=>{ if(a.vendedorId) c[a.vendedorId]=(c[a.vendedorId]||0)+1; }); return c; };
+    const cv=countBy(virt), cf=countBy(fis);
     const todosVendedores=[...new Set(Object.keys(LOCALES).flatMap(id=>vendedoresDeLocal(id)))];
-    const ids=[...new Set(Object.keys(counts).concat(todosVendedores))];
-    box.innerHTML=ids.map(uid=>`<div class="chip"><b>${counts[uid]||0}</b> ${nombreDe(uid)}</div>`).join('')
-      + `<div class="chip total"><b>${enPeriodo.length}</b> Total</div>`;
+    const ids=[...new Set([...Object.keys(cv),...Object.keys(cf),...todosVendedores])].filter(uid=>uid && USUARIOS[uid]);
+    const fila=(cnt,total)=>`<div class="chips">${ids.map(uid=>`<div class="chip"><b>${cnt[uid]||0}</b> ${nombreDe(uid)}</div>`).join('')}<div class="chip total"><b>${total}</b> Total</div></div>`;
+    box.style.display='block';
+    box.innerHTML=`<div class="conteo-sub">📲 Conteo virtual</div>${fila(cv,virt.length)}
+      <div class="conteo-sub" style="margin-top:12px">🚶‍♂️ Conteo físico (local)</div>${fila(cf,fis.length)}`;
     $('chipsTitle').textContent='Conteo';
   }else{
     $('chipsTitle').classList.add('hidden');
@@ -6628,12 +6633,13 @@ function setCintiaFecha(campo,valor){
 function aplicarPresetCintiaFecha(preset){
   const hoy=new Date(); hoy.setHours(0,0,0,0);
   if(preset==='todo'){ cintiaFechaDesde=null; cintiaFechaHasta=null; }
+  else if(preset==='hoy'){ cintiaFechaDesde=formatDateInput(hoy); cintiaFechaHasta=formatDateInput(hoy); }
+  else if(preset==='ayer'){ const ay=new Date(hoy); ay.setDate(ay.getDate()-1); cintiaFechaDesde=formatDateInput(ay); cintiaFechaHasta=formatDateInput(ay); }
   else{
-    const desde=new Date(hoy);
-    if(preset==='semana') desde.setDate(desde.getDate()-7);
-    else if(preset==='mes') desde.setMonth(desde.getMonth()-1);
+    const dias={semana:7,mes:30,d7:7,d15:15,d30:30,d60:60}[preset]||7;
+    const desde=new Date(hoy); desde.setDate(desde.getDate()-dias);
     cintiaFechaDesde=formatDateInput(desde);
-    cintiaFechaHasta=formatDateInput(new Date());
+    cintiaFechaHasta=formatDateInput(hoy);
   }
   asegurarPeriodoCargado();
   renderCintiaBotones(); renderCintiaFecha(); renderCintiaMain(); renderHistorial();
@@ -6685,8 +6691,11 @@ function renderCintiaFecha(){
     <span class="tiny">hasta</span>
     <input type="date" value="${cintiaFechaHasta||''}" onchange="setCintiaFecha('hasta',this.value)">
     <span class="mini" onclick="aplicarPresetCintiaFecha('hoy')">Hoy</span>
-    <span class="mini" onclick="aplicarPresetCintiaFecha('semana')">7 días</span>
-    <span class="mini" onclick="aplicarPresetCintiaFecha('mes')">Mes</span>
+    <span class="mini" onclick="aplicarPresetCintiaFecha('ayer')">Ayer</span>
+    <span class="mini" onclick="aplicarPresetCintiaFecha('d7')">7 días</span>
+    <span class="mini" onclick="aplicarPresetCintiaFecha('d15')">15 días</span>
+    <span class="mini" onclick="aplicarPresetCintiaFecha('d30')">30 días</span>
+    <span class="mini" onclick="aplicarPresetCintiaFecha('d60')">60 días</span>
     <span class="mini ${sinFiltro?'on':''}" onclick="aplicarPresetCintiaFecha('todo')">Todo</span>
     ${conteoHtml}
   `;
