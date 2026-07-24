@@ -11047,13 +11047,7 @@ function renderDireccion(){
         <div style="padding:13px 17px">${cans.map(c=>`<div class="dir-bar"><span class="bl">${c[0]}</span><span class="bt"><i style="width:${Math.round(c[1]/maxC*100)}%;background:${CCOL[c[0]]||'#8a94a3'}"></i></span><span class="bv">${c[1]}</span></div>`).join('')||'<div style="color:var(--muted)">Sin datos.</div>'}</div></div>
     </div>
 
-    <div class="dir-card"><div class="dh">Entrar a las pantallas del equipo<span class="r">ver la app tal cual la ve cada uno</span></div>
-      <div class="dir-team">${Object.keys(USUARIOS).filter(u=>rolDe(u)!=='admin').map((u,i)=>`
-        <div class="dir-tcard" onclick="dirVerComo('${u}')">
-          <span class="av2" style="background:${rolDe(u)==='auditora'?'#0369a1':AVC[i%AVC.length]}">${nombreDe(u).slice(0,2).toUpperCase()}</span>
-          <div><b style="font-size:13px">${nombreDe(u)}</b><div style="font-size:11px;color:var(--muted)">${rolDe(u)==='auditora'?'Auditora':'Vendedor'}</div></div>
-          <span class="go">Ver pantalla →</span>
-        </div>`).join('')}</div></div>${htmlRegistroJornadas()}`;
+    ${htmlRegistroJornadas()}`;
 }
 /* Registro de conexiones: a qué hora se conectó y su última señal (≈ desconexión) cada
    uno, por día, más las pausas. Se guarda día a día desde ahora. */
