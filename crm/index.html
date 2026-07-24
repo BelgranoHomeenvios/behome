@@ -543,6 +543,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-nom-inner{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px;min-width:0}
 .c-canal-emoji{flex-shrink:0;font-size:14px;line-height:1;display:inline-flex;align-items:center}
 .c-canal-ico{flex-shrink:0;display:inline-flex;align-items:center;line-height:1}
+.canal-filtros{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.cf-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:12px;font-weight:700;color:var(--sec);background:#fff}
+.cf-chip svg{width:15px;height:15px}
+.cf-chip.on{border-color:var(--navy);background:var(--navy);color:#fff}
 .nueva-ico{font-size:13px;margin-left:auto;flex-shrink:0;padding-left:6px}
 .c-tel{font-size:12px;font-weight:700;color:var(--ink);line-height:1.2}
 .c-tel .tel-copy{cursor:pointer}
@@ -2098,6 +2102,15 @@ let filtroBusqueda='';
 let filtroVendedorCintia='todos';
 let filtroCanalCintia='todos';
 let filtroEvaluacion='todos'; // 'todos' | 'evaluadas' | 'sinevaluar' — solo para Cintia
+let filtroCanalGrupo='todos'; // 'todos' | 'whatsapp' | 'instagram' | 'local' — filtro por canal desde Contacto
+let filtroPostventa='pendientes'; // 'pendientes' | 'resueltas' | 'todas' — para consultas de post-venta
+function grupoCanalDe(a){
+  const cr=canalReal(a);
+  if(a.canal==='presencial' || cr==='Local') return 'local';
+  if(cr==='WhatsApp' || cr==='Publicidad Mensajería') return 'whatsapp';
+  if(cr==='Instagram' || cr==='Publicidad Instagram' || cr==='Facebook') return 'instagram';
+  return 'otro';
+}
 let photoDataUrls=[];   // fotos del presupuesto cargadas en el form (varias)
 /* Todas las fotos de una consulta: junta el array nuevo (fotos) con la foto vieja
    de una sola imagen (photoThumb) para no perder las consultas históricas. */
@@ -4922,10 +4935,20 @@ function cheadHtml(){
       <span class="ebtn filtro-head sub ${oportActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Oportunidad<span class="arrow">▾</span>
         <span class="pop pop-down"><b>Filtrar por oportunidad</b>${popFiltroOpciones('oport',FILTRO_OPORT_OPCIONES,filtroOportunidad)}</span>
       </span>
+      <span class="ebtn filtro-head sub ${filtroPostventa!=='pendientes'?'activo':''}" onclick="event.stopPropagation();togPop(this)">Post-venta<span class="arrow">▾</span>
+        <span class="pop pop-down"><b>Consultas de estado / reclamos</b>${popFiltroOpciones('postventa',[['pendientes','Pendientes / En gestión'],['resueltas','Resueltas'],['todas','Todas']],filtroPostventa)}</span>
+      </span>
     </span>
-    <span class="h-nom"><span class="ebtn filtro-head ${buscActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Contacto<span class="arrow">▾</span>
+    <span class="h-nom"><span class="ebtn filtro-head ${buscActivo||filtroCanalGrupo!=='todos'?'activo':''}" onclick="event.stopPropagation();togPop(this)">Contacto<span class="arrow">▾</span>
       <span class="pop pop-down pop-buscar" onclick="event.stopPropagation()"><b>Buscar</b>
         <input type="text" id="filtroBusquedaInput" placeholder="Nombre o teléfono…" value="${escAttr(filtroBusqueda)}" oninput="setFiltroBusqueda(this.value,'head')">
+        <b style="margin-top:8px;display:block">Filtrar por canal</b>
+        <div class="canal-filtros">
+          <span class="cf-chip ${filtroCanalGrupo==='todos'?'on':''}" onclick="event.stopPropagation();setFiltroHeader('canalGrupo','todos')">Todas</span>
+          <span class="cf-chip ${filtroCanalGrupo==='whatsapp'?'on':''}" onclick="event.stopPropagation();setFiltroHeader('canalGrupo','whatsapp')" title="WhatsApp">${SVG_WA}</span>
+          <span class="cf-chip ${filtroCanalGrupo==='instagram'?'on':''}" onclick="event.stopPropagation();setFiltroHeader('canalGrupo','instagram')" title="Instagram">${SVG_IG}</span>
+          <span class="cf-chip ${filtroCanalGrupo==='local'?'on':''}" onclick="event.stopPropagation();setFiltroHeader('canalGrupo','local')" title="Local">🚶‍♂️</span>
+        </div>
       </span>
     </span></span>
     ${colsCintia}
@@ -4945,6 +4968,8 @@ function setFiltroHeader(campo,valor){
   else if(campo==='vendedorCintia') filtroVendedorCintia=valor;
   else if(campo==='canalCintia') filtroCanalCintia=valor;
   else if(campo==='evaluacion') filtroEvaluacion=valor;
+  else if(campo==='canalGrupo') filtroCanalGrupo=valor;
+  else if(campo==='postventa') filtroPostventa=valor;
   else if(campo==='ordenFecha') ordenFecha = (valor==='urgencia') ? null : valor;
   else if(campo==='recordatorio') filtroRecordatorio=valor;
   document.querySelectorAll('.ebtn.open').forEach(x=>x.classList.remove('open'));
@@ -4999,6 +5024,7 @@ function limpiarTodosLosFiltros(){
   zonaActiva=null; filtroEstado='activas'; filtroPlazo='todos'; filtroOportunidad='todos';
   filtroComentario='todos'; filtroBusqueda=''; ordenFecha=null; filtroRecordatorio='todos';
   filtroVendedorCintia='todos'; filtroCanalCintia='todos'; filtroEvaluacion='todos';
+  filtroCanalGrupo='todos'; filtroPostventa='pendientes';
   const i=$('filtroBusquedaInput'); if(i) i.value='';
   renderHistorial();
 }
@@ -5053,6 +5079,12 @@ function construirListaFiltrada(){
 
   if(filtroComentario==='con') l=l.filter(a=>!!(a.notas||a.resultadoMotivo));
   else if(filtroComentario==='sin') l=l.filter(a=>!(a.notas||a.resultadoMotivo));
+
+  // Filtro por canal (desde el header Contacto): WhatsApp / Instagram / Local.
+  if(filtroCanalGrupo!=='todos') l=l.filter(a=>grupoCanalDe(a)===filtroCanalGrupo);
+  // Post-venta: por defecto muestra solo Pendientes/En gestión; no afecta a las de venta.
+  if(filtroPostventa==='pendientes') l=l.filter(a=>!esPostventa(a) || estadoPostventaDe(a)!=='Resuelto');
+  else if(filtroPostventa==='resueltas') l=l.filter(a=>!esPostventa(a) || estadoPostventaDe(a)==='Resuelto');
 
   // Por defecto (activas) las concretadas y rechazadas salen de la lista: ya no hay
   // nada que hacer con ellas y solo ensucian lo que el vendedor tiene que trabajar.
