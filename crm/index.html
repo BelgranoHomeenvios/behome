@@ -356,6 +356,8 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .dk .l{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
 .est{display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
 .es-sin{background:var(--line2);color:var(--muted)}
+.pl-cerrada{color:var(--muted);font-weight:700;font-size:12px}
+.sit-cerrada{color:var(--muted);font-weight:600;font-style:italic}
 .es-seg{background:var(--blue-l);color:var(--blue)}
 .es-conc{background:var(--green-l);color:var(--green)}
 .es-rech{background:var(--red-l);color:var(--red)}
@@ -4769,6 +4771,7 @@ function logItemHtml(a){
   const emo=OPORT_EMOJI[a.percepcion]||'○';
   const zona=zonaDe(a);
   const est=estadoDe(a);
+  const cerrada = est==='Concretado' || est==='Rechazado';   // ya está resuelta: sin próxima acción
   // El registro rápido no tiene ningún dato cargado todavía — un "Sin definir" genérico
   // no distingue esto de un dato que simplemente no se completó. Este texto sí lo deja claro.
   const nombreMostrar = nombreCliente(a) || (a.origen==='rapido' ? 'Cliente de local nuevo' : 'Sin definir');
@@ -4845,13 +4848,15 @@ function logItemHtml(a){
       ${bellCol}
       <div class="c-fecha" ondblclick="editarDesdeHistorial('${a.id}')">${fechaConsultaCorta(a.ts)}</div>
       <div class="c-plazo">
-        <span class="ebtn rap-btn" title="Cambiar cuándo le hablamos" onclick="event.stopPropagation();togPop(this)">
+        ${cerrada
+          ? `<span class="pl pl-cerrada" title="Consulta ${est.toLowerCase()} — sin próxima acción">Cerrada</span>`
+          : `<span class="ebtn rap-btn" title="Cambiar cuándo le hablamos" onclick="event.stopPropagation();togPop(this)">
           <span class="pl ${plazo.cls}">${plazo.txt}${plazo.det?`<span class="pl-d">${plazo.det}</span>`:''}</span>
           <span class="pop pop-rapido">
             <b>¿Cuándo le volvemos a hablar?</b>
             ${RAPIDO_CUANDO.map(([v,l])=>`<div class="menu-op" onclick="event.stopPropagation();rapidoCuando('${a.id}','${v}')">${l}</div>`).join('')}
           </span>
-        </span>
+        </span>`}
       </div>
       <div class="c-situacion">
         ${esPostventa(a) ? `
@@ -4865,13 +4870,15 @@ function logItemHtml(a){
         <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
           <span class="est ${est?ESTADO_CLS[est]:'es-sin'}">${est||'Sin clasificar'}</span>
         </span>
-        <span class="ebtn rap-btn rap-op" title="Cambiar cómo viste al cliente" onclick="event.stopPropagation();togPop(this)">
+        ${cerrada
+          ? `<span class="sit-op sit-cerrada" title="Consulta ${est.toLowerCase()}">Cerrada</span>`
+          : `<span class="ebtn rap-btn rap-op" title="Cambiar cómo viste al cliente" onclick="event.stopPropagation();togPop(this)">
           <span class="sit-op">${a.percepcion?`${emo} ${a.percepcion}`:'–'}</span>
           <span class="pop pop-rapido">
             <b>¿Cómo viste al cliente?</b>
             ${PERCEPCIONES.map(p=>`<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${OPORT_EMOJI[p]||''} ${p}</div>`).join('')}
           </span>
-        </span>`}
+        </span>`}`}
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         ${canalIco}
