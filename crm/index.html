@@ -450,6 +450,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .situ-chip.rech .dot{background:var(--red)}
 .sb-total{margin-left:auto;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);white-space:nowrap}
 .sb-total b{font-size:15px;font-weight:800}
+.interv-ico{opacity:.4;transition:opacity .12s,background .12s}
+.interv-ico:hover{opacity:.8}
+.interv-ico.on{opacity:1;background:rgba(13,148,136,.16);border-radius:6px}
 .busqueda-barra{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 11px;margin-bottom:10px;box-shadow:var(--shadow)}
 .busqueda-barra .bb-ico{font-size:12.5px;opacity:.6}
 .busqueda-barra .bb-input{flex:1;border:none;outline:none;font:inherit;font-size:12.5px;background:transparent;color:var(--ink)}
@@ -4301,7 +4304,7 @@ function logItemHtml(a){
         </span>
       </div>
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
-        <span class="c-nom-txt"><b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b>${nombreMostrar}</b>${pend?'<span class="nueva-b">Nueva</span>':''}${a.soloVolumen?'<span class="nueva-b" style="background:var(--muted)" title="Consulta anterior a mayo 2026: nunca se registró su resultado. Cuenta como volumen, no como trabajo pendiente.">Archivada</span>':''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.comentarioVendedor && !a.comentarioVendedor.leido && (YO===a.comentarioVendedor.paraId||esAdmin()) && hayComentarioVendedor(a)) ? `<span class="nueva-b" style="background:var(--blue);cursor:pointer" onclick="event.stopPropagation();verComentarioCintia('${a.id}')">💬 Comentario</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${canalEmojiHtml}${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="Copiar para LiveConnect">${tel}<span class="copy-ic">⧉</span></span>`
@@ -4326,6 +4329,7 @@ function logItemHtml(a){
         <span class="ebtn cm-ico${(a.hasPhoto&&a.photoThumb)?'':' apagado'}" title="${(a.hasPhoto&&a.photoThumb)?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
         <span class="ebtn cm-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
         ${(!esAuditora() && (YO===a.vendedorId || esAdmin())) ? `<span class="ebtn cm-ico${a.evaluada?'':' apagado'}" title="${a.evaluada?'Ver la evaluación de esta consulta':'Todavía no la evaluaron'}"${a.evaluada?` onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')"`:''}>📊</span>` : ''}
+        ${puedeMarcarIntervencion() ? `<span class="ebtn cm-ico interv-ico${intervinoCintia(a)?' on':''}" title="${intervinoCintia(a)?('Intervino '+nombreDe(a.cintiaIntervino.porId)+' — clic para quitar'):'Marcar que Cintia intervino / dio soporte en esta consulta'}" onclick="event.stopPropagation();toggleIntervencionCintia('${a.id}')">🤝</span>` : ''}
         ${solPendiente
           ? `<span class="ebtn cm-ico apagado" title="Baja ya solicitada">🗑️</span>`
           : `<span class="ebtn cm-ico" title="${esAuditora()?'Eliminar contacto':'Solicitar eliminar contacto'}" onclick="event.stopPropagation();abrirSolicitudEliminar('${a.id}')">🗑️</span>`}
@@ -6415,6 +6419,29 @@ const CANALES_GESTION=['Consulta de estado','Reclamo','Consulta invalida'];
 function esConsultaGestion(a){
   return CANALES_GESTION.includes(canalReal(a)) || rolDe(a.vendedorId)==='auditora';
 }
+/* ===== Intervención de Cintia =====
+   Cintia muchas veces se mete en el seguimiento de una consulta de un vendedor (insiste,
+   da soporte). Con esto lo marca en la consulta: queda registrado quién y cuándo, se ve en
+   la fila y suma a sus estadísticas (cuántas consultas apoyó y cuánta plata se generó
+   después de que ella intervino). Solo Cintia y dirección pueden marcarlo. */
+function intervinoCintia(a){ return !!(a && a.cintiaIntervino); }
+function puedeMarcarIntervencion(){ return esAuditora() || esAdmin(); }
+async function toggleIntervencionCintia(id){
+  const a=atenciones.find(x=>x.id===id); if(!a) return;
+  if(a.cintiaIntervino){
+    a.cintiaIntervino=null;
+    a.historialContacto=(Array.isArray(a.historialContacto)?a.historialContacto:[]).filter(h=>!(h && h.intervencion));
+    toast('Se quitó la marca de intervención');
+  }else{
+    const ts=new Date().toISOString();
+    a.cintiaIntervino={ts, porId:YO};
+    a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
+    a.historialContacto.push({ts, texto:'🤝 Intervino '+nombreDe(YO)+' en el seguimiento', porId:YO, intervencion:true});
+    toast('Marcada: intervino '+nombreDe(YO));
+  }
+  await saveAtenciones();
+  render();
+}
 function canalDe(a){ return canalReal(a); }
 
 /* ===== Recuperación de nombres de Instagram =====
@@ -7134,6 +7161,44 @@ function estCard2daOportunidad(rango){
   </div>`;
 }
 
+/* Apoyo de Cintia: consultas donde ella intervino (marcadas con 🤝), y cuánta plata se
+   generó después. Sirve para medir su aporte y qué vendedor recibió más soporte. */
+function estCardApoyoCintia(base){
+  const vendedores = estVer==='equipo'
+    ? Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor')
+    : [estVer];
+  const m=n=>'$ '+miles(n);
+  const apoyadas=base.filter(intervinoCintia);
+  const filas=vendedores.map(uid=>{
+    const cs=apoyadas.filter(a=>a.vendedorId===uid);
+    const conc=cs.filter(a=>estadoDe(a)==='Concretado');
+    const gen=conc.reduce((s,a)=>s+(a.montoVendido||montoRepresentativo(a.muebles)||0),0);
+    const juego=cs.filter(a=>estadoDe(a)==='En seguimiento').reduce((s,a)=>s+(montoRepresentativo(a.muebles)||0),0);
+    return {uid, n:cs.length, conc:conc.length, gen, juego};
+  }).filter(f=>f.n>0).sort((a,b)=>b.gen-a.gen || b.n-a.n);
+  const totN=apoyadas.length;
+  const totGen=filas.reduce((s,f)=>s+f.gen,0);
+  const totJuego=filas.reduce((s,f)=>s+f.juego,0);
+  const totConc=filas.reduce((s,f)=>s+f.conc,0);
+  if(!totN) return `<div class="est-card">
+    <div class="est-hd"><div><h3>Apoyo de Cintia 🤝</h3><p class="cap">Consultas donde Cintia se metió a dar soporte o seguimiento.</p></div></div>
+    <p class="cin-empty" style="margin:6px 0">Todavía no hay consultas marcadas con intervención de Cintia en este período. Se marcan con el 🤝 en cada fila.</p></div>`;
+  const masApoyo=[...filas].sort((a,b)=>b.n-a.n)[0];
+  return `<div class="est-card">
+    <div class="est-hd">
+      <div><h3>Apoyo de Cintia 🤝</h3>
+      <p class="cap">Consultas donde Cintia intervino (soporte/seguimiento) y cuánta plata se generó después.</p></div>
+      <div class="est-tot"><div class="n">${totN}</div><div class="l">apoyadas</div></div>
+    </div>
+    <div class="est-scroll"><table class="est-tabla" style="min-width:560px">
+      <tr><th>Vendedor</th><th class="r">Apoyadas</th><th class="r">Concretadas</th><th class="r">Generado<span class="th2">post-seguimiento</span></th><th class="r">En juego</th></tr>
+      ${filas.map(f=>`<tr><td>${escapeHtml(nombreDe(f.uid))}</td><td class="r"><b>${f.n}</b></td><td class="r">${f.conc||'<span class="ena">—</span>'}</td><td class="r emoney"><b class="epos">${f.gen?m(f.gen):'—'}</b></td><td class="r">${f.juego?m(f.juego):'<span class="ena">—</span>'}</td></tr>`).join('')}
+      <tr class="etot-row"><td>Total</td><td class="r"><b>${totN}</b></td><td class="r">${totConc}</td><td class="r emoney">${m(totGen)}</td><td class="r">${m(totJuego)}</td></tr>
+    </table></div>
+    <div class="est-note"><b>Cintia apoyó ${totN} consulta${totN===1?'':'s'} y se generaron ${m(totGen)} después de su seguimiento.</b>${masApoyo?` El vendedor con más apoyo fue ${escapeHtml(nombreDe(masApoyo.uid))} (${masApoyo.n}).`:''}</div>
+  </div>`;
+}
+
 // divergente genérico de atención: recibe [{label, sub, counts:{1:n,2:n,3:n,4:n}}]
 function estDivergenteAtencion(titulo, cap, filas, filasRef){
   const filaHtml=(f,esRef)=>{
@@ -7269,6 +7334,7 @@ function htmlCintiaEstadisticas(){
     estCardCobertura(base, baseCmp) +
     estCardPlata(base) +
     estCard2daOportunidad(rango) +
+    estCardApoyoCintia(base) +
     estCardAtencionEvolucion() +
     estCardAtencionVendedores(base, baseCmp) +
     estCardCanales(rango);
@@ -8476,6 +8542,13 @@ async function guardarEvaluacionCintia(){
     a.resultadoMotivo=null;
     a.montoPerdido=0;
     a.proximaAccion=null;
+    // Derivar en la evaluación es una intervención de Cintia: se marca (misma marca 🤝)
+    // para que sume a su apoyo y quede en el historial de quién era la consulta.
+    if(!a.cintiaIntervino){
+      a.cintiaIntervino={ts:new Date().toISOString(), porId:YO};
+      a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
+      a.historialContacto.push({ts:new Date().toISOString(), texto:'🤝 Intervino '+nombreDe(YO)+' (derivó a 2da oportunidad)', porId:YO, intervencion:true});
+    }
     toast('Levantada a 2da oportunidad — '+nombreDe(destino));
   }else{
     // Los dos motivos solo tienen sentido si el vendedor efectivamente la rechazó.
