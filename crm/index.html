@@ -181,6 +181,15 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 /* Campanita: columna fija angosta al principio de la fila */
 .c-bell,.chead .h-bell{flex:0 0 26px;display:flex;align-items:center;justify-content:center}
 .bell-btn{cursor:pointer;font-size:15px;line-height:1;filter:grayscale(1);opacity:.35;transition:all .12s}
+.c-bell{flex-direction:column!important;gap:3px}
+.asist-btn{cursor:pointer;font-size:14px;line-height:1;opacity:.4;position:relative}
+.asist-btn.activo{opacity:1}
+.asist-btn.sinleer::after{content:'';position:absolute;top:-2px;right:-4px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid #fff}
+.asist-hilo{max-height:320px;overflow-y:auto;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;margin:6px 0;display:flex;flex-direction:column;gap:8px}
+.asist-msg{background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 10px;max-width:88%;align-self:flex-start}
+.asist-msg.mio{align-self:flex-end;background:var(--blue-l);border-color:#cfe0f5}
+.asist-de{font-size:10.5px;color:var(--muted);font-weight:700;margin-bottom:2px}
+.asist-txt{font-size:13px;line-height:1.4;white-space:pre-wrap;color:var(--ink)}
 .bell-btn:hover{filter:none;opacity:1;transform:scale(1.15)}
 .bell-btn.on{filter:none;opacity:1}
 .c-eval,.chead .h-eval{flex:0 0 74px;display:flex;align-items:center;justify-content:flex-start;gap:2px}
@@ -1568,6 +1577,12 @@ textarea{resize:vertical;min-height:60px}
       <div class="modal-fondo hidden" id="modalRecordar" onclick="if(event.target===this)cerrarRecordar()">
         <div class="modal-caja" style="max-width:420px">
           <div class="card" id="recordarCaja" style="margin-bottom:0"></div>
+        </div>
+      </div>
+
+      <div class="modal-fondo hidden" id="modalAsistencia" onclick="if(event.target===this)cerrarAsistencia()">
+        <div class="modal-caja" style="max-width:540px">
+          <div class="card" id="asistenciaCaja" style="margin-bottom:0"></div>
         </div>
       </div>
 
@@ -4585,11 +4600,16 @@ function logItemHtml(a){
 
   // Campanita: atajo directo para pedirle al vendedor que se ocupe de esta consulta.
   // Ámbar cuando ya hay un recordatorio pendiente, para no mandar dos veces lo mismo.
-  const bellCol = puedeRecordar()
+  const puedeAsist = (YO===a.vendedorId || esAuditora() || esAdmin());
+  const tieneHilo = !!(a.asistencia && a.asistencia.mensajes && a.asistencia.mensajes.length);
+  const bellCol = (puedeRecordar()||puedeAsist)
     ? `<div class="c-bell">
-        <span class="bell-btn ${a.recordatorioPendiente?'on':''}" role="button" tabindex="0"
+        ${puedeRecordar()?`<span class="bell-btn ${a.recordatorioPendiente?'on':''}" role="button" tabindex="0"
               title="${a.recordatorioPendiente?('Recordatorio pendiente: '+escAttr(a.recordatorioComentario||'')):(a.vendedorId===YO?'Recordarme esto':'Enviar recordatorio al vendedor')}"
-              onclick="event.stopPropagation();abrirRecordarConsulta('${a.id}')">🔔</span>
+              onclick="event.stopPropagation();abrirRecordarConsulta('${a.id}')">🔔</span>`:''}
+        ${puedeAsist?`<span class="asist-btn ${asistenciaSinLeer(a)?'sinleer':''} ${tieneHilo?'activo':''}" role="button" tabindex="0"
+              title="${tieneHilo?((a.asistencia.estado==='resuelta'?'Conversación (resuelta)':'Conversación interna')+' — '+a.asistencia.mensajes.length+' mensaje(s)'):'Pedir asistencia o comentar (interno, no es WhatsApp)'}"
+              onclick="event.stopPropagation();abrirAsistencia('${a.id}')">🙏</span>`:''}
       </div>`
     : '';
 
@@ -9288,6 +9308,77 @@ async function guardarRecordatorio(){
    Cintia lo pide sobre un cliente concreto; le queda marcado "pendiente" al vendedor en esa
    misma fila hasta que él lo resuelva. */
 let recordandoConsultaId=null;
+/* ===== Asistencia: hilo interno de conversación en la consulta =====
+   El vendedor y Cintia/Brian se escriben acá (no es WhatsApp del cliente). Queda todo
+   guardado en la consulta; cuando se resuelve, se archiva pero se puede seguir leyendo. */
+let asistId=null;
+function asistenciaSinLeer(a){
+  if(!a || !a.asistencia || !a.asistencia.mensajes || !a.asistencia.mensajes.length) return false;
+  const last=a.asistencia.mensajes[a.asistencia.mensajes.length-1];
+  if(last.deId===YO) return false;
+  const visto=a.asistencia.leidoPor && a.asistencia.leidoPor[YO];
+  return !visto || new Date(last.ts).getTime()>new Date(visto).getTime();
+}
+function abrirAsistencia(id){
+  asistId=id;
+  pintarAsistencia();
+  $('modalAsistencia').classList.remove('hidden');
+  document.body.style.overflow='hidden';
+  marcarAsistenciaLeida(id);
+}
+function cerrarAsistencia(){ $('modalAsistencia').classList.add('hidden'); document.body.style.overflow=''; asistId=null; render(); }
+function marcarAsistenciaLeida(id){
+  const a=atenciones.find(x=>x.id===id);
+  if(a && a.asistencia){ a.asistencia.leidoPor=a.asistencia.leidoPor||{}; a.asistencia.leidoPor[YO]=new Date().toISOString(); saveAtenciones(); }
+}
+function pintarAsistencia(){
+  const a=atenciones.find(x=>x.id===asistId); if(!a) return;
+  $('asistenciaCaja').innerHTML=htmlAsistencia(a);
+  const box=$('asistHilo'); if(box) box.scrollTop=box.scrollHeight;
+  const inp=$('asistInput'); if(inp) inp.focus();
+}
+function htmlAsistencia(a){
+  const msgs=(a.asistencia&&a.asistencia.mensajes)||[];
+  const resuelta=a.asistencia&&a.asistencia.estado==='resuelta';
+  const hilo = msgs.length
+    ? msgs.map(m=>{
+        const mio=m.deId===YO;
+        return `<div class="asist-msg ${mio?'mio':''}">
+          <div class="asist-de">${escapeHtml(m.deNombre||nombreDe(m.deId))} · ${new Date(m.ts).toLocaleString('es-AR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+          <div class="asist-txt">${escapeHtml(m.texto)}</div>
+        </div>`;
+      }).join('')
+    : `<p class="cin-empty" style="margin:6px 0">Todavía no hay mensajes. Escribí para empezar.</p>`;
+  return `<div class="ev-hd"><div><h3>🙏 Asistencia interna</h3>
+      <div class="meta">${escapeHtml(a.clienteNombre||'Sin nombre')} · ${nombreDe(a.vendedorId)}${resuelta?' · <b style="color:var(--green)">resuelta</b>':''}</div></div>
+      <button class="btn-close" onclick="cerrarAsistencia()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer">×</button></div>
+    <p class="tiny" style="margin:8px 2px 4px;color:var(--muted)">Conversación interna entre el vendedor y Cintia/dirección — no le llega al cliente.</p>
+    <div class="asist-hilo" id="asistHilo">${hilo}</div>
+    <textarea id="asistInput" class="ev-ta" rows="2" placeholder="Escribí un mensaje…"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-navy" style="flex:1" onclick="enviarAsistencia()">Enviar</button>
+      ${msgs.length?`<button class="btn btn-outline" onclick="resolverAsistencia()">${resuelta?'Reabrir':'Marcar resuelta'}</button>`:''}
+    </div>`;
+}
+async function enviarAsistencia(){
+  if(esSoloLectura())return avisoLectura();
+  const a=atenciones.find(x=>x.id===asistId); if(!a) return;
+  const inp=$('asistInput'); const txt=(inp?inp.value:'').trim();
+  if(!txt){ if(inp) inp.focus(); return; }
+  a.asistencia=a.asistencia||{mensajes:[],estado:'abierta',leidoPor:{}};
+  a.asistencia.mensajes.push({deId:YO, deNombre:nombreDe(YO), rol:rolDe(YO), texto:txt, ts:new Date().toISOString()});
+  a.asistencia.estado='abierta';
+  a.asistencia.leidoPor=a.asistencia.leidoPor||{}; a.asistencia.leidoPor[YO]=new Date().toISOString();
+  await saveAtenciones();
+  pintarAsistencia();
+}
+async function resolverAsistencia(){
+  if(esSoloLectura())return avisoLectura();
+  const a=atenciones.find(x=>x.id===asistId); if(!a||!a.asistencia) return;
+  a.asistencia.estado = a.asistencia.estado==='resuelta' ? 'abierta' : 'resuelta';
+  await saveAtenciones();
+  pintarAsistencia();
+}
 function abrirRecordarConsulta(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
