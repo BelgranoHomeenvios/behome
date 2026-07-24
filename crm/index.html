@@ -11891,11 +11891,12 @@ function dirToggleDetalle(k){ dirDetalle = (dirDetalle===k) ? null : k; renderDi
 function dirMontoDe(a,k){
   if(k==='generada') return (+a.montoVendido||dirCotizado(a));
   if(k==='enjuego')  return dirCotizado(a);
+  if(k==='oportperd') return (+a.montoOportunidadPerdida||dirCotizado(a));
   return (+a.montoPerdido||dirCotizado(a)); // perdida
 }
 function htmlDirDetalle(k, lista){
-  const titulos={generada:'Consultas concretadas',enjuego:'Consultas en juego (en seguimiento / abiertas)',perdida:'Consultas perdidas (clientes reales)'};
-  const color={generada:'var(--green)',enjuego:'#0369a1',perdida:'var(--red)'}[k];
+  const titulos={generada:'Consultas concretadas',enjuego:'Consultas en juego (en seguimiento / abiertas)',perdida:'Consultas perdidas (clientes reales)',oportperd:'Rechazadas que eran oportunidad de venta real'};
+  const color={generada:'var(--green)',enjuego:'#0369a1',perdida:'var(--red)',oportperd:'#be123c'}[k];
   if(!lista.length) return `<div class="dir-card"><div class="dh" style="color:${color}">${titulos[k]}</div><p class="tiny" style="color:var(--muted);margin:6px 2px 0">No hay consultas en este grupo para el período elegido.</p></div>`;
   const filas=lista.slice().sort((a,b)=>dirMontoDe(b,k)-dirMontoDe(a,k)).map(a=>{
     const nom=escapeHtml(a.clienteNombre||a.nombre||'Sin nombre');
@@ -11971,6 +11972,12 @@ function renderDireccion(){
   const pctConc=B.length?Math.round(conc.length/B.length*100):0;
   const pctSeg=B.length?Math.round(abiertas.length/B.length*100):0;
   const pctRech=B.length?Math.round(rech.length/B.length*100):0;
+  // Rechazadas que Cintia marcó como OPORTUNIDAD PERDIDA: eran ventas reales que se dejaron ir.
+  // Cuántas son (y qué % de las rechazadas), y cuánta plata representan (y qué % de la plata perdida).
+  const rechOportPerd = rech.filter(a=>a.oportunidadPerdida);
+  const oportPerdMonto = rechOportPerd.reduce((s,a)=>s+(+a.montoOportunidadPerdida||dirCotizado(a)),0);
+  const pctOportRech = rech.length?Math.round(rechOportPerd.length/rech.length*100):0;
+  const pctOportPlata = perdida?Math.round(oportPerdMonto/perdida*100):0;
   const perLbl=periodoLabel();
 
   // comparativa por vendedor
@@ -12047,12 +12054,13 @@ function renderDireccion(){
       <div class="dir-kpi dir-kpi-btn ${dirDetalle==='perdida'?'on':''}" style="--dk:var(--red);--dkc:var(--red)" onclick="dirToggleDetalle('perdida')"><div class="l">Rechazados <span class="dir-kpi-chev">${dirDetalle==='perdida'?'▲':'▾'}</span></div><div class="v">${rech.length}</div><div class="s"><b style="color:var(--red)">$ ${miles(perdida)}</b> perdida · ${pctRech}% del total</div></div>
       <div class="dir-kpi" style="--dk:#b45309;--dkc:#b45309"><div class="l">Sin cotización</div><div class="v">${sinCotTotal}</div><div class="s">abiertas · últimos 30 días</div></div>
     </div>
-    <div class="dir-kpis" style="grid-template-columns:repeat(3,1fr)">
+    <div class="dir-kpis dir-kpis-4">
       <div class="dir-kpi" style="--dk:#7c3aed;--dkc:#7c3aed"><div class="l">Consultas virtuales</div><div class="v">${nVirtual}</div><div class="s">${B.length?Math.round(nVirtual/B.length*100):0}% del total</div></div>
       <div class="dir-kpi" style="--dk:#1e5fce;--dkc:#1e5fce"><div class="l">Consultas en local</div><div class="v">${nLocal}</div><div class="s">${B.length?Math.round(nLocal/B.length*100):0}% del total</div></div>
       <div class="dir-kpi" style="--dk:var(--navy);--dkc:var(--navy)"><div class="l">Total de consultas</div><div class="v">${B.length}</div><div class="s">${perLbl}</div></div>
+      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='oportperd'?'on':''}" style="--dk:#be123c;--dkc:#be123c" onclick="dirToggleDetalle('oportperd')"><div class="l">Oportunidades perdidas <span class="dir-kpi-chev">${dirDetalle==='oportperd'?'▲':'▾'}</span></div><div class="v">${rechOportPerd.length}</div><div class="s"><b style="color:#be123c">$ ${miles(oportPerdMonto)}</b> · ${pctOportRech}% de rechazadas · ${pctOportPlata}% de la plata perdida</div></div>
     </div>
-    ${dirDetalle ? htmlDirDetalle(dirDetalle, {generada:conc, enjuego:abiertas, perdida:rech.filter(esClienteReal)}[dirDetalle]) : ''}
+    ${dirDetalle ? htmlDirDetalle(dirDetalle, {generada:conc, enjuego:abiertas, perdida:rech.filter(esClienteReal), oportperd:rechOportPerd}[dirDetalle]) : ''}
 
     <div class="dir-card"><div class="dh">Consultas sin cotización<span class="r">abiertas de los últimos 30 días · con quién trabajar más</span></div>
       <div style="padding:13px 17px">${sinCotVend.some(s=>s.c>0)
