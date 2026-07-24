@@ -349,6 +349,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .es-conc{background:var(--green-l);color:var(--green)}
 .es-rech{background:var(--red-l);color:var(--red)}
 .es-pend{background:var(--amber-l);color:var(--amber)}
+.fic-consfiltro{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+.fic-consfiltro button{font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--sec);cursor:pointer}
+.fic-consfiltro button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .est-btn{padding:0}
 .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .mgc{border:1px solid var(--line);border-radius:11px;padding:14px 10px;text-align:center;cursor:pointer;background:#fff}
@@ -8114,8 +8117,10 @@ async function fusionarClientes(telPrincipal, telSecundario, vendedorElegido){
   await saveContactos(); await saveAtenciones();
   return true;
 }
-function abrirFichaCliente(id){ clienteFichaId=id; renderCintiaMain(); }
+let _fichaConsFiltro='todas';   // en la ficha del cliente: 'todas' | 'venta' | 'estado'
+function abrirFichaCliente(id){ clienteFichaId=id; _fichaConsFiltro='todas'; renderCintiaMain(); }
 function volverClientes(){ clienteFichaId=null; renderCintiaMain(); }
+function setFichaConsFiltro(v){ _fichaConsFiltro=v; renderCintiaMain(); }
 
 /* La búsqueda tiene que recorrer TODA la base, no las filas dibujadas: la tabla
    muestra las primeras 300 ordenadas por lo que compraron, así que buscar sobre el
@@ -8430,8 +8435,12 @@ function htmlFichaCliente(id){
               : (val<=2?'g':val===3?'a':'r');
     return `<span class="ev-chip ${cls}" style="font-size:10px;padding:2px 7px">${EV_TXT[campo][val]}</span>`;
   };
-  const items=r.cs.map(a=>{
+  const nVenta=r.cs.filter(a=>!esPostventa(a)).length;
+  const nEstado=r.cs.filter(a=>esPostventa(a)).length;
+  const csFiltradas=r.cs.filter(a=> _fichaConsFiltro==='venta' ? !esPostventa(a) : _fichaConsFiltro==='estado' ? esPostventa(a) : true);
+  const items=csFiltradas.map(a=>{
     const e=estadoDe(a);
+    const esPV=esPostventa(a);
     const monto=montoRepresentativo(a.muebles)||0;
     const muebles=(a.muebles||[]).filter(m=>m.elegido!==false).map(m=>m.nombre).filter(Boolean).join(', ');
     const evalHtml = a.evaluada && !a.nuncaRespondio && (a.evalAtencion||a.evalConsulta||a.evalCliente)
@@ -8448,7 +8457,7 @@ function htmlFichaCliente(id){
       <div class="fic-fecha">${new Date(a.ts).toLocaleDateString('es-AR',{day:'numeric',month:'short',year:'2-digit'})}</div>
       <div class="fic-cuerpo">
         <div class="fic-linea1">
-          <span class="fic-estado ${e==='Concretado'?'ok':e==='Rechazado'?'mal':'seg'}">${e||'Sin definir'}</span>
+          <span class="fic-estado ${esPV?'seg':(e==='Concretado'?'ok':e==='Rechazado'?'mal':'seg')}">${esPV?estadoPostventaDe(a):(e||'Sin definir')}</span>
           <span class="tiny">${estCanalDe(a)} · atendió ${nombreDe(a.vendedorId)}</span>
           ${monto?`<span class="fic-monto">$ ${miles(monto)}</span>`:''}
         </div>
@@ -8474,7 +8483,12 @@ function htmlFichaCliente(id){
       <div class="fic-kpi"><div class="v">${r.activas}</div><div class="k">Activas</div></div>
       <div class="fic-kpi"><div class="v">${c.calificacion||'—'}</div><div class="k">Oportunidad</div></div>
     </div>
-    <div class="fic-timeline">${items||'<p class="cin-empty">Sin consultas registradas.</p>'}</div>
+    ${(nVenta&&nEstado)?`<div class="fic-consfiltro">
+      <button class="${_fichaConsFiltro==='todas'?'on':''}" onclick="setFichaConsFiltro('todas')">Consultas (${r.cs.length})</button>
+      <button class="${_fichaConsFiltro==='venta'?'on':''}" onclick="setFichaConsFiltro('venta')">De venta (${nVenta})</button>
+      <button class="${_fichaConsFiltro==='estado'?'on':''}" onclick="setFichaConsFiltro('estado')">De estado (${nEstado})</button>
+    </div>`:''}
+    <div class="fic-timeline">${items||'<p class="cin-empty">Sin consultas de este tipo.</p>'}</div>
   </div>`;
 }
 
