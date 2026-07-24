@@ -8227,33 +8227,38 @@ function estCardCobertura(base, baseCmp){
 /* Versión SOLO CONTEO del rendimiento por vendedor, para Cintia: cantidades de consultas
    por estado, sin plata ni ticket promedio (esos números no los ve la auditoría). */
 function estCardConteoCintia(filas){
-  const T={conc:0,juegoCnt:0,rech:0,opCount:0,sinDef:0};
+  const T={conc:0,juegoCnt:0,rech:0,opCount:0,sinDef:0,total:0};
   filas.forEach(f=>{Object.keys(T).forEach(k=>T[k]+=(f[k]||0));});
   const cel=(n,extra)=>`<td class="r ecell"><div class="big">${n}</div>${extra?`<div class="pc">${extra}</div>`:''}</td>`;
+  // % de cada estado sobre el total de consultas de ese vendedor (ej: de 150, 53 concretadas = 35%).
+  const pctT=(n,tot)=>tot?Math.round(n/tot*100)+'% del total':'';
   const filasHtml=filas.map(f=>`<tr>
       <td class="vend">${nombreDe(f.uid)}</td>
-      ${cel(f.conc)}
-      ${cel(f.juegoCnt)}
-      ${cel(f.rech)}
+      <td class="r ecell"><div class="big" style="color:var(--navy)">${f.total}</div><div class="pc">consultas</div></td>
+      ${cel(f.conc, pctT(f.conc,f.total))}
+      ${cel(f.juegoCnt, pctT(f.juegoCnt,f.total))}
+      ${cel(f.rech, pctT(f.rech,f.total))}
       ${cel(f.opCount, f.rech?Math.round(f.opCount/f.rech*100)+'% de rech.':'')}
-      ${cel(f.sinDef,'por evaluar')}
+      ${cel(f.sinDef, pctT(f.sinDef,f.total))}
     </tr>`).join('');
   return `<div class="est-card">
     <div class="est-hd"><div><h3>Rendimiento por vendedor</h3>
-      <p class="cap">Cantidad de consultas por estado en el período.</p></div></div>
+      <p class="cap">Cantidad de consultas por estado en el período. El % es sobre el total de cada vendedor.</p></div></div>
     <div class="est-scroll"><table class="est-tabla ancha">
       <tr>
         <th>Vendedor</th>
-        <th class="r">Concretadas</th>
-        <th class="r">En seguimiento</th>
-        <th class="r">Rechazadas</th>
+        <th class="r">Total<span class="th2">consultas</span></th>
+        <th class="r">Concretadas<span class="th2">% del total</span></th>
+        <th class="r">En seguimiento<span class="th2">% del total</span></th>
+        <th class="r">Rechazadas<span class="th2">% del total</span></th>
         <th class="r">Oport. perdidas<span class="th2">de rechazadas</span></th>
         <th class="r">Sin definir<span class="th2">falta evaluar</span></th>
       </tr>
       ${filasHtml}
       ${estVer==='equipo'?`<tr class="etot-row">
         <td>Equipo</td>
-        ${cel(T.conc)}${cel(T.juegoCnt)}${cel(T.rech)}${cel(T.opCount, T.rech?Math.round(T.opCount/T.rech*100)+'% de rech.':'')}${cel(T.sinDef,'por evaluar')}
+        <td class="r ecell"><div class="big" style="color:var(--navy)">${T.total}</div><div class="pc">consultas</div></td>
+        ${cel(T.conc, pctT(T.conc,T.total))}${cel(T.juegoCnt, pctT(T.juegoCnt,T.total))}${cel(T.rech, pctT(T.rech,T.total))}${cel(T.opCount, T.rech?Math.round(T.opCount/T.rech*100)+'% de rech.':'')}${cel(T.sinDef, pctT(T.sinDef,T.total))}
       </tr>`:''}
     </table></div>
   </div>`;
@@ -8276,7 +8281,7 @@ function estCardPlata(base){
     const movio=gen+perd+juego;
     const evalu=cs.filter(a=>a.evaluada).length;
     return {uid, gen, perd, opCount, juego, juegoCnt:segL.length, sinDef, rech,
-            conc:concL.length, cerradas, movio, evalu,
+            conc:concL.length, cerradas, movio, evalu, total:cs.length,
             ticket: concL.length?Math.round(gen/concL.length):null};
   }).sort((a,b)=>b.gen-a.gen);
 
