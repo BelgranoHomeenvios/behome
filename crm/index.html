@@ -4207,6 +4207,8 @@ async function guardarCierre(){if(esSoloLectura())return avisoLectura();
     if(!a.canal) a.canal='presencial';
   }
   a.contactoId = await vincularContacto({nombre:a.clienteNombre, telefono:a.clienteTelefono, instagram:a.clienteInstagram, noTomoTelefono:a.noTomoTelefono, percepcion:a.percepcion, resultado:cerrandoTipo, canal:a.canal});
+  // El vendedor cumplió el pedido de Cintia de cambiar el estado: se saca el recordatorio.
+  if(a.cambioEstadoPedido) a.cambioEstadoPedido=null;
   await aplicarEstado(a, cerrandoTipo);
   const msg = cerrandoTipo==='Concretado'
     ? 'Venta cargada: $ '+miles(a.montoVendido||0)
@@ -4234,6 +4236,18 @@ function cerrarEtapa(){
   $('modalEtapa').classList.add('hidden');
   document.body.style.overflow='';
   cerrandoId=null; cerrandoTipo=null; etapaSel=null;
+}
+/* El vendedor entra desde el recordatorio de Cintia: abre directo el formulario de cierre
+   con la etapa que ella pidió (Concretado / Rechazado) para que cargue los datos. */
+function abrirCambioEstadoPedido(id){
+  const a=atenciones.find(x=>x.id===id); if(!a||!a.cambioEstadoPedido) return;
+  cerrarPops();
+  cerrandoId=id;
+  etapaSel=a.cambioEstadoPedido.estado;
+  const cc=$('cierreCaja'); if(cc) cc.innerHTML='';
+  pintarEtapa();
+  $('modalEtapa').classList.remove('hidden');
+  document.body.style.overflow='hidden';
 }
 function elegirEtapa(e){ etapaSel=e; pintarEtapa(); }
 function pintarEtapa(){
@@ -4615,7 +4629,7 @@ function logItemHtml(a){
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         ${canalIco}
         <div class="c-nom-inner">
-        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
@@ -8839,11 +8853,16 @@ function renderEvaluar(){
     decisionHtml=`<div class="ev-cerrada"><b>Venta concretada</b><span>No hay nada que decidir — acá solo evaluás cómo se atendió.</span></div>`;
   }else{
     const decSel=`<select id="evSelDecision" class="ev-sel" onchange="evDecision(this.value)">
-      <option value="rechazada" ${ev.decision!=='segunda'?'selected':''}>${esRechazada?'Queda rechazada':'Sigue en seguimiento'}</option>
+      <option value="rechazada" ${(ev.decision!=='segunda'&&ev.decision!=='pedirConcretada'&&ev.decision!=='pedirRechazada')?'selected':''}>${esRechazada?'Queda rechazada':'Sigue en seguimiento'}</option>
       <option value="segunda" ${ev.decision==='segunda'?'selected':''}>2da oportunidad</option>
+      ${!esRechazada?`<option value="pedirConcretada" ${ev.decision==='pedirConcretada'?'selected':''}>✅ Pedirle al vendedor que la marque Concretada</option>
+      <option value="pedirRechazada" ${ev.decision==='pedirRechazada'?'selected':''}>❌ Pedirle al vendedor que la marque Rechazada</option>`:''}
     </select>`;
     let sub='';
-    if(ev.decision==='segunda'){
+    if(ev.decision==='pedirConcretada' || ev.decision==='pedirRechazada'){
+      const q=ev.decision==='pedirConcretada'?'Concretada':'Rechazada';
+      sub=`<p class="tiny" style="margin:6px 0 0">Le va a llegar al vendedor un recordatorio para marcarla como <b>${q}</b> y cargar los datos que faltan (${q==='Rechazada'?'el motivo del rechazo':'la seña, muebles, etc.'}). Vos no la cerrás — la cierra él.</p>`;
+    }else if(ev.decision==='segunda'){
       sub=`<div class="ev-field"><label>¿A qué agente se la derivás?</label>
         <select id="evDerivar" class="ev-sel" onchange="guardarBorradorEvaluar()">
           ${vendedores.map(uid=>`<option value="${uid}" ${ev.derivar===uid?'selected':''}>${nombreDe(uid)}${uid===a.vendedorId?' — el mismo':''}</option>`).join('')}
@@ -9190,6 +9209,16 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
       a.historialContacto.push({ts:new Date().toISOString(), texto:'🤝 Intervino '+nombreDe(YO)+' (derivó a 2da oportunidad)', porId:YO, intervencion:true});
     }
     toast('Levantada a 2da oportunidad — '+nombreDe(destino));
+  }else if(ev.decision==='pedirConcretada' || ev.decision==='pedirRechazada'){
+    // Cintia no cierra la consulta: le pide al vendedor que la marque y cargue los datos.
+    const estPed = ev.decision==='pedirConcretada' ? 'Concretado' : 'Rechazado';
+    a.cambioEstadoPedido={ estado:estPed, porId:YO, ts:new Date().toISOString() };
+    if(!a.cintiaIntervino){
+      a.cintiaIntervino={ts:new Date().toISOString(), porId:YO};
+      a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
+      a.historialContacto.push({ts:new Date().toISOString(), texto:'🤝 Intervino '+nombreDe(YO)+' (pidió marcar '+estPed+')', porId:YO, intervencion:true});
+    }
+    toast('Le va a llegar al vendedor para que la marque '+(estPed==='Concretado'?'Concretada':'Rechazada'));
   }else{
     // Los dos motivos solo tienen sentido si el vendedor efectivamente la rechazó.
     if(estadoActual==='Rechazado'){
