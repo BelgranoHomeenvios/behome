@@ -1010,6 +1010,13 @@ textarea{resize:vertical;min-height:60px}
 .lightbox img{width:100%;border-radius:10px;max-height:60vh;object-fit:contain;background:#fff}
 .lightbox-meta{background:#fff;border-radius:0 0 10px 10px;padding:14px 16px;margin-top:-4px}
 .lightbox-close{text-align:center;color:#fff;font-size:13px;margin-top:14px;cursor:pointer}
+.lb-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;justify-content:center}
+.lb-thumbs img{width:52px;height:52px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent;opacity:.7}
+.lb-thumbs img.sel{border-color:#fff;opacity:1}
+#fotoPreview{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.foto-thumb{position:relative;width:76px;height:76px}
+.foto-thumb img{width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:pointer;display:block}
+.foto-x{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:none;background:#c0392b;color:#fff;font-size:12px;font-weight:800;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;padding:0}
 
 .mini-local{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line2)}
 
@@ -1767,7 +1774,7 @@ textarea{resize:vertical;min-height:60px}
               <div class="photo-input-easy" id="photoDrop" onclick="document.getElementById('fotoInput').click()">
                 <span class="photo-emoji">📎</span>
                 <span class="photo-label" id="photoLabel">Tocá para adjuntar una foto del presupuesto</span>
-                <input type="file" id="fotoInput" accept="image/*" onchange="onPhotoSelected(event)" style="display:none">
+                <input type="file" id="fotoInput" accept="image/*" multiple onchange="onPhotoSelected(event)" style="display:none">
               </div>
               <div id="fotoPreview"></div>
             </div>
@@ -1867,6 +1874,7 @@ textarea{resize:vertical;min-height:60px}
 <div class="lightbox" id="lightbox" onclick="if(event.target===this) cerrarLightbox()">
   <div class="lightbox-inner">
     <img id="lightboxImg">
+    <div class="lb-thumbs" id="lbThumbs"></div>
     <div class="lightbox-meta">
       <div class="presu-cliente" id="lbCliente" style="font-size:15px"></div>
       <div class="presu-sub" id="lbSub"></div>
@@ -2073,7 +2081,11 @@ let filtroBusqueda='';
 let filtroVendedorCintia='todos';
 let filtroCanalCintia='todos';
 let filtroEvaluacion='todos'; // 'todos' | 'evaluadas' | 'sinevaluar' — solo para Cintia
-let photoDataUrl=null;
+let photoDataUrls=[];   // fotos del presupuesto cargadas en el form (varias)
+/* Todas las fotos de una consulta: junta el array nuevo (fotos) con la foto vieja
+   de una sola imagen (photoThumb) para no perder las consultas históricas. */
+function fotosDe(a){const arr=(a&&a.fotos&&a.fotos.length)?a.fotos.slice():[];if(a&&a.photoThumb&&!arr.includes(a.photoThumb))arr.unshift(a.photoThumb);return arr;}
+function tieneFoto(a){return fotosDe(a).length>0;}
 let modalModo='nueva'; // 'nueva' | 'completar'
 let modalRapido=false; // true = pop-up "Registro rápido" (menos campos, exige mueble)
 let completandoId=null;
@@ -2281,6 +2293,11 @@ function entrarApp(){
   if(!window._jornInterval) window._jornInterval=setInterval(()=>{
     if(YO && !esAdmin() && !esAuditora() && yaConectadoHoy(YO) && !forzandoSelector && !estaPausado(YO)) registrarSenal(YO);
   }, 4*60*1000);
+  // Siembra inmediata: si el vendedor ya estaba conectado, que aparezca en el registro sin esperar el latido.
+  if(YO && !esAdmin() && !esAuditora() && yaConectadoHoy(YO)){ if(_seedJornadaDesdeActivos(YO)) saveJornadas(); }
+  // Auto-pausa por inactividad: si el vendedor pasa 30 min sin tocar la app, se pausa solo.
+  _ultimaActividad=Date.now();
+  if(!window._autoPausaInterval) window._autoPausaInterval=setInterval(chequearAutoPausa, 60*1000);
   /* Cintia y dirección trabajan sobre lo que falta evaluar: se les suma esa
      cola aunque alguna consulta quede fuera de la ventana de 2 meses. */
   if(esAuditora()||esAdmin()) cargarPendientesEvaluacion().then(()=>render());
@@ -2400,10 +2417,25 @@ function registrarConexion(uid, localId){
   purgarJornadas();
   saveJornadas();
 }
+/* Si el vendedor ya estaba conectado (restauró la sesión, no volvió a elegir local),
+   su jornada del día no existía y por eso no aparecía en el registro. Acá la sembramos
+   desde ACTIVOS.horarios, que guarda la hora real de conexión. */
+function _seedJornadaDesdeActivos(uid){
+  if(!uid) return false;
+  asegurarActivosHoy();
+  const h=ACTIVOS.horarios&&ACTIVOS.horarios[uid];
+  if(!h) return false;
+  const j=_jornDia(uid);
+  if(!j.conexion) j.conexion=h.hora||new Date().toISOString();
+  if(h.localId && !j.localId) j.localId=h.localId;
+  if(!j.ultima) j.ultima=j.conexion;
+  return true;
+}
 function registrarSenal(uid){
   if(!uid) return;
   const d=hoyStr();
-  if(!JORNADAS[d]||!JORNADAS[d][uid]) return;   // solo si ya hubo conexión hoy
+  if(!JORNADAS[d]||!JORNADAS[d][uid]) _seedJornadaDesdeActivos(uid);   // crea la jornada si faltaba
+  if(!JORNADAS[d]||!JORNADAS[d][uid]) return;
   JORNADAS[d][uid].ultima=new Date().toISOString();
   saveJornadas();
 }
@@ -2444,16 +2476,30 @@ function estaPausado(uid){
   asegurarActivosHoy();
   return !!(ACTIVOS.pausados && ACTIVOS.pausados[uid]);
 }
-async function pausarme(){
+/* Auto-pausa por inactividad: si el vendedor no toca la app por 30 min, se pausa solo.
+   Cualquier interacción real (clic, tecla, scroll, mover el mouse) resetea el contador. */
+let _ultimaActividad=Date.now();
+['click','keydown','touchstart','pointerdown','scroll','mousemove'].forEach(evt=>{ try{ document.addEventListener(evt,()=>{ _ultimaActividad=Date.now(); },{passive:true}); }catch(e){} });
+const AUTO_PAUSA_MS=30*60*1000;
+function chequearAutoPausa(){
+  try{
+    if(!YO || esAdmin() || esAuditora()) return;
+    if(typeof forzandoSelector!=='undefined' && forzandoSelector) return;
+    if(!yaConectadoHoy(YO)) return;
+    if(estaPausado(YO)) return;
+    if(Date.now()-_ultimaActividad >= AUTO_PAUSA_MS) pausarme(true);
+  }catch(e){}
+}
+async function pausarme(auto){
   asegurarActivosHoy();
   if(!ACTIVOS.pausados) ACTIVOS.pausados={};
   if(!ACTIVOS.historialPausas) ACTIVOS.historialPausas=[];
   ACTIVOS.pausados[YO]=true;
-  ACTIVOS.historialPausas.push({uid:YO, localId:LOCAL_ACTUAL, desde:new Date().toISOString(), hasta:null});
+  ACTIVOS.historialPausas.push({uid:YO, localId:LOCAL_ACTUAL, desde:new Date().toISOString(), hasta:null, auto:!!auto});
   registrarPausa(YO,'desde');
   await saveActivos();
   render();
-  toast('Pausado — no vas a sumar en los turnos hasta que vuelvas.');
+  toast(auto?'Te pausamos solos: pasaste 30 min sin usar la app. Tocá "Reanudar" cuando vuelvas.':'Pausado — no vas a sumar en los turnos hasta que vuelvas.');
 }
 async function reanudarme(){
   asegurarActivosHoy();
@@ -4444,7 +4490,7 @@ function logItemHtml(a){
             ? `<span class="m-vend" style="font-size:13px">$ ${miles(a.montoVendido)}</span>`
             : `${totalCotizado?'$ '+miles(totalCotizado):'—'}${a.montoPerdido?`<div class="m-perd">Perdido $ ${miles(a.montoPerdido)}</div>`:''}`}
         </div>
-        <span class="ebtn" onclick="event.stopPropagation();togPop(this)">🪑<small>(${muebles.length})</small><span class="pop"><b>Muebles cotizados</b><br>${mueblesTxt}${(a.hasPhoto&&a.photoThumb)?`<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();abrirLightbox('${a.id}')">📷 Ver foto del presupuesto</div>`:(a.fotoVencida?`<div class="tiny" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px;color:var(--muted)">📷 La foto ya venció (se guardan ${DIAS_GUARDAR_FOTO} días)</div>`:'')}<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();editarSoloMuebles('${a.id}')">✎ Editar muebles</div></span></span>
+        <span class="ebtn" onclick="event.stopPropagation();togPop(this)">🪑<small>(${muebles.length})</small><span class="pop"><b>Muebles cotizados</b><br>${mueblesTxt}${(tieneFoto(a))?`<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();abrirLightbox('${a.id}')">📷 Ver foto del presupuesto</div>`:(a.fotoVencida?`<div class="tiny" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px;color:var(--muted)">📷 La foto ya venció (se guardan ${DIAS_GUARDAR_FOTO} días)</div>`:'')}<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();editarSoloMuebles('${a.id}')">✎ Editar muebles</div></span></span>
       </div>`;
 
   // Campanita: atajo directo para pedirle al vendedor que se ocupe de esta consulta.
@@ -4505,7 +4551,7 @@ function logItemHtml(a){
             </div>
           </span>
         </span>
-        <span class="ebtn cm-ico${(a.hasPhoto&&a.photoThumb)?'':' apagado'}" title="${(a.hasPhoto&&a.photoThumb)?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
+        <span class="ebtn cm-ico${(tieneFoto(a))?'':' apagado'}" title="${(tieneFoto(a))?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
         <span class="ebtn cm-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
         ${(!esAuditora() && (YO===a.vendedorId || esAdmin())) ? `<span class="ebtn cm-ico${a.evaluada?'':' apagado'}" title="${a.evaluada?'Ver la evaluación de esta consulta':'Todavía no la evaluaron'}"${a.evaluada?` onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')"`:''}>📊</span>` : ''}
         ${puedeMarcarIntervencion() ? `<span class="ebtn cm-ico interv-ico${intervinoCintia(a)?' on':''}" title="${intervinoCintia(a)?('Intervino '+nombreDe(a.cintiaIntervino.porId)+' — clic para quitar'):'Marcar que Cintia intervino / dio soporte en esta consulta'}" onclick="event.stopPropagation();toggleIntervencionCintia('${a.id}')">🤝</span>` : ''}
@@ -6058,12 +6104,13 @@ function svMarcarVisto(id, tipo){
 /* Las fotos del presupuesto se guardan en la consulta, pero NO para siempre: son
    pesadas y solo sirven un rato. Pasados DIAS_GUARDAR_FOTO días se borran (queda la
    marca fotoVencida para saber que hubo una). Así la base no se infla con el tiempo. */
-const DIAS_GUARDAR_FOTO=45;
+const DIAS_GUARDAR_FOTO=60;
 async function purgarFotosViejas(){
   let cambio=false;
   atenciones.forEach(a=>{
-    if(a.photoThumb && diasDesdeISO(a.completadoTs||a.ts) > DIAS_GUARDAR_FOTO){
-      a.photoThumb=null; a.fotoVencida=true; cambio=true;
+    const tiene = a.photoThumb || (a.fotos && a.fotos.length);
+    if(tiene && diasDesdeISO(a.completadoTs||a.ts) > DIAS_GUARDAR_FOTO){
+      a.photoThumb=null; a.fotos=[]; a.fotoVencida=true; cambio=true;
     }
   });
   if(cambio) await saveAtenciones();
@@ -6073,7 +6120,7 @@ async function purgarFotosViejas(){
 let _fotoRapidaId=null;
 function fotoRapidaConsulta(id){
   const a=atenciones.find(x=>x.id===id); if(!a) return;
-  if(a.hasPhoto && a.photoThumb){ abrirLightbox(id); return; }
+  if(tieneFoto(a)){ abrirLightbox(id); return; }
   _fotoRapidaId=id;
   let inp=$('fotoRapidaInput');
   if(!inp){
@@ -6095,8 +6142,8 @@ function onFotoRapidaSelected(ev){
       const canvas=document.createElement('canvas');
       canvas.width=img.width*scale; canvas.height=img.height*scale;
       canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-      a.photoThumb=canvas.toDataURL('image/jpeg',0.6);
-      a.hasPhoto=true; a.fotoVencida=false;
+      a.fotos=fotosDe(a).concat(canvas.toDataURL('image/jpeg',0.6));
+      a.photoThumb=null; a.hasPhoto=true; a.fotoVencida=false;
       await saveAtenciones();
       render();
       toast('Foto del presupuesto cargada');
@@ -6106,19 +6153,40 @@ function onFotoRapidaSelected(ev){
   };
   reader.readAsDataURL(file);
 }
+let _lbFotos=[], _lbIdx=0;
 function abrirLightbox(id){
   const a=atenciones.find(x=>x.id===id);
-  if(!a || !a.photoThumb) return;
-  $('lightboxImg').src=a.photoThumb;
+  const fotos=fotosDe(a);
+  if(!a || !fotos.length) return;
+  _lbFotos=fotos; _lbIdx=0;
+  $('lightboxImg').src=fotos[0];
   $('lbCliente').textContent=a.clienteNombre||'—';
   const tel=a.noTomoTelefono?'sin teléfono':(a.clienteTelefono||'');
   $('lbSub').textContent=`${nombreDe(a.vendedorId)} · ${nombreLocal(a.localId)} · ${new Date(a.ts).toLocaleString('es-AR')}${tel?' · '+tel:''}`;
   const totalCotizado=montoRepresentativo(a.muebles||[]);
   $('lbMonto').textContent=totalCotizado?`$ ${miles(totalCotizado)}`:'';
   $('lbNotas').textContent=a.notas||'';
+  pintarLbThumbs();
   $('lightbox').classList.add('active');
 }
+/* Tira de miniaturas cuando la consulta tiene más de una foto: se toca para cambiar la grande. */
+function pintarLbThumbs(){
+  const box=$('lbThumbs'); if(!box) return;
+  if(_lbFotos.length<2){ box.innerHTML=''; return; }
+  box.innerHTML=_lbFotos.map((src,i)=>`<img src="${src}" class="${i===_lbIdx?'sel':''}" onclick="event.stopPropagation();lbVerFoto(${i})">`).join('');
+}
+function lbVerFoto(i){ if(!_lbFotos[i])return; _lbIdx=i; $('lightboxImg').src=_lbFotos[i]; pintarLbThumbs(); }
 function cerrarLightbox(){$('lightbox').classList.remove('active');}
+/* ESC cierra cualquier pantalla abierta (foto, cierre, solicitud, o el form de
+   cargar cliente/mueble). Cierra la de más arriba primero. */
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape' && e.keyCode!==27) return;
+  const lb=$('lightbox'); if(lb&&lb.classList.contains('active')){cerrarLightbox();return;}
+  const ms=$('modalSolicitud'); if(ms&&!ms.classList.contains('hidden')){cerrarModalSolicitud();return;}
+  const mc=$('modalCierre'); if(mc&&!mc.classList.contains('hidden')){cerrarModalCierre();return;}
+  const mf=$('modalFondo'); if(mf&&!mf.classList.contains('hidden')){cerrarModal();return;}
+  if(typeof cerrarPops==='function') cerrarPops();
+});
 
 function cambiarVista(v){
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
@@ -8555,6 +8623,7 @@ async function evCargarEjemplo(){
   toast('Ejemplo del mes cargado');
 }
 function evEditarEjemplo(){ evTmp.ejemploCargado=false; renderEvaluar(); }
+function evToggleIntervine(){ const a=atenciones.find(x=>x.id===evaluandoId); const cur=(evTmp.intervine!==undefined?evTmp.intervine:intervinoCintia(a)); evTmp.intervine=!cur; guardarBorradorEvaluar(); renderEvaluar(); }
 function evTeclaEjemplo(e){
   if(e.key==='Enter'){ e.preventDefault(); evCargarEjemplo(); }
 }
@@ -8673,6 +8742,11 @@ function renderEvaluar(){
         : `<label class="ev-adj">📎 Adjuntar captura<input type="file" accept="image/*" style="display:none" onchange="evCapturaEjemplo(this)"></label>`}
     </div>` : '';
   const ejemploHtml=`<div class="ev-field"><label>★ Ejemplo del mes</label>${ejTargetSel}</div>${ejSub}`;
+  const intervineOn = (ev.intervine!==undefined ? ev.intervine : intervinoCintia(a));
+  const intervineHtml = puedeMarcarIntervencion() ? `<div class="ev-nunca ${intervineOn?'on':''}" onclick="evToggleIntervine()">
+    <span class="ic">${intervineOn?'☑':'☐'}</span>
+    <div><b>🤝 Intervine</b><span>Marca que te metiste / diste soporte en esta consulta.</span></div>
+  </div>` : '';
 
   $('evaluarCaja').innerHTML=`
     <div class="ev-hd">
@@ -8690,6 +8764,7 @@ function renderEvaluar(){
       ${decisionHtml}
       ${obsHtml}
       ${ejemploHtml}
+      ${intervineHtml}
       <button id="evGuardar" class="btn btn-navy" style="width:100%;margin-top:8px${completa?'':';opacity:.45;cursor:not-allowed'}" onclick="guardarEvaluacionCintia()" ${completa?'':'disabled'}>
         ${(!esConcretada && ev.decision==='segunda')?'Guardar y derivar':'Guardar evaluación'}
       </button>
@@ -8870,6 +8945,18 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
   a.evaluadoTs=new Date().toISOString();
   a.evaluacionComentario=(ev.obs||'').trim();
   a.evalDecision=ev.decision;
+
+  // 🤝 "Intervine": marca/desmarca que Cintia se metió en la consulta (mismo dato que el botón 🤝).
+  if(ev.intervine!==undefined){
+    if(ev.intervine && !a.cintiaIntervino){
+      a.cintiaIntervino={ts:new Date().toISOString(), porId:YO};
+      a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
+      a.historialContacto.push({ts:a.cintiaIntervino.ts, texto:'🤝 Intervino '+nombreDe(YO)+' en el seguimiento', porId:YO, intervencion:true});
+    }else if(!ev.intervine && a.cintiaIntervino){
+      a.cintiaIntervino=null;
+      a.historialContacto=(Array.isArray(a.historialContacto)?a.historialContacto:[]).filter(h=>!(h && h.intervencion));
+    }
+  }
 
   if(ev.nuncaRespondio){
     // No hubo conversación: no se guarda ninguna nota de atención, ni de consulta, ni de
@@ -10183,7 +10270,7 @@ function limpiarModal(){
   $('fotoPreview').innerHTML='';
   const f=$('fotoInput'); if(f) f.value='';
   const plbl=$('photoLabel'); if(plbl) plbl.textContent='Tocá para adjuntar una foto del presupuesto';
-  photoDataUrl=null;
+  photoDataUrls=[];
   mueblesActuales=[{mueble:'',observacion:'',monto:null,elegido:true}];
   $('fichaResumenBox').classList.add('hidden');
   const segBox=$('seguimientoBox'); if(segBox) segBox.classList.add('hidden');
@@ -10308,7 +10395,7 @@ function abrirModalCompletar(id, paso){
   $('notas').value=a.notas||'';
   proxSeleccionada=null;
 
-  photoDataUrl=null;
+  photoDataUrls=fotosDe(a).slice(); renderFotoPreview();
   $('fichaResumenBox').classList.add('hidden');
 
   // Consulta YA cargada (tiene nombre o muebles y no es una pendiente vacía): abrir el
@@ -10523,7 +10610,7 @@ function modalTieneDatos(){
   const cotiz=($('nroCotizacion')?.value||'').trim();
   const notas=($('notas')?.value||'').trim();
   const hayMueble=(mueblesActuales||[]).some(m=>(m.mueble||m.nombre||'').trim() || m.monto || (m.observacion||'').trim());
-  return !!(nombre || tel || cotiz || notas || percepcionSel || proxSeleccionada || hayMueble || photoDataUrl);
+  return !!(nombre || tel || cotiz || notas || percepcionSel || proxSeleccionada || hayMueble || photoDataUrls.length);
 }
 
 /* Clic en el fondo oscuro: NO cierra directo. Si hay datos, pide confirmación. */
@@ -10554,31 +10641,36 @@ function toggleTelefono(){
 }
 
 function onPhotoSelected(ev){
-  const file=ev.target.files[0];
-  if(!file) return;
-  const reader=new FileReader();
-  reader.onload=function(e){
-    const img=new Image();
-    img.onload=function(){
-      const maxW=800;
-      const scale=Math.min(1,maxW/img.width);
-      const canvas=document.createElement('canvas');
-      canvas.width=img.width*scale;
-      canvas.height=img.height*scale;
-      const ctx=canvas.getContext('2d');
-      ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      photoDataUrl=canvas.toDataURL('image/jpeg',0.6);
-      const lbl=$('photoLabel'); if(lbl) lbl.textContent='Foto cargada — tocá para cambiarla';
-      $('fotoPreview').innerHTML=`
-        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-          <img src="${photoDataUrl}" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">
-          <span class="tiny" style="color:var(--green);font-weight:700">✅ Foto cargada — tocá el recuadro para cambiarla</span>
-        </div>`;
+  const files=[...(ev.target.files||[])];
+  if(!files.length) return;
+  files.forEach(file=>{
+    const reader=new FileReader();
+    reader.onload=function(e){
+      const img=new Image();
+      img.onload=function(){
+        const maxW=800;
+        const scale=Math.min(1,maxW/img.width);
+        const canvas=document.createElement('canvas');
+        canvas.width=img.width*scale;
+        canvas.height=img.height*scale;
+        canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+        photoDataUrls.push(canvas.toDataURL('image/jpeg',0.6));
+        renderFotoPreview();
+      };
+      img.src=e.target.result;
     };
-    img.src=e.target.result;
-  };
-  reader.readAsDataURL(file);
+    reader.readAsDataURL(file);
+  });
+  ev.target.value='';   // permite volver a elegir la misma imagen y agregar más
 }
+/* Miniaturas ~2×2 cm de las fotos cargadas, cada una con una ✕ para quitarla. */
+function renderFotoPreview(){
+  const box=$('fotoPreview'); if(!box) return;
+  box.innerHTML=photoDataUrls.map((src,i)=>`<div class="foto-thumb"><img src="${src}" onclick="event.stopPropagation();verFotoGrande('${i}')"><button type="button" class="foto-x" title="Quitar esta foto" onclick="event.stopPropagation();quitarFoto(${i})">✕</button></div>`).join('');
+  const lbl=$('photoLabel'); if(lbl) lbl.textContent=photoDataUrls.length?`${photoDataUrls.length} foto${photoDataUrls.length===1?'':'s'} cargada${photoDataUrls.length===1?'':'s'} — tocá para agregar otra`:'Tocá para adjuntar una foto del presupuesto';
+}
+function quitarFoto(i){ photoDataUrls.splice(i,1); renderFotoPreview(); }
+function verFotoGrande(i){ const src=photoDataUrls[+i]; if(!src)return; _lbFotos=photoDataUrls.slice(); _lbIdx=+i; $('lightboxImg').src=src; $('lbCliente').textContent=($('clienteNombre')&&$('clienteNombre').value)||'Foto del presupuesto'; $('lbSub').textContent=''; $('lbMonto').textContent=''; $('lbNotas').textContent=''; pintarLbThumbs(); $('lightbox').classList.add('active'); }
 
 async function aplicarProximaAccion(rec){
   if(!rec.contactoId) return;
@@ -10653,8 +10745,10 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
     rec.tiempoAtencionMin=tiempoEnMinutos();
     rec.motivoSinMueble=null;
     rec.motivoSinTiempo=null;
-    rec.hasPhoto=rec.hasPhoto||!!photoDataUrl;
-    rec.photoThumb=photoDataUrl||rec.photoThumb||null;
+    rec.fotos=photoDataUrls.slice();
+    rec.photoThumb=null;
+    rec.hasPhoto=rec.fotos.length>0;
+    if(rec.fotos.length) rec.fotoVencida=false;
     rec.nroCotizacion=$('nroCotizacion').value.trim()||null;
     rec.ts=tsDesdeFechaConversacion();
     rec.status='completa';
@@ -10713,8 +10807,9 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
     tiempoAtencionMin:tiempoEnMinutos(),
     motivoSinMueble: null,
     motivoSinTiempo: null,
-    hasPhoto:!!photoDataUrl,
-    photoThumb:photoDataUrl||null,
+    fotos:photoDataUrls.slice(),
+    hasPhoto:photoDataUrls.length>0,
+    photoThumb:null,
     nroCotizacion:$('nroCotizacion').value.trim()||null,
     crmSync:false
   };
@@ -11065,7 +11160,7 @@ function htmlRegistroJornadas(){
           const paus=(j.pausas||[]).filter(p=>p.d).map(p=>`${fh(p.d)}–${p.h?fh(p.h):'…'}`).join(', ');
           return `<tr><td>${escapeHtml(nombreDe(uid))}</td><td>${fh(j.conexion)}</td><td>${fh(j.ultima)}</td><td class="muted" style="font-size:12px">${paus||'—'}</td></tr>`;
         }).join('');
-        const fecha=new Date(d+'T00:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'short'});
+        const _p=String(d).split('-');const fecha=new Date(+_p[0],(+_p[1]||1)-1,+_p[2]||1).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'short'});
         return `<div style="margin-top:12px"><b style="font-size:13px;text-transform:capitalize">${fecha}</b>
           <div class="dir-scroll" style="overflow-x:auto"><table class="est-tabla" style="min-width:460px;margin-top:5px">
             <tr><th>Usuario</th><th>Conexión</th><th>Última señal</th><th>Pausas</th></tr>${filas}</table></div></div>`;
