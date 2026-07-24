@@ -146,11 +146,13 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .crow:hover{background:#fafbfc}
 .chead{display:flex;align-items:center;gap:12px;padding:6px 4px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 .c-nom,.chead .h-nom{flex:2.2;min-width:0}
-.c-monto,.chead .h-monto{flex:1;font-weight:700;color:var(--navy)}
+.c-monto,.chead .h-monto{flex:1.2;font-weight:700;color:var(--navy)}
+.c-monto{display:flex;align-items:center;gap:10px}
+.c-monto>div{white-space:nowrap}
 .c-oport,.chead .h-oport{flex:1.4}
 .c-plazo,.chead .h-plazo{flex:1}
 .c-emo,.chead .h-emo{flex:1;display:flex;gap:6px;justify-content:flex-end}
-.c-coment,.chead .h-coment{flex:1.3;display:flex;align-items:center;gap:6px;min-width:112px;justify-content:flex-end}
+.c-coment,.chead .h-coment{flex:1.5;display:flex;align-items:center;gap:9px;min-width:158px;justify-content:flex-end}
 .c-estado,.chead .h-estado{flex:1.2;display:flex;align-items:center;gap:4px}
 .c-fecha,.chead .h-fecha{flex:.7;color:var(--sec);font-weight:600;font-size:12.5px}
 .c-vendedor,.chead .h-vendedor{flex:1;color:var(--sec);font-weight:600}
@@ -4265,6 +4267,19 @@ async function guardarCierre(){if(esSoloLectura())return avisoLectura();
       $('cierreMonto').classList.add('campo-falta'); $('cierreMonto').focus();
       return;
     }
+    // Anti-duplicado: 1 venta por N° de orden. Si ya hay una concretada con ese número (o
+    // el mismo cliente con el mismo monto), avisa y pide confirmar para no cargarla dos veces.
+    const _telC=normContacto(a.clienteTelefono||'');
+    const dupV=atenciones.find(x=>x.id!==a.id && estadoDe(x)==='Concretado' && (
+      (x.nroOrden && x.nroOrden.trim().toLowerCase()===nroOrden.toLowerCase()) ||
+      (_telC && normContacto(x.clienteTelefono||'')===_telC && (+x.montoVendido||0)===monto)
+    ));
+    if(dupV){
+      const mismoNro = dupV.nroOrden && dupV.nroOrden.trim().toLowerCase()===nroOrden.toLowerCase();
+      const razon = mismoNro ? `el N° de orden ${nroOrden}` : `el mismo teléfono y monto`;
+      const quien = dupV.vendedorId ? ', cargada por '+nombreDe(dupV.vendedorId) : '';
+      if(!confirm(`⚠ Ya hay una venta cargada con ${razon} (${nombreCliente(dupV)||'sin nombre'}${quien}).\n\nParece la misma venta cargada dos veces. ¿Guardarla igual de todos modos?`)) return;
+    }
     a.nroOrden=nroOrden;
     a.montoVendido=monto;
     a.montoPerdido=null;
@@ -4633,12 +4648,34 @@ async function resolverSolicitud(id, estado){
   toast(estado==='aprobada' ? 'Contacto eliminado' : 'Solicitud rechazada');
 }
 
+/* Detección de duplicados: una consulta concretada está duplicada si comparte el N° de orden
+   con otra concretada, o si es del mismo cliente (mismo teléfono) con el mismo monto. Sirve
+   para marcarlas en la planilla y para frenar la doble carga. Devuelve el motivo o ''. */
+function motivoDuplicado(a){
+  if(!a || estadoDe(a)!=='Concretado') return '';
+  const ord=(a.nroOrden||'').trim().toLowerCase();
+  const tel=normContacto(a.clienteTelefono||'');
+  const monto=+a.montoVendido||0;
+  for(const x of atenciones){
+    if(x.id===a.id || estadoDe(x)!=='Concretado') continue;
+    if(ord && (x.nroOrden||'').trim().toLowerCase()===ord) return 'N° de orden repetido';
+    if(tel && normContacto(x.clienteTelefono||'')===tel && monto && (+x.montoVendido||0)===monto) return 'Mismo cliente y monto';
+  }
+  return '';
+}
+/* El mismo vendedor no debería cargar dos veces el mismo teléfono el mismo día: devuelve la
+   consulta ya cargada (para avisar "el cliente ya fue guardado hoy") o null. */
+function clienteYaCargadoHoy(tel, vendedorId, exceptId){
+  const t=normContacto(tel||''); if(!t) return null;
+  return atenciones.find(x=>x.id!==exceptId && x.vendedorId===vendedorId && esHoy(x.ts) && normContacto(x.clienteTelefono||'')===t) || null;
+}
 /* Contexto de la lista que se está pintando. En 'evaluar' no se muestra el ⋮ de
    "Reasignar a otro vendedor" (eso se hace desde la evaluación, no desde la cola). */
 let _ctxLista='';
 function logItemHtml(a){
   // Una consulta archivada no es "nueva" aunque nunca se haya clasificado: es vieja.
   const pend = a.status==='pendiente' && !a.soloVolumen;
+  const dupMotivo = motivoDuplicado(a);
   const tel = a.noTomoTelefono ? 'sin teléfono' : (a.clienteTelefono || 'Sin definir');
   const telCopiable = !a.noTomoTelefono && a.clienteTelefono;
   const muebles = a.muebles||[];
@@ -4752,7 +4789,7 @@ function logItemHtml(a){
       <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
         ${canalIco}
         <div class="c-nom-inner">
-        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${dupMotivo?`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`:''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🤝 Intervino</span>':''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
@@ -11267,6 +11304,11 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
   }
 
   // modalModo === 'nueva'
+  // Anti-duplicado de cliente: si este vendedor ya cargó hoy ese mismo teléfono, avisa.
+  if(!noTomo && tel){
+    const yaHoy=clienteYaCargadoHoy(tel, YO, null);
+    if(yaHoy && !confirm(`⚠ Ya cargaste hoy a este cliente (${nombreCliente(yaHoy)||tel}). El cliente ya fue guardado.\n\n¿Cargarlo igual de todos modos?`)) return;
+  }
   const localId = esAdmin()?FILTRO_LOCAL_ADMIN:LOCAL_ACTUAL;
   const vid=currentVendorId(localId);
   const esSuTurno=vid===YO;
