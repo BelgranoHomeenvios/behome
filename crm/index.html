@@ -5960,23 +5960,20 @@ async function guardarConfigCanalesDestinos(){
 async function correccionesBaseCore(dryRun){
   if(!_historicoCompleto){ await completarHistoricoEnSegundoPlano(); }
   construirRecuperacionIG();
-  let cN=0,cC=0,cE=0,cV=0;
+  let cN=0,cE=0,cV=0;
   const cambiados=new Set();
   const muestras=[];
   for(const a of atenciones){
     let toco=false;
-    // 1) Nombre de Instagram recuperado del Excel (queda exacto).
+    // 1) Nombre de Instagram recuperado del Excel (queda exacto). El canal NO se escribe:
+    //    ya lo corrige la app de forma permanente (capa del Excel), sin tocar la base.
     const ig=IG_NOMBRES[a.id];
     if(ig && a.clienteNombre!==ig){ if(!dryRun) a.clienteNombre=ig; cN++; toco=true; if(muestras.length<6) muestras.push(ig); }
-    // 2) Canal corregido (el Excel manda). Solo si canalReal da un canal real distinto de
-    //    lo guardado; las presenciales ya están bien por a.canal.
-    const cr=canalReal(a);
-    if(cr && cr!=='Sin definir' && a.canal!=='presencial' && a.canalDetalle!==cr){ if(!dryRun) a.canalDetalle=cr; cC++; toco=true; }
-    // 3) Estado: consulta vieja sin estado -> Rechazado (queda registrada, sin evaluación).
+    // 2) Estado: consulta vieja sin estado -> Rechazado (queda registrada, sin evaluación).
     if(!a.estadoManual || a.estadoManual==='-' || a.estadoManual==='#REF!'){
       if(estadoDe(a)==='Rechazado'){ if(!dryRun){ a.estadoManual='Rechazado'; a.resultado='Rechazado'; } cE++; toco=true; }
     }
-    // 4) "Archivada" no existe: se limpia el flag.
+    // 3) "Archivada" no existe: se limpia el flag.
     if(a.soloVolumen){ if(!dryRun) a.soloVolumen=false; cV++; toco=true; }
     if(toco) cambiados.add(a.id);
   }
@@ -5988,7 +5985,7 @@ async function correccionesBaseCore(dryRun){
     }
     cambiados.forEach(id=>{ const a=atenciones.find(x=>x.id===id); if(a) _snapConsultas[id]=JSON.stringify(a); });
   }
-  return {cN,cC,cE,cV,total:cambiados.size,muestras,totalConsultas:atenciones.length};
+  return {cN,cE,cV,total:cambiados.size,muestras,totalConsultas:atenciones.length};
 }
 async function analizarCorreccionesBase(){
   if(!esAdmin()){ toast('Solo dirección'); return; }
@@ -5997,9 +5994,9 @@ async function analizarCorreccionesBase(){
     const r=await correccionesBaseCore(true);
     if(box) box.innerHTML=`Sobre <b>${r.totalConsultas}</b> consultas cargadas, se tocarían:<br>
       · <b>${r.cN}</b> nombres de Instagram a completar${r.muestras.length?` <span style="color:var(--muted)">(${r.muestras.slice(0,5).join(', ')}…)</span>`:''}<br>
-      · <b>${r.cC}</b> canales a corregir<br>
       · <b>${r.cE}</b> estados (viejas sin estado → Rechazado)<br>
       · <b>${r.cV}</b> con flag "archivada" a limpiar<br>
+      <span style="color:var(--muted)">(el canal se corrige solo en la app, no hace falta escribirlo en la base)</span><br>
       <b>Total de consultas a modificar: ${r.total}</b>`;
     const btn=$('btnAplicarCorr'); if(btn) btn.disabled = r.total===0;
   }catch(e){ console.error(e); if(box) box.innerHTML='<span style="color:var(--red)">Error al analizar: '+(e.message||e)+'</span>'; }
