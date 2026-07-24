@@ -2459,6 +2459,15 @@ function _seedJornadaDesdeActivos(uid){
   if(!j.ultima) j.ultima=j.conexion;
   return true;
 }
+/* Siembra la jornada de TODOS los conectados hoy (desde ACTIVOS.horarios), para que el
+   registro de conexiones muestre a todo el equipo aunque una sesión no haya latido. */
+function seedJornadasHoyDesdeActivos(){
+  asegurarActivosHoy();
+  if(!ACTIVOS.horarios) return;
+  let cambio=false;
+  Object.keys(ACTIVOS.horarios).forEach(uid=>{ const d=hoyStr(); const antes=!!(JORNADAS[d]&&JORNADAS[d][uid]); _seedJornadaDesdeActivos(uid); if(!antes) cambio=true; });
+  if(cambio) saveJornadas();
+}
 function registrarSenal(uid){
   if(!uid) return;
   const d=hoyStr();
@@ -11160,6 +11169,9 @@ function dirBase(){
 function dirCotizado(a){return montoRepresentativo(a.muebles||[])||0;}
 function renderDireccion(){
   const box=document.getElementById('direccionBox');if(!box)return;
+  // Antes de mostrar las conexiones, sembramos la jornada de TODOS los que están conectados
+  // hoy (según ACTIVOS.horarios), no solo los que su propia sesión ya registró con el latido.
+  seedJornadasHoyDesdeActivos();
   const B=dirBase();
   const conc=B.filter(a=>estadoDe(a)==='Concretado');
   const rech=B.filter(a=>estadoDe(a)==='Rechazado');
