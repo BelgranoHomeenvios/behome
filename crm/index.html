@@ -665,6 +665,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .sv-rec-comment b{color:var(--blue)}
 .sv-rec-visto{background:#fff;border:1px solid var(--line);padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--sec);font-family:inherit;transition:all .15s ease}
 .sv-rec-visto:hover{background:var(--green-l);color:var(--green);border-color:var(--green)}
+.sv-rec-acciones{display:flex;gap:8px;flex-wrap:wrap}
+.sv-rec-responder{background:#fff;border:1px solid var(--blue);padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--blue);font-family:inherit;transition:all .15s ease}
+.sv-rec-responder:hover{background:var(--blue);color:#fff}
 .sv-placeholder{padding:24px;text-align:center;color:var(--muted);font-size:13.5px;background:#fff;border:1px dashed var(--line);border-radius:10px}
 @media (min-width:900px){
   .container{max-width:1120px}
@@ -6104,6 +6107,11 @@ function recordatoriosDeVendedor(){
     items.push({tipo:'asistencia', a, monto:montoRepresentativo(a.muebles)||0,
       texto:ult.texto, porId:ult.deId, ts:ult.ts});
   });
+  // 5) Cintia le pidió desde la evaluación que marque la consulta Concretada/Rechazada.
+  mias.filter(a=>a.cambioEstadoPedido && a.cambioEstadoPedido.estado)
+      .forEach(a=>items.push({tipo:'cambioestado', a, monto:montoRepresentativo(a.muebles)||0,
+        texto:'Cintia te pide marcarla como '+(a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada')+' y cargar los datos.',
+        porId:a.cambioEstadoPedido.porId, ts:a.cambioEstadoPedido.ts}));
   items.sort((x,y)=> (x.tipo==='segunda'?0:1)-(y.tipo==='segunda'?0:1) || y.monto-x.monto);
   return items;
 }
@@ -6147,14 +6155,29 @@ const TITULOS_SECCION_VENDEDOR={pendientes:'Pendientes', recordatorio:'Recordato
 
 function svRecItemHtml(it){
   const a=it.a;
-  const cls = it.tipo==='segunda'?'segunda':(it.tipo==='asistencia'?'segunda':(it.tipo==='eval'?'eval':'consulta'));
-  const label = it.tipo==='segunda'?'2da oportunidad':(it.tipo==='asistencia'?'Comentario de Cintia':(it.tipo==='eval'?'Evaluación':'Llamada de atención'));
+  const cls = it.tipo==='segunda'?'segunda':(it.tipo==='asistencia'?'segunda':(it.tipo==='eval'?'eval':(it.tipo==='cambioestado'?'consulta':'consulta')));
+  const label = it.tipo==='segunda'?'2da oportunidad'
+    :(it.tipo==='asistencia'?'Comentario de Cintia'
+    :(it.tipo==='eval'?'Evaluación'
+    :(it.tipo==='cambioestado'?('Marcá '+(a.cambioEstadoPedido&&a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'))
+    :'Llamada de atención')));
   const fecha = it.ts ? new Date(it.ts).toLocaleDateString('es-AR',{day:'numeric',month:'long'}) : '';
   const quien = it.porId ? nombreDe(it.porId) : 'Cintia';
-  // La asistencia es una conversación: en vez de "✓ Visto" abre el hilo para leer y responder.
-  const accion = it.tipo==='asistencia'
-    ? `<button class="sv-rec-visto" onclick="abrirAsistencia('${a.id}')">💬 Ver y responder</button>`
-    : `<button class="sv-rec-visto" onclick="svMarcarVisto('${a.id}','${it.tipo}')">✓ Visto</button>`;
+  // La acción depende del tipo:
+  //  · asistencia: es una conversación → abre el hilo para leer y responder.
+  //  · cambioestado: Cintia le pidió marcar la consulta → abre la ficha de cierre directamente.
+  //  · el resto (comentarios de Cintia): además de "✓ Visto" puede RESPONDERLE, no solo acusar recibo.
+  let accion;
+  if(it.tipo==='asistencia'){
+    accion = `<button class="sv-rec-visto" onclick="abrirAsistencia('${a.id}')">💬 Ver y responder</button>`;
+  }else if(it.tipo==='cambioestado'){
+    accion = `<button class="sv-rec-visto" onclick="abrirCambioEstadoPedido('${a.id}')">✍️ Marcar y cargar datos</button>`;
+  }else{
+    accion = `<div class="sv-rec-acciones">
+      <button class="sv-rec-responder" onclick="abrirAsistencia('${a.id}')">💬 Responder</button>
+      <button class="sv-rec-visto" onclick="svMarcarVisto('${a.id}','${it.tipo}')">✓ Visto</button>
+    </div>`;
+  }
   return `<div class="sv-rec-item" data-recid="${a.id}" data-rectipo="${it.tipo}">
     <button class="sv-rec-head" onclick="svToggleRec(this)">
       <div style="flex:1">
