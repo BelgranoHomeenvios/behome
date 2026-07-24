@@ -1844,6 +1844,7 @@ textarea{resize:vertical;min-height:60px}
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="ig_recuperacion.js"></script>
 <script>
 /* ===================== SUPABASE (proyecto propio del CRM — Logística migra después) ===================== */
 const SB_URL='https://lbfucdevdeenpbextrpo.supabase.co';
@@ -2682,6 +2683,7 @@ async function cargarConsultas(desde){
     _snapConsultas = {};
     atenciones.forEach(a => _snapConsultas[a.id] = JSON.stringify(a));
     normalizarBajasPendientes();   // arregla bajas viejas que quedaron "En seguimiento"
+    construirRecuperacionIG();      // nombres de Instagram recuperados del Excel
     suscribirConsultas();
   }catch(e){
     console.error('cargarConsultas', e);
@@ -2706,6 +2708,7 @@ async function cargarConsultasRango(desde, hasta){
       nuevas++;
     });
     if(desde < consultasDesde) consultasDesde = desde;
+    if(nuevas) construirRecuperacionIG();
     render();
     return nuevas;
   }catch(e){ console.error('cargarConsultasRango', e); toast('No se pudo cargar ese período'); return 0; }
@@ -4205,7 +4208,7 @@ function logItemHtml(a){
   const est=estadoDe(a);
   // El registro rápido no tiene ningún dato cargado todavía — un "Sin definir" genérico
   // no distingue esto de un dato que simplemente no se completó. Este texto sí lo deja claro.
-  const nombreMostrar = a.clienteNombre || (a.origen==='rapido' ? 'Cliente de local nuevo' : 'Sin definir');
+  const nombreMostrar = nombreCliente(a) || (a.origen==='rapido' ? 'Cliente de local nuevo' : 'Sin definir');
   const solPendiente = solicitudesEliminacion.some(s=>s.atencionId===a.id && s.estado==='pendiente');
   // De un vistazo: 📲 si la consulta es virtual, 👥 si fue presencial (en el local).
   const _cr = canalReal(a);
@@ -6319,6 +6322,46 @@ function canalReal(a){
   return 'Sin definir';
 }
 function canalDe(a){ return canalReal(a); }
+
+/* ===== Recuperación de nombres de Instagram =====
+   664 consultas de Instagram perdieron su nombre/usuario al importarse (la columna
+   quedó vacía en el archivo de import, pero el nombre estaba en la hoja CRM del Excel).
+   window.IG_RECUP (ig_recuperacion.js) trae esos nombres. Acá se emparejan con las
+   consultas cargadas por (vendedor + fecha), y el nombre recuperado se MUESTRA (no se
+   escribe en la base todavía: primero hay que confirmar que quedó bien). */
+let IG_NOMBRES = {};   // id de consulta -> nombre recuperado
+function _igFechaKey(ts){
+  try{ const s=new Date(ts).toISOString(); return s.slice(0,10); }catch(e){ return ''; }
+}
+function construirRecuperacionIG(){
+  IG_NOMBRES = {};
+  if(!Array.isArray(window.IG_RECUP)) return;
+  // Mapa del Excel: vendedor -> fecha -> [nombres en orden]
+  const map={};
+  for(const fila of window.IG_RECUP){
+    const [v,f,name]=fila;
+    (map[v]=map[v]||{}); (map[v][f]=map[v][f]||[]).push(name);
+  }
+  // Consultas de IG sin teléfono y sin nombre = las que hay que recuperar.
+  const rows={};
+  for(const a of atenciones){
+    if(normContacto(a.clienteTelefono)) continue;
+    if(a.clienteNombre) continue;
+    const cr=canalReal(a);
+    if(cr!=='Instagram' && cr!=='Publicidad Instagram') continue;
+    const v=a.vendedorId||'', f=_igFechaKey(a.ts);
+    (rows[v]=rows[v]||{}); (rows[v][f]=rows[v][f]||[]).push(a);
+  }
+  for(const v in rows){
+    for(const f in rows[v]){
+      const rs=rows[v][f].sort((x,y)=>(x.ts||0)-(y.ts||0)||String(x.id).localeCompare(String(y.id)));
+      const names=(map[v]&&map[v][f])?map[v][f]:[];
+      rs.forEach((a,i)=>{ if(names[i]) IG_NOMBRES[a.id]=names[i]; });
+    }
+  }
+}
+/* Nombre a mostrar de una consulta: el cargado, o el recuperado de Instagram. */
+function nombreCliente(a){ return a.clienteNombre || IG_NOMBRES[a.id] || ''; }
 function coincideCanal(a){
   if(resumenCanal==='todos') return true;
   // "__publicidad__" es un agregado: junta los canales pagos, que es la comparación que
@@ -7302,29 +7345,45 @@ function mapaAltTelefonos(){
 function baseClientes(){
   const alt=mapaAltTelefonos();
   const porTel=new Map();
+  const igKey=new Map();   // key sintética -> usuario de IG para mostrar
   for(const a of atenciones){
     let tel=normContacto(a.clienteTelefono);
-    if(!tel) continue;                       // sin teléfono no hay a quién agrupar
-    if(alt[tel]) tel=alt[tel];               // número secundario: agrupa bajo el principal
-    if(!porTel.has(tel)) porTel.set(tel,[]);
-    porTel.get(tel).push(a);
+    if(tel){
+      if(alt[tel]) tel=alt[tel];             // número secundario: agrupa bajo el principal
+      if(!porTel.has(tel)) porTel.set(tel,[]);
+      porTel.get(tel).push(a);
+      continue;
+    }
+    // Sin teléfono: si vino por Instagram (u otro canal) y tiene usuario o nombre
+    // (incluido el recuperado del Excel), igual es un cliente y va a la base.
+    const ig=(a.clienteInstagram||'').trim().replace(/^@/,'');
+    const nom=nombreCliente(a).trim();
+    if(!ig && !nom) continue;                // sin ningún identificador, no hay a quién mostrar
+    const key = ig ? 'ig:'+ig.toLowerCase() : 'nom:'+(a.vendedorId||'')+':'+nom.toLowerCase();
+    if(!porTel.has(key)){ porTel.set(key,[]); igKey.set(key, ig?('@'+ig):''); }
+    porTel.get(key).push(a);
   }
   const contactoPorTel={};
   Object.values(CONTACTOS).forEach(c=>{ if(c.telefono) contactoPorTel[normContacto(c.telefono)]=c; });
 
   return [...porTel.entries()].map(([tel,cs])=>{
     cs.sort((x,y)=>new Date(y.ts)-new Date(x.ts));
-    const c=contactoPorTel[tel];
+    const esIG = tel.startsWith('ig:') || tel.startsWith('nom:');   // cliente sin teléfono (Instagram)
+    const c = esIG ? null : contactoPorTel[tel];
     const conc=cs.filter(a=>estadoDe(a)==='Concretado');
     const rech=cs.filter(a=>estadoDe(a)==='Rechazado').length;
     const seg=cs.filter(a=>{const e=estadoDe(a);return e!=='Concretado'&&e!=='Rechazado';}).length;
     // El vendedor que muestra la fila es el de la consulta más reciente: es quien
     // lo tiene hoy, que es lo que sirve cuando el cliente vuelve a escribir.
     const vend=cs.find(a=>a.vendedorId)?.vendedorId||null;
-    const nombre=(c&&c.nombre)||cs.find(a=>a.clienteNombre)?.clienteNombre||'';
+    const nombre=(c&&c.nombre)||cs.map(a=>nombreCliente(a)).find(Boolean)||'';
+    const igUser = igKey.get(tel)||'';
     return {
-      id: c? c.id : 'tel:'+tel,
-      tel, nombre, vend, cs,
+      id: c? c.id : (esIG?tel:'tel:'+tel),
+      tel: esIG ? '' : tel,
+      instagram: esIG ? igUser : ((c&&c.instagram)||''),
+      esInstagram: esIG,
+      nombre, vend, cs,
       cant: cs.length,
       ventas: conc.length,
       rech, seg,
@@ -7335,6 +7394,7 @@ function baseClientes(){
 }
 
 function consultasDeContacto(c){
+  if(c._cs) return c._cs;   // cliente sintético (Instagram sin teléfono): ya trae sus consultas
   const nums=new Set([normContacto(c.telefono||''), ...(c.telefonosAlt||[]).map(t=>normContacto(t))].filter(Boolean));
   return atenciones.filter(a=> a.contactoId===c.id ||
     (a.clienteTelefono && nums.has(normContacto(a.clienteTelefono))))
@@ -7634,6 +7694,7 @@ function htmlCintiaClientes(){
     const qTel=q.replace(/\D/g,'');
     filas=filas.filter(f=>
       (f.nombre||'').toLowerCase().includes(q) ||
+      (f.instagram||'').toLowerCase().includes(q) ||
       (qTel && f.tel.includes(qTel)));
   }
   if(!totalBase) return `<div class="cin-card"><p class="cin-empty">Todavía no hay clientes en la base. Aparecen solos apenas una consulta trae teléfono.</p></div>`;
@@ -7654,11 +7715,12 @@ function htmlCintiaClientes(){
     <div class="est-scroll"><table class="est-tabla" style="min-width:760px">
       <tr><th>Cliente</th><th>Teléfono</th><th>Vendedor</th><th class="r">Consultas</th><th class="r">Concret.</th><th class="r">Rechaz.</th><th class="r">Seguim.</th><th class="r">Comprado</th><th class="r">Última</th></tr>
       ${filas.slice(0,300).map(f=>{
-        const sel=fusionModoCli && fusionSelCli.includes(f.tel);
-        const clickAttr = fusionModoCli ? `toggleFusionSelCli('${f.tel}')` : `abrirFichaCliente('${f.id}')`;
-        return `<tr class="cli-row${sel?' cli-sel':''}" data-buscar="${escAttr(((f.nombre||'')+' '+f.tel).toLowerCase())}" onclick="${clickAttr}">
-        <td>${fusionModoCli?`<span class="fus-check">${sel?'☑':'☐'}</span> `:''}<b>${escapeHtml(f.nombre||'Sin nombre')}</b>${f.ventas>0?' <span class="cli-star" title="Ya nos compró">⭐</span>':''}</td>
-        <td class="tiny">${escapeHtml(f.tel)}</td>
+        const puedeFusionar = fusionModoCli && !f.esInstagram;   // IG sin teléfono no entra a fusión por ahora
+        const sel=puedeFusionar && fusionSelCli.includes(f.tel);
+        const clickAttr = puedeFusionar ? `toggleFusionSelCli('${f.tel}')` : `abrirFichaCliente('${f.id}')`;
+        return `<tr class="cli-row${sel?' cli-sel':''}" data-buscar="${escAttr(((f.nombre||'')+' '+f.tel+' '+(f.instagram||'')).toLowerCase())}" onclick="${clickAttr}">
+        <td>${puedeFusionar?`<span class="fus-check">${sel?'☑':'☐'}</span> `:''}<b>${escapeHtml(f.nombre||'Sin nombre')}</b>${f.esInstagram?' <span class="cli-ig" title="Vino por Instagram, sin teléfono">📷</span>':''}${f.ventas>0?' <span class="cli-star" title="Ya nos compró">⭐</span>':''}</td>
+        <td class="tiny">${escapeHtml(f.tel || f.instagram || '—')}</td>
         <td class="tiny">${f.vend?escapeHtml(nombreDe(f.vend)):'<span class="ena">—</span>'}</td>
         <td class="r">${f.cant}</td>
         <td class="r"><b class="${f.ventas?'epos':''}">${f.ventas||''}</b>${!f.ventas?'<span class="ena">—</span>':''}</td>
@@ -7676,9 +7738,9 @@ function htmlFichaCliente(id){
   // El id puede ser el de un contacto de la base o "tel:NUMERO" para los clientes
   // que salen de las consultas migradas, que nunca tuvieron ficha de contacto.
   let c=contactoPorId(id);
-  if(!c && String(id).startsWith('tel:')){
+  if(!c && /^(tel:|ig:|nom:)/.test(String(id))){
     const f=baseClientes().find(x=>x.id===id);
-    if(f) c={id:f.id, nombre:f.nombre, telefono:f.tel, ultimaActividad:f.ultima};
+    if(f) c={id:f.id, nombre:f.nombre, telefono:f.tel, instagram:f.instagram||'', ultimaActividad:f.ultima, _cs:f.cs};
   }
   if(!c) { clienteFichaId=null; return htmlCintiaClientes(); }
   const r=resumenContacto(c);
