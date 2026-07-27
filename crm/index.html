@@ -2451,6 +2451,11 @@ function entrarApp(){
   // Las pausas del registro se derivan de los huecos de actividad (en registrarSenal/Conexion),
   // así que acá solo queda el auto-pausado de turnos del vendedor.
   if(!window._autoPausaInterval) window._autoPausaInterval=setInterval(()=>{ chequearAutoPausa(); }, 60*1000);
+  /* La limpieza de pausas que quedaron abiertas de jornadas anteriores va acá y no dentro de
+     tickRegistroPausa, que es código muerto: está definida pero nadie la llama. Va antes de
+     cualquier chequeo de rol para que corra también en la sesión de dirección. */
+  cerrarPausasDeJornadasViejas();
+  if(!window._limpiezaJornadasInterval) window._limpiezaJornadasInterval=setInterval(()=>{ cerrarPausasDeJornadasViejas(); }, 60*1000);
   /* Cintia y dirección trabajan sobre lo que falta evaluar: se les suma esa
      cola aunque alguna consulta quede fuera de la ventana de 2 meses. */
   if(esAuditora()||esAdmin()) cargarPendientesEvaluacion().then(()=>render());
@@ -12380,8 +12385,11 @@ function jornNavDia(dir){
   jornDiaSel=dias[i]; renderDireccion();
 }
 function jornSetDia(v){ if(v) jornDiaSel=_jornInputToKey(v); renderDireccion(); }
-async function jornRefrescar(){ await loadJornadas(); renderDireccion(); toast('Registro actualizado.'); }
+async function jornRefrescar(){ await loadJornadas(); cerrarPausasDeJornadasViejas(); renderDireccion(); toast('Registro actualizado.'); }
 function htmlRegistroJornadas(){
+  // Se limpia al dibujar: así el panel nunca muestra una pausa abierta de un día cerrado,
+  // aunque la pestaña se acabe de abrir y el intervalo todavía no haya corrido.
+  cerrarPausasDeJornadasViejas();
   const dias=jornDiasDisponibles();
   const fh=iso=>{try{return new Date(iso).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});}catch(e){return '—';}};
   if(!dias.length){
