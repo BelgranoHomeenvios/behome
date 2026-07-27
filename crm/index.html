@@ -2900,7 +2900,11 @@ async function saveSolicitudes(){
 
 /* ================= Tablero de Cintia: canal / derivar-a / colas propias ================= */
 // Canal = de dónde vino el contacto. Configurable por el admin.
-let CANALES=['WhatsApp','Instagram','Facebook','Publicidad Mensajería','Publicidad Instagram','Local','Email','Reclamo','Consulta de estado','Tienda Nube','Google Shopping'];
+let CANALES=['WhatsApp','Instagram','Facebook','Publicidad Mensajería','Publicidad Instagram','Local','Email','Reclamo','Consulta de estado','Tienda Nube','Google Shopping','Proveedores','CVs','Otros'];
+/* Canales que NO son consultas de venta: un proveedor que se ofrece, alguien que manda el CV
+   o cualquier otra cosa que entra por los mismos canales. Se registran para no perder el
+   dato, van a Brian y quedan fuera del embudo de ventas. */
+const CANALES_NO_VENTA=['Proveedores','CVs','Otros'];
 const CANALES_PUBLICIDAD=['Publicidad Mensajería','Publicidad Instagram'];
 const LABEL_POR_CANAL={
   'WhatsApp':{lbl:'Teléfono', ph:'11 xxxx xxxx'},
@@ -2928,6 +2932,9 @@ async function loadCanalesConfig(){
       // 'Seguimiento Local' se unificó dentro de 'Local': son el mismo hecho (alguien
       // atendió al cliente en el local y hay que seguirlo). Se limpia de la config vieja.
       if(d.canales) CANALES=d.canales.filter(c=>c!=='Seguimiento Local');
+      // CANALES es `let` y lo de storage PISA el literal de arriba: sin este merge, una
+      // config guardada antes de agregar un canal nuevo hace que ese canal no aparezca nunca.
+      CANALES_NO_VENTA.forEach(c=>{ if(!CANALES.includes(c)) CANALES.push(c); });
       if(d.destinosExtra) DESTINOS_EXTRA=d.destinosExtra;
     }
   }catch(e){}
@@ -3154,6 +3161,278 @@ function abrirEditarCanal(id){
   ov.classList.remove('hidden');
 }
 function cerrarEditarCanal(){ const ov=$('modalEditarCanal'); if(ov) ov.classList.add('hidden'); }
+
+/* ============================================================
+   EDITAR TODO — panel completo de una consulta (Cintia / dirección)
+   Acordeón por etapa de la consulta. Cada campo que toca alguien que NO es
+   el vendedor asignado queda marcado como "Completado por X" (estaba vacío)
+   o "Corregido por X" (había algo, y se guarda qué decía).
+   El vendedor no ve un log: ve la marca debajo del campo. El dato se guarda
+   igual siempre, porque de ahí sale el conteo de intervenciones.
+   ============================================================ */
+
+/* Misma ventana que evaluar: un solo número gobierna las dos cosas, así no
+   existe la franja donde se puede evaluar algo que no se puede editar. */
+function edtEditable(a){ return evaluable(a); }
+function puedeEditarTodo(){ return puedeVerEquipo(); }
+
+/* Texto de un motivo de rechazo, que según el origen puede ser string u objeto. */
+function _edtTxt(m){ return (m==null)?'':(typeof m==='string'?m:(m.t||m.txt||m.nombre||m.label||String(m))); }
+function _edtVend(){ return Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor'); }
+function _edtISOaDia(v){ if(!v) return ''; const d=new Date(v); return isNaN(d)?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
+/* Definición de los campos por sección. `si` es una condición opcional que
+   recibe la config del canal, para que los campos de abajo cambien cuando se
+   cambia el canal de arriba. La fuente de esa condición es CR_CFG, el MISMO
+   mapa que usa el formulario de carga: si mañana se agrega un canal, se toca
+   en un solo lugar. */
+function edtSecciones(){
+  return [
+    {id:'ingreso', t:'Ingreso de la consulta', campos:[
+      {k:'ts',                lbl:'Fecha de la consulta', tipo:'fecha'},
+      {k:'canalDetalle',      lbl:'Canal', tipo:'canal'},
+      {k:'campanaPublicidad', lbl:'Campaña de publicidad', tipo:'texto', si:c=>!!c.publicidad},
+      {k:'nroCotizacion',     lbl:'N° de orden', tipo:'texto', si:c=>!!c.orden},
+      {k:'localId',           lbl:'Local', tipo:'local', si:c=>!!c.local}
+    ]},
+    {id:'perfil', t:'Perfil del cliente', campos:[
+      {k:'clienteNombre',    lbl:'Nombre', tipo:'texto'},
+      {k:'clienteTelefono',  lbl:'Teléfono', tipo:'texto'},
+      {k:'clienteInstagram', lbl:'Instagram', tipo:'texto'},
+      {k:'clienteEmail',     lbl:'Email', tipo:'texto'}
+    ]},
+    {id:'asignacion', t:'Asignación', campos:[
+      {k:'vendedorId',    lbl:'Vendedor', tipo:'vendedor'},
+      {k:'atendidoPorId', lbl:'Quién lo atendió', tipo:'vendedor'}
+    ]},
+    {id:'consulta', t:'La consulta', campos:[
+      {k:'notas', lbl:'Qué consultó', tipo:'largo'}
+    ]},
+    {id:'muebles', t:'Muebles', campos:[{k:'muebles', lbl:'Muebles cotizados', tipo:'muebles'}]},
+    {id:'resultado', t:'Resultado', campos:[
+      {k:'estadoManual',    lbl:'Estado', tipo:'estado'},
+      {k:'percepcion',      lbl:'Percepción del cliente', tipo:'percepcion'},
+      {k:'resultadoMotivo', lbl:'Motivo del rechazo', tipo:'motivo'},
+      {k:'nuncaRespondio',  lbl:'Nunca respondió', tipo:'bool'},
+      {k:'tiempoAtencionMin', lbl:'Tiempo de atención (min)', tipo:'num'}
+    ]},
+    {id:'seguimiento', t:'Seguimiento', campos:[
+      {k:'proximaAccionTs', lbl:'Próxima acción', tipo:'fecha'}
+    ]}
+  ];
+}
+
+/* ---------- marcas de intervención ---------- */
+function edtMarca(a,k){ return (a.intervenciones||{})[k]||null; }
+function edtHtmlMarca(a,k){
+  const m=edtMarca(a,k); if(!m) return '';
+  const quien=escapeHtml(nombreDe(m.por)||m.por||'');
+  const cuando=m.ts?fechaConsultaCorta(m.ts):'';
+  if(m.tipo==='completado')
+    return `<p class="edt-marca edt-comp">＋ Completado por ${quien}${cuando?' · '+cuando:''}</p>`;
+  const antes=(m.antes==null||m.antes==='')?'vacío':escapeHtml(String(m.antes)).slice(0,60);
+  return `<p class="edt-marca edt-corr">↺ Corregido por ${quien} · antes: ${antes}${cuando?' · '+cuando:''}</p>`;
+}
+
+/* ---------- apertura del panel ---------- */
+let EDT_ID=null, EDT_CANAL=null;
+function abrirEditarTodo(id){
+  if(!puedeEditarTodo()){ toast('Solo Cintia o dirección pueden editar la consulta completa.'); return; }
+  const a=atenciones.find(x=>x.id===id); if(!a) return;
+  if(!edtEditable(a)){ toast('Esta consulta ya está fuera de la ventana de edición.'); return; }
+  EDT_ID=id; EDT_CANAL=canalReal(a);
+  let ov=$('modalEditarTodo');
+  if(!ov){ ov=document.createElement('div'); ov.id='modalEditarTodo'; ov.className='cmp-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML=`<div class="cmp-modal edt-modal">
+    <div class="edt-head">
+      <div>
+        <h3 style="margin:0">✎ Editar todo</h3>
+        <p class="tiny" style="margin:2px 0 0;color:var(--muted)">${escapeHtml(nombreCliente(a)||'Consulta')}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''} · vendedor: ${escapeHtml(nombreDe(a.vendedorId)||'—')}</p>
+      </div>
+      <span class="edt-quien">${escapeHtml(nombreDe(YO)||'')}</span>
+    </div>
+    <div id="edtCuerpo"></div>
+    <div class="cmp-actions">
+      <button class="btn btn-outline" onclick="cerrarEditarTodo()">Cancelar</button>
+      <button class="btn btn-navy" onclick="guardarEditarTodo()">Guardar cambios</button>
+    </div>
+  </div>`;
+  ov.classList.remove('hidden');
+  edtRenderCuerpo();
+}
+function cerrarEditarTodo(){ const ov=$('modalEditarTodo'); if(ov) ov.classList.add('hidden'); EDT_ID=null; }
+
+/* Se vuelve a dibujar entero cuando cambia el canal: es lo que hace que los
+   campos de abajo aparezcan y desaparezcan según el canal elegido. */
+function edtOnCanal(){
+  const sel=$('edt_canalDetalle'); if(!sel) return;
+  EDT_CANAL=sel.value;
+  edtRenderCuerpo(true);
+}
+
+function edtRenderCuerpo(conservar){
+  const a=atenciones.find(x=>x.id===EDT_ID); if(!a) return;
+  const cfg=CR_CFG[EDT_CANAL]||{};
+  const abiertas=conservar?[...document.querySelectorAll('#edtCuerpo details[open]')].map(d=>d.dataset.sec):['ingreso'];
+  const otrasDelCliente=(atenciones||[]).filter(x=>x.contactoId&&x.contactoId===a.contactoId&&x.id!==a.id).length;
+  let html='';
+  edtSecciones().forEach(sec=>{
+    const campos=sec.campos.filter(c=>!c.si||c.si(cfg));
+    if(!campos.length) return;
+    const tocada=campos.some(c=>edtMarca(a,c.k));
+    html+=`<details class="edt-sec" data-sec="${sec.id}" ${abiertas.includes(sec.id)?'open':''}>
+      <summary>${escapeHtml(sec.t)}${tocada?' <span class="edt-punto" title="Tiene campos intervenidos"></span>':''}</summary>
+      <div class="edt-campos">${campos.map(c=>edtHtmlCampo(a,c,otrasDelCliente)).join('')}</div>
+    </details>`;
+  });
+  $('edtCuerpo').innerHTML=html;
+}
+
+function edtHtmlCampo(a,c,otras){
+  const id='edt_'+c.k;
+  const v=a[c.k];
+  let campo='';
+  if(c.tipo==='fecha')      campo=`<input type="date" id="${id}" value="${_edtISOaDia(v)}">`;
+  else if(c.tipo==='num')   campo=`<input type="number" id="${id}" value="${v==null?'':v}" min="0">`;
+  else if(c.tipo==='largo') campo=`<textarea id="${id}" rows="3">${escapeHtml(v||'')}</textarea>`;
+  else if(c.tipo==='bool')  campo=`<label class="edt-chk"><input type="checkbox" id="${id}" ${v?'checked':''}> Sí</label>`;
+  else if(c.tipo==='canal') campo=`<select id="${id}" onchange="edtOnCanal()">${CANALES.map(x=>`<option value="${escAttr(x)}" ${x===EDT_CANAL?'selected':''}>${escapeHtml(x)}</option>`).join('')}</select>`;
+  else if(c.tipo==='local') campo=`<select id="${id}"><option value="">— sin local —</option>${Object.keys(LOCALES).map(k=>`<option value="${escAttr(k)}" ${k===v?'selected':''}>${escapeHtml(nombreLocal(k))}</option>`).join('')}</select>`;
+  else if(c.tipo==='vendedor') campo=`<select id="${id}"><option value="">— sin asignar —</option>${_edtVend().map(u=>`<option value="${escAttr(u)}" ${u===v?'selected':''}>${escapeHtml(nombreDe(u))}</option>`).join('')}</select>`;
+  else if(c.tipo==='estado'){
+    // "Automático" devuelve el campo a null: vuelve a mandar la regla de
+    // antigüedad en vez de quedar congelado en lo que alguien puso a mano.
+    campo=`<select id="${id}"><option value="">Automático</option>${ESTADOS.map(e=>`<option value="${escAttr(e)}" ${e===v?'selected':''}>${escapeHtml(e)}</option>`).join('')}</select>`;
+  }
+  else if(c.tipo==='percepcion') campo=`<select id="${id}"><option value="">— sin definir —</option>${PERCEPCIONES.map(p=>`<option value="${escAttr(p)}" ${p===v?'selected':''}>${escapeHtml(p)}</option>`).join('')}</select>`;
+  else if(c.tipo==='motivo'){
+    const ms=(typeof MOTIVOS_RECHAZO!=='undefined'?MOTIVOS_RECHAZO:[]).map(_edtTxt);
+    campo=`<select id="${id}"><option value="">— sin motivo —</option>${ms.map(m=>`<option value="${escAttr(m)}" ${m===v?'selected':''}>${escapeHtml(m)}</option>`).join('')}</select>`;
+  }
+  else if(c.tipo==='muebles') return edtHtmlMuebles(a);
+  else campo=`<input type="text" id="${id}" value="${escAttr(v||'')}">`;
+  const aviso=(c.k==='proximaAccionTs'&&otras>0)
+    ? `<p class="edt-aviso">Este cliente tiene ${otras} consulta${otras===1?'':'s'} más. La próxima acción es del cliente, así que cambiarla acá las afecta a todas.</p>` : '';
+  return `<div class="edt-campo"><label for="${id}">${escapeHtml(c.lbl)}</label>${campo}${aviso}${edtHtmlMarca(a,c.k)}</div>`;
+}
+
+/* Los muebles se editan como filas. El nombre se normaliza a `mueble` al
+   guardar, porque en las consultas importadas de las planillas viejas viene
+   en `nombre` y editar sin normalizar deja el dato duplicado. */
+function edtHtmlMuebles(a){
+  const ms=(a.muebles||[]);
+  const filas=ms.map((m,i)=>`<div class="edt-mrow">
+      <input type="text" id="edt_m_n_${i}" value="${escAttr(nombreMueble(m)==='Sin nombre'?'':nombreMueble(m))}" placeholder="Mueble">
+      <input type="number" id="edt_m_p_${i}" value="${m.monto==null?'':m.monto}" placeholder="Monto" min="0">
+      <label class="edt-chk"><input type="checkbox" id="edt_m_v_${i}" ${m.vendido?'checked':''}> Vendido</label>
+    </div>`).join('');
+  return `<div class="edt-campo"><label>Muebles cotizados</label>
+    <div id="edtMuebles" data-n="${ms.length}">${filas||'<p class="tiny" style="color:var(--muted);margin:0">Sin muebles cargados.</p>'}</div>
+    <button type="button" class="edt-mas" onclick="edtAgregarMueble()">＋ Agregar mueble</button>
+    ${edtHtmlMarca(a,'muebles')}</div>`;
+}
+function edtAgregarMueble(){
+  const box=$('edtMuebles'); if(!box) return;
+  const i=+(box.dataset.n||0);
+  if(i===0) box.innerHTML='';
+  box.insertAdjacentHTML('beforeend',`<div class="edt-mrow">
+    <input type="text" id="edt_m_n_${i}" placeholder="Mueble">
+    <input type="number" id="edt_m_p_${i}" placeholder="Monto" min="0">
+    <label class="edt-chk"><input type="checkbox" id="edt_m_v_${i}"> Vendido</label>
+  </div>`);
+  box.dataset.n=i+1;
+}
+
+/* ---------- guardado ---------- */
+function _edtLeer(c){
+  const el=$('edt_'+c.k); if(!el) return undefined;
+  if(c.tipo==='bool') return !!el.checked;
+  if(c.tipo==='num')  return el.value===''?null:(+el.value||0);
+  if(c.tipo==='fecha') return el.value?new Date(el.value+'T12:00:00').toISOString():null;
+  return el.value===''?null:el.value;
+}
+function _edtIgual(x,y){
+  if(x==null&&(y==null||y==='')) return true;
+  if(y==null&&(x==null||x==='')) return true;
+  return String(x)===String(y);
+}
+
+async function guardarEditarTodo(){
+  if(!puedeEditarTodo()) return;
+  const a=atenciones.find(x=>x.id===EDT_ID); if(!a) return;
+  const cfg=CR_CFG[EDT_CANAL]||{};
+  // La marca solo aparece cuando quien edita NO es el vendedor asignado: si el
+  // vendedor arregla lo suyo no se marca nada, porque es su trabajo.
+  const ajeno = YO !== a.vendedorId;
+  const estadoAntes = estadoDe(a);
+  const ahora = new Date().toISOString();
+  a.intervenciones = a.intervenciones || {};
+  let tocoPercepcion=false, tocoEstado=false, cambios=0;
+
+  edtSecciones().forEach(sec=>sec.campos.forEach(c=>{
+    if(c.si&&!c.si(cfg)) return;
+    if(c.tipo==='muebles') return;
+    const nuevo=_edtLeer(c);
+    if(nuevo===undefined) return;
+    const viejo=a[c.k];
+    if(_edtIgual(viejo,nuevo)) return;
+    if(c.k==='percepcion') tocoPercepcion=true;
+    if(c.k==='estadoManual') tocoEstado=true;
+    if(ajeno) a.intervenciones[c.k]={
+      por:YO, ts:ahora,
+      tipo:(viejo==null||viejo==='')?'completado':'corregido',
+      antes:(viejo==null||viejo==='')?null:String(viejo).slice(0,120),
+      estadoAlIntervenir:estadoAntes
+    };
+    a[c.k]=(c.k==='ts')?new Date(nuevo).getTime():nuevo;
+    cambios++;
+  }));
+
+  // Muebles: se reconstruye la lista desde las filas, normalizando el nombre.
+  const box=$('edtMuebles');
+  if(box){
+    const n=+(box.dataset.n||0); const nuevos=[];
+    for(let i=0;i<n;i++){
+      const nom=$('edt_m_n_'+i), pre=$('edt_m_p_'+i), ven=$('edt_m_v_'+i);
+      if(!nom) continue;
+      const t=(nom.value||'').trim(); if(!t) continue;
+      nuevos.push({mueble:t, monto:pre&&pre.value!==''?(+pre.value||0):0, vendido:!!(ven&&ven.checked), elegido:true});
+    }
+    const antesTxt=JSON.stringify((a.muebles||[]).map(m=>[nombreMueble(m),m.monto,!!m.vendido]));
+    const ahoraTxt=JSON.stringify(nuevos.map(m=>[m.mueble,m.monto,!!m.vendido]));
+    if(antesTxt!==ahoraTxt){
+      if(ajeno) a.intervenciones.muebles={
+        por:YO, ts:ahora,
+        tipo:(a.muebles||[]).length?'corregido':'completado',
+        antes:(a.muebles||[]).length?(a.muebles||[]).map(m=>nombreMueble(m)).join(', ').slice(0,120):null,
+        estadoAlIntervenir:estadoAntes
+      };
+      a.muebles=nuevos; cambios++;
+    }
+  }
+
+  // Si se tocó SOLO la percepción, el estado se recalcula; si alguien puso el
+  // estado a mano, se respeta y no se pisa.
+  if(tocoPercepcion && !tocoEstado){
+    const der=estadoDesdePercepcion(a.percepcion);
+    if(der) a.estadoManual=der;
+  }
+  // Una consulta ya evaluada que cambia de datos queda marcada, para que
+  // Cintia sepa que la evaluó sobre otra información.
+  if(cambios && a.evaluada) a.evalDesactualizada=true;
+  // La próxima acción vive también en el contacto, y ahí gana. Hay que
+  // escribir los dos lados o el cambio no se ve.
+  if(a.contactoId){
+    const ct=contactoPorId(a.contactoId);
+    if(ct){ ct.proximaAccionTs=a.proximaAccionTs||null; await saveContactos(); }
+  }
+  if(!cambios){ cerrarEditarTodo(); toast('No hubo cambios.'); return; }
+  await saveAtenciones();
+  cerrarEditarTodo();
+  render();
+  toast(cambios===1?'1 cambio guardado.':cambios+' cambios guardados.');
+}
+
 async function guardarEditarCanal(id){
   if(!puedeVerEquipo()) return;
   const a=atenciones.find(x=>x.id===id); if(!a) return;
@@ -5253,12 +5532,16 @@ function logItemHtml(a){
           const verEval = a.evaluada && (YO===a.vendedorId || esAdmin() || esAuditora());
           const reasig  = _ctxLista!=='evaluar';
           const editCanal = puedeVerEquipo() && _ctxLista!=='evaluar';
+          // "Editar todo" comparte permiso con "Editar canal" (Cintia y dirección) pero
+          // además exige que la consulta esté dentro de la ventana de edición.
+          const editTodo  = puedeEditarTodo() && _ctxLista!=='evaluar' && edtEditable(a);
           const recAt = a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora());
-          if(!(verEval||reasig||editCanal||recAt)) return `<span class="ebtn cm-ico" style="visibility:hidden" aria-hidden="true">⋮</span>`;
+          if(!(verEval||reasig||editCanal||editTodo||recAt)) return `<span class="ebtn cm-ico" style="visibility:hidden" aria-hidden="true">⋮</span>`;
           return `<span class="ebtn" onclick="event.stopPropagation();togPop(this)" title="Más opciones">⋮
               <span class="pop pop-menu">
                 ${verEval ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirVistaEvaluacion('${a.id}')">📊 Ver evaluación de Cintia</div>` : ''}
                 ${reasig ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">↪ Reasignar a otro vendedor</div>` : ''}
+                ${editTodo ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirEditarTodo('${a.id}')">✎ Editar todo</div>` : ''}
                 ${editCanal ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirEditarCanal('${a.id}')">✎ Editar canal</div>` : ''}
                 ${recAt ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">✓ Marcar recordatorio como atendido</div>` : ''}
               </span>
@@ -10372,6 +10655,15 @@ const CR_CFG={
   'Consulta de estado': {contacto:{lbl:'Celular',ph:'11 xxxx xxxx'}, ig:true, orden:true, derivaCintia:true},
   'Tienda Nube':         {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, queConsulto:true},
   'Google Shopping':     {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}},
+  // Los tres que no son venta. `nota` es un campo de texto libre con etiqueta propia:
+  // reusa el mismo #crMensaje que "¿Qué consultó?", así el texto cae en `notas` sin tocar
+  // el guardado. derivaBrian deja la derivación puesta en Brian; noEsVenta la saca del embudo.
+  'Proveedores':         {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, derivaBrian:true, noEsVenta:true,
+                          nota:{lbl:'¿Qué hace este proveedor?', ph:'Ej: herrajes, telas, melamina, transporte'}},
+  'CVs':                 {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, derivaBrian:true, noEsVenta:true,
+                          nota:{lbl:'¿Para qué puesto se postula?', ph:'Ej: vendedor, armador, chofer, administración'}},
+  'Otros':               {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, derivaBrian:true, noEsVenta:true,
+                          nota:{lbl:'Observaciones', ph:'De qué se trataba la consulta'}},
 };
 // Quiénes pueden figurar como "lo atendió" en el local (no cuenta para ventas,
 // es registro de quién lo recibió): vendedores + el resto del equipo.
@@ -10712,6 +11004,10 @@ function onCanalChangeCr(){
     <label>¿Qué consultó? <span class="opt">(copiá y pegá la consulta)</span></label>
     <textarea id="crMensaje" rows="3" placeholder='Ej: "Hola, quería saber si la cómoda Oslo viene en blanco"' onkeydown="crTeclas(event,this)"></textarea>
   </div>`;
+  if(cfg.nota) html+=`<div class="field">
+    <label>${escapeHtml(cfg.nota.lbl)}</label>
+    <textarea id="crMensaje" rows="3" placeholder="${escAttr(cfg.nota.ph)}" onkeydown="crTeclas(event,this)"></textarea>
+  </div>`;
   if(cfg.local){
     // Una consulta de Local pasó por un local físico: hay que declarar cuál, si no se
     // cae del conteo de atenciones por local.
@@ -10732,6 +11028,12 @@ function onCanalChangeCr(){
     const sel=$('crDerivar');
     if(sel){ const opt=[...sel.options].find(o=>plainValueCr(o.value)==='cintia'); if(opt) sel.value=opt.value; }
   }
+  // Proveedores / CVs / Otros: van a Brian. Se deja cambiable a mano, igual que Reclamo y
+  // Consulta de estado, para no trabar un caso raro.
+  if(cfg.derivaBrian){
+    const sel=$('crDerivar');
+    if(sel){ const opt=[...sel.options].find(o=>plainValueCr(o.value)==='brian'); if(opt) sel.value=opt.value; }
+  }
   onDerivarChangeCr();
 }
 
@@ -10739,6 +11041,14 @@ function onDerivarChangeCr(){
   const v=plainValueCr($('crDerivar').value);
   const canal=plainValueCr($('crCanal').value);
   const body=$('crCuerpo');
+  // Proveedores / CVs / Otros no siguen el circuito de venta: no tiene sentido pedirles
+  // muebles cotizados, monto ni próxima acción. Sale el botón de guardar y nada más.
+  if((CR_CFG[canal]||{}).noEsVenta){
+    body.innerHTML=`
+      <p class="tiny">Queda registrado y va a Brian. No cuenta como consulta de venta: no entra en el embudo ni en las métricas de los vendedores.</p>
+      <button class="btn btn-navy" style="width:100%" onclick="guardarCargaRapida()">Guardar</button>`;
+    return;
+  }
   if(v==='reclamo') body.innerHTML=`
     <p class="tiny">Este va a tu sistema de Reclamos aparte — acá solo queda anotado para no perder el dato.</p>
     <div class="field"><label>Comentario <span class="opt">(opcional)</span></label><textarea id="crMensajeDest" rows="2"></textarea></div>
@@ -10921,6 +11231,9 @@ async function guardarCargaRapida(){
       // consulta con fecha atrasada es indistinguible de una cargada en el día, y el
       // registro de tiempos de respuesta pierde sentido. fechaManual marca las atrasadas.
       tsCarga:new Date().toISOString(), fechaManual:!crFechaEsHoy(),
+      // soloVolumen es el mecanismo que ya usa el sistema para "esto se registra pero no
+      // es una venta": las saca del embudo y de las métricas de cierre de los vendedores.
+      soloVolumen: CANALES_NO_VENTA.includes(canal),
       localId: canalAmplio==='presencial' ? (localElegido||null) : null,
       vendedorId:derivar, registradoPor:YO,
       derivada:true, origen:'derivada', canal:canalAmplio, canalDetalle:canal,
@@ -12622,6 +12935,44 @@ function recParaTs(){
 .cr-head h3{margin:0}
 #crFecha.cr-fecha-otra{border-color:#b54708;background:#fffaf5;color:#b54708;font-weight:700}
 @media(max-width:760px){ .cr-head{gap:9px} }
+</style>
+
+<style>
+/* ===== EDITAR TODO ===== */
+.edt-modal{max-width:640px;width:100%;max-height:86vh;overflow:auto}
+.edt-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  border-bottom:1px solid var(--line2);padding-bottom:10px;margin-bottom:12px}
+.edt-quien{font-size:11.5px;font-weight:700;color:var(--blue);background:#eaf1fc;
+  border-radius:6px;padding:4px 9px;white-space:nowrap}
+.edt-sec{border:1px solid var(--line2);border-radius:9px;margin-bottom:8px;background:#fff}
+.edt-sec>summary{cursor:pointer;padding:11px 13px;font-weight:700;font-size:13.5px;
+  color:var(--navy);list-style:none;display:flex;align-items:center;gap:7px}
+.edt-sec>summary::-webkit-details-marker{display:none}
+.edt-sec>summary::before{content:'▸';color:var(--muted);font-size:11px}
+.edt-sec[open]>summary::before{content:'▾'}
+.edt-punto{width:7px;height:7px;border-radius:50%;background:#b54708;display:inline-block}
+.edt-campos{padding:2px 13px 13px}
+.edt-campo{margin-bottom:12px}
+.edt-campo>label{display:block;font-size:12px;font-weight:700;color:var(--sec);margin-bottom:4px}
+.edt-campo input[type=text],.edt-campo input[type=date],.edt-campo input[type=number],
+.edt-campo select,.edt-campo textarea{width:100%;padding:8px 10px;font:inherit;font-size:13.5px;
+  border:1px solid var(--line);border-radius:7px;background:#fff}
+.edt-chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--sec)}
+.edt-chk input{width:auto}
+.edt-marca{font-size:11.5px;font-weight:700;margin:5px 0 0;line-height:1.45}
+.edt-comp{color:#067647}
+.edt-corr{color:#b54708}
+.edt-aviso{font-size:11.5px;color:#b54708;background:#fffaf5;border-radius:6px;
+  padding:6px 8px;margin:5px 0 0;line-height:1.45}
+.edt-mrow{display:flex;gap:7px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+.edt-mrow input[type=text]{flex:2;min-width:130px}
+.edt-mrow input[type=number]{flex:1;min-width:90px}
+.edt-mas{background:none;border:1px dashed var(--line);border-radius:7px;color:var(--blue);
+  font:inherit;font-size:12.5px;font-weight:700;padding:6px 11px;cursor:pointer;margin-top:2px}
+@media(max-width:760px){
+  .edt-modal{max-height:92vh}
+  .edt-mrow input[type=text],.edt-mrow input[type=number]{flex:1 1 100%}
+}
 </style>
 </body>
 </html>
