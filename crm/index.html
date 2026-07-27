@@ -2521,7 +2521,51 @@ async function saveLocales(){
 
 /* Activos del día: quién se conectó hoy en cada local, y a qué hora. Se resetea solo al cambiar la fecha. */
 let ACTIVOS={fecha:null, locales:{}, horarios:{}};
-function hoyStr(){ const d=new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; }
+/* ===== Corte de jornada =====
+   La jornada NO termina a medianoche: si alguien sigue cerrando algo a las 23:50 y toca
+   la app a las 00:05, no queremos que el sistema le parta el día en dos. Todo lo que pasa
+   antes de las 04:00 pertenece a la jornada del día anterior. */
+const JORNADA_CORTE_H=4;
+function hoyStr(){ const d=new Date(); if(d.getHours()<JORNADA_CORTE_H) d.setDate(d.getDate()-1); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; }
+
+/* ===== Horario esperado del equipo (definido por Brian, 26/7/2026) =====
+   Es una EXPECTATIVA, no una regla: la app no bloquea, no corrige y no le muestra nada al
+   vendedor. Solo sirve para que dirección pueda comparar lo esperado contra lo real.
+     null       = franco (no genera expectativa)
+     'alterna'  = día compartido con alguien que todavía no usa el CRM (el sábado de Cintia
+                  lo cubre a veces Iara). Si activa se mide; si no activa NO se marca falta.
+   Las horas van en decimal: 14.5 = 14:30. */
+const H_SEM=[10,19], H_SAB=[10,18];
+const HORARIOS={
+  ale:      {1:H_SEM,2:H_SEM,3:H_SEM,4:H_SEM,5:H_SEM,6:H_SAB,     0:null},
+  nati:     {1:H_SEM,2:H_SEM,3:H_SEM,4:H_SEM,5:H_SEM,6:H_SAB,     0:null},
+  cristian: {1:H_SEM,2:H_SEM,3:H_SEM,4:H_SEM,5:H_SEM,6:H_SAB,     0:null},
+  claudia:  {1:H_SEM,2:H_SEM,3:H_SEM,4:H_SEM,5:H_SEM,6:null,      0:null},
+  cintia:   {1:H_SEM,2:H_SEM,3:H_SEM,4:H_SEM,5:H_SEM,6:'alterna', 0:null},
+  sergio:   {1:H_SEM,2:H_SEM,3:null, 4:H_SEM,5:H_SEM,6:H_SAB,     0:[14.5,18]}
+};
+/* Tolerancias antes de marcar algo. Entrar 5 minutos tarde no es un dato. */
+const TOL_ENTRADA_MIN=10, TOL_SALIDA_MIN=15;
+/* Un hueco de actividad de más de 1 hora se etiqueta aparte en el panel de dirección.
+   NO se guarda como un dato distinto: es la misma pausa, leída con otro criterio. */
+const HUECO_MIN_MS=60*60*1000;
+
+function _jornPartes(k){ const p=String(k).split('-'); return [+p[0],(+p[1]||1)-1,+p[2]||1]; }
+function _diaSemanaDeJorn(k){ const [y,m,d]=_jornPartes(k); return new Date(y,m,d).getDay(); }
+/* Devuelve [horaEntrada,horaSalida] en decimal, o null (franco / persona sin horario),
+   o el string 'alterna'. */
+function horarioEsperado(uid,jornKey){
+  const h=HORARIOS[uid]; if(!h||!jornKey) return null;
+  const v=h[_diaSemanaDeJorn(jornKey)];
+  return (v===undefined)?null:v;
+}
+function _tsHora(jornKey,horaDec){
+  const [y,m,d]=_jornPartes(jornKey);
+  const x=new Date(y,m,d);
+  x.setHours(Math.floor(horaDec),Math.round((horaDec%1)*60),0,0);
+  return x.getTime();
+}
+function hDec(v){ const h=Math.floor(v), m=Math.round((v%1)*60); return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
 function asegurarActivosHoy(){
   if(ACTIVOS.fecha!==hoyStr()){
     ACTIVOS.fecha=hoyStr();
@@ -2623,8 +2667,13 @@ function registrarSenal(uid){
   if(!uid) return;
   const d=hoyStr();
   if(!JORNADAS[d]||!JORNADAS[d][uid]) _seedJornadaDesdeActivos(uid);   // crea la jornada si faltaba
-  if(!JORNADAS[d]||!JORNADAS[d][uid]) return;
+  // Antes, si ACTIVOS ya se habia reseteado por el cambio de dia, esto hacia return y la
+  // actividad de la manana no quedaba registrada en ningun lado: por eso la primera
+  // conexion del dia siguiente aparecia vacia. La jornada se crea igual.
+  if(!JORNADAS[d]||!JORNADAS[d][uid]) _jornDia(uid);
   const j=JORNADAS[d][uid];
+  if(!j) return;
+  if(!j.conexion) j.conexion=new Date().toISOString();
   _registrarGapPausa(j);   // hueco desde la última señal = pausa
   j.ultima=new Date().toISOString();
   saveJornadas();
@@ -2646,8 +2695,39 @@ function purgarJornadas(){
    y para Cintia. Una pausa = un solo período continuo de +30 min sin ningún movimiento en
    la app, medido DESDE que se quedó inactivo HASTA que volvió a moverse. No se fragmenta:
    hay una sola pausa abierta por vez y se cierra recién cuando hay actividad posterior. */
+/* Una pausa NUNCA puede cruzar el fin de la jornada. Antes, la pausa que se abría a la
+   noche quedaba con el fin en null; al cambiar el día el tick dejaba de encontrarla (buscaba
+   JORNADAS[hoy], que todavía no existía) y recién se cerraba contra la primera actividad de
+   la mañana siguiente. De ahí salían las pausas falsas de 15 horas, tipo 19:00 – 10:15.
+   Ahora toda pausa abierta de una jornada anterior se cierra en el horario de cierre de esa
+   persona ese día. Si no hay horario (franco, alterna, alguien sin horario cargado) se cierra
+   en su propio inicio, o sea que dura 0 y desaparece: preferimos no registrar nada antes que
+   inventar una pausa que nadie puede verificar. */
+function cerrarPausasDeJornadasViejas(){
+  try{
+    const hoy=hoyStr(); let cambio=false;
+    Object.keys(JORNADAS).forEach(d=>{
+      if(d===hoy) return;
+      Object.keys(JORNADAS[d]||{}).forEach(uid=>{
+        const j=JORNADAS[d][uid];
+        if(!j||!Array.isArray(j.pausas)) return;
+        j.pausas.forEach(p=>{
+          if(!p||p.h||!p.d) return;
+          const ini=Date.parse(p.d);
+          const esp=horarioEsperado(uid,d);
+          const fin=Array.isArray(esp)?Math.max(ini,_tsHora(d,esp[1])):ini;
+          p.h=new Date(fin).toISOString();
+          p.cierreAuto=true;
+          cambio=true;
+        });
+      });
+    });
+    if(cambio) saveJornadas();
+  }catch(e){}
+}
 function tickRegistroPausa(){
   try{
+    cerrarPausasDeJornadasViejas();
     if(!YO || esAdmin()) return;   // el admin no se registra a sí mismo
     // El vendedor cuenta solo si está conectado y trabajando (no en la pantalla de selección).
     if(!esAuditora() && (!yaConectadoHoy(YO) || (typeof forzandoSelector!=='undefined' && forzandoSelector))) return;
@@ -2673,8 +2753,10 @@ function tickRegistroPausa(){
   }catch(e){}
 }
 /* Duración mínima de un hueco de actividad para que cuente como pausa (y aparezca en el
-   registro). Se puede ajustar; hoy: 20 min sin usar la app. */
-const PAUSA_MIN_MS=20*60*1000;
+   registro). Antes eran 20 min mientras el encabezado del panel prometía 30, así que el
+   panel mostraba pausas que su propio cartel decía que no existían. Ahora hay UN solo
+   umbral, igual al de la auto-pausa: 30 min sin usar la app. */
+const PAUSA_MIN_MS=30*60*1000;
 async function marcarActivoHoy(localId,uid){
   if(!localId) return;
   asegurarActivosHoy();
@@ -12319,15 +12401,38 @@ function htmlRegistroJornadas(){
   const fecha=`${_wd.charAt(0).toUpperCase()+_wd.slice(1)} ${_z(+_p[2])}/${_z(+_p[1])}/${String(+_p[0]).slice(-2)}`;
   const filas=uids.map(uid=>{
     const j=us[uid];
-    // Solo pausas reales: en curso, o cerradas de al menos ~30 min (descarta los cortes de 0 min
-    // que dejó la versión anterior).
-    const ps=(j.pausas||[]).filter(p=>p.d && (!p.h || (new Date(p.h)-new Date(p.d))>=PAUSA_MIN_MS));
-    const rangos=ps.map(p=>{const min=p.h?Math.max(0,Math.round((new Date(p.h)-new Date(p.d))/60000)):null;return `<div class="jp-item">${fh(p.d)} – ${p.h?fh(p.h):'en curso'}${min!=null?` <span class="muted">(${min} min)</span>`:''}</div>`;}).join('');
+    const esp=horarioEsperado(uid,jornDiaSel);
+    const espTxt = Array.isArray(esp)
+      ? `${hDec(esp[0])} – ${hDec(esp[1])}`
+      : (esp==='alterna' ? '<span class="muted">alterna</span>' : '<span class="muted">franco</span>');
+    // Llegó tarde / se fue temprano. Solo se marca lo que pasa la tolerancia; entrar 5 min
+    // tarde no es un dato. Lo de más se muestra en gris, sin juicio.
+    const dEnt = (Array.isArray(esp)&&j.conexion) ? Math.round((Date.parse(j.conexion)-_tsHora(jornDiaSel,esp[0]))/60000) : null;
+    const dSal = (Array.isArray(esp)&&j.ultima)   ? Math.round((Date.parse(j.ultima)  -_tsHora(jornDiaSel,esp[1]))/60000) : null;
+    const chipEnt = (dEnt!=null && dEnt>TOL_ENTRADA_MIN) ? ` <span class="jd-mal">+${dEnt}'</span>` : '';
+    const chipSal = (dSal!=null && dSal<-TOL_SALIDA_MIN) ? ` <span class="jd-mal">${dSal}'</span>` : '';
+    // Pausas reales: en curso, o de al menos PAUSA_MIN_MS. Se conserva el índice ORIGINAL
+    // dentro de j.pausas para poder marcar una como justificada sin depender del filtrado.
+    const ps=(j.pausas||[]).map((p,i)=>({p,i})).filter(o=>o.p && o.p.d && (!o.p.h || (new Date(o.p.h)-new Date(o.p.d))>=PAUSA_MIN_MS));
+    let huecos=0;
+    const rangos=ps.map(o=>{
+      const p=o.p;
+      const ms=p.h?(new Date(p.h)-new Date(p.d)):null;
+      const min=ms!=null?Math.max(0,Math.round(ms/60000)):null;
+      const hueco = ms!=null && ms>=HUECO_MIN_MS;
+      if(hueco && !p.just) huecos++;
+      const et = p.just
+        ? ' <span class="jp-just">justificado</span>'
+        : (hueco ? ' <span class="jp-hueco">hueco sin actividad</span>' : '');
+      const bt = (hueco && !p.just) ? ` <button class="jp-bj" onclick="jornJustificar('${uid}',${o.i})">marcar justificado</button>` : '';
+      return `<div class="jp-item">${fh(p.d)} – ${p.h?fh(p.h):'en curso'}${min!=null?` <span class="muted">(${min} min)</span>`:''}${et}${bt}</div>`;
+    }).join('');
+    const resumen = ps.length ? `${ps.length} pausa${ps.length===1?'':'s'}${huecos?` <span class="jp-hueco">· ${huecos} hueco${huecos===1?'':'s'}</span>`:''}` : '';
     const pausasCell = ps.length
-      ? `<details class="jp-det"><summary>${ps.length} pausa${ps.length===1?'':'s'}</summary><div class="jp-list">${rangos}</div></details>`
+      ? `<details class="jp-det"><summary>${resumen}</summary><div class="jp-list">${rangos}</div></details>`
       : '<span class="muted">—</span>';
-    return `<tr><td>${escapeHtml(nombreDe(uid))}</td><td>${fh(j.conexion)}</td><td>${fh(j.ultima)}</td><td>${pausasCell}</td><td>${j.ultimaEdicion?fh(j.ultimaEdicion):'<span class="muted">—</span>'}</td></tr>`;
-  }).join('') || `<tr><td colspan="5" class="muted" style="text-align:center;padding:14px">Nadie registró actividad ese día.</td></tr>`;
+    return `<tr><td>${escapeHtml(nombreDe(uid))}</td><td>${espTxt}</td><td>${fh(j.conexion)}${chipEnt}</td><td>${fh(j.ultima)}${chipSal}</td><td>${pausasCell}</td><td>${j.ultimaEdicion?fh(j.ultimaEdicion):'<span class="muted">—</span>'}</td></tr>`;
+  }).join('') || `<tr><td colspan="6" class="muted" style="text-align:center;padding:14px">Nadie registró actividad ese día.</td></tr>`;
   const nav=`<div class="jorn-nav">
     <div class="jorn-stepper">
       <button ${i<=0?'disabled':''} onclick="jornNavDia(-1)" title="Día anterior">‹</button>
@@ -12337,10 +12442,25 @@ function htmlRegistroJornadas(){
     <span class="jorn-fecha">${fecha}</span>
     <button class="jorn-refresh" onclick="jornRefrescar()">↻ Actualizar</button>
   </div>`;
-  return `<div class="dir-card"><div class="dh">Conexiones del equipo<span class="r">conexión, pausas (30 min sin usar) y última edición</span></div>
+  return `<div class="dir-card"><div class="dh">Conexiones del equipo<span class="r">horario esperado, conexión, pausas (30 min sin usar) y última edición</span></div>
     ${nav}
     <div class="dir-scroll" style="overflow-x:auto;padding:0 4px 4px"><table class="est-tabla" style="min-width:560px">
-      <tr><th>Usuario</th><th>Conexión</th><th>Última señal</th><th>Pausas</th><th>Última edición</th></tr>${filas}</table></div></div>`;
+      <tr><th>Usuario</th><th>Horario</th><th>Conexión</th><th>Última señal</th><th>Pausas</th><th>Última edición</th></tr>${filas}</table></div></div>`;
+}
+/* Marcar un hueco como justificado, DESPUÉS de haber preguntado. El vendedor no ve nada de
+   esto: como no tiene forma de corregir el registro, la corrección la hace dirección a mano.
+   Así el histórico que queda es el revisado, no el crudo. */
+function jornJustificar(uid,idx){
+  try{
+    const j=(JORNADAS[jornDiaSel]||{})[uid];
+    if(!j||!Array.isArray(j.pausas)||!j.pausas[idx]) return;
+    j.pausas[idx].just=true;
+    j.pausas[idx].justPor=YO;
+    j.pausas[idx].justTs=new Date().toISOString();
+    saveJornadas();
+    renderDireccion();
+    toast('Hueco marcado como justificado.');
+  }catch(e){}
 }
 /* Entrar a la pantalla de un usuario usando tu "ver como" de siempre */
 function dirVerComo(uid){
@@ -12418,5 +12538,22 @@ function recParaTs(){
 }
 </script>
 
+
+<style>
+/* ===== JORNADA / CONEXIONES DEL EQUIPO =====
+   Bloque separado y al final a propósito: gana por orden sin tocar nada de arriba y se
+   revierte borrándolo entero. Todo esto es SOLO del panel de dirección; el vendedor no
+   ve ninguna de estas clases. */
+.jd-mal{color:#b42318;font-weight:700;font-size:11px}
+.jp-hueco{color:#b54708;font-weight:700;font-size:11px}
+.jp-just{color:#067647;font-weight:700;font-size:11px}
+.jp-bj{margin-left:6px;border:1px solid #d0d5dd;background:#fff;border-radius:6px;
+  padding:2px 7px;font-size:11px;color:#475467;cursor:pointer}
+.jp-bj:hover{background:#f2f4f7;color:#101828}
+@media(max-width:900px){
+  .jp-item{line-height:1.7}
+  .jp-bj{padding:4px 9px}
+}
+</style>
 </body>
 </html>
