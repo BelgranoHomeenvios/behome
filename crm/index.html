@@ -5218,7 +5218,7 @@ function logItemHtml(a){
           <span class="sit-op">${a.percepcion?a.percepcion:'–'}</span>
           <span class="pop pop-rapido">
             <b>¿Cómo viste al cliente?</b>
-            ${PERCEPCIONES.map(p=>`<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${OPORT_EMOJI[p]||''} ${p}</div>`).join('')}
+            ${PERCEPCIONES.map(p=>`<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${p}</div>`).join('')}
           </span>
         </span>`)}
       </div>
@@ -5627,7 +5627,11 @@ function setFiltroHeader(campo,valor){
    pero casi no se ve, así que uno sigue navegando sin darse cuenta de que está mirando un
    recorte. Acá se listan TODOS los que están activos, cada uno se saca por separado y hay
    un "Quitar todo". */
-const ZONA_LABEL={hoy:'Para hoy',atrasada:'Atrasadas',sinclas:'Sin clasificar',semana:'Esta semana',sinplazo:'Sin plazo',cerrada:'Cerradas'};
+/* Días sin movimiento para que una consulta se considere colgada. Es el número que
+   define el balde "Pendientes". Ojo: DIAS_PARA_ARCHIVAR (25) la saca del tablero, así
+   que este balde solo puede cubrir la franja entre los dos. */
+const DIAS_SIN_MOVIMIENTO=10;
+const ZONA_LABEL={hoy:'Para hoy',atrasada:'Pendientes',sinclas:'Sin clasificar',semana:'Esta semana',sinplazo:'Sin plazo',cerrada:'Cerradas'};
 function etiquetaOpcion(opciones,valor){ const o=opciones.find(x=>x[0]===valor); return o?o[1]:valor; }
 
 function filtrosActivos(){
@@ -6058,30 +6062,47 @@ function zonaDe(a){
   if(diasSinContacto(a) > DIAS_PARA_ARCHIVAR) return 'cerrada';
   // Si el vendedor YA puso una próxima acción para hoy o a futuro, la consulta se está
   // trabajando: no debe figurar como atrasada. Se clasifica por ese plazo.
-  {
-    const _prox = a.status!=='pendiente' ? proximaAccionDe(a) : null;
-    if(_prox){
-      const _h0=new Date(); _h0.setHours(0,0,0,0);
-      const _man=new Date(_h0.getTime()+86400000);
-      const _en7=new Date(_h0.getTime()+7*86400000);
-      const _p=new Date(_prox);
-      if(_p>=_h0){ if(_p>=_en7) return 'lejos'; if(_p>=_man) return 'semana'; return 'hoy'; }
-    }
-  }
-  // Atrasada manda sobre lo demás: es lo urgente, tenga o no un plazo puesto.
-  if(diasSinContacto(a) > DIAS_SIN_CLASIFICAR_ATRASA) return 'atrasada';
-  if(a.status==='pendiente') return 'sinclas';
-  // La próxima acción puede estar en el contacto (consultas cargadas en el CRM) o
-  // en la consulta misma (las que vienen de las planillas viejas).
-  const proxTs = proximaAccionDe(a);
-  if(!proxTs) return 'sinplazo';
-  const prox=new Date(proxTs);
-  const hoy0=new Date(); hoy0.setHours(0,0,0,0);
-  const manana0=new Date(hoy0.getTime()+86400000);
-  const en7=new Date(hoy0.getTime()+7*86400000);
-  if(prox<manana0) return 'hoy';     // vencido o para hoy: hay que hablarle hoy
-  if(prox<en7) return 'semana';
+  /* ===== Los tres baldes de la agenda del vendedor =====
+     Cada uno es un VERBO distinto, no un estado: contactar, rescatar, cargar el dato.
+     El orden es estricto y una consulta cae en UNO solo, así los tres números suman
+     sin repetirse. Antes se pisaban: una consulta sin clasificar, vencida y sin
+     próxima acción entraba en los tres a la vez.
+       1) PARA HOY       contactar   — nadie la atendió todavía, o el plazo es hoy o venció
+       2) PENDIENTES     rescatar    — sin próxima acción puesta, o parada hace mucho
+       3) SIN CLASIFICAR cargar dato — ya se trabajó pero le falta estado u oportunidad
+       4) el resto se ordena por plazo: esta semana / más adelante                    */
+  const _h0=new Date(); _h0.setHours(0,0,0,0);
+  const _man=new Date(_h0.getTime()+86400000);
+  const _en7=new Date(_h0.getTime()+7*86400000);
+  const _prox=proximaAccionDe(a);
+  const _p=_prox?new Date(_prox):null;
+
+  // 1. Todavía no tiene ningún movimiento cargado: el cliente sigue esperando el
+  //    primer contacto, esté derivada o no. Es lo más urgente que existe.
+  if(!fueTrabajada(a)) return 'hoy';
+  // 1b. El plazo vence hoy o ya venció.
+  if(_p && _p < _man) return 'hoy';
+  // 2. Colgada: nadie le puso próxima acción, o hace más de DIAS_SIN_MOVIMIENTO que
+  //    no se mueve. Nadie la va a hacer si no aparece en algún lado.
+  if(!_p || diasSinContacto(a) > DIAS_SIN_MOVIMIENTO) return 'atrasada';
+  // 3. Se está trabajando pero falta el dato que permite priorizarla.
+  if(!estadoDe(a) || !a.percepcion) return 'sinclas';
+  // 4. Agendada y con el dato completo.
+  if(_p < _en7) return 'semana';
   return 'lejos';
+}
+
+/* Tiene algún movimiento cargado: percepción, estado, próxima acción, una nota o un
+   mueble. Separa la consulta que todavía no tuvo NINGÚN movimiento de la que se trabajó
+   pero quedó sin cargar el estado. Antes las dos caían juntas en "Sin clasificar".
+   NO se mira `status`: que Cintia la haya derivado significa que la consulta ya tiene
+   dueño, no que se haya hecho algo con ella. Y `status` pasa de 'pendiente' a 'completa'
+   en un solo punto del código, así que una consulta trabajada por otro camino se quedaba
+   marcada como pendiente para siempre y no salía nunca de "Para hoy". */
+function fueTrabajada(a){
+  return !!(a.percepcion || a.estadoManual || proximaAccionDe(a)
+    || (Array.isArray(a.historialContacto) && a.historialContacto.length)
+    || (Array.isArray(a.muebles) && a.muebles.length));
 }
 
 /* Tablero del vendedor: misma grilla de 8 botones que usa Cintia. Los 4 primeros filtran
@@ -6103,13 +6124,12 @@ function renderPanelGestion(listaVisible){
   // (2da oportunidad, evaluación, revisión, asistencia 🙏); "Recordatorio" son los avisos con
   // 🔔 (los que se pone el vendedor o le manda Cintia). Ambos abren una sección, no filtran.
   const recs = recordatoriosDeVendedor();
-  const pendCount = recs.filter(it=>it.tipo!=='campanita').length;
-  const recCount  = recs.filter(it=>it.tipo==='campanita').length;
+  const recCount  = recs.length;   // los dos buzones juntos: campanitas + coaching
   const ICO={hoy:'evaluar',pendientes:'bajas',sinclas:'consultas',semana:'estados',
              recordatorio:'bajas',estadisticas:'ventas',evaluacion:'evaluar',oportunidad:'pulso'};
   const items=[
     {label:'Para hoy',       ico:'hoy',         cnt:n('hoy'),    activo:(!seccionVendedor && zonaActiva==='hoy'),      act:`setZona('hoy')`},
-    {label:'Pendientes',     ico:'pendientes',  cnt:pendCount,   activo:(seccionVendedor==='pendientes'),              act:`abrirSeccionVendedor('pendientes')`},
+    {label:'Pendientes',     ico:'pendientes',  cnt:n('atrasada'),activo:(!seccionVendedor && zonaActiva==='atrasada'), act:`setZona('atrasada')`},
     {label:'Sin clasificar', ico:'sinclas',     cnt:n('sinclas'),activo:(!seccionVendedor && zonaActiva==='sinclas'),  act:`setZona('sinclas')`},
     {label:'Esta semana',    ico:'semana',      cnt:n('semana'), activo:(!seccionVendedor && zonaActiva==='semana'),   act:`setZona('semana')`},
     {label:'Recordatorio',   ico:'recordatorio',cnt:recCount,    activo:(seccionVendedor==='recordatorio'),            act:`abrirSeccionVendedor('recordatorio')`},
@@ -6674,7 +6694,7 @@ function svRecordatorioHtml(modo){
   // 'pendientes' = comentarios/coaching de Cintia (todo menos las campanitas);
   // 'recordatorio' = los avisos con 🔔. Sin modo, muestra todo (compatibilidad).
   const todos = recordatoriosDeVendedor();
-  const recs = modo==='recordatorio' ? todos.filter(it=>it.tipo==='campanita')
+  const recs = modo==='recordatorio' ? todos
              : modo==='pendientes'   ? todos.filter(it=>it.tipo!=='campanita')
              : todos;
   if(!recs.length){
@@ -12714,6 +12734,49 @@ function recParaTs(){
 .sb-total.sb-todas:hover{background:#fff;box-shadow:0 1px 5px rgba(15,26,42,.14)}
 .sb-total.sb-todas:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .sb-total.sb-todas.on{background:#fff;box-shadow:inset 0 0 0 1.5px var(--navy)}
+</style>
+
+<style>
+/* La barra Estado usa los MISMOS colores que el punto de la fila, para que un chip y
+   un punto del mismo color signifiquen siempre lo mismo: azul en seguimiento, verde
+   concretado, rojo rechazado. Antes "En seguimiento" era ámbar y no coincidía con nada. */
+.situ-chip.seg .dot{background:var(--blue)}
+.situ-chip.seg.on{box-shadow:inset 0 0 0 1.5px var(--blue)}
+.situ-chip.conc.on{box-shadow:inset 0 0 0 1.5px var(--green)}
+.situ-chip.rech.on{box-shadow:inset 0 0 0 1.5px var(--red)}
+/* "Todas" tiene que verse como los otros tres para que se entienda que se puede tocar. */
+.sb-total.sb-todas{display:inline-flex;align-items:center;gap:8px;background:#fff;
+  border:1px solid var(--line,#d0d7e2);border-radius:22px;padding:7px 15px;font-size:13.5px;
+  font-weight:600;color:var(--sec,#5b6675);white-space:nowrap}
+.sb-total.sb-todas b{font-weight:800;color:var(--ink);font-size:15.5px}
+.sb-total.sb-todas.on{box-shadow:inset 0 0 0 1.5px var(--navy)}
+</style>
+
+<style>
+/* Altura pareja en todas las filas.
+   Una consulta abierta apila dos líneas en Acción (la fecha y el "hace 2 días"); una
+   cerrada muestra una sola palabra. Eso hacía que al filtrar por Concretadas o
+   Rechazadas la tabla entera se achicara y pareciera otra pantalla. Con una altura
+   mínima las filas miden lo mismo tengan una línea o dos, y filtrar deja de mover nada. */
+.crow{min-height:38px}
+/* "Cerrada" se veía en itálica y más chico que el resto: mismo tamaño y mismo peso que
+   la oportunidad, solo en gris, que ya alcanza para distinguirla. */
+.c-plazo .pl-cerrada,.c-situacion .sit-cerrada{font-style:normal;font-size:13px;
+  font-weight:700;color:var(--muted)}
+@media(max-width:900px){ .crow{min-height:42px} }
+</style>
+
+<style>
+/* Modal de etapa comercial: se ensancha para que las cuatro opciones entren en un
+   renglón. Con 480px "Sin clasificar" caía sola a la segunda línea y parecía otra cosa,
+   de otra categoría, cuando es una opción más de la misma lista. */
+#modalEtapa .modal-caja{max-width:620px!important}
+#modalEtapa .etapa-pills{flex-wrap:nowrap;gap:7px}
+#modalEtapa .etapa-pill{flex:1 1 auto;white-space:nowrap;text-align:center;padding:9px 12px}
+@media(max-width:660px){
+  #modalEtapa .etapa-pills{flex-wrap:wrap}
+  #modalEtapa .etapa-pill{flex:1 1 45%}
+}
 </style>
 </body>
 </html>
