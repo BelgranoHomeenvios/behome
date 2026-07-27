@@ -10571,11 +10571,11 @@ async function asignarVendedorCliente(avisoId, uid){
 function abrirCargaRapidaCintia(){
   $('cargaRapidaCaja').innerHTML=`
     <div class="cr-head">
-      <h3 style="margin-top:0">+ Cargar consulta</h3>
       <div class="fecha-conv">
         <label for="crFecha">Fecha de la consulta</label>
         <input type="date" id="crFecha" onchange="crAvisarFecha()">
       </div>
+      <h3 style="margin-top:0">+ Cargar consulta</h3>
     </div>
     <div class="cr-split">
       <div class="cr-form">
@@ -12611,12 +12611,17 @@ function recParaTs(){
 </style>
 
 <style>
-/* Encabezado de "+ Cargar consulta": título a la izquierda, fecha a la derecha, igual que
-   el modal de Registrar atención. */
-.cr-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+/* Encabezado de "+ Cargar consulta": la fecha va en su propio renglón ARRIBA del título y
+   del lado IZQUIERDO, alineada con él en la misma columna. El gap de 11px son los ~3mm de
+   aire que pidió Brian entre los dos.
+   El align-items:flex-start pisa el flex-end que .fecha-conv trae de fábrica (viene del
+   modal de Registrar atención, donde el bloque va a la derecha): sin eso el label queda
+   colgado a la derecha del input. */
+.cr-head{display:flex;flex-direction:column;align-items:flex-start;gap:11px;margin-bottom:6px}
+.cr-head .fecha-conv{align-self:flex-start;align-items:flex-start}
 .cr-head h3{margin:0}
 #crFecha.cr-fecha-otra{border-color:#b54708;background:#fffaf5;color:#b54708;font-weight:700}
-@media(max-width:760px){ .cr-head{flex-direction:column;gap:8px} }
+@media(max-width:760px){ .cr-head{gap:9px} }
 </style>
 </body>
 </html>
