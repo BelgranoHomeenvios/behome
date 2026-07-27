@@ -11832,6 +11832,13 @@ async function guardarSeguimiento(){
       await saveContactos();
     }
   }
+  // Guardar el seguimiento ES ponerla en seguimiento. Esta función escribía el historial
+  // y la próxima acción pero NUNCA el estado, así que el vendedor elegía "En seguimiento",
+  // completaba la ficha, guardaba, y la consulta seguía figurando sin clasificar.
+  // No pisa Concretado ni Rechazado: esos se cierran por su propio flujo.
+  const _estAhora = estadoDe(rec);
+  if(_estAhora!=='Concretado' && _estAhora!=='Rechazado') rec.estadoManual='En seguimiento';
+  if(rec.status==='pendiente') rec.status='completa';
   await saveAtenciones();
   cerrarModalReal();
   render();
