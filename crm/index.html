@@ -2900,7 +2900,10 @@ async function saveSolicitudes(){
 
 /* ================= Tablero de Cintia: canal / derivar-a / colas propias ================= */
 // Canal = de dónde vino el contacto. Configurable por el admin.
-let CANALES=['WhatsApp','Instagram','Facebook','Publicidad Mensajería','Publicidad Instagram','Local','Email','Reclamo','Consulta de estado','Tienda Nube','Google Shopping'];
+let CANALES=['WhatsApp','Instagram','Facebook','Publicidad Mensajería','Publicidad Instagram','Local','Email','Reclamo','Consulta de estado','Tienda Nube','Google Shopping','Proveedores','CVs','Otros'];
+/* Canales que NO son consultas de venta: un proveedor que se ofrece, alguien que manda el CV
+   o cualquier otra cosa. Se registran, van a Brian y quedan fuera del embudo de ventas. */
+const CANALES_NO_VENTA=['Proveedores','CVs','Otros'];
 const CANALES_PUBLICIDAD=['Publicidad Mensajería','Publicidad Instagram'];
 const LABEL_POR_CANAL={
   'WhatsApp':{lbl:'Teléfono', ph:'11 xxxx xxxx'},
@@ -2928,6 +2931,9 @@ async function loadCanalesConfig(){
       // 'Seguimiento Local' se unificó dentro de 'Local': son el mismo hecho (alguien
       // atendió al cliente en el local y hay que seguirlo). Se limpia de la config vieja.
       if(d.canales) CANALES=d.canales.filter(c=>c!=='Seguimiento Local');
+      // CANALES es `let` y lo de storage PISA el literal de arriba: sin este merge, una
+      // config guardada antes de agregar un canal nuevo hace que no aparezca nunca.
+      CANALES_NO_VENTA.forEach(c=>{ if(!CANALES.includes(c)) CANALES.push(c); });
       if(d.destinosExtra) DESTINOS_EXTRA=d.destinosExtra;
     }
   }catch(e){}
@@ -10372,6 +10378,14 @@ const CR_CFG={
   'Consulta de estado': {contacto:{lbl:'Celular',ph:'11 xxxx xxxx'}, ig:true, orden:true, derivaCintia:true},
   'Tienda Nube':         {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, queConsulto:true},
   'Google Shopping':     {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}},
+  // `nota` es un campo de texto con etiqueta propia que reusa el mismo #crMensaje de
+  // "¿Qué consultó?", así cae en `notas` sin tocar el guardado.
+  'Proveedores':         {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, derivaBrian:true, noEsVenta:true,
+                          nota:{lbl:'¿Qué hace este proveedor?', ph:'Ej: herrajes, telas, melamina, transporte'}},
+  'CVs':                 {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, derivaBrian:true, noEsVenta:true,
+                          nota:{lbl:'¿Para qué puesto se postula?', ph:'Ej: vendedor, armador, chofer, administración'}},
+  'Otros':               {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, derivaBrian:true, noEsVenta:true,
+                          nota:{lbl:'Observaciones', ph:'De qué se trataba la consulta'}},
 };
 // Quiénes pueden figurar como "lo atendió" en el local (no cuenta para ventas,
 // es registro de quién lo recibió): vendedores + el resto del equipo.
@@ -10712,6 +10726,10 @@ function onCanalChangeCr(){
     <label>¿Qué consultó? <span class="opt">(copiá y pegá la consulta)</span></label>
     <textarea id="crMensaje" rows="3" placeholder='Ej: "Hola, quería saber si la cómoda Oslo viene en blanco"' onkeydown="crTeclas(event,this)"></textarea>
   </div>`;
+  if(cfg.nota) html+=`<div class="field">
+    <label>${escapeHtml(cfg.nota.lbl)}</label>
+    <textarea id="crMensaje" rows="3" placeholder="${escAttr(cfg.nota.ph)}" onkeydown="crTeclas(event,this)"></textarea>
+  </div>`;
   if(cfg.local){
     // Una consulta de Local pasó por un local físico: hay que declarar cuál, si no se
     // cae del conteo de atenciones por local.
@@ -10732,6 +10750,10 @@ function onCanalChangeCr(){
     const sel=$('crDerivar');
     if(sel){ const opt=[...sel.options].find(o=>plainValueCr(o.value)==='cintia'); if(opt) sel.value=opt.value; }
   }
+  if(cfg.derivaBrian){
+    const sel=$('crDerivar');
+    if(sel){ const opt=[...sel.options].find(o=>plainValueCr(o.value)==='brian'); if(opt) sel.value=opt.value; }
+  }
   onDerivarChangeCr();
 }
 
@@ -10739,6 +10761,14 @@ function onDerivarChangeCr(){
   const v=plainValueCr($('crDerivar').value);
   const canal=plainValueCr($('crCanal').value);
   const body=$('crCuerpo');
+  // Proveedores / CVs / Otros no siguen el circuito de venta: no se les pide muebles,
+  // monto ni próxima acción.
+  if((CR_CFG[canal]||{}).noEsVenta){
+    body.innerHTML=`
+      <p class="tiny">Queda registrado y va a Brian. No cuenta como consulta de venta.</p>
+      <button class="btn btn-navy" style="width:100%" onclick="guardarCargaRapida()">Guardar</button>`;
+    return;
+  }
   if(v==='reclamo') body.innerHTML=`
     <p class="tiny">Este va a tu sistema de Reclamos aparte — acá solo queda anotado para no perder el dato.</p>
     <div class="field"><label>Comentario <span class="opt">(opcional)</span></label><textarea id="crMensajeDest" rows="2"></textarea></div>
@@ -10921,6 +10951,7 @@ async function guardarCargaRapida(){
       // consulta con fecha atrasada es indistinguible de una cargada en el día, y el
       // registro de tiempos de respuesta pierde sentido. fechaManual marca las atrasadas.
       tsCarga:new Date().toISOString(), fechaManual:!crFechaEsHoy(),
+      soloVolumen: CANALES_NO_VENTA.includes(canal),
       localId: canalAmplio==='presencial' ? (localElegido||null) : null,
       vendedorId:derivar, registradoPor:YO,
       derivada:true, origen:'derivada', canal:canalAmplio, canalDetalle:canal,
