@@ -10570,7 +10570,13 @@ async function asignarVendedorCliente(avisoId, uid){
 
 function abrirCargaRapidaCintia(){
   $('cargaRapidaCaja').innerHTML=`
-    <h3 style="margin-top:0">+ Cargar consulta</h3>
+    <div class="cr-head">
+      <h3 style="margin-top:0">+ Cargar consulta</h3>
+      <div class="fecha-conv">
+        <label for="crFecha">Fecha de la consulta</label>
+        <input type="date" id="crFecha" onchange="crAvisarFecha()">
+      </div>
+    </div>
     <div class="cr-split">
       <div class="cr-form">
         <div class="field">
@@ -10591,6 +10597,7 @@ function abrirCargaRapidaCintia(){
       </div>
       <div class="cr-lado" id="crLado"></div>
     </div>`;
+  setFechaCr();
   renderSelectNumerado($('crCanal'), CANALES);
   renderSelectNumerado($('crDerivar'), destinosListaCintia());
   onCanalChangeCr();
@@ -10816,6 +10823,40 @@ function crTeclas(e, el){
   if(i>-1 && i<orden.length-1) orden[i+1].focus();
 }
 
+/* ===== Fecha de la consulta en la carga rápida =====
+   Por defecto hoy. Se puede ATRASAR hasta 7 días, que es el caso real: el lunes se cargan
+   las consultas del sábado y el domingo. NO se puede adelantar: una consulta con fecha
+   futura se cae de los pendientes del día y no la ve nadie hasta que llega esa fecha.
+   El límite lo pone el propio input (min/max) y se vuelve a validar al guardar, porque el
+   atributo del input se puede saltear escribiendo la fecha a mano. */
+const CR_DIAS_ATRAS=7;
+function _isoDia(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function setFechaCr(){
+  const el=$('crFecha'); if(!el) return;
+  const hoy=new Date(), min=new Date(); min.setDate(min.getDate()-CR_DIAS_ATRAS);
+  el.value=_isoDia(hoy); el.max=_isoDia(hoy); el.min=_isoDia(min);
+  crAvisarFecha();
+}
+function crFechaEsHoy(){ const el=$('crFecha'); return !el || !el.value || el.value===_isoDia(new Date()); }
+function tsDesdeFechaCr(){
+  const el=$('crFecha'), ahora=new Date();
+  if(!el || !el.value) return ahora.toISOString();
+  const [y,m,d]=el.value.split('-').map(Number);
+  const min=new Date(); min.setDate(min.getDate()-CR_DIAS_ATRAS); min.setHours(0,0,0,0);
+  // Se conserva la hora actual para no perder el orden cronológico dentro del día,
+  // igual que hace tsDesdeFechaConversacion() en el modal de Registrar atención.
+  const dt=new Date(y, m-1, d, ahora.getHours(), ahora.getMinutes(), ahora.getSeconds());
+  if(dt>ahora) return ahora.toISOString();
+  if(dt<min)   return min.toISOString();
+  return dt.toISOString();
+}
+/* Si la fecha no es la de hoy, el campo se marca. Cargar veinte consultas seguidas sin
+   notar que quedó puesto el sábado es el error fácil de cometer acá. */
+function crAvisarFecha(){
+  const el=$('crFecha'); if(!el) return;
+  el.classList.toggle('cr-fecha-otra', !crFechaEsHoy());
+}
+
 async function guardarCargaRapida(){
   const canal=plainValueCr($('crCanal').value);
   const derivar=plainValueCr($('crDerivar').value);
@@ -10875,7 +10916,12 @@ async function guardarCargaRapida(){
     // usuario de IG. El usuario de IG queda siempre guardado aparte.
     const telParaGuardar = esIG ? (telIG || igUser) : contacto;
     const record={
-      id, ts:new Date().toISOString(), localId: canalAmplio==='presencial' ? (localElegido||null) : null,
+      id, ts:tsDesdeFechaCr(),
+      // tsCarga es SIEMPRE el momento real de la carga y no se toca nunca. Sin esto, una
+      // consulta con fecha atrasada es indistinguible de una cargada en el día, y el
+      // registro de tiempos de respuesta pierde sentido. fechaManual marca las atrasadas.
+      tsCarga:new Date().toISOString(), fechaManual:!crFechaEsHoy(),
+      localId: canalAmplio==='presencial' ? (localElegido||null) : null,
       vendedorId:derivar, registradoPor:YO,
       derivada:true, origen:'derivada', canal:canalAmplio, canalDetalle:canal,
       contactoId:null, fueraDeTurno:true, status:'pendiente',
@@ -12562,6 +12608,15 @@ function recParaTs(){
   .jp-item{line-height:1.7}
   .jp-bj{padding:4px 9px}
 }
+</style>
+
+<style>
+/* Encabezado de "+ Cargar consulta": título a la izquierda, fecha a la derecha, igual que
+   el modal de Registrar atención. */
+.cr-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.cr-head h3{margin:0}
+#crFecha.cr-fecha-otra{border-color:#b54708;background:#fffaf5;color:#b54708;font-weight:700}
+@media(max-width:760px){ .cr-head{flex-direction:column;gap:8px} }
 </style>
 </body>
 </html>
