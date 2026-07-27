@@ -5207,7 +5207,7 @@ function logItemHtml(a){
             </span>
           </span>` : `
           <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
-            <span class="est ${est?ESTADO_CLS[est]:'es-sin'}">${est||'Sin clasificar'}</span>
+            <span class="sit-dot ${est?ESTADO_CLS[est]:'es-sin'}" title="${est||'Sin clasificar'} — tocá para cambiar"></span>
           </span>`}
           <span class="ebtn cm-ico sit-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
           <span class="ebtn cm-ico sit-ico${(tieneFoto(a))?'':' apagado'}" title="${(tieneFoto(a))?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
@@ -5215,7 +5215,7 @@ function logItemHtml(a){
         ${esPostventa(a) ? '' : (cerrada
           ? `<span class="sit-op sit-cerrada" title="Consulta ${est.toLowerCase()}">Cerrada</span>`
           : `<span class="ebtn rap-btn rap-op" title="Cambiar cómo viste al cliente" onclick="event.stopPropagation();togPop(this)">
-          <span class="sit-op">${a.percepcion?`${emo} ${a.percepcion}`:'–'}</span>
+          <span class="sit-op">${a.percepcion?a.percepcion:'–'}</span>
           <span class="pop pop-rapido">
             <b>¿Cómo viste al cliente?</b>
             ${PERCEPCIONES.map(p=>`<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${OPORT_EMOJI[p]||''} ${p}</div>`).join('')}
@@ -5567,12 +5567,12 @@ function cheadHtml(){
       <span class="pop pop-down"><b>Filtrar por plazo</b>${popFiltroOpciones('plazo',FILTRO_PLAZO_OPCIONES,filtroPlazo)}</span>
     </span></span>
     <span class="h-situacion">
-      <span class="ebtn filtro-head ${estActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Estado<span class="arrow">▾</span>
-        <span class="pop pop-down"><b>Filtrar por estado</b>${popFiltroOpciones('estado',FILTRO_ESTADO_OPCIONES,filtroEstado)}</span>
-      </span>
-      <span class="ebtn filtro-head sub ${oportActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Oportunidad<span class="arrow">▾</span>
+      <span class="ebtn filtro-head ${oportActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Oportunidad<span class="arrow">▾</span>
         <span class="pop pop-down"><b>Filtrar por oportunidad</b>${popFiltroOpciones('oport',FILTRO_OPORT_OPCIONES,filtroOportunidad)}</span>
       </span>
+      ${puedeVerEquipo() ? `<span class="ebtn filtro-head sub ${estActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Estado<span class="arrow">▾</span>
+        <span class="pop pop-down"><b>Filtrar por estado</b>${popFiltroOpciones('estado',FILTRO_ESTADO_OPCIONES,filtroEstado)}</span>
+      </span>` : ''}
       ${puedeVerEquipo() ? `<span class="ebtn filtro-head sub ${filtroPostventa!=='pendientes'?'activo':''}" onclick="event.stopPropagation();togPop(this)">Post-venta<span class="arrow">▾</span>
         <span class="pop pop-down"><b>Consultas de estado / reclamos</b>${popFiltroOpciones('postventa',[['pendientes','Pendientes / En gestión'],['resueltas','Resueltas'],['todas','Todas']],filtroPostventa)}</span>
       </span>` : ''}
@@ -5596,6 +5596,12 @@ function cheadHtml(){
     </span></span>
     ${evalCol}
   </div>`;
+}
+/* Clic en un chip de la barra Estado. Si ya estaba puesto ese filtro, se quita:
+   así el mismo chip sirve para entrar y para salir, sin buscar la ✕ de la barra
+   de filtros activos. */
+function filtrarPorSituacion(valor){
+  setFiltroHeader('estado', filtroEstado===valor ? 'activas' : valor);
 }
 function setFiltroHeader(campo,valor){
   reiniciarPaginado();
@@ -6136,14 +6142,29 @@ function renderSituResumen(){
   const cSeg = tot - cConc - cRech;   // todo lo no cerrado (incluye sin clasificar)
   const pct  = c => tot ? Math.round(c/tot*100) : 0;
   const segAlto = pct(cSeg) > TOPE_SEGUIMIENTO;   // más de 30% en seguimiento => alerta roja
-  const chip = (cls,lbl,c,alerta)=>`<span class="situ-chip ${cls}${alerta?' alerta':''}"><span class="dot"></span>${lbl} <b>${c}</b> <span class="pct">${pct(c)}%</span></span>`;
+  /* Cada chip filtra la tabla. "En seguimiento" mapea a 'activas' y NO al estado
+     'En seguimiento': el chip cuenta todo lo no cerrado, sin clasificar incluido, y
+     'activas' es el único filtro que devuelve exactamente ese mismo conjunto. Con el
+     otro, el número del chip y las filas de abajo no coincidirían. */
+  const chip = (cls,lbl,c,alerta,val)=>{
+    const on = filtroEstado===val;
+    return `<span class="situ-chip ${cls}${alerta?' alerta':''}${on?' on':''}" role="button" tabindex="0"
+      title="${on?'Quitar el filtro':'Ver solo '+lbl.toLowerCase()}"
+      onclick="filtrarPorSituacion('${val}')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filtrarPorSituacion('${val}')}"
+      ><span class="dot"></span>${lbl} <b>${c}</b> <span class="pct">${pct(c)}%</span></span>`;
+  };
   box.innerHTML = `<div class="situ-barra${segAlto?' seg-alto':''}">
     <span class="sb-lbl">Estado</span>
     <div class="sb-chips">
-      ${chip('conc','Concretadas',cConc)}
-      ${chip('seg','En seguimiento',cSeg, segAlto)}
-      ${chip('rech','Rechazadas',cRech)}
-      <span class="sb-total"><b>${tot}</b> consultas</span>
+      ${chip('conc','Concretadas',cConc,false,'Concretado')}
+      ${chip('seg','En seguimiento',cSeg, segAlto,'activas')}
+      ${chip('rech','Rechazadas',cRech,false,'Rechazado')}
+      <span class="sb-total sb-todas${filtroEstado==='todos'?' on':''}" role="button" tabindex="0"
+        title="${filtroEstado==='todos'?'Volver a las activas':'Ver todas, cerradas incluidas'}"
+        onclick="filtrarPorSituacion('todos')"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filtrarPorSituacion('todos')}"
+        >Todas <b>${tot}</b></span>
     </div>
   </div>`;
 }
@@ -12653,6 +12674,46 @@ function recParaTs(){
 .cr-head h3{margin:0}
 #crFecha.cr-fecha-otra{border-color:#b54708;background:#fffaf5;color:#b54708;font-weight:700}
 @media(max-width:760px){ .cr-head{gap:9px} }
+</style>
+
+<style>
+/* ===== SITUACIÓN EN UNA SOLA FILA =====
+   El estado pasa de un chip con texto a un punto de color, y la oportunidad —que es
+   el dato que se lee de un vistazo— gana tamaño y se pone al lado en vez de abajo.
+   Bloque al final a propósito: gana por orden y se revierte borrándolo entero. */
+.c-situacion{flex-direction:row;align-items:center;gap:7px;flex-wrap:nowrap}
+.c-situacion .sit-top{flex:0 0 auto;gap:4px}
+.sit-dot{width:13px;height:13px;border-radius:50%;display:inline-block;flex:0 0 auto;
+  vertical-align:middle;padding:0}
+.sit-dot.es-seg{background:var(--blue)}
+.sit-dot.es-conc{background:var(--green)}
+.sit-dot.es-rech{background:var(--red)}
+.sit-dot.es-sin{background:#fff;border:1.5px solid #cfd6e0}
+.c-situacion .rap-op{flex:1 1 auto;min-width:0}
+.c-situacion .sit-op{font-size:13px;font-weight:700;color:var(--ink)}
+.c-situacion .sit-cerrada{font-size:12.5px;font-weight:700;color:var(--muted)}
+@media(max-width:900px){
+  .c-situacion{gap:6px}
+  .sit-dot{width:14px;height:14px}
+  .c-situacion .sit-op{font-size:13px}
+}
+</style>
+
+<style>
+/* Chips de la barra Estado: ahora filtran la tabla. */
+.situ-chip{cursor:pointer;user-select:none;transition:box-shadow .12s,border-color .12s}
+.situ-chip:hover{box-shadow:0 1px 5px rgba(15,26,42,.14)}
+.situ-chip:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.situ-chip.on{box-shadow:inset 0 0 0 1.5px currentColor}
+</style>
+
+<style>
+/* El total de la barra Estado es el cuarto botón: abre todas, cerradas incluidas. */
+.sb-total.sb-todas{cursor:pointer;user-select:none;border-radius:999px;padding:4px 12px;
+  transition:box-shadow .12s,background .12s}
+.sb-total.sb-todas:hover{background:#fff;box-shadow:0 1px 5px rgba(15,26,42,.14)}
+.sb-total.sb-todas:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.sb-total.sb-todas.on{background:#fff;box-shadow:inset 0 0 0 1.5px var(--navy)}
 </style>
 </body>
 </html>
