@@ -12432,9 +12432,9 @@ function renderDireccion(){
     </div>
     <div class="fecha-permanente" style="margin-bottom:14px">${periodoChipsHtml()}</div>
     <div class="dir-kpis dir-kpis-4">
-      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='generada'?'on':''}" style="--dk:var(--green);--dkc:var(--green)" onclick="dirToggleDetalle('generada')"><div class="l">Concretados <span class="dir-kpi-chev">${dirDetalle==='generada'?'▲':'▾'}</span></div><div class="v">${conc.length}</div><div class="s"><b style="color:var(--green)">$ ${miles(generada)}</b> generada · ${pctConc}% del total</div></div>
-      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='enjuego'?'on':''}" style="--dk:#0369a1;--dkc:#0369a1" onclick="dirToggleDetalle('enjuego')"><div class="l">En seguimiento <span class="dir-kpi-chev">${dirDetalle==='enjuego'?'▲':'▾'}</span></div><div class="v">${abiertas.length}</div><div class="s"><b style="color:#0369a1">$ ${miles(enJuego)}</b> en juego · ${pctSeg}% seguimiento</div></div>
-      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='perdida'?'on':''}" style="--dk:var(--red);--dkc:var(--red)" onclick="dirToggleDetalle('perdida')"><div class="l">Rechazados <span class="dir-kpi-chev">${dirDetalle==='perdida'?'▲':'▾'}</span></div><div class="v">${rech.length}</div><div class="s"><b style="color:var(--red)">$ ${miles(perdida)}</b> perdida · ${pctRech}% del total</div></div>
+      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='generada'?'on':''}" style="--dk:var(--green);--dkc:var(--green)" onclick="dirToggleDetalle('generada')"><div class="l">Concretados <span class="dir-kpi-chev">${dirDetalle==='generada'?'▲':'▾'}</span></div><div class="v">${conc.length}</div><div class="s">${esAdmin()?`<b style="color:var(--green)">$ ${miles(generada)}</b> generada · `:''}${pctConc}% del total</div></div>
+      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='enjuego'?'on':''}" style="--dk:#0369a1;--dkc:#0369a1" onclick="dirToggleDetalle('enjuego')"><div class="l">En seguimiento <span class="dir-kpi-chev">${dirDetalle==='enjuego'?'▲':'▾'}</span></div><div class="v">${abiertas.length}</div><div class="s">${esAdmin()?`<b style="color:#0369a1">$ ${miles(enJuego)}</b> en juego · `:''}${pctSeg}% seguimiento</div></div>
+      <div class="dir-kpi dir-kpi-btn ${dirDetalle==='perdida'?'on':''}" style="--dk:var(--red);--dkc:var(--red)" onclick="dirToggleDetalle('perdida')"><div class="l">Rechazados <span class="dir-kpi-chev">${dirDetalle==='perdida'?'▲':'▾'}</span></div><div class="v">${rech.length}</div><div class="s">${esAdmin()?`<b style="color:var(--red)">$ ${miles(perdida)}</b> perdida · `:''}${pctRech}% del total</div></div>
       <div class="dir-kpi" style="--dk:#b45309;--dkc:#b45309"><div class="l">Sin cotización</div><div class="v">${sinCotTotal}</div><div class="s">abiertas · últimos 30 días</div></div>
     </div>
     <div class="dir-kpis dir-kpis-4">
@@ -12452,13 +12452,13 @@ function renderDireccion(){
 
     <div class="dir-card"><div class="dh">Comparativa del equipo<span class="r">clic en un vendedor = ver su pantalla</span></div>
       <div style="overflow-x:auto"><table class="dir-tbl">
-        <thead><tr><th>Vendedor</th><th class="n">Consultas</th><th class="n">Ventas</th><th class="n">Cierre</th><th>Plata generada</th><th class="n">En juego</th><th class="n">Calidad (1=excelente)</th></tr></thead>
-        <tbody>${[...S].sort((a,b)=>b.gen-a.gen).map((s,i)=>`<tr onclick="dirVerComo('${s.u}')">
+        <thead><tr><th>Vendedor</th><th class="n">Consultas</th><th class="n">Ventas</th><th class="n">Cierre</th>${esAdmin()?`<th>Plata generada</th><th class="n">En juego</th>`:''}<th class="n">Calidad (1=excelente)</th></tr></thead>
+        <tbody>${[...S].sort((a,b)=>esAdmin()?(b.gen-a.gen):(b.cierre-a.cierre)).map((s,i)=>`<tr onclick="dirVerComo('${s.u}')">
           <td><div style="display:flex;align-items:center;gap:9px"><span class="av2" style="width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:11px;background:${AVC[i%AVC.length]}">${s.n.slice(0,2).toUpperCase()}</span><b>${s.n}</b></div></td>
           <td class="n">${s.cs}</td><td class="n">${s.ventas}</td>
           <td class="n"><span class="dir-pill ${s.cierre>=30?'g':s.cierre>=20?'a':'r'}">${s.cierre}%</span></td>
-          <td><div style="display:flex;align-items:center;gap:8px"><b style="width:100px">$ ${miles(s.gen)}</b><span style="flex:1;min-width:50px;height:6px;border-radius:6px;background:var(--line2);overflow:hidden"><i style="display:block;height:100%;width:${Math.round(s.gen/maxGen*100)}%;background:var(--green)"></i></span></div></td>
-          <td class="n" style="color:var(--sec)">$ ${miles(s.ej)}</td>
+          ${esAdmin()?`<td><div style="display:flex;align-items:center;gap:8px"><b style="width:100px">$ ${miles(s.gen)}</b><span style="flex:1;min-width:50px;height:6px;border-radius:6px;background:var(--line2);overflow:hidden"><i style="display:block;height:100%;width:${Math.round(s.gen/maxGen*100)}%;background:var(--green)"></i></span></div></td>
+          <td class="n" style="color:var(--sec)">$ ${miles(s.ej)}</td>`:''}
           <td class="n"><span class="dir-pill ${calPill(s.cal)}">${calTxt(s.cal)}</span></td>
         </tr>`).join('')}</tbody></table></div></div>
 
@@ -12486,7 +12486,7 @@ function renderDireccion(){
         <div style="padding:13px 17px">${cans.map(c=>`<div class="dir-bar"><span class="bl">${c[0]}</span><span class="bt"><i style="width:${Math.round(c[1]/maxC*100)}%;background:${CCOL[c[0]]||'#8a94a3'}"></i></span><span class="bv">${c[1]}</span></div>`).join('')||'<div style="color:var(--muted)">Sin datos.</div>'}</div></div>
     </div>
 
-    ${htmlRegistroJornadas()}`;
+    ${esAdmin()?htmlRegistroJornadas():''}`;
 }
 /* Registro de conexiones: para un día elegido, a qué hora se conectó cada uno, su última
    señal (≈ desconexión), cuántas pausas tuvo y entre qué horarios, y a qué hora fue su
