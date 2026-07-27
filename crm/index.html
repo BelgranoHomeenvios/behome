@@ -6159,7 +6159,11 @@ function renderSituResumen(){
   const tot  = mias.length;
   const cConc= mias.filter(a=>estadoDe(a)==='Concretado').length;
   const cRech= mias.filter(a=>estadoDe(a)==='Rechazado').length;
-  const cSeg = tot - cConc - cRech;   // todo lo no cerrado (incluye sin clasificar)
+  // Antes "En seguimiento" era todo lo no cerrado e incluía las que no tienen ningún
+  // estado. Ahora son dos chips distintos: en seguimiento es una decisión que alguien
+  // tomó, sin estado es que nadie la tomó todavía. Mezclarlas escondía las segundas.
+  const cSeg = mias.filter(a=>estadoDe(a)==='En seguimiento').length;
+  const cSin = tot - cConc - cRech - cSeg;
   const pct  = c => tot ? Math.round(c/tot*100) : 0;
   const segAlto = pct(cSeg) > TOPE_SEGUIMIENTO;   // más de 30% en seguimiento => alerta roja
   /* Cada chip filtra la tabla. "En seguimiento" mapea a 'activas' y NO al estado
@@ -6178,8 +6182,9 @@ function renderSituResumen(){
     <span class="sb-lbl">Estado</span>
     <div class="sb-chips">
       ${chip('conc','Concretadas',cConc,false,'Concretado')}
-      ${chip('seg','En seguimiento',cSeg, segAlto,'activas')}
+      ${chip('seg','En seguimiento',cSeg, segAlto,'En seguimiento')}
       ${chip('rech','Rechazadas',cRech,false,'Rechazado')}
+      ${chip('sin','Sin estado',cSin,false,'sin')}
       <span class="sb-total sb-todas${filtroEstado==='todos'?' on':''}" role="button" tabindex="0"
         title="${filtroEstado==='todos'?'Volver a las activas':'Ver todas, cerradas incluidas'}"
         onclick="filtrarPorSituacion('todos')"
@@ -12801,6 +12806,13 @@ function recParaTs(){
 .est-tabla .ecell .rp-ok{color:var(--green)}
 .est-tabla .ecell .rp-medio{color:var(--amber)}
 .est-tabla .ecell .rp-mal{color:var(--red)}
+</style>
+
+<style>
+/* Cuarto chip: consultas sin ningún estado. Gris, porque no es ni bueno ni malo —
+   es una decisión que todavía nadie tomó. */
+.situ-chip.sin .dot{background:#cfd6e0}
+.situ-chip.sin.on{box-shadow:inset 0 0 0 1.5px var(--sec)}
 </style>
 </body>
 </html>
