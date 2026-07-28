@@ -3024,7 +3024,10 @@ function contactoPorId(id){
 // vinculadas a la base de CONTACTOS (no se tomó teléfono en el momento). Solo Cintia
 // puede hacer esa conexión — por eso viven en "Mis pendientes" y no en ningún otro lado.
 function pendientesVincularCliente(){
-  return atenciones.filter(a=>a.canal==='presencial' && !a.contactoId && a.status==='completa');
+  // !a.soloVolumen: las archivadas dejan de pedir vinculación. Faltaba esta condición y
+  // por eso "Archivar" parecía no hacer nada — marcaba la consulta pero la tarjeta la
+  // seguía mostrando igual.
+  return atenciones.filter(a=>a.canal==='presencial' && !a.contactoId && a.status==='completa' && !a.soloVolumen);
 }
 async function descartarConsultaLocal(id){
   if(esSoloLectura())return avisoLectura();
@@ -6714,8 +6717,30 @@ function svRecordatorioHtml(modo){
   const intro = modo==='recordatorio'
     ? `Avisos con 🔔: los que te anotaste vos o te mandó Cintia. Tocá la 🔔 en la tabla para agregar uno nuevo.`
     : `Lo que Cintia te marca para hacer: comentarios, 2da oportunidad, revisiones y asistencia (🙏).`;
-  return `<p class="tiny" style="margin:0 0 12px">${intro}</p>
-    ${recs.map(svRecItemHtml).join('')}`;
+  /* Agrupados por CUÁNDO hay que hacerlos. Antes venían en una lista plana y no se
+     distinguía lo de hoy de lo de la semana que viene ni de lo que ya se venció: el
+     vendedor tenía que leer la fecha de cada uno para armar su día. Los grupos vacíos
+     no se dibujan, así que la sección no se llena de títulos sin nada abajo. */
+  const _h0=new Date(); _h0.setHours(0,0,0,0);
+  const _t=_h0.getTime(), _D=86400000;
+  const _dia=v=>{ const d=new Date(v); d.setHours(0,0,0,0); return d.getTime(); };
+  const grupos=[
+    {t:'Atrasados',    cls:'g-mal', f:it=>it.para && _dia(it.para) <  _t},
+    {t:'Para hoy',     cls:'g-hoy', f:it=>it.para && _dia(it.para) === _t},
+    {t:'Para mañana',  cls:'g-man', f:it=>it.para && _dia(it.para) === _t+_D},
+    {t:'Esta semana',  cls:'g-sem', f:it=>it.para && _dia(it.para) >  _t+_D && _dia(it.para) < _t+7*_D},
+    {t:'Más adelante', cls:'g-lej', f:it=>it.para && _dia(it.para) >= _t+7*_D},
+    {t:'Sin fecha',    cls:'g-sin', f:it=>!it.para}
+  ];
+  const bloques = grupos.map(g=>{
+    const l = recs.filter(g.f);
+    if(!l.length) return '';
+    return `<div class="sv-rec-grupo ${g.cls}">
+      <h5 class="sv-rec-gh">${g.t}<span class="sv-rec-gn">${l.length}</span></h5>
+      ${l.map(svRecItemHtml).join('')}
+    </div>`;
+  }).join('');
+  return `<p class="tiny" style="margin:0 0 12px">${intro}</p>${bloques}`;
 }
 
 function svOportunidadesHtml(){
@@ -12823,6 +12848,21 @@ function recParaTs(){
    es una decisión que todavía nadie tomó. */
 .situ-chip.sin .dot{background:#cfd6e0}
 .situ-chip.sin.on{box-shadow:inset 0 0 0 1.5px var(--sec)}
+</style>
+
+<style>
+/* Recordatorios agrupados por cuándo hay que hacerlos. La barra de color a la izquierda
+   repite el semáforo del resto del CRM: rojo lo vencido, ámbar lo de hoy. */
+.sv-rec-grupo{margin-bottom:16px;padding-left:11px;border-left:3px solid var(--line2)}
+.sv-rec-gh{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:12px;
+  font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--sec)}
+.sv-rec-gn{font-size:11.5px;font-weight:700;color:var(--muted);background:var(--line2);
+  border-radius:20px;padding:1px 8px}
+.sv-rec-grupo.g-mal{border-left-color:var(--red)}   .sv-rec-grupo.g-mal .sv-rec-gh{color:var(--red)}
+.sv-rec-grupo.g-hoy{border-left-color:var(--amber)} .sv-rec-grupo.g-hoy .sv-rec-gh{color:var(--amber)}
+.sv-rec-grupo.g-man{border-left-color:var(--blue)}
+.sv-rec-grupo.g-sem{border-left-color:#94a3b8}
+.sv-rec-grupo.g-lej,.sv-rec-grupo.g-sin{border-left-color:var(--line2)}
 </style>
 </body>
 </html>
