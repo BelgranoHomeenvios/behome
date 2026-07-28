@@ -3030,10 +3030,14 @@ async function descartarConsultaLocal(id){
   if(esSoloLectura())return avisoLectura();
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
-  if(!window.confirm('¿Eliminar esta consulta de local? No hay nada para vincular y no se va a poder recuperar.')) return;
-  const i=atenciones.findIndex(x=>x.id===id); if(i>-1) atenciones.splice(i,1);
-  if(sb){ try{ await sb.from('consultas').delete().eq('id', id); }catch(e){ console.error('borrar consulta local', e); } }
-  toast('Consulta eliminada');
+  if(!window.confirm('¿Sacarla de la lista para vincular?\n\nNO se borra: sigue en la base y sigue contando como turno atendido en el local. Solo deja de pedirte que le cargues un teléfono.')) return;
+  // Antes esto hacía un DELETE real contra Supabase y la consulta se perdía para
+  // siempre. Ahora se archiva con la misma marca que usa el script de local sin
+  // contacto, así deja la lista pero sigue sumando al conteo de turnos por local.
+  a.soloVolumen=true;
+  a.motivoSoloVolumen='local sin contacto';
+  await saveAtenciones();
+  toast('Guardada como turno del local, sin vincular');
   render();
 }
 /* Borra una venta concretada duplicada (solo dirección), desde el módulo de limpieza. */
@@ -8883,7 +8887,7 @@ function htmlCintiaMisPendientes(){
           <input type="text" id="vinc-tel-${a.id}" placeholder="Teléfono / usuario" style="width:130px">
           <button class="btn btn-navy btn-sm" onclick="guardarVinculacionCliente('${a.id}')">Vincular</button>
           <button class="btn btn-outline btn-sm" title="Ver y editar lo que cargó el vendedor (muebles, notas, foto)" onclick="abrirModalCompletar('${a.id}')">✎ Editar</button>
-          <button class="btn btn-outline btn-sm" title="Eliminar la consulta (no hay nada para vincular)" onclick="descartarConsultaLocal('${a.id}')" style="color:var(--red)">🗑</button>
+          <button class="btn btn-outline btn-sm" title="Sacarla de la lista — no se borra, sigue contando como turno del local" onclick="descartarConsultaLocal('${a.id}')" style="color:var(--sec)">Archivar</button>
         </div>
       </div>`}).join('')}
   </div>`;
@@ -12015,10 +12019,16 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
   // "Ir directo al cierre": si se marcó Concretado/Rechazado, la planilla de cierre ya pide
   // nombre/teléfono/monto/motivo, así que no se exigen acá — se puede saltar directo.
   const cierreDirecto = ['Concretado','Rechazado'].includes(nuevaEstadoSel) || ['Concretado','Rechazado'].includes(origenAutoEstado);
-  if(modalRapido){
-    // Registro rápido: nombre y teléfono opcionales; exige al menos un mueble con monto.
-    if(!cierreDirecto && (!hayMuebleOPrecio || !muebles.some(m=>Number(m.monto)>0))){ toast('Cargá al menos un mueble con su monto'); return; }
-  }else if(!cierreDirecto){
+  // Muebles con precio: OBLIGATORIO en la atención física, sea rápida o normal. Antes
+  // solo se exigía en el registro rápido, así que la atención normal se podía guardar
+  // sin ningún producto y se perdía el único dato que queda cuando el cliente no deja
+  // el teléfono: qué vino a ver y qué precio se le pasó.
+  // No se exige en el cierre directo porque la planilla de cierre pide el monto aparte.
+  if(!cierreDirecto && (!hayMuebleOPrecio || !muebles.some(m=>Number(m.monto)>0))){
+    toast('Cargá al menos un mueble con el precio que le pasaste'); return;
+  }
+  if(!modalRapido && !cierreDirecto){
+    // El registro rápido no pide nombre ni teléfono; el normal sí.
     if(!nombreInput && !noTomoNombre){toast('Cargá el nombre o marcá "No lo tomé"');return;}
     if(!noTomo && !tel && !telIGval){toast('Cargá el teléfono o marcá "No lo tomé"');return;}
   }
