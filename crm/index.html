@@ -5201,12 +5201,17 @@ function logItemHtml(a){
   // Ámbar cuando ya hay un recordatorio pendiente, para no mandar dos veces lo mismo.
   const puedeAsist = (YO===a.vendedorId || esAuditora() || esAdmin());
   const tieneHilo = !!(a.asistencia && a.asistencia.mensajes && a.asistencia.mensajes.length);
+  // El 🙏 solo se enciende si hay una conversación ABIERTA. Una vez resuelta, la fila
+  // vuelve al estado "sin conversación" aunque el historial quede guardado — si hace
+  // falta, se arranca un hilo nuevo. Así la marca significa "hay algo pendiente", no
+  // "alguna vez se habló".
+  const hiloAbierto = tieneHilo && a.asistencia.estado!=='resuelta';
   // La campanita queda sola en su columna. El 🙏 de comentarios/asistencia se movió al
   // costado, con el resto de los íconos de acción de la fila.
   // 🙏 (comentarios/asistencia) va al lado de la campanita 🔔, en la misma columna.
   const asistBtn = puedeAsist
-    ? `<span class="asist-btn ${asistenciaSinLeer(a)?'sinleer':''} ${tieneHilo?'activo':''}" role="button" tabindex="0"
-          title="${tieneHilo?((a.asistencia.estado==='resuelta'?'Conversación (resuelta)':'Conversación interna')+' — '+a.asistencia.mensajes.length+' mensaje(s)'):'Pedir asistencia o comentar (interno, no es WhatsApp)'}"
+    ? `<span class="asist-btn ${asistenciaSinLeer(a)?'sinleer':''} ${hiloAbierto?'activo':''}" role="button" tabindex="0"
+          title="${hiloAbierto?('Conversación interna — '+a.asistencia.mensajes.length+' mensaje(s)'):'Pedir asistencia o comentar (interno, no es WhatsApp)'}"
           onclick="event.stopPropagation();abrirAsistencia('${a.id}')">🙏</span>`
     : '';
   const bellCol = (puedeRecordar()||puedeAsist)
@@ -10247,6 +10252,7 @@ let recordandoConsultaId=null;
 let asistId=null;
 function asistenciaSinLeer(a){
   if(!a || !a.asistencia || !a.asistencia.mensajes || !a.asistencia.mensajes.length) return false;
+  if(a.asistencia.estado==='resuelta') return false;   // resuelta = nada pendiente
   const last=a.asistencia.mensajes[a.asistencia.mensajes.length-1];
   if(last.deId===YO) return false;
   const visto=a.asistencia.leidoPor && a.asistencia.leidoPor[YO];
@@ -10287,9 +10293,10 @@ function htmlAsistencia(a){
         </div>`;
       }).join('')
     : `<p class="cin-empty" style="margin:6px 0">Todavía no hay mensajes. Escribí para empezar.</p>`;
-  // Selector de destino: solo lo elige el VENDEDOR, y solo mientras el hilo no arrancó
-  // (una vez que Cintia o Brian respondieron, cambiar el destino dejaría el hilo colgado).
-  const puedeElegirDestino = soyVendedor && !msgs.some(m=>m.deId!==YO);
+  const resuelto=a.asistencia&&a.asistencia.estado==='resuelta';
+  // Selector de destino: lo elige el VENDEDOR mientras el hilo no arrancó, o cuando está
+  // resuelto (ahí un mensaje nuevo abre una conversación nueva y puede ir a otro destino).
+  const puedeElegirDestino = soyVendedor && (resuelto || !msgs.some(m=>m.deId!==YO));
   const selDestino = puedeElegirDestino ? `
     <div style="display:flex;align-items:center;gap:8px;margin:2px 2px 10px">
       <span class="tiny" style="color:var(--muted);font-weight:700">Enviar a:</span>
@@ -10314,11 +10321,11 @@ async function enviarAsistencia(){
   const inp=$('asistInput'); const txt=(inp?inp.value:'').trim();
   if(!txt){ if(inp) inp.focus(); return; }
   a.asistencia=a.asistencia||{mensajes:[],estado:'abierta',leidoPor:{}};
-  // Destino del hilo: lo fija el vendedor con el selector la primera vez. Si ya estaba
-  // fijado, se respeta. Cintia/Brian escribiendo no cambian el destino.
+  const reabriendo = a.asistencia.estado==='resuelta';   // hilo resuelto que se retoma
+  // Destino del hilo: lo fija el vendedor con el selector la primera vez, o al retomar un
+  // hilo resuelto (ahí puede cambiar de destinatario). Cintia/Brian escribiendo no lo tocan.
   const destSel=document.querySelector('input[name=asistDest]:checked');
-  if(destSel && !a.asistencia.destinoId) a.asistencia.destinoId=destSel.value;
-  if(destSel && !a.asistencia.mensajes.length) a.asistencia.destinoId=destSel.value;
+  if(destSel && (reabriendo || !a.asistencia.destinoId || !a.asistencia.mensajes.some(m=>m.deId!==YO))) a.asistencia.destinoId=destSel.value;
   if(!a.asistencia.destinoId) a.asistencia.destinoId='cintia';
   a.asistencia.mensajes.push({deId:YO, deNombre:nombreDe(YO), rol:rolDe(YO), texto:txt, ts:new Date().toISOString()});
   a.asistencia.estado='abierta';
@@ -10332,6 +10339,7 @@ async function resolverAsistencia(){
   a.asistencia.estado = a.asistencia.estado==='resuelta' ? 'abierta' : 'resuelta';
   await saveAtenciones();
   pintarAsistencia();
+  render();   // que la fila de atrás refleje el 🙏 apagado sin esperar a cerrar
 }
 function abrirRecordarConsulta(id){
   const a=atenciones.find(x=>x.id===id);
