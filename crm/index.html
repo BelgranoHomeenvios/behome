@@ -5264,7 +5264,7 @@ function logItemHtml(a){
           </span>
         </span>`)}
       </div>
-      <div class="c-nom" ondblclick="editarDesdeHistorial('${a.id}')">
+      <div class="c-nom" ondblclick="editarSoloNombre('${a.id}')" title="Doble clic para editar el nombre y el contacto">
         ${canalIco}
         <div class="c-nom-inner">
         <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
@@ -5384,12 +5384,29 @@ async function rapidoPercepcion(id, p){
 /* Abre el formulario directo en la parte de muebles, sin pasar por los datos del
    cliente: cuando solo hay que corregir un precio, el resto sobra. */
 function editarSoloMuebles(id){
-  abrirModalCompletar(id);
+  abrirModalCompletar(id, 0);   // paso 0 fuerza el wizard completo, no el modo seguimiento
   setTimeout(()=>{
     const cont=document.getElementById('mueblesLista');
     if(cont && cont.scrollIntoView) cont.scrollIntoView({behavior:'smooth', block:'center'});
     const primero=document.querySelector('#mueblesLista input');
     if(primero) primero.focus();
+  }, 180);
+}
+
+/* Doble clic en el nombre → abre el modal directo en el campo del cliente, con foco y
+   scroll, igual que editarSoloMuebles hace con los muebles. Ahorra abrir la ficha entera
+   solo para corregir un nombre. Si el nombre estaba con "no lo tomé", se destilda para
+   poder escribirlo. */
+function editarSoloNombre(id){
+  abrirModalCompletar(id, 0);   // paso 0 fuerza el wizard completo, no el modo seguimiento
+  setTimeout(()=>{
+    const inp=document.getElementById('clienteNombre');
+    if(inp){
+      const chk=document.getElementById('noTomoNombre');
+      if(chk && chk.checked){ chk.checked=false; toggleNombre(); }
+      if(inp.scrollIntoView) inp.scrollIntoView({behavior:'smooth', block:'center'});
+      inp.focus(); inp.select();
+    }
   }, 180);
 }
 
