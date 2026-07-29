@@ -1734,6 +1734,7 @@ textarea{resize:vertical;min-height:60px}
             <input type="date" id="fechaConversacion">
           </div>
         </div>
+        <div id="cotizBadge" class="tiny hidden" style="color:var(--muted);margin:-4px 0 4px"></div>
         <div id="modalBadge" class="modal-note"></div>
 
         <div class="hidden" id="fichaResumenBox">
@@ -1815,13 +1816,16 @@ textarea{resize:vertical;min-height:60px}
                   <label class="tomo"><input type="checkbox" id="noTomoTel" onchange="toggleTelefono()"> no lo tomé</label>
                 </div>
               </div>
-              <div class="field" style="flex:1">
-                <label>N° cotiz. <span class="opt">(opc.)</span></label>
-                <input type="text" id="nroCotizacion" placeholder="4142">
-              </div>
+              <!-- N° de cotización: sacado de la vista (Brian confirmó que no lo usan). Queda
+                   como input oculto para no romper las referencias del guardado/restaurado. -->
+              <input type="hidden" id="nroCotizacion" value="">
             </div>
-            <div class="field">
-              <label>Email <span class="opt">(opcional — para tener toda la info del cliente)</span></label>
+            <!-- Email oculto por defecto: casi nunca lo cargan. Aparece al tocar "tengo el mail". -->
+            <div id="mailLinkWrap" style="margin:2px 0 8px">
+              <span class="link-mini" onclick="mostrarCampoMail()" style="font-size:13px;color:var(--navy);cursor:pointer;font-weight:600">+ tengo el mail</span>
+            </div>
+            <div class="field hidden" id="campoMail">
+              <label>Email <span class="opt">(opcional)</span></label>
               <input type="email" id="clienteEmail" placeholder="nombre@mail.com">
             </div>
             <div class="field hidden" id="campoTelefonoIG">
@@ -1882,7 +1886,10 @@ textarea{resize:vertical;min-height:60px}
             <div class="field">
               <label>¿Qué preguntó el cliente?</label>
               <div class="pills" id="famPills"></div>
-              <div class="pills" id="tipoPills" style="margin-top:8px"></div>
+            </div>
+            <div class="field hidden" id="tipoField">
+              <label id="tipoLabel">¿Sobre qué?</label>
+              <select id="tipoSelect" onchange="setTipoConsulta(this.value)" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff"></select>
             </div>
             <div class="field">
               <label>Comentario de la atención <span class="opt">(opcional)</span></label>
@@ -1894,13 +1901,11 @@ textarea{resize:vertical;min-height:60px}
               <div class="pills" id="proxPills"></div>
               <input type="date" id="proxFechaCustom" class="hidden" style="margin-top:8px;max-width:190px">
             </div>
-            <div class="field">
-              <label>¿Sobre qué le vas a hablar?</label>
-              <div class="prox-tema-wrap">
-                <input type="text" id="proxTema" placeholder="Ej: preguntarle si pudo pasar">
-                <button type="button" class="prox-tema-flecha" onclick="toggleTemasProx(event)">▾</button>
-                <div class="prox-temas hidden" id="proxTemasPop"></div>
-              </div>
+            <!-- "¿Sobre qué le vas a hablar?" sacado de la vista (Brian: no lo completan).
+                 Los inputs quedan ocultos para no romper el guardado/restaurado. -->
+            <div class="hidden">
+              <input type="text" id="proxTema">
+              <div id="proxTemasPop"></div>
             </div>
             <div class="field hidden" id="campoBitacora">
               <label>Bitácora de contacto</label>
@@ -2935,16 +2940,19 @@ const CANALES_PUBLICIDAD=['Publicidad Mensajería','Publicidad Instagram'];
    configuración. Entrega inmediata usa fracción de día (0.5 ≈ mismo día) pero como la
    fecha va "solo el día", en la práctica cae hoy. */
 const FAMILIAS_CONSULTA=[
+  // 4 familias (se disolvió "Consulta de venta": casi todo es venta). Atención general junta
+  // las preguntas de PROCESO (cómo llega, cuánto tarda, cómo paga); Asesoramiento las de
+  // AYUDAME A DECIDIR (qué mueble, medidas, colores). El plazo viaja con el TIPO, no con la
+  // familia, así "Formas de pago" mantiene sus 2 días aunque esté en Atención general.
   {fam:'Atención general', tipos:[
-    ['Horarios',5],['Dirección',5],['Cómo comprar',3],['Facturación',7],['Promociones',2],['Otros',5]]},
+    ['Horarios',5],['Dirección',5],['Cómo comprar',3],['Facturación',7],['Promociones',2],['Otros',5],
+    ['Envío e instalación',3],['Tiempo de fabricación',3],['Formas de pago',2]]},
   {fam:'Entrega inmediata', tipos:[
     ['Un mueble específico',0.5],['Un producto para entrega inmediata',0.5]]},
-  {fam:'Consulta de venta', tipos:[
-    ['Amoblamiento completo',3],['Búsqueda de una categoría',3],['Envío e instalación',3],
-    ['Tiempo de fabricación',3],['Formas de pago y promociones',2],['Colores o terminaciones',2],['Medidas',2]]},
   {fam:'Asesoramiento', tipos:[
     ['Comparar dos muebles',4],['Recomendación de producto',5],['Qué entra en mi espacio',5],
-    ['Asesoramiento de decoración',6],['Presupuesto general',5]]},
+    ['Asesoramiento de decoración',6],['Presupuesto general',5],
+    ['Medidas',2],['Colores o terminaciones',2],['Amoblamiento completo',3],['Búsqueda de una categoría',3]]},
   {fam:'Otras', tipos:[['Sin clasificar',5]]},
 ];
 /* Índice tipo→{familia,plazoDias} para buscar rápido sin recorrer todo. */
@@ -3560,9 +3568,30 @@ function consultaAFila(a){
 /* Guarda SOLO lo que cambió desde la última vez. Se llama igual que antes
    (saveAtenciones) así que las 32 llamadas del resto del código no cambian. */
 let _timerGuardado = null;
+/* N° de cotización automático: referencia interna correlativa, una por consulta.
+   El número lo calcula el navegador como (mayor existente + 1). Como cada usuario carga
+   todas las consultas recientes, el mayor es confiable; solo chocarían dos que guarden en
+   el mismo instante (raro, y sin consecuencias: es una referencia interna, no el N° de
+   orden de la venta). Campo propio `nroCotiz` para no mezclarse con datos viejos. */
+function proximoNroCotiz(){
+  let max=0;
+  for(const a of atenciones){
+    const n=parseInt(a.nroCotiz,10);
+    if(!isNaN(n) && n>max) max=n;
+  }
+  return max+1;
+}
+
 async function saveAtenciones(){
   if(!sb || _aplicandoRemoto) return;
   if(esSoloLectura()) return; // Cintia mirando la planilla de un vendedor: nunca persiste
+  // Numerar las consultas NUEVAS de esta sesión (las que todavía no tienen snapshot = no
+  // se persistieron nunca) que no tengan número. Las viejas ya están en _snapConsultas, así
+  // que nunca se renumeran. Dentro del loop el número sube solo porque proximoNroCotiz mira
+  // el array ya actualizado.
+  for(const a of atenciones){
+    if(!a.nroCotiz && _snapConsultas[a.id]===undefined){ a.nroCotiz = proximoNroCotiz(); }
+  }
   for(const a of atenciones){
     const j = JSON.stringify(a);
     if(_snapConsultas[a.id] !== j){ _colaGuardado.add(a.id); _snapConsultas[a.id] = j; }
@@ -11464,6 +11493,7 @@ function pintarTodoWizard(){
   pintarCantPills(); renderMuebleFilas();
   // Próxima acción
   pintarFamPills(); pintarProxPills(); pintarAtajos();
+  ajustarCamposPorModo();
   const recActual = completandoId ? atenciones.find(x=>x.id===completandoId) : null;
   renderBitacora(recActual);
 }
@@ -11477,6 +11507,23 @@ function pintarPercepcionPills(){
   $('percepcionPills').innerHTML = html;
 }
 function setPercepcion(p){ percepcionSel = (percepcionSel===p)?null:p; pintarPercepcionPills(); }
+/* Tiempo del turno: solo tiene sentido en atención PRESENCIAL. Una consulta derivada por
+   Cintia se atendió por WhatsApp/IG (virtual), así que no hay "turno" que medir → se oculta.
+   Presencial = la registra el vendedor directo (modo nueva) o una consulta no derivada. */
+function ajustarCamposPorModo(){
+  const rec = modalModo==='completar' ? atenciones.find(x=>x.id===completandoId) : null;
+  const esVirtual = !!(rec && rec.derivada);
+  const c=$('campoTiempoTurno');
+  if(c) c.classList.toggle('hidden', esVirtual);
+  // N° de cotización (referencia interna): se muestra si la consulta ya tiene uno. Las
+  // nuevas lo reciben al guardar, así que ahí el badge dice que se asigna al guardar.
+  const cb=$('cotizBadge');
+  if(cb){
+    if(rec && rec.nroCotiz){ cb.textContent='N° de cotización: '+rec.nroCotiz; cb.classList.remove('hidden'); }
+    else if(modalModo!=='completar'){ cb.textContent='N° de cotización: se asigna al guardar'; cb.classList.remove('hidden'); }
+    else { cb.classList.add('hidden'); }
+  }
+}
 function pintarTiempoPills(){
   $('tiempoPills').innerHTML = TIEMPOS.map(([v,t])=>
     `<span class="pill ${tiempoSel===v?'on':''}" onclick="setTiempo('${v}')">${t}</span>`
@@ -11663,11 +11710,14 @@ function pintarFamPills(){
   pintarTipoPills();
 }
 function pintarTipoPills(){
-  const box=$('tipoPills'); if(!box) return;
-  if(!famSeleccionada){ box.innerHTML=''; return; }
+  const sel=$('tipoSelect'); const field=$('tipoField'); const lbl=$('tipoLabel');
+  if(!sel) return;
+  if(!famSeleccionada){ sel.innerHTML=''; if(field) field.classList.add('hidden'); return; }
+  if(field) field.classList.remove('hidden');
+  if(lbl) lbl.textContent = '¿Sobre qué? — '+famSeleccionada;
   const fam=FAMILIAS_CONSULTA.find(f=>f.fam===famSeleccionada);
-  box.innerHTML = (fam?fam.tipos:[]).map(([t])=>
-    `<span class="pill ${tipoSeleccionado===t?'on':''}" onclick="setTipoConsulta('${t.replace(/'/g,"\\'")}')">${t}</span>`
+  sel.innerHTML = `<option value="">Elegí…</option>` + (fam?fam.tipos:[]).map(([t])=>
+    `<option value="${escAttr(t)}" ${tipoSeleccionado===t?'selected':''}>${escapeHtml(t)}</option>`
   ).join('');
 }
 function setFamilia(f){
@@ -11676,8 +11726,8 @@ function setFamilia(f){
   pintarFamPills();
 }
 function setTipoConsulta(t){
-  tipoSeleccionado = (tipoSeleccionado===t) ? null : t;
-  pintarTipoPills();
+  tipoSeleccionado = t || null;   // viene del <select>; '' = ninguno
+  // no re-render: el select ya muestra el valor elegido
 }
 function setProx(v){ proxSeleccionada=v; pintarProxPills();
   const f=$('proxFechaCustom');
@@ -11715,6 +11765,12 @@ function toggleNombre(){
   $('clienteNombre').disabled=off;
   if(off) $('clienteNombre').value='';
 }
+/* Muestra el campo de email (oculto por defecto) y esconde el link. */
+function mostrarCampoMail(){
+  const c=$('campoMail'); if(c) c.classList.remove('hidden');
+  const l=$('mailLinkWrap'); if(l) l.classList.add('hidden');
+  const i=$('clienteEmail'); if(i) i.focus();
+}
 
 /* "No los pude tomar": mismo criterio que "No lo tomé" del nombre/teléfono. A veces el
    vendedor atiende y no llega a anotar qué muebles miró; sin esto no podía guardar la
@@ -11728,6 +11784,8 @@ function toggleMuebles(){
 function limpiarModal(){
   ['clienteNombre','clienteTelefono','clienteTelefonoIG','clienteEmail','nroCotizacion','notas','tiempoAtencionInput'].forEach(id=>{const e=$(id); if(e) e.value='';});
   const cig=$('campoTelefonoIG'); if(cig) cig.classList.add('hidden');
+  const cmail=$('campoMail'); if(cmail) cmail.classList.add('hidden');
+  const mlw=$('mailLinkWrap'); if(mlw) mlw.classList.remove('hidden');
   const dav=$('modalDupAviso'); if(dav) dav.innerHTML='';
   _senaEditada=false; _senaManual=0;   // la seña arranca en la sugerida en cada consulta
   ['noTomoNombre','noTomoTel','noTomoMuebles'].forEach(id=>{const e=$(id); if(e) e.checked=false;});
@@ -11824,6 +11882,7 @@ function abrirModalCompletar(id, paso, forzarSeg){
   else{$('clienteNombre').value=a.clienteNombre||'';}
   $('nroCotizacion').value=a.nroCotizacion||'';
   if($('clienteEmail')) $('clienteEmail').value=a.clienteEmail||'';
+  if(a.clienteEmail) mostrarCampoMail();
   setFechaConversacion(a.ts);
   percepcionSel = a.percepcion || null;
 
