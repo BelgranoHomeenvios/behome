@@ -5564,6 +5564,10 @@ const FILTRO_OPORT_OPCIONES=[
 const FILTRO_COMENT_OPCIONES=[['todos','Todos'],['con','Con comentario'],['sin','Sin comentario']];
 const FILTRO_EVAL_OPCIONES=[['todos','Todas'],['evaluadas','Evaluadas'],['sinevaluar','Sin evaluar']];
 let filtroRecordatorio='todos'; // 'todos' | 'con' | 'sin'
+/* Filtro para que Cintia/dirección vean en la TABLA las consultas que tienen un mensaje
+   de vendedor pendiente para ellos, con toda la fila (canal, estado, teléfono), en vez
+   de solo la tarjeta de "Mis pendientes". Se activa desde el botón de esa tarjeta. */
+let filtroAsistPend=false;
 const FILTRO_REC_OPCIONES=[['todos','Todas'],['con','Con recordatorio'],['sin','Sin recordatorio']];
 
 /* Quién puede mandarle un recordatorio al vendedor desde la tabla: Cintia (auditora)
@@ -5703,6 +5707,7 @@ function filtrosActivos(){
   if(filtroBusqueda) f.push({k:'busqueda', t:'Buscando: “'+filtroBusqueda+'”'});
   if(ordenFecha) f.push({k:'ordenFecha', t:'Orden: '+etiquetaOpcion(ORDEN_FECHA_OPCIONES,ordenFecha)});
   if(puedeRecordar() && filtroRecordatorio!=='todos') f.push({k:'recordatorio', t:etiquetaOpcion(FILTRO_REC_OPCIONES,filtroRecordatorio)});
+  if(filtroAsistPend) f.push({k:'asistPend', t:'Mensajes de vendedores'});
   if(esAuditora()){
     if(filtroVendedorCintia!=='todos') f.push({k:'vendedorCintia', t:'Vendedor: '+nombreDe(filtroVendedorCintia)});
     if(filtroCanalCintia!=='todos') f.push({k:'canalCintia', t:'Canal: '+filtroCanalCintia});
@@ -5721,6 +5726,7 @@ function limpiarFiltro(k){
   else if(k==='oport') filtroOportunidad='todos';
   else if(k==='coment') filtroComentario='todos';
   else if(k==='recordatorio') filtroRecordatorio='todos';
+  else if(k==='asistPend'){ filtroAsistPend=false; if(typeof renderPanelCintia==='function') renderPanelCintia(); }
   else if(k==='vendedorCintia') filtroVendedorCintia='todos';
   else if(k==='canalCintia') filtroCanalCintia='todos';
   else if(k==='evaluacion') filtroEvaluacion='todos';
@@ -5731,7 +5737,7 @@ function limpiarTodosLosFiltros(){
   zonaActiva=null; filtroEstado='activas'; filtroPlazo='todos'; filtroOportunidad='todos';
   filtroComentario='todos'; filtroBusqueda=''; ordenFecha=null; filtroRecordatorio='todos';
   filtroVendedorCintia='todos'; filtroCanalCintia='todos'; filtroEvaluacion='todos';
-  filtroCanalGrupo='todos'; filtroPostventa='pendientes';
+  filtroCanalGrupo='todos'; filtroPostventa='pendientes'; filtroAsistPend=false;
   const i=$('filtroBusquedaInput'); if(i) i.value='';
   renderHistorial();
 }
@@ -5825,6 +5831,7 @@ function construirListaFiltrada(){
   if(puedeRecordar()){
     if(filtroRecordatorio==='con')      l=l.filter(a=>!!a.recordatorioPendiente);
     else if(filtroRecordatorio==='sin') l=l.filter(a=>!a.recordatorioPendiente);
+    if(filtroAsistPend) l=l.filter(a=>asistPendienteParaMi(a));
   }
 
   // Vendedor, Canal y Evaluación solo se ven (y se filtran) en la vista de Cintia. El período
@@ -5883,6 +5890,7 @@ function filtrosColumna(l){
   if(puedeRecordar()){
     if(filtroRecordatorio==='con')      l=l.filter(a=>!!a.recordatorioPendiente);
     else if(filtroRecordatorio==='sin') l=l.filter(a=>!a.recordatorioPendiente);
+    if(filtroAsistPend) l=l.filter(a=>asistPendienteParaMi(a));
   }
   if(esAuditora()){
     if(filtroVendedorCintia!=='todos') l=l.filter(a=>a.vendedorId===filtroVendedorCintia);
@@ -7434,7 +7442,7 @@ function renderPanelCintia(){
 }
 function cintiaIrSeccion(id){
   cintiaSeccion=id; resumenVendedor=null;
-  if(id!=='consultas'){ filtroConteoVendedor=null; filtroConteoTipo=null; }
+  if(id!=='consultas'){ filtroConteoVendedor=null; filtroConteoTipo=null; filtroAsistPend=false; }
   if(esAdmin()){
     if(id==='consultas') scopeActual='equipo';
     else if(id==='misconsultas') scopeActual='mias';
@@ -8856,16 +8864,33 @@ function htmlCintiaEstadisticas(){
    hilo abierto, y el destino soy yo. Cintia ve las de destino 'cintia'; Brian (admin)
    ve las que lo eligieron a él. Cada uno maneja SOLO las suyas. */
 function asistenciasParaMi(){
-  const soyAdmin=esAdmin();
-  return atenciones.filter(a=>{
-    const h=a.asistencia;
-    if(!h || h.estado==='resuelta' || !h.mensajes || !h.mensajes.length) return false;
-    const dest=h.destinoId||'cintia';
-    const paraMi = soyAdmin ? (dest===YO) : (dest==='cintia' && esAuditora());
-    if(!paraMi) return false;
-    const ult=h.mensajes[h.mensajes.length-1];
-    return ult && ult.deId!==YO && dentroDePeriodoCintia(a.ts);
-  }).sort((x,y)=>new Date(y.asistencia.mensajes[y.asistencia.mensajes.length-1].ts)-new Date(x.asistencia.mensajes[x.asistencia.mensajes.length-1].ts));
+  return atenciones.filter(a=>asistPendienteParaMi(a) && dentroDePeriodoCintia(a.ts))
+    .sort((x,y)=>new Date(y.asistencia.mensajes[y.asistencia.mensajes.length-1].ts)-new Date(x.asistencia.mensajes[x.asistencia.mensajes.length-1].ts));
+}
+/* ¿Esta consulta tiene un mensaje de vendedor pendiente PARA MÍ? Cintia ve los de destino
+   'cintia'; Brian (admin) los que lo eligieron a él. Mismo criterio que la tarjeta, pero
+   por fila, para poder filtrar la tabla. */
+function asistPendienteParaMi(a){
+  const h=a.asistencia;
+  if(!h || h.estado==='resuelta' || !h.mensajes || !h.mensajes.length) return false;
+  const dest=h.destinoId||'cintia';
+  const paraMi = esAdmin() ? (dest===YO) : (dest==='cintia' && esAuditora());
+  if(!paraMi) return false;
+  const ult=h.mensajes[h.mensajes.length-1];
+  return ult && ult.deId!==YO;
+}
+/* Botón "Ver en la tabla" de la tarjeta de mensajes: lleva a Cintia/dirección a la vista
+   Consultas con el filtro puesto, para ver cada consulta con toda su fila. Toggle. */
+function verAsistPendientes(){
+  filtroAsistPend=!filtroAsistPend;
+  if(filtroAsistPend){
+    if(esAdmin()){ scopeActual='equipo'; }
+    cintiaSeccion='consultas';
+    filtroRecordatorio='todos';
+  }
+  reiniciarPaginado();
+  renderPanelCintia();
+  renderHistorial();
 }
 function htmlCintiaMisPendientes(){
   const pendientes=solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
@@ -8884,8 +8909,11 @@ function htmlCintiaMisPendientes(){
   if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length && !reasignaciones.length && !asistencias.length && !elimHtml && !limpieza) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
   let html=limpieza;
   if(asistencias.length) html+=`<div class="cin-card">
-    <h3>Mensajes de vendedores <span class="cnt-pill">${asistencias.length}</span></h3>
-    <p class="tiny" style="margin-top:-8px">Comentarios internos que te mandaron y esperan tu respuesta.</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <h3 style="margin:0">Mensajes de vendedores <span class="cnt-pill">${asistencias.length}</span></h3>
+      <button class="btn ${filtroAsistPend?'btn-navy':'btn-outline'} btn-sm" onclick="verAsistPendientes()">${filtroAsistPend?'✓ Viendo en la tabla':'📋 Ver en la tabla'}</button>
+    </div>
+    <p class="tiny" style="margin-top:4px">Comentarios internos que te mandaron y esperan tu respuesta.</p>
     ${asistencias.map(a=>{
       const ult=a.asistencia.mensajes[a.asistencia.mensajes.length-1];
       return `<div class="solic-item">
