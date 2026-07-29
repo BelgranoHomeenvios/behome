@@ -10293,10 +10293,9 @@ function htmlAsistencia(a){
         </div>`;
       }).join('')
     : `<p class="cin-empty" style="margin:6px 0">Todavía no hay mensajes. Escribí para empezar.</p>`;
-  const resuelto=a.asistencia&&a.asistencia.estado==='resuelta';
   // Selector de destino: lo elige el VENDEDOR mientras el hilo no arrancó, o cuando está
   // resuelto (ahí un mensaje nuevo abre una conversación nueva y puede ir a otro destino).
-  const puedeElegirDestino = soyVendedor && (resuelto || !msgs.some(m=>m.deId!==YO));
+  const puedeElegirDestino = soyVendedor && (resuelta || !msgs.some(m=>m.deId!==YO));
   const selDestino = puedeElegirDestino ? `
     <div style="display:flex;align-items:center;gap:8px;margin:2px 2px 10px">
       <span class="tiny" style="color:var(--muted);font-weight:700">Enviar a:</span>
@@ -10312,7 +10311,7 @@ function htmlAsistencia(a){
     <textarea id="asistInput" class="ev-ta" rows="2" placeholder="Escribí un mensaje…"></textarea>
     <div style="display:flex;gap:8px;margin-top:8px">
       <button class="btn btn-navy" style="flex:1" onclick="enviarAsistencia()">Enviar</button>
-      ${msgs.length?`<button class="btn btn-outline" onclick="resolverAsistencia()">${resuelta?'Reabrir':'Marcar resuelta'}</button>`:''}
+      ${(msgs.length && !resuelta)?`<button class="btn btn-outline" onclick="resolverAsistencia()">Marcar resuelta</button>`:''}
     </div>`;
 }
 async function enviarAsistencia(){
