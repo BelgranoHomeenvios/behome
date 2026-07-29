@@ -1880,6 +1880,11 @@ textarea{resize:vertical;min-height:60px}
           <div class="wiz-step" id="wizProxima">
             <div class="bloque-titulo-b">Próxima acción</div>
             <div class="field">
+              <label>¿Qué preguntó el cliente?</label>
+              <div class="pills" id="famPills"></div>
+              <div class="pills" id="tipoPills" style="margin-top:8px"></div>
+            </div>
+            <div class="field">
               <label>Comentario de la atención <span class="opt">(opcional)</span></label>
               <textarea id="notas" rows="2" placeholder="Ej: le mostré la línea premium, quedó de pensarlo"></textarea>
               <div class="chips-2 hidden" id="atajosNotas"></div>
@@ -2923,6 +2928,28 @@ let CANALES=['WhatsApp','Instagram','Facebook','Publicidad Mensajería','Publici
    o cualquier otra cosa. Se registran, van a Brian y quedan fuera del embudo de ventas. */
 const CANALES_NO_VENTA=['Proveedores','CVs','Otros'];
 const CANALES_PUBLICIDAD=['Publicidad Mensajería','Publicidad Instagram'];
+
+/* Tipos de consulta (definidos con Cintia el 29/7/2026). Cada tipo tiene un plazo en DÍAS
+   para la próxima acción — el plazo se usa en la Parte 2 (fecha automática), acá solo se
+   registra el tipo. Los plazos son el valor por defecto; después se podrán editar desde
+   configuración. Entrega inmediata usa fracción de día (0.5 ≈ mismo día) pero como la
+   fecha va "solo el día", en la práctica cae hoy. */
+const FAMILIAS_CONSULTA=[
+  {fam:'Atención general', tipos:[
+    ['Horarios',5],['Dirección',5],['Cómo comprar',3],['Facturación',7],['Promociones',2],['Otros',5]]},
+  {fam:'Entrega inmediata', tipos:[
+    ['Un mueble específico',0.5],['Un producto para entrega inmediata',0.5]]},
+  {fam:'Consulta de venta', tipos:[
+    ['Amoblamiento completo',3],['Búsqueda de una categoría',3],['Envío e instalación',3],
+    ['Tiempo de fabricación',3],['Formas de pago y promociones',2],['Colores o terminaciones',2],['Medidas',2]]},
+  {fam:'Asesoramiento', tipos:[
+    ['Comparar dos muebles',4],['Recomendación de producto',5],['Qué entra en mi espacio',5],
+    ['Asesoramiento de decoración',6],['Presupuesto general',5]]},
+  {fam:'Otras', tipos:[['Sin clasificar',5]]},
+];
+/* Índice tipo→{familia,plazoDias} para buscar rápido sin recorrer todo. */
+const TIPO_INFO={};
+FAMILIAS_CONSULTA.forEach(f=>f.tipos.forEach(([t,d])=>{ TIPO_INFO[t]={familia:f.fam, plazoDias:d}; }));
 const LABEL_POR_CANAL={
   'WhatsApp':{lbl:'Teléfono', ph:'11 xxxx xxxx'},
   'Instagram':{lbl:'Usuario de Instagram', ph:'@usuario'},
@@ -11436,7 +11463,7 @@ function pintarTodoWizard(){
   // Muebles
   pintarCantPills(); renderMuebleFilas();
   // Próxima acción
-  pintarProxPills(); pintarAtajos();
+  pintarFamPills(); pintarProxPills(); pintarAtajos();
   const recActual = completandoId ? atenciones.find(x=>x.id===completandoId) : null;
   renderBitacora(recActual);
 }
@@ -11624,6 +11651,34 @@ function pintarProxPills(){
     `<span class="pill ${proxSeleccionada===o.v?'on':''} ${o.gris?'gris':''}" onclick="setProx(${o.v?`'${o.v}'`:'null'})">${o.t}</span>`
   ).join('');
 }
+/* Selector de tipo de consulta (familia → tipo). Parte 1: solo registra el tipo elegido en
+   famSeleccionada/tipoSeleccionado. La fecha automática que sale del plazo se conecta en la
+   Parte 2. Al tocar una familia se muestran solo sus tipos. */
+let famSeleccionada=null, tipoSeleccionado=null;
+function pintarFamPills(){
+  const box=$('famPills'); if(!box) return;
+  box.innerHTML = FAMILIAS_CONSULTA.map(f=>
+    `<span class="pill ${famSeleccionada===f.fam?'on':''}" onclick="setFamilia('${f.fam.replace(/'/g,"\\'")}')">${f.fam}</span>`
+  ).join('');
+  pintarTipoPills();
+}
+function pintarTipoPills(){
+  const box=$('tipoPills'); if(!box) return;
+  if(!famSeleccionada){ box.innerHTML=''; return; }
+  const fam=FAMILIAS_CONSULTA.find(f=>f.fam===famSeleccionada);
+  box.innerHTML = (fam?fam.tipos:[]).map(([t])=>
+    `<span class="pill ${tipoSeleccionado===t?'on':''}" onclick="setTipoConsulta('${t.replace(/'/g,"\\'")}')">${t}</span>`
+  ).join('');
+}
+function setFamilia(f){
+  famSeleccionada = (famSeleccionada===f) ? null : f;
+  tipoSeleccionado = null;   // cambiar de familia limpia el tipo
+  pintarFamPills();
+}
+function setTipoConsulta(t){
+  tipoSeleccionado = (tipoSeleccionado===t) ? null : t;
+  pintarTipoPills();
+}
 function setProx(v){ proxSeleccionada=v; pintarProxPills();
   const f=$('proxFechaCustom');
   if(f){ f.classList.toggle('hidden', v!=='custom');
@@ -11679,6 +11734,7 @@ function limpiarModal(){
   ['clienteNombre','clienteTelefono'].forEach(id=>{const e=$(id); if(e) e.disabled=false;});
   const mw=$('mueblesWrap'); if(mw){ mw.style.opacity=''; mw.style.pointerEvents=''; }
   percepcionSel=null; tiempoSel=null; proxSeleccionada=null; atajosExpandidos=false;
+  famSeleccionada=null; tipoSeleccionado=null;
   $('fotoPreview').innerHTML='';
   const f=$('fotoInput'); if(f) f.value='';
   const plbl=$('photoLabel'); if(plbl) plbl.textContent='Tocá para adjuntar una foto del presupuesto';
@@ -11806,6 +11862,9 @@ function abrirModalCompletar(id, paso, forzarSeg){
   mueblesActuales=(a.muebles||[]).map(m=>({...m}));
   if(!mueblesActuales.length) mueblesActuales.push({mueble:'',observacion:'',monto:null,elegido:true});
   if($('noTomoMuebles')){ $('noTomoMuebles').checked=!!a.sinMuebles; toggleMuebles(); }
+  famSeleccionada=a.familiaConsulta||(a.tipoConsulta&&TIPO_INFO[a.tipoConsulta]?TIPO_INFO[a.tipoConsulta].familia:null)||null;
+  tipoSeleccionado=a.tipoConsulta||null;
+  pintarFamPills();
 
   $('notas').value=a.notas||'';
   proxSeleccionada=null;
@@ -12263,6 +12322,8 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
     rec.resultadoMotivo=null;
     rec.tiempoAtencionMin=tiempoEnMinutos();
     rec.sinMuebles=noTomoMuebles;
+    rec.tipoConsulta=tipoSeleccionado||rec.tipoConsulta||null;
+    rec.familiaConsulta=famSeleccionada||rec.familiaConsulta||null;
     rec.motivoSinMueble=null;
     rec.motivoSinTiempo=null;
     rec.fotos=photoDataUrls.slice();
@@ -12331,6 +12392,8 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
     resultadoMotivo:null,
     tiempoAtencionMin:tiempoEnMinutos(),
     sinMuebles:noTomoMuebles,
+    tipoConsulta:tipoSeleccionado||null,
+    familiaConsulta:famSeleccionada||null,
     motivoSinMueble: null,
     motivoSinTiempo: null,
     fotos:photoDataUrls.slice(),
