@@ -2873,6 +2873,13 @@ function normContacto(t){
   return '';                                          // no sirve para identificar a nadie
 }
 
+/* Normaliza el N° de orden para agrupar duplicados: saca todo lo que no sea dígito o
+   letra, así "4309", "4309 ", "N°4309" y "n 4309" cuentan como el MISMO número. Antes
+   solo se hacía trim+lowercase, y una diferencia de un espacio o un prefijo hacía que
+   dos filas de la misma venta cayeran en grupos distintos (por eso una venta compartida
+   terminaba en "Mismo teléfono" en vez de "Mismo N° de orden"). */
+function normOrden(o){ return (o||'').toString().toLowerCase().replace(/[^a-z0-9]/g,''); }
+
 let CONTACTOS={};
 async function loadContactos(){
   try{
@@ -3131,11 +3138,11 @@ async function confirmarCompartida(){
 /* Todas las concretadas que forman el duplicado con `a` (mismo N° de orden, o mismo
    teléfono + monto), incluida `a`. Sirve para marcar compartida desde la fila. */
 function grupoDuplicadoDe(a){
-  const ord=(a.nroOrden||'').trim().toLowerCase();
+  const ord=normOrden(a.nroOrden);
   const tel=normContacto(a.clienteTelefono||'');
   const monto=+a.montoVendido||0;
   return atenciones.filter(x=>estadoDe(x)==='Concretado' && (x.id===a.id ||
-    (ord && (x.nroOrden||'').trim().toLowerCase()===ord) ||
+    (ord && normOrden(x.nroOrden)===ord) ||
     (tel && normContacto(x.clienteTelefono||'')===tel && monto && (+x.montoVendido||0)===monto)));
 }
 function marcarCompartidaDesdeRow(id){
@@ -3190,33 +3197,51 @@ function unificarClientesLimpieza(ids){
   const arr=(ids||[]).map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
   if(arr.length<2) return;
   _fusionIds=arr.map(a=>a.id);
-  const cliOpts=arr.map((a,i)=>`<label class="cmp-cli"><input type="radio" name="fusCli" value="${i}" ${i===0?'checked':''}> <b>${escapeHtml(nombreCliente(a)||'sin nombre')}</b>${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''} <span class="tiny" style="color:var(--muted)">(${escapeHtml(nombreDe(a.vendedorId))} · N° ${escapeHtml(a.nroOrden||'—')} · $ ${miles(+a.montoVendido||0)})</span></label>`).join('');
+  /* Se elige UNA fila que queda (con sus datos de venta: monto, N° de orden, muebles) y
+     las demás se borran. Antes esto solo copiaba nombre+teléfono entre las filas y las
+     dejaba a todas, así que el grupo por teléfono nunca desaparecía y para el usuario
+     "no se fusionaba". El caso típico es cotización ($0, sin N°) + venta real. */
+  const filaOpts=arr.map((a,i)=>{
+    const tieneVenta=(+a.montoVendido>0)||(a.nroOrden||'').trim();
+    const reco=(i===arr.reduce((mej,x,j)=>((+x.montoVendido||0)>(+arr[mej].montoVendido||0)?j:mej),0));
+    return `<label class="cmp-cli"><input type="radio" name="fusCli" value="${i}" ${reco?'checked':''}> <b>${escapeHtml(nombreCliente(a)||'sin nombre')}</b> · ${escapeHtml(nombreDe(a.vendedorId))} · $ ${miles(+a.montoVendido||0)} · N° ${escapeHtml(a.nroOrden||'—')}${!tieneVenta?' <span class="tiny" style="color:var(--muted)">(sin datos de venta)</span>':''}</label>`;
+  }).join('');
   let ov=$('modalCompartida');
   if(!ov){ ov=document.createElement('div'); ov.id='modalCompartida'; ov.className='cmp-overlay'; document.body.appendChild(ov); }
   ov.innerHTML=`<div class="cmp-modal">
-    <h3 style="margin:0 0 4px">🔗 Unificar cliente</h3>
-    <p class="tiny" style="margin:0 0 12px;color:var(--muted)">Tienen el mismo teléfono. Elegí con qué datos quedan todas. Si hay que corregir algo más, después tocá "Editar" en cada una.</p>
-    <div class="cmp-sec" style="border:0"><b>Datos del cliente</b>${cliOpts}</div>
+    <h3 style="margin:0 0 4px">🔗 Unificar en una sola venta</h3>
+    <p class="tiny" style="margin:0 0 12px;color:var(--muted)">Tienen el mismo teléfono. Elegí cuál queda (con su monto y N° de orden); las demás se borran. Si en realidad cada vendedor vendió una parte, cerrá esto y usá "🤝 Es compartida".</p>
+    <div class="cmp-sec" style="border:0"><b>¿Cuál venta queda?</b>${filaOpts}</div>
     <div class="cmp-actions">
       <button class="btn btn-outline" onclick="cerrarModalCompartida()">Cancelar</button>
-      <button class="btn btn-navy" onclick="confirmarFusion()">Unificar</button>
+      <button class="btn btn-navy" onclick="confirmarFusion()">Unificar y dejar una</button>
     </div>
   </div>`;
   ov.classList.remove('hidden');
 }
 async function confirmarFusion(){
-  if(!puedeMarcarIntervencion()) return;
+  if(!puedeMarcarIntervencion()){ toast('Solo Cintia o dirección pueden unificar.'); return; }
   const arr=_fusionIds.map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
   if(arr.length<2){ cerrarModalCompartida(); return; }
   const sel=document.querySelector('input[name=fusCli]:checked');
-  const cli=sel?arr[+sel.value]:arr[0];
-  arr.forEach(a=>{
-    a.clienteNombre=cli.clienteNombre; a.clienteTelefono=cli.clienteTelefono;
-    a.clienteInstagram=cli.clienteInstagram; a.noTomoTelefono=cli.noTomoTelefono; a.noTomoNombre=cli.noTomoNombre;
-  });
+  const queda=sel?arr[+sel.value]:arr[0];
+  const borrar=arr.filter(a=>a.id!==queda.id);
+  /* La fila que queda se lleva el mejor nombre/teléfono del grupo por si la elegida los
+     tenía incompletos, sin perder sus datos de venta. */
+  const conNombre=arr.find(a=>nombreCliente(a)) || queda;
+  const conTel=arr.find(a=>normContacto(a.clienteTelefono||'')) || queda;
+  queda.clienteNombre=conNombre.clienteNombre; queda.noTomoNombre=conNombre.noTomoNombre;
+  queda.clienteTelefono=conTel.clienteTelefono; queda.clienteInstagram=conTel.clienteInstagram; queda.noTomoTelefono=conTel.noTomoTelefono;
+  queda.historialContacto=Array.isArray(queda.historialContacto)?queda.historialContacto:[];
+  queda.historialContacto.push({ts:new Date().toISOString(), texto:'🔗 Unificada con '+borrar.length+' consulta(s) del mismo cliente', porId:YO, intervencion:true});
+  for(const a of borrar){
+    const i=atenciones.findIndex(x=>x.id===a.id);
+    if(i>-1) atenciones.splice(i,1);
+    if(sb){ try{ await sb.from('consultas').delete().eq('id', a.id); }catch(e){ console.error('borrar remoto fusión',e); } }
+  }
   await saveAtenciones();
   cerrarModalCompartida();
-  toast('Cliente unificado');
+  toast(borrar.length>1?'Unificado: quedó 1 de '+arr.length:'Unificado: quedó 1 venta');
   render();
   if(typeof renderPanelCintia==='function') renderPanelCintia();
 }
@@ -3224,7 +3249,7 @@ async function confirmarFusion(){
    mismo N° de orden (borrar/compartida), sin N° de orden, y mismo teléfono (unificar). */
 function htmlLimpiezaConcretadas(){
   const conc = atenciones.filter(a=>estadoDe(a)==='Concretado' && dentroDePeriodoCintia(a.ts));
-  const _gOrd={}; conc.forEach(a=>{const k=(a.nroOrden||'').trim().toLowerCase(); if(k)(_gOrd[k]=_gOrd[k]||[]).push(a);});
+  const _gOrd={}; conc.forEach(a=>{const k=normOrden(a.nroOrden); if(k)(_gOrd[k]=_gOrd[k]||[]).push(a);});
   const dupOrden=Object.entries(_gOrd).filter(([,arr])=>arr.length>1 && !arr.some(a=>a.ventaCompartida));
   const sinOrden=conc.filter(a=>!(a.nroOrden||'').trim() && new Date(a.ts).getTime()>=ORDEN_OBLIGATORIA_DESDE);
   // Las que ya se resuelven por "mismo N° de orden" (misma venta / compartida) no se repiten en
@@ -5085,12 +5110,12 @@ async function resolverSolicitud(id, estado){
    para marcarlas en la planilla y para frenar la doble carga. Devuelve el motivo o ''. */
 function motivoDuplicado(a){
   if(!a || estadoDe(a)!=='Concretado' || a.ventaCompartida) return '';
-  const ord=(a.nroOrden||'').trim().toLowerCase();
+  const ord=normOrden(a.nroOrden);
   const tel=normContacto(a.clienteTelefono||'');
   const monto=+a.montoVendido||0;
   for(const x of atenciones){
     if(x.id===a.id || estadoDe(x)!=='Concretado') continue;
-    if(ord && (x.nroOrden||'').trim().toLowerCase()===ord) return 'N° de orden repetido';
+    if(ord && normOrden(x.nroOrden)===ord) return 'N° de orden repetido';
     if(tel && normContacto(x.clienteTelefono||'')===tel && monto && (+x.montoVendido||0)===monto) return 'Mismo cliente y monto';
   }
   return '';
