@@ -1838,7 +1838,11 @@ textarea{resize:vertical;min-height:60px}
 
           <!-- BLOQUE · MUEBLES -->
           <div class="wiz-step" id="wizMuebles">
-            <div class="bloque-titulo-b">Muebles</div>
+            <div class="bloque-titulo-b" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <span>Muebles</span>
+              <label class="tomo" style="font-weight:400"><input type="checkbox" id="noTomoMuebles" onchange="toggleMuebles()"> no los pude tomar</label>
+            </div>
+            <div id="mueblesWrap">
             <div class="cant-row">
               <div>
                 <label>¿Por cuántos muebles consultó?</label>
@@ -1860,6 +1864,7 @@ textarea{resize:vertical;min-height:60px}
                 <div class="t-val" id="totalPresupuesto">$ 0</div>
               </div>
               <div id="senaBox" class="sena-box hidden"></div>
+            </div>
             </div>
           </div>
 
@@ -6374,7 +6379,7 @@ function svRecItemHtml(it){
   const a=it.a;
   const cls = it.tipo==='segunda'?'segunda':(it.tipo==='asistencia'?'segunda':(it.tipo==='eval'?'eval':(it.tipo==='cambioestado'?'consulta':'consulta')));
   const label = it.tipo==='segunda'?'2da oportunidad'
-    :(it.tipo==='asistencia'?'Comentario de Cintia'
+    :(it.tipo==='asistencia'?('Respuesta de '+(it.porId?nombreDe(it.porId):'Cintia'))
     :(it.tipo==='eval'?'Evaluación'
     :(it.tipo==='cambioestado'?('Marcá '+(a.cambioEstadoPedido&&a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'))
     :'Llamada de atención')));
@@ -7531,6 +7536,7 @@ function renderCintiaBotones(){
              + pendientesVincularCliente().filter(a=>dentroDePeriodoCintia(a.ts)).length
              + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length
              + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length
+             + asistenciasParaMi().length
              + solicitudesEliminacion.filter(s=>s.estado==='aprobada').length;
     const itemsA=[
       {id:'resumen',       label:'Resumen',            ic:'resumen'},
@@ -7556,7 +7562,7 @@ function renderCintiaBotones(){
     {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts) && consultaAbiertaCintia(a)).length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
     {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)).length},
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
-    {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length},
+    {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length + asistenciasParaMi().length},
     {id:'clientes', label:'Clientes', ic:'pulso'},
     ...(esAdmin() ? [{id:'ejemplos', label:'Ejemplo del mes', ic:'evaluar', cnt:atenciones.filter(a=>a.ejemploDelMes && !a.ejemploDelMes.leido).length}] : []),
   ];
@@ -8809,6 +8815,21 @@ function htmlCintiaEstadisticas(){
 })();
 
 /* -------- Mis pendientes: lo que los vendedores te dejaron para resolver -------- */
+/* Asistencias (🙏) dirigidas a MÍ y que esperan respuesta: último mensaje de otro,
+   hilo abierto, y el destino soy yo. Cintia ve las de destino 'cintia'; Brian (admin)
+   ve las que lo eligieron a él. Cada uno maneja SOLO las suyas. */
+function asistenciasParaMi(){
+  const soyAdmin=esAdmin();
+  return atenciones.filter(a=>{
+    const h=a.asistencia;
+    if(!h || h.estado==='resuelta' || !h.mensajes || !h.mensajes.length) return false;
+    const dest=h.destinoId||'cintia';
+    const paraMi = soyAdmin ? (dest===YO) : (dest==='cintia' && esAuditora());
+    if(!paraMi) return false;
+    const ult=h.mensajes[h.mensajes.length-1];
+    return ult && ult.deId!==YO && dentroDePeriodoCintia(a.ts);
+  }).sort((x,y)=>new Date(y.asistencia.mensajes[y.asistencia.mensajes.length-1].ts)-new Date(x.asistencia.mensajes[x.asistencia.mensajes.length-1].ts));
+}
 function htmlCintiaMisPendientes(){
   const pendientes=solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
   const misAtrasados=atenciones.filter(a=>cuentaParaVendedor(a) && a.vendedorId===YO && zonaDe(a)==='atrasada' && dentroDePeriodoCintia(a.ts));
@@ -8822,8 +8843,25 @@ function htmlCintiaMisPendientes(){
   // Reasignaciones que pidieron los vendedores y esperan que Cintia (o dirección) las confirme.
   const reasignaciones=atenciones.filter(a=>a.reasignacionPedida && a.reasignacionPedida.paraId && dentroDePeriodoCintia(a.ts))
     .sort((a,b)=>new Date(a.reasignacionPedida.ts)-new Date(b.reasignacionPedida.ts));
-  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length && !reasignaciones.length && !elimHtml && !limpieza) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
+  const asistencias=asistenciasParaMi();
+  if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length && !reasignaciones.length && !asistencias.length && !elimHtml && !limpieza) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
   let html=limpieza;
+  if(asistencias.length) html+=`<div class="cin-card">
+    <h3>Mensajes de vendedores <span class="cnt-pill">${asistencias.length}</span></h3>
+    <p class="tiny" style="margin-top:-8px">Comentarios internos que te mandaron y esperan tu respuesta.</p>
+    ${asistencias.map(a=>{
+      const ult=a.asistencia.mensajes[a.asistencia.mensajes.length-1];
+      return `<div class="solic-item">
+        <div>
+          <div class="pend-name">${escapeHtml(nombreCliente(a)||'Sin nombre')} · ${escapeHtml(nombreDe(a.vendedorId))}</div>
+          <div class="pend-sub">${escapeHtml((ult.texto||'').slice(0,90))}${(ult.texto||'').length>90?'…':''} · ${new Date(ult.ts).toLocaleDateString('es-AR')}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-navy btn-sm" onclick="abrirAsistencia('${a.id}')">💬 Responder</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
   if(reasignaciones.length) html+=`<div class="cin-card">
     <h3>Reasignaciones para confirmar <span class="cnt-pill">${reasignaciones.length}</span></h3>
     <p class="tiny" style="margin-top:-8px">Un vendedor pidió pasarle la consulta a otro. Confirmá o rechazá el cambio.</p>
@@ -10220,6 +10258,11 @@ function pintarAsistencia(){
 function htmlAsistencia(a){
   const msgs=(a.asistencia&&a.asistencia.mensajes)||[];
   const resuelta=a.asistencia&&a.asistencia.estado==='resuelta';
+  const soyVendedor=!esAdmin()&&!esAuditora();
+  // Destino actual del hilo: a quién le llega este comentario. Por defecto Cintia, salvo
+  // que ya se haya elegido otro. ADMIN_UID es Brian; ORDEN_LOGIN tiene el resto.
+  const brianId=ORDEN_LOGIN.find(u=>rolDe(u)==='admin')||'brian';
+  const destino=(a.asistencia&&a.asistencia.destinoId)||'cintia';
   const hilo = msgs.length
     ? msgs.map(m=>{
         const mio=m.deId===YO;
@@ -10229,10 +10272,20 @@ function htmlAsistencia(a){
         </div>`;
       }).join('')
     : `<p class="cin-empty" style="margin:6px 0">Todavía no hay mensajes. Escribí para empezar.</p>`;
+  // Selector de destino: solo lo elige el VENDEDOR, y solo mientras el hilo no arrancó
+  // (una vez que Cintia o Brian respondieron, cambiar el destino dejaría el hilo colgado).
+  const puedeElegirDestino = soyVendedor && !msgs.some(m=>m.deId!==YO);
+  const selDestino = puedeElegirDestino ? `
+    <div style="display:flex;align-items:center;gap:8px;margin:2px 2px 10px">
+      <span class="tiny" style="color:var(--muted);font-weight:700">Enviar a:</span>
+      <label class="tomo" style="font-weight:400"><input type="radio" name="asistDest" value="cintia" ${destino==='cintia'?'checked':''}> Cintia</label>
+      <label class="tomo" style="font-weight:400"><input type="radio" name="asistDest" value="${brianId}" ${destino!=='cintia'?'checked':''}> ${escapeHtml(nombreDe(brianId))}</label>
+    </div>` : (soyVendedor && destino!=='cintia' ? `<p class="tiny" style="margin:2px 2px 8px;color:var(--muted)">Enviado a <b>${escapeHtml(nombreDe(brianId))}</b>.</p>` : '');
   return `<div class="ev-hd"><div><h3>🙏 Asistencia interna</h3>
       <div class="meta">${escapeHtml(a.clienteNombre||'Sin nombre')} · ${nombreDe(a.vendedorId)}${resuelta?' · <b style="color:var(--green)">resuelta</b>':''}</div></div>
       <button class="btn-close" onclick="cerrarAsistencia()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer">×</button></div>
     <p class="tiny" style="margin:8px 2px 4px;color:var(--muted)">Conversación interna entre el vendedor y Cintia/dirección — no le llega al cliente.</p>
+    ${selDestino}
     <div class="asist-hilo" id="asistHilo">${hilo}</div>
     <textarea id="asistInput" class="ev-ta" rows="2" placeholder="Escribí un mensaje…"></textarea>
     <div style="display:flex;gap:8px;margin-top:8px">
@@ -10246,6 +10299,12 @@ async function enviarAsistencia(){
   const inp=$('asistInput'); const txt=(inp?inp.value:'').trim();
   if(!txt){ if(inp) inp.focus(); return; }
   a.asistencia=a.asistencia||{mensajes:[],estado:'abierta',leidoPor:{}};
+  // Destino del hilo: lo fija el vendedor con el selector la primera vez. Si ya estaba
+  // fijado, se respeta. Cintia/Brian escribiendo no cambian el destino.
+  const destSel=document.querySelector('input[name=asistDest]:checked');
+  if(destSel && !a.asistencia.destinoId) a.asistencia.destinoId=destSel.value;
+  if(destSel && !a.asistencia.mensajes.length) a.asistencia.destinoId=destSel.value;
+  if(!a.asistencia.destinoId) a.asistencia.destinoId='cintia';
   a.asistencia.mensajes.push({deId:YO, deNombre:nombreDe(YO), rol:rolDe(YO), texto:txt, ts:new Date().toISOString()});
   a.asistencia.estado='abierta';
   a.asistencia.leidoPor=a.asistencia.leidoPor||{}; a.asistencia.leidoPor[YO]=new Date().toISOString();
@@ -11532,13 +11591,23 @@ function toggleNombre(){
   if(off) $('clienteNombre').value='';
 }
 
+/* "No los pude tomar": mismo criterio que "No lo tomé" del nombre/teléfono. A veces el
+   vendedor atiende y no llega a anotar qué muebles miró; sin esto no podía guardar la
+   atención. Al marcarlo, el bloque de muebles se atenúa y deja de ser obligatorio. */
+function toggleMuebles(){
+  const off=$('noTomoMuebles') && $('noTomoMuebles').checked;
+  const wrap=$('mueblesWrap');
+  if(wrap){ wrap.style.opacity=off?'.45':''; wrap.style.pointerEvents=off?'none':''; }
+}
+
 function limpiarModal(){
   ['clienteNombre','clienteTelefono','clienteTelefonoIG','clienteEmail','nroCotizacion','notas','tiempoAtencionInput'].forEach(id=>{const e=$(id); if(e) e.value='';});
   const cig=$('campoTelefonoIG'); if(cig) cig.classList.add('hidden');
   const dav=$('modalDupAviso'); if(dav) dav.innerHTML='';
   _senaEditada=false; _senaManual=0;   // la seña arranca en la sugerida en cada consulta
-  ['noTomoNombre','noTomoTel'].forEach(id=>{const e=$(id); if(e) e.checked=false;});
+  ['noTomoNombre','noTomoTel','noTomoMuebles'].forEach(id=>{const e=$(id); if(e) e.checked=false;});
   ['clienteNombre','clienteTelefono'].forEach(id=>{const e=$(id); if(e) e.disabled=false;});
+  const mw=$('mueblesWrap'); if(mw){ mw.style.opacity=''; mw.style.pointerEvents=''; }
   percepcionSel=null; tiempoSel=null; proxSeleccionada=null; atajosExpandidos=false;
   $('fotoPreview').innerHTML='';
   const f=$('fotoInput'); if(f) f.value='';
@@ -11666,6 +11735,7 @@ function abrirModalCompletar(id, paso, forzarSeg){
 
   mueblesActuales=(a.muebles||[]).map(m=>({...m}));
   if(!mueblesActuales.length) mueblesActuales.push({mueble:'',observacion:'',monto:null,elegido:true});
+  if($('noTomoMuebles')){ $('noTomoMuebles').checked=!!a.sinMuebles; toggleMuebles(); }
 
   $('notas').value=a.notas||'';
   proxSeleccionada=null;
@@ -12065,6 +12135,7 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
 
   const muebles=calcularEstadosMuebles(mueblesActuales.filter(m=>m.mueble && m.mueble.trim()));
   const hayMuebleOPrecio = muebles.length>0;
+  const noTomoMuebles = $('noTomoMuebles') && $('noTomoMuebles').checked;
 
   // "Ir directo al cierre": si se marcó Concretado/Rechazado, la planilla de cierre ya pide
   // nombre/teléfono/monto/motivo, así que no se exigen acá — se puede saltar directo.
@@ -12073,9 +12144,10 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
   // solo se exigía en el registro rápido, así que la atención normal se podía guardar
   // sin ningún producto y se perdía el único dato que queda cuando el cliente no deja
   // el teléfono: qué vino a ver y qué precio se le pasó.
-  // No se exige en el cierre directo porque la planilla de cierre pide el monto aparte.
-  if(!cierreDirecto && (!hayMuebleOPrecio || !muebles.some(m=>Number(m.monto)>0))){
-    toast('Cargá al menos un mueble con el precio que le pasaste'); return;
+  // No se exige en el cierre directo (la planilla de cierre pide el monto aparte) ni
+  // cuando el vendedor marca "no los pude tomar", igual que "No lo tomé" del contacto.
+  if(!cierreDirecto && !noTomoMuebles && (!hayMuebleOPrecio || !muebles.some(m=>Number(m.monto)>0))){
+    toast('Cargá al menos un mueble con el precio, o marcá "no los pude tomar"'); return;
   }
   if(!modalRapido && !cierreDirecto){
     // El registro rápido no pide nombre ni teléfono; el normal sí.
@@ -12120,6 +12192,7 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
     rec.resultado=resultado;
     rec.resultadoMotivo=null;
     rec.tiempoAtencionMin=tiempoEnMinutos();
+    rec.sinMuebles=noTomoMuebles;
     rec.motivoSinMueble=null;
     rec.motivoSinTiempo=null;
     rec.fotos=photoDataUrls.slice();
@@ -12187,6 +12260,7 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
     resultado,
     resultadoMotivo:null,
     tiempoAtencionMin:tiempoEnMinutos(),
+    sinMuebles:noTomoMuebles,
     motivoSinMueble: null,
     motivoSinTiempo: null,
     fotos:photoDataUrls.slice(),
