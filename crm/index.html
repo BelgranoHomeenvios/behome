@@ -6169,7 +6169,7 @@ function renderPanelGestion(listaVisible){
     {label:'Pendientes',     ico:'pendientes',  cnt:n('atrasada'),activo:(!seccionVendedor && zonaActiva==='atrasada'), act:`setZona('atrasada')`},
     {label:'Sin clasificar', ico:'sinclas',     cnt:n('sinclas'),activo:(!seccionVendedor && zonaActiva==='sinclas'),  act:`setZona('sinclas')`},
     {label:'Esta semana',    ico:'semana',      cnt:n('semana'), activo:(!seccionVendedor && zonaActiva==='semana'),   act:`setZona('semana')`},
-    {label:'Recordatorio',   ico:'recordatorio',cnt:recCount,    activo:(seccionVendedor==='recordatorio'),            act:`abrirSeccionVendedor('recordatorio')`},
+    {label:'Recordatorio',   ico:'recordatorio',cnt:recCount,    activo:(!seccionVendedor && filtroRecordatorio==='con'), act:`verRecordatorios()`},
     {label:'Estadísticas',   ico:'estadisticas',cnt:undefined,   activo:(seccionVendedor==='estadisticas'),            act:`abrirSeccionVendedor('estadisticas')`},
     {label:'Evaluación',     ico:'evaluacion',  cnt:undefined,   activo:(seccionVendedor==='evaluacion'),              act:`abrirSeccionVendedor('evaluacion')`},
     {label:'Oportunidad',    ico:'oportunidad', cnt:mias.filter(a=>esOportunidadCaliente(a)).length, activo:(seccionVendedor==='oportunidad'), act:`abrirSeccionVendedor('oportunidad')`}
@@ -6288,6 +6288,21 @@ function setZona(z){
   // Tocar una tarjeta de zona cierra la solapa abierta (Recordatorio/Estadísticas/Evaluación/Oportunidad):
   // si no, la solapa quedaba pegada y parecía que el botón no hacía nada.
   seccionVendedor = null;
+  filtroRecordatorio='todos';   // salir de "solo con campanita" al elegir otra zona
+  renderHistorial();
+}
+
+/* "Recordatorio" NO abre un listado de mensajes: filtra la MISMA tabla de consultas a
+   las que tienen la campanita encendida, para que el vendedor vea el teléfono, el estado
+   y todo lo de siempre, y desde ahí abra la 🔔. Reusa filtroRecordatorio, que ya existía
+   como filtro de la columna. Toggle: si ya estaba activo, se apaga. */
+function verRecordatorios(){
+  const yaActivo = !seccionVendedor && filtroRecordatorio==='con';
+  seccionVendedor=null;
+  zonaActiva=null;
+  filtroRecordatorio = yaActivo ? 'todos' : 'con';
+  reiniciarPaginado();
+  mostrarTablaVendedor(true);
   renderHistorial();
 }
 
