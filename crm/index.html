@@ -5313,7 +5313,7 @@ function logItemHtml(a){
             ? `<span class="m-vend" style="font-size:13px">$ ${miles(a.montoVendido)}</span>`
             : `${totalCotizado?'$ '+miles(totalCotizado):'—'}${a.montoPerdido?`<div class="m-perd">Perdido $ ${miles(a.montoPerdido)}</div>`:''}`}
         </div>
-        <span class="ebtn" onclick="event.stopPropagation();togPop(this)">🪑<small>(${muebles.length})</small><span class="pop"><b>Muebles cotizados</b><br>${mueblesTxt}${(tieneFoto(a))?`<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();abrirLightbox('${a.id}')">📷 Ver foto del presupuesto</div>`:(a.fotoVencida?`<div class="tiny" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px;color:var(--muted)">📷 La foto ya venció (se guardan ${DIAS_GUARDAR_FOTO} días)</div>`:'')}<div class="menu-op" style="margin-top:6px;border-top:1px solid var(--line2);padding-top:6px" onclick="event.stopPropagation();cerrarPops();editarSoloMuebles('${a.id}')">✎ Editar muebles</div></span></span>
+        <span class="ebtn" onclick="event.stopPropagation();editarSoloMuebles('${a.id}')" title="Ver y editar los muebles">🪑<small>(${muebles.length})</small></span>
       </div>`;
 
   // Campanita: atajo directo para pedirle al vendedor que se ocupe de esta consulta.
@@ -5502,8 +5502,31 @@ async function rapidoPercepcion(id, p){
 
 /* Abre el formulario directo en la parte de muebles, sin pasar por los datos del
    cliente: cuando solo hay que corregir un precio, el resto sobra. */
+/* Modo "solo muebles": abre el modal de una consulta pero deja a la vista ÚNICAMENTE el
+   bloque de muebles (esconde estado, cliente, qué preguntó, cuándo volvemos, foto). Sirve
+   para agregar/editar muebles rápido desde la fila sin ver todo el resto. Al cerrar se
+   restaura. */
+let modoSoloMuebles=false;
+function aplicarModoSoloMuebles(on){
+  modoSoloMuebles=on;
+  const hide=(el)=>{ if(el) el.style.display = on?'none':''; };
+  hide($('wizEstado'));
+  hide($('colCliente'));
+  hide($('tipoField'));
+  hide($('campoProx'));
+  const fam=$('famPills'); hide(fam && fam.closest('.field'));
+  const foto=$('fotoInput'); hide(foto && foto.closest('.field'));
+  hide($('cotizBadge'));
+  hide($('modalBadge'));
+  // el título "La consulta" de la columna derecha estorba en este modo
+  const col=$('colConsulta'); const tit=col && col.querySelector('.bloque-titulo-b');
+  if(tit && !tit.closest('#wizMuebles')) hide(tit);
+}
 function editarSoloMuebles(id){
   abrirModalCompletar(id, 0);   // paso 0 fuerza el wizard completo, no el modo seguimiento
+  aplicarModoSoloMuebles(true);
+  const a=atenciones.find(x=>x.id===id);
+  if(a && $('modalTitulo')){ $('modalTitulo').textContent='Muebles · '+(a.clienteNombre||'cliente'); }
   setTimeout(()=>{
     const cont=document.getElementById('mueblesLista');
     if(cont && cont.scrollIntoView) cont.scrollIntoView({behavior:'smooth', block:'center'});
@@ -11885,6 +11908,7 @@ function limpiarModal(){
   ['clienteNombre','clienteTelefono'].forEach(id=>{const e=$(id); if(e) e.disabled=false;});
   const mw=$('mueblesWrap'); if(mw){ mw.style.opacity=''; mw.style.pointerEvents=''; }
   percepcionSel=null; tiempoSel=null; proxSeleccionada=null; atajosExpandidos=false;
+  aplicarModoSoloMuebles(false);   // por si venía del modo "solo muebles", restaurar todo
   { const pb=$('proxAutoBox'); if(pb){ pb.classList.add('hidden'); pb.innerHTML=''; } }
   famSeleccionada=null; tipoSeleccionado=null;
   $('fotoPreview').innerHTML='';
