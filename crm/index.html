@@ -1886,18 +1886,12 @@ textarea{resize:vertical;min-height:60px}
               <label class="tomo" style="font-weight:400"><input type="checkbox" id="noTomoMuebles" onchange="toggleMuebles()"> no los pude tomar</label>
             </div>
             <div id="mueblesWrap">
-            <div class="cant-row">
-              <div>
-                <label>¿Por cuántos muebles consultó?</label>
-                <div class="cant-pills" id="cantPills"></div>
-              </div>
-              <button type="button" class="b-add" onclick="agregarFilaMueble(true)">+ Agregar mueble</button>
-            </div>
             <div class="mhead">
               <span class="h1">Mueble</span><span class="h2">Detalles</span><span class="h3">Monto</span>
               <span class="h4">Suma</span><span class="h5"></span>
             </div>
             <div id="mueblesLista"></div>
+            <button type="button" class="b-add" onclick="agregarFilaMueble(true)" style="margin-top:8px">+ agregar otro mueble</button>
             <div class="total-presu">
               <div class="total-presu-top">
                 <div>
@@ -11611,6 +11605,7 @@ function tiempoEnMinutos(){
 
 /* ---------------- Paso 2 ---------------- */
 function pintarCantPills(){
+  const box=$('cantPills'); if(!box) return;   // selector "¿por cuántos?" removido: la cantidad se cuenta sola
   const n=mueblesActuales.length;
   $('cantPills').innerHTML=[1,2,3,4,5,6].map(k=>
     `<button type="button" class="cpill ${n===k?'on':''}" onclick="setCantMuebles(${k})">${k===6?'6+':k}</button>`
@@ -12018,6 +12013,7 @@ function abrirModalCompletar(id, paso, forzarSeg){
   }
 
   mueblesActuales=(a.muebles||[]).map(m=>({...m}));
+  if(!mueblesActuales.length && !a.sinMuebles) mueblesActuales=[{mueble:'',observacion:'',monto:null,elegido:true}];
   if(!mueblesActuales.length) mueblesActuales.push({mueble:'',observacion:'',monto:null,elegido:true});
   if($('noTomoMuebles')){ $('noTomoMuebles').checked=!!a.sinMuebles; toggleMuebles(); }
   famSeleccionada=a.familiaConsulta||(a.tipoConsulta&&TIPO_INFO[a.tipoConsulta]?TIPO_INFO[a.tipoConsulta].familia:null)||null;
