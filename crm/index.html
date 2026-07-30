@@ -4890,6 +4890,9 @@ async function guardarCierre(){if(esSoloLectura())return avisoLectura();
    botones, y según cuál se elija despliega abajo el formulario que corresponde (venta o rechazo). */
 let etapaSel=null;
 let etapaPercep=null, etapaFam=null, etapaTipo=null;   // clasificación rápida en la solapa de estado
+/* Próxima acción dentro de Etapa comercial. Antes se calculaba sola al Guardar y no se
+   veía acá; ahora se muestra la fecha sugerida por el tipo y se puede pisar en el momento. */
+let etapaProxSel=null, etapaProxFecha='', etapaProxAuto=false, etapaProxDias=0;
 function abrirEtapaComercial(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
@@ -4899,6 +4902,7 @@ function abrirEtapaComercial(id){
   etapaPercep=a.percepcion||null;
   etapaTipo=a.tipoConsulta||null;
   etapaFam=a.familiaConsulta||(etapaTipo&&TIPO_INFO[etapaTipo]?TIPO_INFO[etapaTipo].familia:null)||null;
+  etapaProxInit(a);
   const cc=$('cierreCaja'); if(cc) cc.innerHTML='';  // que no queden IDs duplicados del modal de cierre
   pintarEtapa();
   $('modalEtapa').classList.remove('hidden');
@@ -4916,6 +4920,10 @@ function abrirCambioEstadoPedido(id){
   cerrarPops();
   cerrandoId=id;
   etapaSel=a.cambioEstadoPedido.estado;
+  etapaPercep=a.percepcion||null;
+  etapaTipo=a.tipoConsulta||null;
+  etapaFam=a.familiaConsulta||(etapaTipo&&TIPO_INFO[etapaTipo]?TIPO_INFO[etapaTipo].familia:null)||null;
+  etapaProxInit(a);
   const cc=$('cierreCaja'); if(cc) cc.innerHTML='';
   pintarEtapa();
   $('modalEtapa').classList.remove('hidden');
@@ -4929,9 +4937,71 @@ function etapaSetPercep(p){ etapaPercep=(etapaPercep===p)?null:p; pintarEtapa();
 function etapaSetFam(f){
   etapaFam=(etapaFam===f)?null:f; etapaTipo=null;
   if(etapaFam==='Entrega inmediata') etapaTipo='Un mueble específico';
+  etapaSugerirProx();
   pintarEtapa();
 }
-function etapaSetTipo(t){ etapaTipo=(etapaTipo===t)?null:t; pintarEtapa(); }
+function etapaSetTipo(t){ etapaTipo=(etapaTipo===t)?null:t; etapaSugerirProx(); pintarEtapa(); }
+
+/* ----- Próxima acción dentro de Etapa comercial -----
+   Antes se calculaba sola al Guardar y el vendedor no la veía: se enteraba recién en la
+   columna de acción. Ahora la fecha sugerida por el tipo se muestra acá mismo y se puede
+   pisar antes de guardar. Misma lógica que "Registrar mi atención": hoy + plazo del tipo,
+   solo el día. La temperatura no la toca — solo el tipo manda. */
+function etapaProxInit(a){
+  etapaProxAuto=false; etapaProxDias=0;
+  if(a && a.proximaAccionTs){
+    etapaProxSel='custom';
+    etapaProxFecha=new Date(a.proximaAccionTs).toISOString().slice(0,10);
+  }else{
+    etapaProxSel=null; etapaProxFecha='';
+  }
+}
+function etapaSugerirProx(){
+  const info = etapaTipo ? TIPO_INFO[etapaTipo] : null;
+  if(!info){ etapaProxAuto=false; return; }
+  const dias = info.plazoDias < 1 ? 0 : Math.round(info.plazoDias);
+  const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+dias);
+  etapaProxFecha=d.toISOString().slice(0,10);
+  etapaProxSel='custom'; etapaProxAuto=true; etapaProxDias=dias;
+}
+function etapaSetProx(v){
+  etapaProxSel=v; etapaProxAuto=false;
+  if(v==='custom' && !etapaProxFecha){ const d=new Date(); d.setDate(d.getDate()+1); etapaProxFecha=d.toISOString().slice(0,10); }
+  pintarEtapa();
+}
+function etapaSetProxFecha(v){ etapaProxFecha=v; etapaProxAuto=false; pintarEtapa(); }
+/* Fecha efectiva elegida, como Date. null = "Sin definir". */
+function etapaProxDate(){
+  if(etapaProxSel===null) return null;
+  if(etapaProxSel==='custom') return etapaProxFecha ? new Date(etapaProxFecha+'T10:00:00') : null;
+  const d=new Date();
+  if(etapaProxSel==='hoy'){ d.setHours(d.getHours()+3); return d; }
+  d.setHours(10,0,0,0);
+  if(etapaProxSel==='manana') d.setDate(d.getDate()+1);
+  else if(etapaProxSel==='3dias') d.setDate(d.getDate()+3);
+  else if(etapaProxSel==='semana') d.setDate(d.getDate()+7);
+  return d;
+}
+function etapaProxCampoHtml(){
+  const d=etapaProxDate();
+  let caja='';
+  if(d){
+    const esHoy = d.toDateString()===new Date().toDateString();
+    const txt = esHoy ? 'hoy mismo' : fechaLindaProx(d);
+    const sub = etapaProxAuto
+      ? `· sugerido por el tipo (${etapaProxDias===0?'mismo día':etapaProxDias+' día'+(etapaProxDias===1?'':'s')}), podés cambiarlo`
+      : '· lo elegiste vos';
+    caja=`<div class="prox-auto">📅 Volvé a escribirle <b>${txt}</b> <span class="pa-sub">${sub}</span></div>`;
+  }else{
+    caja=`<p class="tiny" style="color:var(--muted);margin:0 0 8px">Sin próxima acción: no le va a aparecer en la columna de acción.</p>`;
+  }
+  return `<div class="field">
+    <label>¿Cuándo le volvemos a hablar?</label>
+    ${caja}
+    <div class="pills">${PROX_OPCIONES.map(o=>`<span class="pill ${etapaProxSel===o.v?'on':''} ${o.gris?'gris':''}" onclick="etapaSetProx(${o.v===null?'null':`'${o.v}'`})">${o.t}</span>`).join('')}</div>
+    ${etapaProxSel==='custom'?`<input type="date" style="margin-top:8px;max-width:190px" value="${etapaProxFecha}" onchange="etapaSetProxFecha(this.value)">`:''}
+  </div>`;
+}
 function pintarEtapa(){
   const a=atenciones.find(x=>x.id===cerrandoId); if(!a) return;
   const est=estadoDe(a);
@@ -4975,7 +5045,7 @@ function pintarEtapa(){
         <label>¿Sobre qué? — ${escapeHtml(etapaFam)}</label>
         <div class="pills">${((FAMILIAS_CONSULTA.find(f=>f.fam===etapaFam)||{}).tipos||[]).map(([t])=>`<span class="pill ${etapaTipo===t?'on':''}" onclick="etapaSetTipo('${t.replace(/'/g,"\\'")}')">${escapeHtml(t)}</span>`).join('')}</div>
       </div>`:''}
-      <p class="tiny" style="color:var(--muted);margin:-2px 0 10px">📅 La próxima vez que hay que hablarle se calcula sola según el tipo, y se ve en la columna de acción.</p>
+      ${etapaProxCampoHtml()}
       ${puedeDerivar?`
       <div class="field">
         <label>¿Quién la sigue?</label>
@@ -5037,13 +5107,9 @@ async function guardarEtapaSeguimiento(){
   a.familiaConsulta = etapaFam || null;
   a.tipoConsulta = etapaTipo || null;
 
-  // La PRÓXIMA ACCIÓN se calcula sola según el tipo (hoy + plazo del tipo, solo el día).
-  // No se elige acá: aparece en la columna de acción del costado y se puede pisar ahí.
-  if(etapaTipo && TIPO_INFO[etapaTipo]){
-    const dias = TIPO_INFO[etapaTipo].plazoDias < 1 ? 0 : Math.round(TIPO_INFO[etapaTipo].plazoDias);
-    const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+dias);
-    a.proximaAccionTs=d.toISOString();
-  }
+  // La PRÓXIMA ACCIÓN la sugiere el tipo (hoy + plazo) pero ahora se ve y se edita en el
+  // modal, así que se guarda lo que quedó elegido ahí. "Sin definir" la deja vacía.
+  { const dProx=etapaProxDate(); a.proximaAccionTs = dProx ? dProx.toISOString() : null; }
 
   // Reasignación: queda registrada para poder rastrear quién la tenía antes
   const nuevoVend=$('segVendedor')?.value;
@@ -13265,7 +13331,10 @@ function recParaTs(){
 /* Modal de etapa comercial: se ensancha para que las cuatro opciones entren en un
    renglón. Con 480px "Sin clasificar" caía sola a la segunda línea y parecía otra cosa,
    de otra categoría, cuando es una opción más de la misma lista. */
-#modalEtapa .modal-caja{max-width:620px!important}
+#modalEtapa .modal-caja{max-width:700px!important}
+/* Las píldoras de "cómo lo viste" se cortaban a la derecha (eran scroll horizontal y no
+   se veía que había más). Acá bajan de renglón: entra todo a la vista. */
+#modalEtapa .pills-nowrap{flex-wrap:wrap;overflow-x:visible}
 #modalEtapa .etapa-pills{flex-wrap:nowrap;gap:7px}
 #modalEtapa .etapa-pill{flex:1 1 auto;white-space:nowrap;text-align:center;padding:9px 12px}
 @media(max-width:660px){
