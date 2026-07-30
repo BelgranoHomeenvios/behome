@@ -6083,9 +6083,6 @@ function cheadHtml(){
       <span class="ebtn filtro-head ${etapaActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Etapa<span class="arrow">▾</span>
         <span class="pop pop-down"><b>Filtrar por etapa</b>${popFiltroOpciones('etapa',FILTRO_ETAPA_OPCIONES,filtroEtapa)}</span>
       </span>
-      <span class="ebtn filtro-head sub ${oportActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Calificación<span class="arrow">▾</span>
-        <span class="pop pop-down"><b>Filtrar por calificación</b>${popFiltroOpciones('oport',FILTRO_OPORT_OPCIONES,filtroOportunidad)}</span>
-      </span>
       ${puedeVerEquipo() ? `<span class="ebtn filtro-head sub ${estActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Estado<span class="arrow">▾</span>
         <span class="pop pop-down"><b>Filtrar por estado</b>${popFiltroOpciones('estado',FILTRO_ESTADO_OPCIONES,filtroEstado)}</span>
       </span>` : ''}
@@ -6093,7 +6090,7 @@ function cheadHtml(){
         <span class="pop pop-down"><b>Consultas de estado / reclamos</b>${popFiltroOpciones('postventa',[['pendientes','Pendientes / En gestión'],['resueltas','Resueltas'],['todas','Todas']],filtroPostventa)}</span>
       </span>` : ''}
     </span>
-    <span class="h-nom"><span class="ebtn filtro-head ${buscActivo||filtroCanalGrupo!=='todos'?'activo':''}" onclick="event.stopPropagation();togPop(this)">Contacto<span class="arrow">▾</span>
+    <span class="h-nom"><span class="ebtn filtro-head ${buscActivo||filtroCanalGrupo!=='todos'||oportActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Contacto<span class="arrow">▾</span>
       <span class="pop pop-down pop-buscar" onclick="event.stopPropagation()"><b>Buscar</b>
         <input type="text" id="filtroBusquedaInput" placeholder="Nombre o teléfono…" value="${escAttr(filtroBusqueda)}" oninput="setFiltroBusqueda(this.value,'head')">
         <b style="margin-top:8px;display:block">Filtrar por canal</b>
@@ -6102,6 +6099,11 @@ function cheadHtml(){
           <span class="cf-chip ${filtroCanalGrupo==='whatsapp'?'on':''}" onclick="event.stopPropagation();setFiltroHeader('canalGrupo','whatsapp')" title="WhatsApp">${SVG_WA}</span>
           <span class="cf-chip ${filtroCanalGrupo==='instagram'?'on':''}" onclick="event.stopPropagation();setFiltroHeader('canalGrupo','instagram')" title="Instagram">${SVG_IG}</span>
           <span class="cf-chip ${filtroCanalGrupo==='local'?'on':''}" onclick="event.stopPropagation();setFiltroHeader('canalGrupo','local')" title="Local">🚶‍♂️</span>
+        </div>
+        <b style="margin-top:10px;display:block">Filtrar por calificación</b>
+        <div class="calif-filtros">
+          ${FILTRO_OPORT_OPCIONES.map(([v,t])=>
+            `<span class="cf-chip ${filtroOportunidad===v?'on':''}" onclick="event.stopPropagation();setFiltroHeader('oport','${v}')">${t}</span>`).join('')}
         </div>
       </span>
     </span></span>
@@ -13944,6 +13946,10 @@ function recParaTs(){
 .etapa-chip.es-perd{color:var(--red);border-color:#f0b9b3;background:var(--red-l)}
 .etapa-chip:hover{filter:brightness(.96)}
 @media(max-width:1160px){ .etapa-chip{font-size:10px;padding:3px 7px} }
+/* Filtro de calificación dentro del desplegable de Contacto (las estrellas viven ahí) */
+.calif-filtros{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.calif-filtros .cf-chip{font-size:12px;padding:5px 10px}
+.pop-buscar{width:270px!important}
 
 /* Las estrellas ahora viven al lado del contacto */
 .c-nom .estr-fila{flex-shrink:0;margin-right:2px}
