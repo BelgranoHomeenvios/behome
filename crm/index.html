@@ -5018,23 +5018,29 @@ function etapaSugerirProx(){
   etapaProxFecha=d.toISOString().slice(0,10);
   etapaProxSel='custom'; etapaProxAuto=true; etapaProxDias=dias;
 }
+/* La FECHA es el dato; los atajos solo la escriben y se marcan solos cuando coinciden.
+   Sin "Personalizado" ni "Sin definir": el calendario está siempre al lado de los atajos,
+   igual que en el modal grande. */
 function etapaSetProx(v){
-  etapaProxSel=v; etapaProxAuto=false;
-  if(v==='custom' && !etapaProxFecha){ const d=new Date(); d.setDate(d.getDate()+1); etapaProxFecha=d.toISOString().slice(0,10); }
+  const dias=PLAZO_ATAJO[v]; if(dias===undefined) return;
+  const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+dias);
+  etapaProxFecha=d.toISOString().slice(0,10);
+  etapaProxSel='custom'; etapaProxAuto=false;
   pintarEtapa();
 }
-function etapaSetProxFecha(v){ etapaProxFecha=v; etapaProxAuto=false; pintarEtapa(); }
-/* Fecha efectiva elegida, como Date. null = "Sin definir". */
+function etapaSetProxFecha(v){ etapaProxFecha=v; etapaProxSel='custom'; etapaProxAuto=false; pintarEtapa(); }
+/* Fecha efectiva elegida, como Date. */
 function etapaProxDate(){
-  if(etapaProxSel===null) return null;
-  if(etapaProxSel==='custom') return etapaProxFecha ? new Date(etapaProxFecha+'T10:00:00') : null;
-  const d=new Date();
-  if(etapaProxSel==='hoy'){ d.setHours(d.getHours()+3); return d; }
-  d.setHours(10,0,0,0);
-  if(etapaProxSel==='manana') d.setDate(d.getDate()+1);
-  else if(etapaProxSel==='3dias') d.setDate(d.getDate()+3);
-  else if(etapaProxSel==='semana') d.setDate(d.getDate()+7);
-  return d;
+  return etapaProxFecha ? new Date(etapaProxFecha+'T10:00:00') : null;
+}
+/* Cuál de los tres atajos coincide con la fecha cargada (para prenderlo). */
+function etapaAtajoCoincide(){
+  if(!etapaProxFecha) return null;
+  for(const k in PLAZO_ATAJO){
+    const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+PLAZO_ATAJO[k]);
+    if(d.toISOString().slice(0,10)===etapaProxFecha) return k;
+  }
+  return null;
 }
 function etapaProxCampoHtml(){
   const d=etapaProxDate();
@@ -5046,14 +5052,14 @@ function etapaProxCampoHtml(){
       ? `· sugerido por la etapa (${etapaProxDias===0?'mismo día':etapaProxDias+' día'+(etapaProxDias===1?'':'s')}), podés cambiarlo`
       : '· lo elegiste vos';
     caja=`<div class="prox-auto">📅 Volvé a escribirle <b>${txt}</b> <span class="pa-sub">${sub}</span></div>`;
-  }else{
-    caja=`<p class="tiny" style="color:var(--muted);margin:0 0 8px">Sin próxima acción: no le va a aparecer en la columna de acción.</p>`;
   }
-  return `<div class="field">
-    <label>¿Cuándo le volvemos a hablar?</label>
+  const act=etapaAtajoCoincide();
+  return `<div class="field" id="etapaCampoProx">
+    <label>Próxima acción</label>
     ${caja}
-    <div class="pills">${PROX_OPCIONES.map(o=>`<span class="pill ${etapaProxSel===o.v?'on':''} ${o.gris?'gris':''}" onclick="etapaSetProx(${o.v===null?'null':`'${o.v}'`})">${o.t}</span>`).join('')}</div>
-    ${etapaProxSel==='custom'?`<input type="date" style="margin-top:8px;max-width:190px" value="${etapaProxFecha}" onchange="etapaSetProxFecha(this.value)">`:''}
+    <div class="pills">${PROX_OPCIONES_WIZ.map(o=>
+      `<span class="pill ${act===o.v?'on':''}" onclick="etapaSetProx('${o.v}')">${o.t}</span>`).join('')}</div>
+    <input type="date" class="prox-fecha-inline" value="${etapaProxFecha||''}" onchange="etapaSetProxFecha(this.value)">
   </div>`;
 }
 /* ============ SOLAPA "ETAPA COMERCIAL" — unificada con el modal (30/7) ============
@@ -11748,6 +11754,9 @@ function pintarTodoWizard(){
   pintarCantPills(); renderMuebleFilas();
   // Próxima acción
   pintarFamPills(); pintarEtapaWiz(); pintarProxPills(); pintarAtajos();
+  // El calendario arranca cargado con la fecha que sugiere la etapa, visible desde el
+  // primer momento: antes solo aparecía después de tocar un paso de la barra.
+  { const f=$('proxFechaCustom'); if(f && !f.value) aplicarFechaAutomatica(); }
   ajustarCamposPorModo();
   const recActual = completandoId ? atenciones.find(x=>x.id===completandoId) : null;
   renderBitacora(recActual);
@@ -13457,7 +13466,8 @@ if(typeof limpiarModal==='function'){
   const _limpiarOrig=limpiarModal;
   limpiarModal=function(){_limpiarOrig();
     const t=document.getElementById('proxTema');if(t)t.value='';
-    const f=document.getElementById('proxFechaCustom');if(f){f.value='';f.classList.add('hidden');}
+    // el calendario ya NO se esconde: está siempre a la vista (rediseño 30/7)
+    const f=document.getElementById('proxFechaCustom');if(f){f.value='';f.classList.remove('hidden');}
     const p=document.getElementById('proxTemasPop');p&&p.classList.add('hidden');
   };
 }
@@ -13756,7 +13766,13 @@ function recParaTs(){
 .aviso-pend.ver{display:block}
 
 /* el calendario del wizard, en la misma fila que los atajos */
-#campoProx #proxFechaCustom{width:auto;max-width:165px;padding:8px 10px;font-size:13px;border-radius:999px;margin-top:0;display:inline-block;vertical-align:middle}
+#etapaCampoProx .pills{display:inline-flex;vertical-align:middle;margin-right:6px}
+.prox-fecha-inline{width:auto!important;max-width:165px;padding:8px 10px;font-size:13px;
+  border-radius:999px;margin:0;display:inline-block;vertical-align:middle}
+
+#campoProx #proxFechaCustom,
+#campoProx #proxFechaCustom.hidden{width:auto;max-width:165px;padding:8px 10px;font-size:13px;
+  border-radius:999px;margin-top:0;display:inline-block!important;vertical-align:middle}
 #campoProx #proxPills{display:inline-flex;vertical-align:middle;margin-right:6px}
 
 /* CALIFICACIÓN en estrellas, en la fila del cliente */
