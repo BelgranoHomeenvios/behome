@@ -4179,56 +4179,7 @@ function renderBandejaVendedor(){
   box.classList.add('hidden'); box.innerHTML='';
   return;
 }
-function renderBandejaVendedor_LEGACY(){
 
-  const mias = atenciones.filter(a=>a.vendedorId===YO);
-  const items=[];
-
-  // 1) 2da oportunidad que Cintia me derivó, sin acusar recibo. Ordena primero: hay plata en juego.
-  mias.filter(a=>a.segundaOportunidad && a.segundaOportunidad.nota && !a.segundaOportunidad.visto)
-      .forEach(a=>items.push({tipo:'segunda', a, monto:montoRepresentativo(a.muebles)||0}));
-
-  // 2) Comentario de coaching de Cintia sin leer. Este es el que estaba invisible.
-  mias.filter(a=>a.comentarioVendedor && !a.comentarioVendedor.leido && a.comentarioVendedor.paraId===YO && hayComentarioVendedor(a))
-      .forEach(a=>items.push({tipo:'comentario', a, monto:0}));
-
-  if(!items.length){ box.classList.add('hidden'); box.innerHTML=''; return; }
-
-  // La 2da oportunidad va por monto; después los comentarios.
-  items.sort((x,y)=> (x.tipo==='segunda'?0:1)-(y.tipo==='segunda'?0:1) || y.monto-x.monto);
-
-  const filas = items.map(it=>{
-    const a=it.a;
-    if(it.tipo==='segunda'){
-      const s=a.segundaOportunidad;
-      const montoTxt = it.monto ? `<span class="bv-monto">$ ${it.monto.toLocaleString('es-AR')}</span>` : '';
-      return `<div class="bv-item oro">
-        <div class="bv-ico">🎯</div>
-        <div class="bv-body">
-          <div class="bv-head"><span class="bv-de">2da oportunidad</span><span class="bv-cli">${escapeHtml(a.clienteNombre||'Cliente')} · te la pasó ${nombreDe(s.porId)}</span>${montoTxt}</div>
-          <div class="bv-txt">${escapeHtml(s.nota)}</div>
-        </div>
-        <button class="btn btn-navy bv-btn" onclick="bvAbrirSegunda('${a.id}')">Abrir</button>
-      </div>`;
-    }
-    const c=a.comentarioVendedor;
-    const cap = c.captura ? `<span class="bv-cap">📎 con captura</span>` : '';
-    return `<div class="bv-item">
-      <div class="bv-ico azul">💬</div>
-      <div class="bv-body">
-        <div class="bv-head"><span class="bv-de azul">Comentario de ${nombreDe(c.deId)}</span><span class="bv-cli">${escapeHtml(a.clienteNombre||'Cliente')}</span>${cap}</div>
-        <div class="bv-txt">${escapeHtml(c.texto||'')}</div>
-      </div>
-      <button class="btn btn-navy bv-btn" onclick="bvVerComentario('${a.id}')">Entendido</button>
-    </div>`;
-  }).join('');
-
-  box.classList.remove('hidden');
-  box.innerHTML = `<div class="bandeja-v">
-    <div class="bandeja-v-t">Qué tengo que hacer hoy <span class="bandeja-v-n">${items.length}</span></div>
-    ${filas}
-  </div>`;
-}
 
 // Acusar recibo del comentario: reusa la lógica existente pero desde la bandeja.
 function bvVerComentario(id){ verComentarioCintia(id); }
@@ -4531,11 +4482,7 @@ function estadoTagClass(e){
   if(e==='oportunidad') return 'tag-oportunidad';
   return 'tag-alternativa';
 }
-function estadoTexto(e){
-  if(e==='elegido') return 'Elegido';
-  if(e==='oportunidad') return 'Posibilidad de compra';
-  return 'Alternativa no elegida';
-}
+
 
 /* Plazo de la próxima acción → color: rojo atrasada, ámbar hoy, azul esta semana, gris más adelante */
 /* Plazo de acción, con el lenguaje que usa el vendedor: "Urgente hablarle" si ya se pasó,
@@ -4665,22 +4612,7 @@ const METODOS_PAGO=[
   {t:'Otro',        ic:'…'}
 ];
 
-async function setEstado(id,est){
-  const a=atenciones.find(x=>x.id===id);
-  if(!a) return;
-  if(a.status==='pendiente' && est==='En seguimiento'){
-    // "En seguimiento" sobre una consulta sin ficha todavía: se completa primero.
-    // Concretado y Rechazado van directo a su ficha de cierre (que ya pide todo).
-    origenAutoEstado=est;
-    abrirModalCompletar(id,0);
-    toast('Completá la ficha antes de marcarla como '+est);
-    return;
-  }
-  if(est==='Concretado'){ abrirModalCierre(id,'Concretado'); return; }
-  if(est==='Rechazado'){ abrirModalCierre(id,'Rechazado'); return; }
-  await aplicarEstado(a,est);
-  toast('Estado: '+est);
-}
+async 
 async function aplicarEstado(a,est){
   const previo=a.estadoManual;
   a.estadoManual=est;
@@ -4829,11 +4761,7 @@ function abrirModalCierre(id,tipo){
   $('modalCierre').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
-function pickMotivo(el){
-  document.querySelectorAll('#cierreMotivos .mgc').forEach(p=>p.classList.remove('on'));
-  el.classList.add('on');
-  $('avisoNoCliente').classList.toggle('hidden', el.dataset.nocuenta!=='1');
-}
+
 /* Motivo del rechazo con chips (selección única) */
 function pickMotivoRechazo(el){
   document.querySelectorAll('#cierreMotivos .cierre-chip').forEach(p=>p.classList.remove('on'));
@@ -5062,13 +4990,10 @@ function abrirCambioEstadoPedido(id){
   $('modalEtapa').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
-function elegirEtapa(e){ etapaSel=e; pintarEtapa(); }
-/* Píldoras de clasificación dentro de la solapa de estado. Cambian el estado local y
-   re-pintan. Elegir tipo NO muestra fecha acá: la próxima acción se recalcula al Guardar
-   y se ve en la columna de acción. */
-function etapaSetPercep(p){ etapaPercep=(etapaPercep===p)?null:p; pintarEtapa(); }
-function etapaSetFam(f){ etapaFam=(etapaFam===f)?null:f; pintarEtapa(); }
-function etapaSetTipo(t){ etapaTipo=(etapaTipo===t)?null:t; etapaSugerirProx(); pintarEtapa(); }
+
+
+
+
 
 /* ----- Próxima acción dentro de Etapa comercial -----
    Antes se calculaba sola al Guardar y el vendedor no la veía: se enteraba recién en la
@@ -5214,29 +5139,9 @@ function etapaSetBarra(i){
   }
   etapaSugerirProx(); pintarEtapa();
 }
-async function guardarEtapaSinClasificar(){
-  if(esSoloLectura())return avisoLectura();
-  const a=atenciones.find(x=>x.id===cerrandoId); if(!a) return;
-  // Vuelve a "sin clasificar": se limpia el estado y los datos de cierre, sin borrar la consulta.
-  a.estadoManual=null; a.resultado=null;
-  a.montoVendido=null; a.montoPerdido=null; a.resultadoMotivo=null;
-  await saveAtenciones();
-  cerrarEtapa(); render();
-  toast('Consulta marcada como sin clasificar');
-}
-function etapaCompletarFicha(){
-  const id=cerrandoId, est=etapaSel;
-  const a=atenciones.find(x=>x.id===id);
-  origenAutoEstado=est;
-  cerrarEtapa();
-  // Si la consulta ya tiene datos (cliente o muebles), va directo al seguimiento enriquecido
-  // —con las pills de etapa arriba— sin el paso extra de la ficha. Si está vacía, sí pide la ficha.
-  abrirModalCompletar(id, 0);
-}
-function segElegirCuando(el){
-  el.parentElement.querySelectorAll('.cierre-chip').forEach(c=>c.classList.remove('on'));
-  el.classList.add('on');
-}
+async 
+
+
 
 async function guardarEtapaSeguimiento(){
   const a=atenciones.find(x=>x.id===cerrandoId);
@@ -6542,27 +6447,7 @@ function renderSemaforoMisConsultas(){
   return;
 }
 
-function _renderSemaforoMisConsultas_LEGACY(){
-  const box=$('semaforoMisConsultas');
-  if(puedeVerEquipo()){ box.classList.add('hidden'); return; }
-  const loc=LOCALES[LOCAL_ACTUAL];
-  if(!loc || loc.modo!=='rotacion'){ box.classList.add('hidden'); return; }
-  if(!yaConectadoHoy(YO) || forzandoSelector || estaPausado(YO)){ box.classList.add('hidden'); return; }
-  const info=turnInfoPara(YO,LOCAL_ACTUAL);
-  box.classList.remove('hidden');
-  if(info.distance===0){
-    box.style.background='var(--green-l)'; box.style.color='var(--green)';
-    box.innerHTML=`<b>● Te toca a vos</b>`;
-  }else if(info.distance===1){
-    box.style.background='var(--amber-l)'; box.style.color='var(--amber)';
-    box.innerHTML=`<b>● Sos el próximo</b> — después de ${nombreDe(info.before)}`;
-  }else if(info.distance===null){
-    box.classList.add('hidden');
-  }else{
-    box.style.background='var(--red-l)'; box.style.color='var(--red)';
-    box.innerHTML=`<b>● No te toca</b> — en ${info.distance} atenciones`;
-  }
-}
+
 
 /* Zona de una consulta: define su color en la lista y en qué tarjeta del tablero cuenta.
    Se calcula igual arriba y abajo, así los números siempre cuadran con las filas. */
@@ -7807,15 +7692,8 @@ function renderArchivadas(){
    nunca. Todo lo que se saca del circuito se ARCHIVA (archivarConsulta), y queda
    recuperable. Estas funciones quedan neutralizadas por si algo viejo las llamara: no
    borran, redirigen a archivar. Las ventas concretadas ni siquiera se archivan. */
-async function eliminarDefinitivamente(id){
-  const s=solicitudesEliminacion.find(x=>x.id===id);
-  const a=s ? atenciones.find(x=>x.id===(s.atencionId||(s.snapshotAtencion&&s.snapshotAtencion.id))) : null;
-  if(a) await archivarConsulta(a, 'Baja (archivada, no se borra)');
-  toast('Ya no se elimina definitivamente: queda archivada y recuperable');
-}
-async function eliminarTodasDefinitivamente(){
-  toast('Ya no se elimina definitivamente: las bajas quedan archivadas y recuperables');
-}
+async 
+async 
 
 
 /* ---------------- panel de derivación inline ---------------- */
