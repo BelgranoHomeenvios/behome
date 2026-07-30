@@ -4490,31 +4490,29 @@ function nombreMueble(m){ return (m && (m.mueble || m.nombre)) || 'Sin nombre'; 
 const ESTADOS=['En seguimiento','Concretado','Rechazado'];
 const ESTADO_CLS={'En seguimiento':'es-seg','Concretado':'es-conc','Rechazado':'es-rech'};
 
+/* Motivos de rechazo — lista corta definida por Brian el 30/7/2026. Reemplaza las 14
+   anteriores. `noCuenta` marca los casos en los que el cliente NUNCA dijo que no: de ahí
+   sale MOTIVOS_NO_CLIENTE, que descuenta esas consultas de las metricas del vendedor.
+   Se elige UNO solo: con varios los porcentajes no suman 100 y el reporte deja de leerse. */
 const MOTIVOS_RECHAZO=[
-  {t:'Producto no disponible',     ic:'📦'},
-  {t:'Fuera de precio',            ic:'💰'},
-  {t:'No responde',                ic:'👻', noCuenta:true},
-  {t:'No sé el motivo',            ic:'❓'},
-  {t:'Tiempo de entrega',          ic:'📅'},
-  {t:'Costo de logística',         ic:'🚚'},
-  {t:'Otros',                      ic:'…'},
-  {t:'Compró en otro lado',        ic:'🏬'},
-  {t:'Pospuso la compra',          ic:'⏳'},
-  {t:'Descuidó la consulta',       ic:'🙈'},
-  {t:'Demora en la respuesta',     ic:'🐢'},
-  {t:'Dejó de responderme',        ic:'👻', noCuenta:true},
-  {t:'Cerró con otro vendedor',    ic:'🤝'},
-  {t:'Lo resolvió de otra manera', ic:'✅', noCuenta:true}
+  {t:'No responde',            ic:'👻', noCuenta:true},
+  {t:'Tiempo de entrega',      ic:'📅'},
+  {t:'Pospuso compra',         ic:'⏳'},
+  {t:'Costos de envío',        ic:'🚚'},
+  {t:'Ya resolvió',            ic:'✅', noCuenta:true},
+  {t:'Fuera de precio',        ic:'💰'},
+  {t:'Mueble que no hacemos',  ic:'🪚'},
+  {t:'No sé el motivo',        ic:'❓'}
 ];
+/* Motivos de venta — lista corta definida por Brian el 30/7/2026. Reemplaza las 8
+   anteriores. Se elige UNO solo, por el mismo motivo que en rechazo. */
 const MOTIVOS_CONCRETADO=[
-  {t:'Teníamos stock',           ic:'📦'},
-  {t:'Interpreté qué necesitaba',ic:'🎯'},
-  {t:'La atención que di',       ic:'🤝'},
-  {t:'Ya nos había comprado',    ic:'🔁'},
-  {t:'Buen seguimiento',         ic:'📞'},
-  {t:'Buen precio / oferta',     ic:'🏷️'},
-  {t:'Entrega inmediata',        ic:'🚚'},
-  {t:'No sé el motivo',          ic:'❓'}
+  {t:'Stock',           ic:'📦'},
+  {t:'Buen seguimiento',ic:'📞'},
+  {t:'Precio',          ic:'🏷️'},
+  {t:'Ya nos conocía',  ic:'🔁'},
+  {t:'Asesoramiento',   ic:'🎯'},
+  {t:'No sé el motivo', ic:'❓'}
 ];
 const METODOS_PAGO=[
   {t:'Efectivo',    ic:'💵'},
