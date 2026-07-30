@@ -2419,12 +2419,7 @@ function localesDeVendedor(uid){
 }
 
 /* ---------------- login ---------------- */
-function pintarLogin(){
-  const rolTexto={admin:'Administrador', auditora:'Auditora / Coordinadora', vendedor:'Vendedor'};
-  $('login-list').innerHTML=ORDEN_LOGIN.map(uid=>
-    `<div class="ucard" onclick="login('${uid}')"><div class="un">${USUARIOS[uid].n}</div><div class="ur">${rolTexto[USUARIOS[uid].rol]||'Vendedor'}</div></div>`
-  ).join('');
-}
+
 
 let ADMIN_UID=null; // si la sesión real es admin, queda guardado acá aunque esté "viendo como" otro usuario
 let VER_COMO_REAL=null; // usuario REAL que puede ver como otros (admin o auditora)
@@ -3452,13 +3447,7 @@ async function guardarVinculacionCliente(id){
   renderPanelCintia();
   toast(aviso || 'Cliente vinculado a la base');
 }
-function diasSinHablarle(a){
-  const c = a.contactoId ? contactoPorId(a.contactoId) : null;
-  const base = c ? c.ultimaActividad : a.ts;
-  if(!base) return null;
-  const dias = Math.floor((Date.now()-new Date(base).getTime())/86400000);
-  return dias;
-}
+
 
 async function loadState(){
   await loadLocales();
@@ -4140,14 +4129,9 @@ function renderBandejaVendedor(){
 
 
 // Acusar recibo del comentario: reusa la lógica existente pero desde la bandeja.
-function bvVerComentario(id){ verComentarioCintia(id); }
+
 // Abrir la 2da oportunidad: la marca vista y muestra la nota completa.
-function bvAbrirSegunda(id){
-  const a=atenciones.find(x=>x.id===id);
-  if(a && a.segundaOportunidad){ a.segundaOportunidad.visto=true; saveAtenciones(); }
-  verNotaSegunda(id);
-  renderBandejaVendedor();
-}
+
 
 function renderTurnoCard(){
   const card=$('turnoCard');
@@ -4299,36 +4283,7 @@ function renderModoRapido(){
   $('btnRegistroRapido').classList.toggle('hidden', !modoRapidoDisponible());
 }
 
-function renderPendientes(){
-  const wrap=$('pendientesWrap');
-  const nombreOrigen=a=>a.origen==='rapido' ? 'Sin datos cargados (modo rápido)' : `Derivada por ${nombreDe(a.registradoPor)}`;
-  if(esAdmin()){
-    const todas=registrosLocal(FILTRO_LOCAL_ADMIN).filter(a=>a.status==='pendiente').sort((a,b)=>new Date(a.ts)-new Date(b.ts));
-    if(!todas.length){wrap.innerHTML='';return;}
-    wrap.innerHTML=`<div class="alert-card"><div class="at">${todas.length} consulta(s) esperando ser completadas</div>` +
-      todas.map(a=>`
-        <div class="pend-item">
-          <div>
-            <div class="pend-name">${a.clienteNombre||'(sin nombre aún)'}</div>
-            <div class="pend-sub">${nombreOrigen(a)} · ${nombreLocal(a.localId)}</div>
-          </div>
-          <span class="pend-wait">esperando a ${nombreDe(a.vendedorId)}</span>
-        </div>`).join('') + `</div>`;
-    return;
-  }
-  const mias=atenciones.filter(a=>a.vendedorId===YO && a.status==='pendiente').sort((a,b)=>new Date(a.ts)-new Date(b.ts));
-  if(!mias.length){wrap.innerHTML='';return;}
-  wrap.innerHTML=`<div class="alert-card"><div class="at">Tenés ${mias.length} consulta(s) para completar</div>` +
-    mias.map(a=>`
-      <div class="pend-item">
-        <div>
-          <div class="pend-name">${a.clienteNombre||'(cargar nombre)'}</div>
-          <div class="pend-sub">${nombreOrigen(a)}</div>
-        </div>
-        <button class="pend-btn" onclick="abrirModalCompletar('${a.id}')">Completar</button>
-      </div>
-      <div class="slot-completar" id="slot-${a.id}"></div>`).join('') + `</div>`;
-}
+
 
 function esHoy(iso){const d=new Date(iso),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();}
 
@@ -5811,11 +5766,7 @@ function logItemCompactoHtml(a){
     </div>`;
 }
 
-function renderUltimas(){
-  const base = puedeVerEquipo() ? registrosLocal(FILTRO_LOCAL_ADMIN) : atenciones.filter(a=>a.localId===LOCAL_ACTUAL);
-  const u=[...base].sort((a,b)=>new Date(b.ts)-new Date(a.ts)).slice(0,4);
-  $('ultimasBox').innerHTML = u.length? u.map(logItemCompactoHtml).join('') : `<div class="empty">Todavía no hay atenciones cargadas.</div>`;
-}
+
 
 function esAyer(iso){
   const d=new Date(iso), y=new Date();
@@ -6168,7 +6119,7 @@ function construirListaFiltrada(){
 
   // Recordatorios: solo filtra para quien ve la campanita (Cintia y dirección).
   if(puedeRecordar()){
-    if(filtroRecordatorio==='con')      l=l.filter(a=>!!a.recordatorioPendiente);
+    if(filtroRecordatorio==='con')      l=l.filter(a=>tieneAviso(a));
     else if(filtroRecordatorio==='sin') l=l.filter(a=>!a.recordatorioPendiente);
     if(filtroAsistPend) l=l.filter(a=>asistPendienteParaMi(a));
   }
@@ -6228,7 +6179,7 @@ function filtrosColumna(l){
   }
   if(buscar) l=l.filter(a=>(nombreCliente(a)||'').toLowerCase().includes(buscar) || (a.clienteTelefono||'').includes(buscar) || (a.clienteInstagram||'').toLowerCase().includes(buscar));
   if(puedeRecordar()){
-    if(filtroRecordatorio==='con')      l=l.filter(a=>!!a.recordatorioPendiente);
+    if(filtroRecordatorio==='con')      l=l.filter(a=>tieneAviso(a));
     else if(filtroRecordatorio==='sin') l=l.filter(a=>!a.recordatorioPendiente);
     if(filtroAsistPend) l=l.filter(a=>asistPendienteParaMi(a));
   }
@@ -6367,16 +6318,7 @@ function formatDateInput(d){
   const dd=String(d.getDate()).padStart(2,'0');
   return `${yyyy}-${mm}-${dd}`;
 }
-function setFiltro(f){
-  reiniciarPaginado();
-  filtroActual=f;
-  if(f==='personalizado' && !$('filtroDesde').value && !$('filtroHasta').value){
-    const hoy=formatDateInput(new Date());
-    $('filtroDesde').value=hoy;
-    $('filtroHasta').value=hoy;
-  }
-  renderHistorial();
-}
+
 function aplicarPresetPersonalizado(tipo){
   const hoy=new Date();
   let desde=new Date(hoy);
@@ -6392,13 +6334,7 @@ function aplicarPresetPersonalizado(tipo){
 }
 function setScope(s){if(!puedeVerEquipo())return;scopeActual=s;renderHistorial();}
 
-function renderSemaforoMisConsultas(){
-  const box=$('semaforoMisConsultas');
-  // Turnos rotativos: en pausa hasta la 2da fase. Este semáforo le decía al vendedor
-  // "te toca / sos el próximo / en N atenciones"; queda apagado junto con la tarjeta.
-  box.classList.add('hidden');
-  return;
-}
+
 
 
 
@@ -6428,6 +6364,21 @@ function diasSinContacto(a){
   return diasDesde(ultimo || a.ts);
 }
 
+/* Una consulta "tiene aviso" si hay algo pendiente para el vendedor, se lo haya anotado
+   él o se lo haya mandado Cintia. Antes el filtro y el contador miraban SOLO la campanita
+   (recordatorioPendiente), así que los pedidos de Cintia —2da oportunidad, "Marcá
+   Concretada", revisión— contaban en un lado y no aparecían en el otro: la tarjeta decía 5
+   y la tabla mostraba 2. Ahora los dos usan esta misma función, así que el número y la
+   lista siempre coinciden. */
+function tieneAviso(a){
+  if(!a) return false;
+  if(a.recordatorioPendiente) return true;
+  if(a.segundaOportunidad && a.segundaOportunidad.nota && !a.segundaOportunidad.visto) return true;
+  if(a.cambioEstadoPedido) return true;
+  if(a.revisionEval && (a.revisionEval.estado==='pendiente'
+      || (a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor))) return true;
+  return false;
+}
 function zonaDe(a){
   // Histórico viejo: solo sabemos que la consulta entró. No hay nada que hacer con
   // ella, así que no puede aparecer como pendiente ni como atrasada.
@@ -6527,7 +6478,7 @@ function renderPanelGestion(listaVisible){
     // todos los avisos (campanitas + los de Cintia: 2da oportunidad, "Marcá Concretada",
     // revisiones), pero el filtro de la tabla solo mira a.recordatorioPendiente, que los de
     // Cintia no prenden. Resultado: la tarjeta decía 5 y la tabla mostraba 2.
-    {label:'Recordatorio',   ico:'recordatorio',cnt:mias.filter(a=>!!a.recordatorioPendiente).length, activo:(!seccionVendedor && filtroRecordatorio==='con'), act:`verRecordatorios()`},
+    {label:'Recordatorio',   ico:'recordatorio',cnt:mias.filter(a=>tieneAviso(a)).length, activo:(!seccionVendedor && filtroRecordatorio==='con'), act:`verRecordatorios()`},
     {label:'Estadísticas',   ico:'estadisticas',cnt:undefined,   activo:(seccionVendedor==='estadisticas'),            act:`abrirSeccionVendedor('estadisticas')`},
     {label:'Evaluación',     ico:'evaluacion',  cnt:undefined,   activo:(seccionVendedor==='evaluacion'),              act:`abrirSeccionVendedor('evaluacion')`},
     {label:'Oportunidad',    ico:'oportunidad', cnt:mias.filter(a=>esOportunidadCaliente(a)).length, activo:(seccionVendedor==='oportunidad'), act:`abrirSeccionVendedor('oportunidad')`}
@@ -7321,11 +7272,7 @@ function svEvaluacionesHtml(){
     </tbody></table>`;
 }
 
-function abrirSolapaVendedor(id){
-  // Toggle: si ya está abierta, la cierra.
-  solapaVendedorActiva = (solapaVendedorActiva===id) ? null : id;
-  renderSolapasVendedor();
-}
+
 
 function svToggleRec(btn){
   btn.classList.toggle('open');
@@ -8028,15 +7975,8 @@ function htmlAdminConfig(){
 }
 
 let cintiaResumenFiltro='todas'; // 'todas' | 'derivadas' | 'virtual' | 'presencial'
-function setCintiaResumenFiltro(valor){ cintiaResumenFiltro=valor; renderCintiaMain(); }
-function filaStatsVendedor(nombre, cs, esGeneral){
-  const total=cs.length;
-  const seg=cs.filter(a=>estadoDe(a)==='En seguimiento').length;
-  const conc=cs.filter(a=>estadoDe(a)==='Concretado').length;
-  const rech=cs.filter(a=>estadoDe(a)==='Rechazado').length;
-  const pct=n=>total?Math.round(n/total*100)+'%':'—';
-  return `<tr${esGeneral?' style="border-top:2px solid var(--line)"':''}><td><b>${nombre}</b></td><td>${total}</td><td>${pct(seg)}</td><td>${pct(conc)}</td><td>${pct(rech)}</td></tr>`;
-}
+
+
 
 /* ================= Resumen: semáforo de carga =================
    Regla de oro pedida por Brian: acá SOLO se cuentan clientes reales. Una consulta que se
@@ -8446,19 +8386,7 @@ function htmlCintiaResumen(){
 /* Módulo para que Cintia entre a la pantalla de cada vendedor y le dé soporte. Solo
    vendedores (no Brian ni ella misma). Usa el mismo "ver como" que dirección; la barra
    de arriba le deja volver a su propia pantalla. */
-function htmlEquipoPantallas(){
-  const AVC=['#1e5fce','#0d9488','#7c3aed','#db2777','#ea580c'];
-  const vends=ORDEN_LOGIN.filter(u=>rolDe(u)==='vendedor');
-  return `<div class="cin-card">
-    <div class="dh" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Entrar a las pantallas del equipo</h3><span class="tiny" style="color:var(--muted)">ver la app tal cual la ve cada vendedor, para dar soporte</span></div>
-    <div class="dir-team">${vends.map((u,i)=>`
-      <div class="dir-tcard" onclick="cambiarVistaComo('${u}')">
-        <span class="av2" style="background:${AVC[i%AVC.length]}">${nombreDe(u).slice(0,2).toUpperCase()}</span>
-        <div><b style="font-size:13px">${nombreDe(u)}</b><div style="font-size:11px;color:var(--muted)">Vendedor</div></div>
-        <span class="go">Ver pantalla →</span>
-      </div>`).join('')}</div>
-  </div>`;
-}
+
 
 /* -------- Detalle de un vendedor: para entrar a ver qué le está frenando el trabajo -------- */
 function htmlResumenDetalleVendedor(uid){
@@ -9214,17 +9142,7 @@ function asistPendienteParaMi(a){
 }
 /* Botón "Ver en la tabla" de la tarjeta de mensajes: lleva a Cintia/dirección a la vista
    Consultas con el filtro puesto, para ver cada consulta con toda su fila. Toggle. */
-function verAsistPendientes(){
-  filtroAsistPend=!filtroAsistPend;
-  if(filtroAsistPend){
-    if(esAdmin()){ scopeActual='equipo'; }
-    cintiaSeccion='consultas';
-    filtroRecordatorio='todos';
-  }
-  reiniciarPaginado();
-  renderPanelCintia();
-  renderHistorial();
-}
+
 function htmlCintiaMisPendientes(){
   const pendientes=solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
   const misAtrasados=atenciones.filter(a=>cuentaParaVendedor(a) && a.vendedorId===YO && zonaDe(a)==='atrasada' && dentroDePeriodoCintia(a.ts));
@@ -11706,7 +11624,7 @@ function pintarTodoWizard(){
   const recActual = completandoId ? atenciones.find(x=>x.id===completandoId) : null;
   renderBitacora(recActual);
 }
-function pintarStepper(){ /* Opción B: sin stepper */ }
+
 
 /* ---------------- Paso 1 ---------------- */
 /* CALIFICACIÓN EN ESTRELLAS (30/7). Reemplaza a las 6 píldoras de percepción, pero
@@ -11962,42 +11880,11 @@ function onSenaInput(el){
 }
 /* Calculadora de seña suelta del header del vendedor: pone el total y calcula la seña
    sugerida y el saldo, con la misma cuenta que el cierre. */
-function toggleCalcSena(){
-  const b=$('calcSenaBody'), c=$('calcSenaChev');
-  if(!b) return;
-  const oculto=b.classList.toggle('hidden');
-  if(c) c.textContent = oculto?'▼':'▲';
-  if(!oculto){ const i=$('calcSenaTotal'); if(i) setTimeout(()=>i.focus(),30); }
-}
-function calcSenaCalcular(el){
-  formatearMontoInput(el);
-  const total=parseInt((el.value||'').replace(/\D/g,''))||0;
-  const c=calcSena(total);
-  const s=$('calcSenaSena'), r=$('calcSenaResto');
-  if(s) s.textContent = c?'$ '+miles(c.sena):'$ 0';
-  if(r) r.textContent = c?'$ '+miles(c.resto):'$ 0';
-}
+
+
 
 /* ---------------- Paso 3 ---------------- */
-function pintarResumenPrevio(){
-  if(!$('resumenPrevio')) return;
-  const nombre = $('noTomoNombre').checked ? 'Sin nombre' : ($('clienteNombre').value.trim()||'—');
-  const telVal = $('clienteTelefono').value.trim();
-  const tel = $('noTomoTel').checked ? 'sin teléfono' : (telVal||'—');
-  const telHtml = (!$('noTomoTel').checked && telVal)
-    ? `<span class="tel-copy" onclick="copiarCampoTelefono()" title="Copiar para LiveConnect">${tel}</span>`
-    : tel;
-  const nombreHtml = (!$('noTomoNombre').checked && nombre && nombre!=='—')
-    ? `<span class="tel-copy" onclick="copiarCampoNombre()" title="Copiar nombre para LiveConnect">${nombre}</span>`
-    : nombre;
-  const suman=mueblesActuales.filter(m=>m.elegido);
-  const total=suman.reduce((s,m)=>s+((+m.monto)||0),0);
-  const emo=OPORT_EMOJI[percepcionSel]||'○';
-  $('resumenPrevio').innerHTML=`
-    <div class="r"><span>Cliente</span><b>${nombreHtml} · ${telHtml}</b></div>
-    <div class="r"><span>Calificación</span><b>${estrellasHtml(percepcionSel)}</b></div>
-    <div class="r"><span>Cotizado</span><b>$ ${miles(total)} · ${suman.length} mueble${suman.length===1?'':'s'}</b></div>`;
-}
+
 function pintarProxPills(){
   $('proxPills').innerHTML = PROX_OPCIONES_WIZ.map(o=>
     `<span class="pill ${atajoQueCoincide()===o.v?'on':''}" onclick="setProx('${o.v}')">${o.t}</span>`
@@ -12593,23 +12480,7 @@ async function guardarSeguimiento(){
   render();
   toast('Seguimiento guardado');
 }
-function renderResumenFicha(a){
-  const tel = a.noTomoTelefono ? 'sin teléfono' : (a.clienteTelefono||'');
-  const totalCotizado=montoRepresentativo(a.muebles||[]);
-  const mueblesHtml=(a.muebles||[]).map(m=>`<span class="log-tag ${estadoTagClass(m.estado)}">${nombreMueble(m)}${m.monto?' · $'+miles(m.monto):''}</span>`).join('');
-  const tiempoTxt = a.tiempoAtencionMin ? `${a.tiempoAtencionMin>=60?Math.floor(a.tiempoAtencionMin/60)+'h '+(a.tiempoAtencionMin%60?a.tiempoAtencionMin%60+'min':''):a.tiempoAtencionMin+' min'} de atención` : '';
-  return `
-    <div class="log-notas" style="font-size:14px"><b>${a.clienteNombre||'—'}</b>${tel?' · '+tel:''}</div>
-    <div style="margin:8px 0 6px">
-      ${a.resultado?`<span class="log-tag ${tagClass(a.resultado)}">${a.resultado}</span>`:''}
-      ${a.percepcion?`<span class="log-tag tag-sin">${estrellasHtml(a.percepcion,'estr-mini')}</span>`:''}
-    </div>
-    ${mueblesHtml?`<div style="margin-bottom:8px">${mueblesHtml}</div>`:''}
-    ${totalCotizado?`<div class="log-monto">Cotizado: $ ${miles(totalCotizado)}</div>`:''}
-    ${a.notas?`<div class="log-notas" style="margin-top:6px">${a.notas}</div>`:''}
-    ${tiempoTxt?`<div class="log-notas" style="margin-top:4px">⏱ ${tiempoTxt}</div>`:''}
-  `;
-}
+
 
 async function marcarResultadoRapido(percepcionValor){
   const rec=atenciones.find(x=>x.id===completandoId);
@@ -13090,35 +12961,11 @@ function dirVerConsulta(id){
   const a=atenciones.find(x=>x.id===id);
   if(a && typeof abrirFichaCliente==='function' && a.contactoId){ abrirFichaCliente(a.contactoId); }
 }
-function dirSetPer(p){
-  dirPer=p;
-  if(p==='custom'&&!dirDesde){
-    // arranca con los últimos 30 días para no mostrar el panel vacío
-    const f=x=>x.toISOString().slice(0,10);
-    dirDesde=f(new Date(Date.now()-30*86400000)); dirHasta=f(new Date());
-  }
-  renderDireccion();
-}
-function dirSetRango(){
-  const d=document.getElementById('dirDesde'), h=document.getElementById('dirHasta');
-  if(d&&d.value) dirDesde=d.value;
-  if(h&&h.value) dirHasta=h.value;
-  renderDireccion();
-}
+
+
 /* Un solo lugar decide si un timestamp entra en el período elegido */
-function dirEnPer(t){
-  if(dirPer==='hoy') return new Date(t).toDateString()===new Date().toDateString();
-  const ahora=Date.now();
-  if(dirPer==='semana') return (ahora-t)<=7*86400000;
-  if(dirPer==='mes') return (ahora-t)<=30*86400000;
-  if(dirPer==='custom'){
-    const d=dirDesde?new Date(dirDesde+'T00:00:00').getTime():-Infinity;
-    const h=dirHasta?new Date(dirHasta+'T23:59:59').getTime():Infinity;
-    return t>=d && t<=h;
-  }
-  return true;
-}
-function dirFmtDia(x){ if(!x)return '–'; const p=x.split('-'); return p[2]+'/'+p[1]; }
+
+
 function dirBase(){
   // El Panel de dirección usa el MISMO período que la barra de arriba (dentroDePeriodoCintia),
   // así hay un solo control que contabiliza todo lo de abajo.
