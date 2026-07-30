@@ -1887,7 +1887,7 @@ textarea{resize:vertical;min-height:60px}
             </div>
             <div id="mueblesWrap">
             <div class="mhead">
-              <span class="h1">Mueble</span><span class="h2">Detalles</span><span class="h3">Monto</span>
+              <span class="h1">Mueble</span><span class="h3">Monto</span>
               <span class="h4">Suma</span><span class="h5"></span>
             </div>
             <div id="mueblesLista"></div>
@@ -11667,9 +11667,6 @@ function renderMuebleFilas(){
     <div class="mfila ${m.elegido?'suma':'nosuma'}">
       <div class="f1"><input type="text" id="mfMueble-${i}" placeholder="Mueble" list="muebles-list" value="${(m.mueble||m.nombre||'').replace(/"/g,'&quot;')}"
         oninput="actualizarMueble(${i},'mueble',this.value)"
-        onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('mfDet-${i}').focus();}"></div>
-      <div class="f2"><input type="text" id="mfDet-${i}" placeholder="Detalles" value="${(m.observacion||'').replace(/"/g,'&quot;')}"
-        oninput="actualizarMueble(${i},'observacion',this.value)"
         onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('mfMonto-${i}').focus();}"></div>
       <div class="f3"><div class="monto-wrap"><span class="sig">$</span>
         <input type="text" inputmode="numeric" id="mfMonto-${i}" placeholder="" value="${m.monto?miles(m.monto):''}"
