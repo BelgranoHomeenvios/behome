@@ -4695,9 +4695,14 @@ function htmlFormConcretado(a){
         <p class="tiny" style="margin-top:-2px;margin-bottom:8px;color:var(--sec)">Tocá los que se concretaron. Podés agregar alguno que no estaba cotizado.</p>
         <div id="cierreMuebles">
           ${mueblesCot.map((m,i)=>`
-            <div class="cm-item ${(fueCerrada ? !!m.vendido : (m.elegido!==false))?'on':''}" data-i="${i}" onclick="toggleMuebleVendido(this)">
+            <div class="cm-item ${(fueCerrada ? !!m.vendido : (m.elegido!==false))?'on':''}" data-i="${i}" onclick="toggleMuebleVendido(this)" title="Tocá para marcar si se vendió">
               <span class="cm-check">✓</span>
-              <span class="cm-nom">${escapeHtml(nombreMueble(m))}${m.monto?` · $${miles(m.monto)}`:''}</span>
+              <input type="text" class="cm-nom-inp" value="${escAttr(nombreMueble(m))}" placeholder="Mueble"
+                onclick="event.stopPropagation()" oninput="editarMuebleCierre(${i},'mueble',this.value)">
+              <div class="money-input small" onclick="event.stopPropagation()"><span>$</span>
+                <input type="text" inputmode="numeric" class="cm-monto-inp" value="${m.monto?miles(m.monto):''}"
+                  oninput="formatearMontoInput(this);editarMuebleCierre(${i},'monto',this.value)">
+              </div>
             </div>`).join('')}
         </div>
         <div id="cierreMueblesExtra"></div>
@@ -4793,6 +4798,14 @@ function toggleMotivoOtroVenta(el){
 }
 /* Mueble vendido: toggle sí/no */
 function toggleMuebleVendido(el){ el.classList.toggle('on'); }
+/* El mueble cotizado se puede corregir acá mismo: muchas veces la venta sale con otro
+   nombre o con otro precio que el presupuestado, y antes había que salir del cierre,
+   editar la consulta y volver a entrar. Escribe directo sobre a.muebles. */
+function editarMuebleCierre(i,campo,val){
+  const a=atenciones.find(x=>x.id===cerrandoId); if(!a||!a.muebles||!a.muebles[i]) return;
+  if(campo==='monto') a.muebles[i].monto = montoNumerico(val)||null;
+  else { a.muebles[i].mueble = val; if(a.muebles[i].nombre!==undefined) a.muebles[i].nombre = val; }
+}
 /* Agregar un mueble vendido que no estaba cotizado */
 let cierreExtraIdx=0;
 function agregarMuebleCierre(){
@@ -5131,6 +5144,18 @@ function etapaSetEstrellas(v){ etapaPercep = v ? PERCEP_POR_ESTRELLA[v] : null; 
 function etapaSetBarra(i){
   etapaBarSel=i;
   const f=ETAPAS_CONSULTA[i].fam; if(f) etapaFam=f;   // ver comentario en elegirEtapaWiz
+  // Vendido y Perdido CAMBIAN DE PANTALLA: se abre la ficha de cierre completa en vez de
+  // meterla apretada abajo de la barra. Antes de saltar se guarda lo que ya se cargó acá
+  // (calificación, familia y etapa) para no perderlo en el camino.
+  const est=ETAPAS_CONSULTA[i].estado;
+  if(est==='Concretado' || est==='Rechazado'){
+    const a=atenciones.find(x=>x.id===cerrandoId);
+    if(a){ a.percepcion=etapaPercep||null; a.familiaConsulta=etapaFam||a.familiaConsulta||null; a.etapaConsulta=i; }
+    const id=cerrandoId;
+    cerrarEtapa();
+    abrirModalCierre(id, est);
+    return;
+  }
   etapaSugerirProx(); pintarEtapa();
 }
 async function guardarEtapaSinClasificar(){
@@ -13792,6 +13817,17 @@ function recParaTs(){
 .est-borrar:hover{color:var(--red)}
 
 /* GUARDAR a un tercio, con Cancelar al lado */
+/* Muebles EDITABLES dentro de la ficha de venta: el nombre y el monto son inputs, y el
+   tilde de la izquierda sigue siendo lo que marca si ese mueble se vendió o no. */
+.cm-item .cm-nom-inp,.cm-item .money-input{cursor:text}
+.cm-item .cm-nom-inp{flex:1;min-width:0;border:1px solid transparent;background:transparent;
+  border-radius:8px;padding:6px 8px;font:inherit;font-size:13px;font-weight:600;color:var(--sec)}
+.cm-item.on .cm-nom-inp{color:var(--ink)}
+.cm-item .cm-nom-inp:hover{border-color:var(--line);background:#fff}
+.cm-item .cm-nom-inp:focus{outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px var(--blue-l)}
+.cm-item .money-input.small{flex:0 0 auto;width:135px}
+.cm-item .cm-monto-inp{font-size:13px;font-weight:700}
+
 /* El cartel verde va DEBAJO de los botones (pedido de Brian): primero se elige,
    después se lee en qué quedó. Por eso el margen pasa de abajo a arriba. */
 #campoProx .prox-auto, #etapaCampoProx .prox-auto{margin:10px 0 0}
