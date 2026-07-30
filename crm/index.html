@@ -7,6 +7,21 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMxMTExMTEiLz48dGV4dCB4PSIzMiIgeT0iMzQiIGZvbnQtZmFtaWx5PSJBcmlhbCxIZWx2ZXRpY2Esc2Fucy1zZXJpZiIgZm9udC1zaXplPSIzMCIgZm9udC13ZWlnaHQ9IjcwMCIgZmlsbD0iI2ZmZmZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiPkJIPC90ZXh0Pjwvc3ZnPg==">
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
+/* ============================================================
+   HOJA DE ESTILOS BASE
+   Consolidado el 30/07/2026. Antes esto vivían en 4 bloques <style>
+   sueltos: cada cambio visual se agregaba como bloque nuevo al final, y
+   terminó habiendo 16 lugares donde podía estar definido un color.
+   EL ORDEN DE ABAJO ES EL ORDEN ORIGINAL Y NO SE PUEDE CAMBIAR: en CSS,
+   a igual especificidad gana la regla que va después. Para agregar algo
+   nuevo, va AL FINAL de este bloque.
+   Contenido, en orden:
+     1. :root{--navy:#16324f;--ink:#0f1a2a;--blue:#1e5fce;--
+     2. .login-err{background:#fdecea;color:#b42318;font-siz
+     3. ====================================================
+     4. .etapa-pills{display:flex;gap:8px;flex-wrap:wrap;mar
+   ============================================================ */
+
 :root{--navy:#16324f;--ink:#0f1a2a;--blue:#1e5fce;--blue-d:#1a51b0;--muted:#8a94a3;--sec:#5b6675;--line:#d9e0e8;--line2:#eef1f5;--bg:#f4f6f8;--card:#fff;--green:#15803d;--green-l:#e7f5ec;--red:#b42318;--red-l:#fdecea;--amber:#b45309;--amber-l:#fff7e6;--blue-l:#e7effc;--shadow:0 1px 2px rgba(15,26,42,.06),0 1px 3px rgba(15,26,42,.04)}
 *{box-sizing:border-box}
 body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
@@ -1541,32 +1556,9 @@ textarea{resize:vertical;min-height:60px}
 .prox-tema-op{padding:10px 13px;font-size:13px;font-weight:600;cursor:pointer}
 .prox-tema-op:hover{background:var(--blue-l);color:var(--blue)}
 
-</style>
-</head>
-<body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><radialGradient id="igGrad" cx="30%" cy="107%" r="130%"><stop offset="0" stop-color="#f9ed41"/><stop offset=".25" stop-color="#ff833d"/><stop offset=".5" stop-color="#ee2a7b"/><stop offset=".75" stop-color="#a833d1"/><stop offset="1" stop-color="#4c5fd7"/></radialGradient></defs></svg>
 
-<div id="screen-cargando" class="center-wrap">
-  <div class="card auth-card" style="text-align:center">
-    <div class="logo-big" style="justify-content:center"><span class="l">BH</span><b style="font-size:16px;color:var(--navy)">Belgrano Soft · CRM</b></div>
-    <p class="muted" style="margin:14px 0 0;font-size:13.5px">Cargando…</p>
-  </div>
-</div>
-<div id="screen-login" class="center-wrap hidden">
-  <div class="card auth-card">
-    <div class="logo-big"><span class="l">BH</span><b style="font-size:16px;color:var(--navy)">Belgrano Soft · CRM</b></div>
-    <h2>Ingresar</h2>
-    <p class="muted" style="margin:0 0 14px;font-size:13.5px">Ingresá con tu cuenta para continuar.</p>
-    <div id="lg_err" class="login-err" style="display:none"></div>
-    <label class="login-lbl">Email</label>
-    <input id="lg_email" type="email" autocomplete="username" placeholder="tucuenta@gmail.com" onkeydown="if(event.key==='Enter')document.getElementById('lg_pass').focus()">
-    <label class="login-lbl">Contraseña</label>
-    <input id="lg_pass" type="password" autocomplete="current-password" placeholder="Tu contraseña" onkeydown="if(event.key==='Enter')hacerLoginCRM()">
-    <button id="lg_btn" class="login-btn" onclick="hacerLoginCRM()">Entrar</button>
-    <p class="login-foot">¿No podés entrar? Escribile a Brian para que revise tu usuario.</p>
-  </div>
-</div>
-<style>
+
+
 .login-err{background:#fdecea;color:#b42318;font-size:13px;border-radius:8px;padding:9px 12px;margin-bottom:8px;text-align:left}
 .login-lbl{display:block;text-align:left;font-size:12.5px;font-weight:700;color:#3a4453;margin:12px 0 5px}
 .auth-card input{width:100%;height:44px;padding:0 12px;border:1px solid #d0d7e2;border-radius:9px;font:inherit;font-size:15px;box-sizing:border-box}
@@ -1575,9 +1567,9 @@ textarea{resize:vertical;min-height:60px}
 .login-btn:hover{background:#1e3f5f}
 .login-btn:disabled{opacity:.7;cursor:default}
 .login-foot{color:#8a94a3;font-size:12px;margin:18px 0 0}
-</style>
 
-<style>
+
+
 /* ============================================================================
    FILAS COMPACTAS del tablero de consultas.
    Va último a propósito: gana sobre las reglas de más arriba sin tener que
@@ -1613,7 +1605,45 @@ textarea{resize:vertical;min-height:60px}
   .crow{padding:5px 12px!important;line-height:1.25}
   .c-coment .ebtn{padding:5px 6px}
 }
+
+
+
+        .etapa-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+        .etapa-pill{padding:9px 16px;border-radius:12px;font-weight:700;font-size:13.5px;cursor:pointer;border:1.5px solid var(--line);background:#fff;transition:.15s}
+        .etapa-pill.es-seg{color:var(--blue)}   .etapa-pill.es-seg.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+        .etapa-pill.es-conc{color:var(--green)} .etapa-pill.es-conc.on{background:var(--green);color:#fff;border-color:var(--green)}
+        .etapa-pill.es-rech{color:var(--red)}   .etapa-pill.es-rech.on{background:var(--red);color:#fff;border-color:var(--red)}
+        .dir-rango{display:flex;align-items:center;gap:6px}
+        .dir-rango input[type=date]{border:1px solid var(--line);border-radius:9px;padding:6px 8px;font:inherit;font-size:12.5px;background:#fff}
+      
 </style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><radialGradient id="igGrad" cx="30%" cy="107%" r="130%"><stop offset="0" stop-color="#f9ed41"/><stop offset=".25" stop-color="#ff833d"/><stop offset=".5" stop-color="#ee2a7b"/><stop offset=".75" stop-color="#a833d1"/><stop offset="1" stop-color="#4c5fd7"/></radialGradient></defs></svg>
+
+<div id="screen-cargando" class="center-wrap">
+  <div class="card auth-card" style="text-align:center">
+    <div class="logo-big" style="justify-content:center"><span class="l">BH</span><b style="font-size:16px;color:var(--navy)">Belgrano Soft · CRM</b></div>
+    <p class="muted" style="margin:14px 0 0;font-size:13.5px">Cargando…</p>
+  </div>
+</div>
+<div id="screen-login" class="center-wrap hidden">
+  <div class="card auth-card">
+    <div class="logo-big"><span class="l">BH</span><b style="font-size:16px;color:var(--navy)">Belgrano Soft · CRM</b></div>
+    <h2>Ingresar</h2>
+    <p class="muted" style="margin:0 0 14px;font-size:13.5px">Ingresá con tu cuenta para continuar.</p>
+    <div id="lg_err" class="login-err" style="display:none"></div>
+    <label class="login-lbl">Email</label>
+    <input id="lg_email" type="email" autocomplete="username" placeholder="tucuenta@gmail.com" onkeydown="if(event.key==='Enter')document.getElementById('lg_pass').focus()">
+    <label class="login-lbl">Contraseña</label>
+    <input id="lg_pass" type="password" autocomplete="current-password" placeholder="Tu contraseña" onkeydown="if(event.key==='Enter')hacerLoginCRM()">
+    <button id="lg_btn" class="login-btn" onclick="hacerLoginCRM()">Entrar</button>
+    <p class="login-foot">¿No podés entrar? Escribile a Brian para que revise tu usuario.</p>
+  </div>
+</div>
+
+
+
 
 <div id="screen-app" class="hidden">
   <!-- ===== SHELL V28 (fusión etapa 1): sidebar + topbar, sin tocar la lógica ===== -->
@@ -1753,15 +1783,7 @@ textarea{resize:vertical;min-height:60px}
           <div class="card" id="etapaCaja" style="margin-bottom:0"></div>
         </div>
       </div>
-      <style>
-        .etapa-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-        .etapa-pill{padding:9px 16px;border-radius:12px;font-weight:700;font-size:13.5px;cursor:pointer;border:1.5px solid var(--line);background:#fff;transition:.15s}
-        .etapa-pill.es-seg{color:var(--blue)}   .etapa-pill.es-seg.on{background:var(--blue);color:#fff;border-color:var(--blue)}
-        .etapa-pill.es-conc{color:var(--green)} .etapa-pill.es-conc.on{background:var(--green);color:#fff;border-color:var(--green)}
-        .etapa-pill.es-rech{color:var(--red)}   .etapa-pill.es-rech.on{background:var(--red);color:#fff;border-color:var(--red)}
-        .dir-rango{display:flex;align-items:center;gap:6px}
-        .dir-rango input[type=date]{border:1px solid var(--line);border-radius:9px;padding:6px 8px;font:inherit;font-size:12.5px;background:#fff}
-      </style>
+      
 
       <div class="modal-fondo hidden" id="modalSolicitud" onclick="if(event.target===this)cerrarModalSolicitud()">
         <div class="modal-caja" style="max-width:440px">
@@ -2451,16 +2473,7 @@ async function saveUltimoLocal(){
   try{await window.storage.set('ultimo-local-vendedor',JSON.stringify(ULTIMO_LOCAL),true);}catch(e){}
 }
 
-function localSugeridoHoy(uid){
-  // Prioridad 1: el último local que ese vendedor eligió (aprende solo, sin IP).
-  if(ULTIMO_LOCAL[uid]) return ULTIMO_LOCAL[uid];
-  // Prioridad 2: regla conocida — Sergio, Belgrano 2020 de lunes a sábado, Belgrano 2299 los domingos.
-  if(uid==='sergio'){
-    const dia=new Date().getDay(); // 0=domingo
-    return dia===0 ? 'belgrano2299' : 'belgrano2020';
-  }
-  return null;
-}
+
 
 let intentoIPHecho=false;
 
@@ -2775,15 +2788,7 @@ function registrarSenal(uid){
   j.ultima=new Date().toISOString();
   saveJornadas();
 }
-function registrarPausa(uid, tipo){
-  if(!uid) return;
-  const j=_jornDia(uid);
-  const ahora=new Date().toISOString();
-  if(tipo==='desde'){ j.pausas.push({d:ahora, h:null}); }
-  else { const p=[...j.pausas].reverse().find(x=>!x.h); if(p) p.h=ahora; }
-  j.ultima=ahora;
-  saveJornadas();
-}
+
 function purgarJornadas(){
   const dias=Object.keys(JORNADAS).sort();
   while(dias.length>75) delete JORNADAS[dias.shift()];
@@ -2925,20 +2930,7 @@ function renderPausaBox(){
   box.innerHTML=`<button class="btn-pausa-chica" onclick="pausarme()">⏸ Pausa</button>`;
 }
 
-function renderPausasHoy(){
-  asegurarActivosHoy();
-  const box=$('pausasHoyBox');
-  const lista=(ACTIVOS.historialPausas||[]).slice().sort((a,b)=>new Date(a.desde)-new Date(b.desde));
-  if(!lista.length){ box.classList.add('hidden'); box.innerHTML=''; return; }
-  box.classList.remove('hidden');
-  box.innerHTML = `<h3>Pausas de hoy</h3>` + lista.map(p=>{
-    const desde=new Date(p.desde).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    const hasta=p.hasta?new Date(p.hasta).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):null;
-    const minutos=p.hasta?Math.round((new Date(p.hasta)-new Date(p.desde))/60000):null;
-    const estado = hasta ? `${desde} a ${hasta} · ${minutos} min` : `desde ${desde} · en curso`;
-    return `<div class="mini-local"><span class="n">${nombreDe(p.uid)}</span><span class="t">${estado}</span></div>`;
-  }).join('');
-}
+
 
 /* ---------------- FASE 1: Contacto — une consultas de un mismo cliente ---------------- */
 /* El campo "teléfono" es en realidad el IDENTIFICADOR con el que se llega al cliente,
@@ -4109,19 +4101,7 @@ function render(){
   renderHistorial();
 }
 
-function renderConexionesHoy(){
-  asegurarActivosHoy();
-  const entradas=Object.entries(ACTIVOS.horarios)
-    .map(([uid,info])=>({uid, ...info}))
-    .sort((a,b)=>new Date(a.hora)-new Date(b.hora));
-  const box=$('conexionesHoyBox');
-  if(!entradas.length){ box.classList.add('hidden'); box.innerHTML=''; return; }
-  box.classList.remove('hidden');
-  box.innerHTML = `<h3>Conexiones de hoy</h3>` + entradas.map(e=>{
-    const hora=new Date(e.hora).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    return `<div class="mini-local"><span class="n">${nombreDe(e.uid)}</span><span class="t">${nombreLocal(e.localId)} · ${hora}</span></div>`;
-  }).join('');
-}
+
 
 function registrosLocal(localFiltro){
   if(!localFiltro || localFiltro==='todos') return atenciones;
@@ -4157,56 +4137,7 @@ function renderBandejaVendedor(){
   box.classList.add('hidden'); box.innerHTML='';
   return;
 }
-function renderBandejaVendedor_LEGACY(){
 
-  const mias = atenciones.filter(a=>a.vendedorId===YO);
-  const items=[];
-
-  // 1) 2da oportunidad que Cintia me derivó, sin acusar recibo. Ordena primero: hay plata en juego.
-  mias.filter(a=>a.segundaOportunidad && a.segundaOportunidad.nota && !a.segundaOportunidad.visto)
-      .forEach(a=>items.push({tipo:'segunda', a, monto:montoRepresentativo(a.muebles)||0}));
-
-  // 2) Comentario de coaching de Cintia sin leer. Este es el que estaba invisible.
-  mias.filter(a=>a.comentarioVendedor && !a.comentarioVendedor.leido && a.comentarioVendedor.paraId===YO && hayComentarioVendedor(a))
-      .forEach(a=>items.push({tipo:'comentario', a, monto:0}));
-
-  if(!items.length){ box.classList.add('hidden'); box.innerHTML=''; return; }
-
-  // La 2da oportunidad va por monto; después los comentarios.
-  items.sort((x,y)=> (x.tipo==='segunda'?0:1)-(y.tipo==='segunda'?0:1) || y.monto-x.monto);
-
-  const filas = items.map(it=>{
-    const a=it.a;
-    if(it.tipo==='segunda'){
-      const s=a.segundaOportunidad;
-      const montoTxt = it.monto ? `<span class="bv-monto">$ ${it.monto.toLocaleString('es-AR')}</span>` : '';
-      return `<div class="bv-item oro">
-        <div class="bv-ico">🎯</div>
-        <div class="bv-body">
-          <div class="bv-head"><span class="bv-de">2da oportunidad</span><span class="bv-cli">${escapeHtml(a.clienteNombre||'Cliente')} · te la pasó ${nombreDe(s.porId)}</span>${montoTxt}</div>
-          <div class="bv-txt">${escapeHtml(s.nota)}</div>
-        </div>
-        <button class="btn btn-navy bv-btn" onclick="bvAbrirSegunda('${a.id}')">Abrir</button>
-      </div>`;
-    }
-    const c=a.comentarioVendedor;
-    const cap = c.captura ? `<span class="bv-cap">📎 con captura</span>` : '';
-    return `<div class="bv-item">
-      <div class="bv-ico azul">💬</div>
-      <div class="bv-body">
-        <div class="bv-head"><span class="bv-de azul">Comentario de ${nombreDe(c.deId)}</span><span class="bv-cli">${escapeHtml(a.clienteNombre||'Cliente')}</span>${cap}</div>
-        <div class="bv-txt">${escapeHtml(c.texto||'')}</div>
-      </div>
-      <button class="btn btn-navy bv-btn" onclick="bvVerComentario('${a.id}')">Entendido</button>
-    </div>`;
-  }).join('');
-
-  box.classList.remove('hidden');
-  box.innerHTML = `<div class="bandeja-v">
-    <div class="bandeja-v-t">Qué tengo que hacer hoy <span class="bandeja-v-n">${items.length}</span></div>
-    ${filas}
-  </div>`;
-}
 
 // Acusar recibo del comentario: reusa la lógica existente pero desde la bandeja.
 function bvVerComentario(id){ verComentarioCintia(id); }
@@ -4509,11 +4440,7 @@ function estadoTagClass(e){
   if(e==='oportunidad') return 'tag-oportunidad';
   return 'tag-alternativa';
 }
-function estadoTexto(e){
-  if(e==='elegido') return 'Elegido';
-  if(e==='oportunidad') return 'Posibilidad de compra';
-  return 'Alternativa no elegida';
-}
+
 
 /* Plazo de la próxima acción → color: rojo atrasada, ámbar hoy, azul esta semana, gris más adelante */
 /* Plazo de acción, con el lenguaje que usa el vendedor: "Urgente hablarle" si ya se pasó,
@@ -4643,22 +4570,7 @@ const METODOS_PAGO=[
   {t:'Otro',        ic:'…'}
 ];
 
-async function setEstado(id,est){
-  const a=atenciones.find(x=>x.id===id);
-  if(!a) return;
-  if(a.status==='pendiente' && est==='En seguimiento'){
-    // "En seguimiento" sobre una consulta sin ficha todavía: se completa primero.
-    // Concretado y Rechazado van directo a su ficha de cierre (que ya pide todo).
-    origenAutoEstado=est;
-    abrirModalCompletar(id,0);
-    toast('Completá la ficha antes de marcarla como '+est);
-    return;
-  }
-  if(est==='Concretado'){ abrirModalCierre(id,'Concretado'); return; }
-  if(est==='Rechazado'){ abrirModalCierre(id,'Rechazado'); return; }
-  await aplicarEstado(a,est);
-  toast('Estado: '+est);
-}
+async 
 async function aplicarEstado(a,est){
   const previo=a.estadoManual;
   a.estadoManual=est;
@@ -4807,11 +4719,7 @@ function abrirModalCierre(id,tipo){
   $('modalCierre').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
-function pickMotivo(el){
-  document.querySelectorAll('#cierreMotivos .mgc').forEach(p=>p.classList.remove('on'));
-  el.classList.add('on');
-  $('avisoNoCliente').classList.toggle('hidden', el.dataset.nocuenta!=='1');
-}
+
 /* Motivo del rechazo con chips (selección única) */
 function pickMotivoRechazo(el){
   document.querySelectorAll('#cierreMotivos .cierre-chip').forEach(p=>p.classList.remove('on'));
@@ -5040,13 +4948,10 @@ function abrirCambioEstadoPedido(id){
   $('modalEtapa').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
-function elegirEtapa(e){ etapaSel=e; pintarEtapa(); }
-/* Píldoras de clasificación dentro de la solapa de estado. Cambian el estado local y
-   re-pintan. Elegir tipo NO muestra fecha acá: la próxima acción se recalcula al Guardar
-   y se ve en la columna de acción. */
-function etapaSetPercep(p){ etapaPercep=(etapaPercep===p)?null:p; pintarEtapa(); }
-function etapaSetFam(f){ etapaFam=(etapaFam===f)?null:f; pintarEtapa(); }
-function etapaSetTipo(t){ etapaTipo=(etapaTipo===t)?null:t; etapaSugerirProx(); pintarEtapa(); }
+
+
+
+
 
 /* ----- Próxima acción dentro de Etapa comercial -----
    Antes se calculaba sola al Guardar y el vendedor no la veía: se enteraba recién en la
@@ -5192,29 +5097,9 @@ function etapaSetBarra(i){
   }
   etapaSugerirProx(); pintarEtapa();
 }
-async function guardarEtapaSinClasificar(){
-  if(esSoloLectura())return avisoLectura();
-  const a=atenciones.find(x=>x.id===cerrandoId); if(!a) return;
-  // Vuelve a "sin clasificar": se limpia el estado y los datos de cierre, sin borrar la consulta.
-  a.estadoManual=null; a.resultado=null;
-  a.montoVendido=null; a.montoPerdido=null; a.resultadoMotivo=null;
-  await saveAtenciones();
-  cerrarEtapa(); render();
-  toast('Consulta marcada como sin clasificar');
-}
-function etapaCompletarFicha(){
-  const id=cerrandoId, est=etapaSel;
-  const a=atenciones.find(x=>x.id===id);
-  origenAutoEstado=est;
-  cerrarEtapa();
-  // Si la consulta ya tiene datos (cliente o muebles), va directo al seguimiento enriquecido
-  // —con las pills de etapa arriba— sin el paso extra de la ficha. Si está vacía, sí pide la ficha.
-  abrirModalCompletar(id, 0);
-}
-function segElegirCuando(el){
-  el.parentElement.querySelectorAll('.cierre-chip').forEach(c=>c.classList.remove('on'));
-  el.classList.add('on');
-}
+async 
+
+
 
 async function guardarEtapaSeguimiento(){
   const a=atenciones.find(x=>x.id===cerrandoId);
@@ -6520,27 +6405,7 @@ function renderSemaforoMisConsultas(){
   return;
 }
 
-function _renderSemaforoMisConsultas_LEGACY(){
-  const box=$('semaforoMisConsultas');
-  if(puedeVerEquipo()){ box.classList.add('hidden'); return; }
-  const loc=LOCALES[LOCAL_ACTUAL];
-  if(!loc || loc.modo!=='rotacion'){ box.classList.add('hidden'); return; }
-  if(!yaConectadoHoy(YO) || forzandoSelector || estaPausado(YO)){ box.classList.add('hidden'); return; }
-  const info=turnInfoPara(YO,LOCAL_ACTUAL);
-  box.classList.remove('hidden');
-  if(info.distance===0){
-    box.style.background='var(--green-l)'; box.style.color='var(--green)';
-    box.innerHTML=`<b>● Te toca a vos</b>`;
-  }else if(info.distance===1){
-    box.style.background='var(--amber-l)'; box.style.color='var(--amber)';
-    box.innerHTML=`<b>● Sos el próximo</b> — después de ${nombreDe(info.before)}`;
-  }else if(info.distance===null){
-    box.classList.add('hidden');
-  }else{
-    box.style.background='var(--red-l)'; box.style.color='var(--red)';
-    box.innerHTML=`<b>● No te toca</b> — en ${info.distance} atenciones`;
-  }
-}
+
 
 /* Zona de una consulta: define su color en la lista y en qué tarjeta del tablero cuenta.
    Se calcula igual arriba y abajo, así los números siempre cuadran con las filas. */
@@ -7785,15 +7650,8 @@ function renderArchivadas(){
    nunca. Todo lo que se saca del circuito se ARCHIVA (archivarConsulta), y queda
    recuperable. Estas funciones quedan neutralizadas por si algo viejo las llamara: no
    borran, redirigen a archivar. Las ventas concretadas ni siquiera se archivan. */
-async function eliminarDefinitivamente(id){
-  const s=solicitudesEliminacion.find(x=>x.id===id);
-  const a=s ? atenciones.find(x=>x.id===(s.atencionId||(s.snapshotAtencion&&s.snapshotAtencion.id))) : null;
-  if(a) await archivarConsulta(a, 'Baja (archivada, no se borra)');
-  toast('Ya no se elimina definitivamente: queda archivada y recuperable');
-}
-async function eliminarTodasDefinitivamente(){
-  toast('Ya no se elimina definitivamente: las bajas quedan archivadas y recuperables');
-}
+async 
+async 
 
 
 /* ---------------- panel de derivación inline ---------------- */
@@ -10115,9 +9973,7 @@ const EV_TXT={
 function huboOportunidad(ev){
   return ev.cliente && ev.cliente<=2 && ev.consulta && ev.consulta<=2;
 }
-function calificaPerdida(ev){
-  return huboOportunidad(ev) && ev.atencion && ev.atencion>=3;
-}
+
 
 let evaluandoId=null;
 let evTmp={atencion:null,consulta:null,cliente:null,decision:'rechazada',fbAbierto:false,capturaData:null,ejemplo:false,nuncaRespondio:false};
@@ -10171,22 +10027,8 @@ function evSetEjemploTarget(v){ guardarBorradorEvaluar(); evTmp.ejemploTarget=v;
 async function evCapturaEjemplo(input){ const f=input.files&&input.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ evTmp.ejemploCaptura=r.result; guardarBorradorEvaluar(); renderEvaluar(); }; r.readAsDataURL(f); }
 function evQuitarCapturaEjemplo(){ evTmp.ejemploCaptura=null; renderEvaluar(); }
 function evDecision(d){ guardarBorradorEvaluar(); evTmp.decision=d; renderEvaluar(); }
-function evToggleFb(){ evTmp.fbAbierto=!evTmp.fbAbierto; guardarBorradorEvaluar(); renderEvaluar(); }
-async function evToggleEjemplo(){
-  evTmp.ejemplo=!evTmp.ejemplo;
-  // Si lo desmarca después de haberlo cargado, hay que sacarlo del registro: si no, quedaba
-  // guardado para siempre aunque el pill apareciera apagado.
-  if(!evTmp.ejemplo && evTmp.ejemploCargado){
-    const a=atenciones.find(x=>x.id===evaluandoId);
-    if(a) a.ejemploDelMes=null;
-    evTmp.ejemploCargado=false;
-    evTmp.ejemploMotivo='';
-    await saveAtenciones();
-    toast('Ejemplo del mes quitado');
-  }
-  guardarBorradorEvaluar();
-  renderEvaluar();
-}
+
+async 
 // Los textos que ya escribió no se pierden cuando el modal se vuelve a dibujar.
 function guardarBorradorEvaluar(){
   const g=id=>{const el=$(id); return el?el.value:undefined;};
@@ -10224,19 +10066,10 @@ async function evCargarComentario(){
   renderEvaluar();
   toast('Comentario cargado para '+nombreDe(a.vendedorId));
 }
-function evEditarComentario(){ evTmp.fbCargado=false; renderEvaluar(); }
-async function evBorrarComentario(){
-  const a=atenciones.find(x=>x.id===evaluandoId);
-  if(a) a.comentarioVendedor=null;
-  evTmp.fbCargado=false; evTmp.fbTexto=''; evTmp.capturaData=null; evTmp.fbAbierto=false;
-  await saveAtenciones();
-  renderEvaluar();
-  toast('Comentario borrado');
-}
+
+async 
 // Enter carga, Shift+Enter hace salto de línea (convención de chat).
-function evTeclaComentario(e){
-  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); evCargarComentario(); }
-}
+
 async function evCargarEjemplo(){
   guardarBorradorEvaluar();
   const a=atenciones.find(x=>x.id===evaluandoId);
@@ -10249,12 +10082,10 @@ async function evCargarEjemplo(){
   renderEvaluar();
   toast('Ejemplo del mes cargado');
 }
-function evEditarEjemplo(){ evTmp.ejemploCargado=false; renderEvaluar(); }
+
 function evToggleIntervine(){ const a=atenciones.find(x=>x.id===evaluandoId); const cur=(evTmp.intervine!==undefined?evTmp.intervine:intervinoCintia(a)); evTmp.intervine=!cur; guardarBorradorEvaluar(); renderEvaluar(); }
 function evToggleOportunidad(){ evTmp.oportunidadPerdida=!evTmp.oportunidadPerdida; guardarBorradorEvaluar(); renderEvaluar(); }
-function evTeclaEjemplo(e){
-  if(e.key==='Enter'){ e.preventDefault(); evCargarEjemplo(); }
-}
+
 function evToggleNunca(){
   evTmp.nuncaRespondio=!evTmp.nuncaRespondio;
   // Si nunca respondió, los tres ejes no aplican: no hubo conversación que juzgar.
@@ -10263,20 +10094,10 @@ function evToggleNunca(){
   guardarBorradorEvaluar();
   renderEvaluar();
 }
-function evToggleMotivo(){ evTmp.motivoAbierto=!evTmp.motivoAbierto; guardarBorradorEvaluar(); renderEvaluar(); }
-function evPickMotivo(v){
-  evTmp.motivoCintia=v;
-  evTmp.motivoAbierto=false;
-  guardarBorradorEvaluar();
-  renderEvaluar();
-  // Si eligió "Otro", el cursor va directo al campo — no la hacemos buscarlo.
-  if(v==='__otro__'){ const el=$('evMotivoOtro'); if(el) el.focus(); }
-}
 
-function escalaHtml(eje,opciones){
-  return `<div class="ev-esc">${opciones.map(([v,txt,cls])=>
-    `<div class="ev-op ${evTmp[eje]===v?'on '+cls:''}" onclick="evSet('${eje}',${v})">${txt}</div>`).join('')}</div>`;
-}
+
+
+
 
 function renderEvaluar(){
   const a=atenciones.find(x=>x.id===evaluandoId);
@@ -11761,31 +11582,7 @@ async function derivarInline(){
 }
 
 /* ---------------- modo rápido ---------------- */
-async function sumarAtencionRapida(){
-  const vid=currentVendorId(LOCAL_ACTUAL);
-  const esSuTurno=vid===YO;
-  const id='at_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
-  const record={
-    id, ts:new Date().toISOString(), localId:LOCAL_ACTUAL,
-    vendedorId:YO, registradoPor:YO,
-    derivada:false, origen:'rapido',
-    canal:'presencial',
-    contactoId:null,
-    fueraDeTurno:!esSuTurno,
-    status:'pendiente',
-    clienteNombre:'', clienteTelefono:null, noTomoTelefono:false,
-    muebles:[], notas:'', resultado:null, resultadoMotivo:null,
-    hasPhoto:false, photoThumb:null,
-    crmSync:false
-  };
-  atenciones.push(record);
-  await saveAtenciones();
-  if(esSuTurno){
-    await avanzarPointerSiCorresponde(LOCAL_ACTUAL);
-  }
-  render();
-  toast('Sumada. Cargá los datos cuando puedas, en "Tenés consultas para completar".');
-}
+async 
 
 /* ---------------- muebles (fila en línea: mueble → detalle → monto → siguiente) ---------------- */
 /* Formato de miles en vivo para montos (input tipo texto, no number) */
@@ -13669,6 +13466,29 @@ function recParaTs(){
 
 
 <style>
+/* ============================================================
+   AJUSTES Y RETOQUES POSTERIORES
+   Consolidado el 30/07/2026. Antes esto vivían en 12 bloques <style>
+   sueltos: cada cambio visual se agregaba como bloque nuevo al final, y
+   terminó habiendo 16 lugares donde podía estar definido un color.
+   EL ORDEN DE ABAJO ES EL ORDEN ORIGINAL Y NO SE PUEDE CAMBIAR: en CSS,
+   a igual especificidad gana la regla que va después. Para agregar algo
+   nuevo, va AL FINAL de este bloque.
+   Contenido, en orden:
+     5. ===== JORNADA / CONEXIONES DEL EQUIPO =====
+     6. Encabezado de "+ Cargar consulta": la fecha va en su
+     7. ===== SITUACIÓN EN UNA SOLA FILA =====
+     8. Chips de la barra Estado: ahora filtran la tabla.
+     9. El total de la barra Estado es el cuarto botón: abre
+     10. La barra Estado usa los MISMOS colores que el punto 
+     11. Altura pareja en todas las filas.
+     12. Modal de etapa comercial: se ensancha para que las c
+     13. Rendimiento por vendedor: número y % en la misma lín
+     14. Cuarto chip: consultas sin ningún estado. Gris, porq
+     15. Recordatorios agrupados por cuándo hay que hacerlos.
+     16. ====================================================
+   ============================================================ */
+
 /* ===== JORNADA / CONEXIONES DEL EQUIPO =====
    Bloque separado y al final a propósito: gana por orden sin tocar nada de arriba y se
    revierte borrándolo entero. Todo esto es SOLO del panel de dirección; el vendedor no
@@ -13683,9 +13503,9 @@ function recParaTs(){
   .jp-item{line-height:1.7}
   .jp-bj{padding:4px 9px}
 }
-</style>
 
-<style>
+
+
 /* Encabezado de "+ Cargar consulta": la fecha va en su propio renglón ARRIBA del título y
    del lado IZQUIERDO, alineada con él en la misma columna. El gap de 11px son los ~3mm de
    aire que pidió Brian entre los dos.
@@ -13697,9 +13517,9 @@ function recParaTs(){
 .cr-head h3{margin:0}
 #crFecha.cr-fecha-otra{border-color:#b54708;background:#fffaf5;color:#b54708;font-weight:700}
 @media(max-width:760px){ .cr-head{gap:9px} }
-</style>
 
-<style>
+
+
 /* ===== SITUACIÓN EN UNA SOLA FILA =====
    El estado pasa de un chip con texto a un punto de color, y la oportunidad —que es
    el dato que se lee de un vistazo— gana tamaño y se pone al lado en vez de abajo.
@@ -13720,26 +13540,26 @@ function recParaTs(){
   .sit-dot{width:14px;height:14px}
   .c-situacion .sit-op{font-size:13px}
 }
-</style>
 
-<style>
+
+
 /* Chips de la barra Estado: ahora filtran la tabla. */
 .situ-chip{cursor:pointer;user-select:none;transition:box-shadow .12s,border-color .12s}
 .situ-chip:hover{box-shadow:0 1px 5px rgba(15,26,42,.14)}
 .situ-chip:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .situ-chip.on{box-shadow:inset 0 0 0 1.5px currentColor}
-</style>
 
-<style>
+
+
 /* El total de la barra Estado es el cuarto botón: abre todas, cerradas incluidas. */
 .sb-total.sb-todas{cursor:pointer;user-select:none;border-radius:999px;padding:4px 12px;
   transition:box-shadow .12s,background .12s}
 .sb-total.sb-todas:hover{background:#fff;box-shadow:0 1px 5px rgba(15,26,42,.14)}
 .sb-total.sb-todas:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .sb-total.sb-todas.on{background:#fff;box-shadow:inset 0 0 0 1.5px var(--navy)}
-</style>
 
-<style>
+
+
 /* La barra Estado usa los MISMOS colores que el punto de la fila, para que un chip y
    un punto del mismo color signifiquen siempre lo mismo: azul en seguimiento, verde
    concretado, rojo rechazado. Antes "En seguimiento" era ámbar y no coincidía con nada. */
@@ -13753,9 +13573,9 @@ function recParaTs(){
   font-weight:600;color:var(--sec,#5b6675);white-space:nowrap}
 .sb-total.sb-todas b{font-weight:800;color:var(--ink);font-size:15.5px}
 .sb-total.sb-todas.on{box-shadow:inset 0 0 0 1.5px var(--navy)}
-</style>
 
-<style>
+
+
 /* Altura pareja en todas las filas.
    Una consulta abierta apila dos líneas en Acción (la fecha y el "hace 2 días"); una
    cerrada muestra una sola palabra. Eso hacía que al filtrar por Concretadas o
@@ -13767,9 +13587,9 @@ function recParaTs(){
 .c-plazo .pl-cerrada,.c-situacion .sit-cerrada{font-style:normal;font-size:13px;
   font-weight:700;color:var(--muted)}
 @media(max-width:900px){ .crow{min-height:42px} }
-</style>
 
-<style>
+
+
 /* Modal de etapa comercial: se ensancha para que las cuatro opciones entren en un
    renglón. Con 480px "Sin clasificar" caía sola a la segunda línea y parecía otra cosa,
    de otra categoría, cuando es una opción más de la misma lista. */
@@ -13783,25 +13603,25 @@ function recParaTs(){
   #modalEtapa .etapa-pills{flex-wrap:wrap}
   #modalEtapa .etapa-pill{flex:1 1 45%}
 }
-</style>
 
-<style>
+
+
 /* Rendimiento por vendedor: número y % en la misma línea, con semáforo en el %. */
 .est-tabla .ecell .big{font-size:15px;font-weight:800;color:var(--ink)}
 .est-tabla .ecell .rp{margin-left:7px;font-size:12.5px;font-weight:700;color:var(--muted)}
 .est-tabla .ecell .rp-ok{color:var(--green)}
 .est-tabla .ecell .rp-medio{color:var(--amber)}
 .est-tabla .ecell .rp-mal{color:var(--red)}
-</style>
 
-<style>
+
+
 /* Cuarto chip: consultas sin ningún estado. Gris, porque no es ni bueno ni malo —
    es una decisión que todavía nadie tomó. */
 .situ-chip.sin .dot{background:#cfd6e0}
 .situ-chip.sin.on{box-shadow:inset 0 0 0 1.5px var(--sec)}
-</style>
 
-<style>
+
+
 /* Recordatorios agrupados por cuándo hay que hacerlos. La barra de color a la izquierda
    repite el semáforo del resto del CRM: rojo lo vencido, ámbar lo de hoy. */
 .sv-rec-grupo{margin-bottom:16px;padding-left:11px;border-left:3px solid var(--line2)}
@@ -13814,9 +13634,9 @@ function recParaTs(){
 .sv-rec-grupo.g-man{border-left-color:var(--blue)}
 .sv-rec-grupo.g-sem{border-left-color:#94a3b8}
 .sv-rec-grupo.g-lej,.sv-rec-grupo.g-sin{border-left-color:var(--line2)}
-</style>
 
-<style>
+
+
 /* ============================================================
    MODAL COMPACTO (parte 1) — 30/7. Va al final: gana por orden y
    se revierte borrando este bloque entero.
@@ -14010,6 +13830,37 @@ function recParaTs(){
 .acciones-reg .btn-guardar{width:33%;min-width:190px;padding:11px 16px;font-size:14px}
 .link-cancelar{color:var(--sec);font-size:13.5px;cursor:pointer}
 .link-cancelar:hover{color:var(--red)}
+
 </style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<style>
+#betaTag{position:fixed;left:10px;bottom:10px;z-index:99999;pointer-events:none;
+  background:#b54708;color:#fff;font:700 11px/1 'Public Sans',system-ui,sans-serif;
+  letter-spacing:.06em;padding:7px 11px;border-radius:7px;box-shadow:0 2px 10px rgba(0,0,0,.25);opacity:.92}
+#betaTag i{display:block;font-style:normal;font-weight:600;font-size:10px;opacity:.85;margin-top:3px}
+</style>
+<div id="betaTag">BETA · PRUEBAS<i>misma base que producción</i></div>
 </body>
 </html>
