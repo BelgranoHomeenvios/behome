@@ -4554,6 +4554,20 @@ function infoPlazo(a){
   return {txt:fechaCorta, det:'', cls:'pl-lejos', rank:4};
 }
 const OPORT_EMOJI={'Decidido':'🔴','Muy interesado':'🟠','Potable':'🟡','No sé todavía':'🔵','Poco interesado':'⚪'};
+/* ============ LA CALIFICACIÓN SE MUESTRA EN ESTRELLAS (30/7) ============
+   El dato guardado NO cambia: sigue siendo el texto de siempre en a.percepcion. Lo que
+   cambia es cómo se ve, en todos lados a la vez. Escala definida por Brian:
+     Muy interesado 3★ · Potable 2★ · Poco interesado 1★ · No sé todavía = sin estrellas
+   Los valores que no tienen equivalente ("Rechazó", "Otros", "Decidido") también van sin
+   estrellas, pero el texto original queda en el title por si alguien lo necesita. */
+const ESTRELLAS_DE_PERCEPCION={'Muy interesado':3,'Potable':2,'Poco interesado':1};
+function estrellasNum(p){ return ESTRELLAS_DE_PERCEPCION[p]||0; }
+function estrellasHtml(p,cls){
+  const n=estrellasNum(p);
+  const t=p ? escAttr(p) : 'Sin calificar';
+  return `<span class="estr ${cls||''}" title="${t}">`+
+    [1,2,3].map(v=>`<span class="${v<=n?'e-on':'e-off'}">★</span>`).join('')+`</span>`;
+}
 
 /* Estado de la consulta. Arranca sin definir: lo marca el vendedor, no se adivina. */
 /* "Archivado" NO existe como estado: una consulta está En seguimiento, Rechazada o
@@ -5558,10 +5572,12 @@ function logItemHtml(a){
         ${esPostventa(a) ? '' : (cerrada
           ? `<span class="sit-op sit-cerrada" title="Consulta ${est.toLowerCase()}">Cerrada</span>`
           : `<span class="ebtn rap-btn rap-op" title="Cambiar cómo viste al cliente" onclick="event.stopPropagation();togPop(this)">
-          <span class="sit-op">${a.percepcion?a.percepcion:'–'}</span>
+          <span class="sit-op">${estrellasHtml(a.percepcion)}</span>
           <span class="pop pop-rapido">
-            <b>¿Cómo viste al cliente?</b>
-            ${PERCEPCIONES.map(p=>`<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${p}</div>`).join('')}
+            <b>Calificá al cliente</b>
+            ${[3,2,1].map(v=>{const p=PERCEP_POR_ESTRELLA[v];
+              return `<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${estrellasHtml(p)}</div>`;}).join('')}
+            <div class="menu-op${(!a.percepcion||!estrellasNum(a.percepcion))?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','No sé todavía')">${estrellasHtml(null)} <span class="tiny">sin calificar</span></div>
           </span>
         </span>`)}
       </div>
@@ -5686,7 +5702,7 @@ async function rapidoPercepcion(id, p){
   }
   await saveAtenciones();
   renderHistorial();
-  toast(a.percepcion?`Cliente: ${a.percepcion}`:'Sin definir');
+  toast(a.percepcion&&estrellasNum(a.percepcion)?`Calificado con ${estrellasNum(a.percepcion)} estrella${estrellasNum(a.percepcion)===1?'':'s'}`:'Sin calificar');
 }
 
 /* Abre el formulario directo en la parte de muebles, sin pasar por los datos del
@@ -5841,7 +5857,7 @@ function logItemCompactoHtml(a){
       <div class="log-body">
         <div class="log-notas"><b>${a.clienteNombre||'—'}</b>${tel?' · '+tel:''}</div>
         ${totalCotizado?`<div class="log-monto">Cotizado: $ ${miles(totalCotizado)}</div>`:''}
-        ${a.percepcion?`<span class="log-tag tag-sin">${a.percepcion}</span>`:''}
+        ${a.percepcion?`<span class="log-tag tag-sin">${estrellasHtml(a.percepcion,'estr-mini')}</span>`:''}
       </div>
     </div>`;
 }
@@ -5885,7 +5901,7 @@ function renderBitacora(a){
   campo.classList.remove('hidden');
   box.innerHTML = `<div class="bitacora-timeline">${historial.map(h=>{
     const emo = OPORT_EMOJI[h.percepcion]||'○';
-    return `<div class="bit-item"><div class="bit-dot"></div><div class="bit-fecha">${formatFechaRelativa(h.ts)}${h.percepcion?` <span class="bit-oport">· ${emo} ${h.percepcion}</span>`:''}</div><div class="bit-txt">${h.texto}</div></div>`;
+    return `<div class="bit-item"><div class="bit-dot"></div><div class="bit-fecha">${formatFechaRelativa(h.ts)}${h.percepcion?` <span class="bit-oport">· ${estrellasHtml(h.percepcion,'estr-mini')}</span>`:''}</div><div class="bit-txt">${h.texto}</div></div>`;
   }).join('')}</div>`;
 }
 function inicioSemana(){
@@ -7084,9 +7100,9 @@ function svEstadisticasHtml(){
 
     ${act.embudo.length?`
     <h4 class="sv-h">Qué pasó con cada tipo de cliente</h4>
-    <table class="tabla-cintia"><thead><tr><th>Cómo lo viste</th><th>Total</th><th>Vendidas</th><th>Perdidas</th><th>Abiertas</th><th>Cierre</th></tr></thead><tbody>
+    <table class="tabla-cintia"><thead><tr><th>Calificación</th><th>Total</th><th>Vendidas</th><th>Perdidas</th><th>Abiertas</th><th>Cierre</th></tr></thead><tbody>
     ${act.embudo.map(e=>`<tr>
-      <td><b>${OPORT_EMOJI[e.pc]||''} ${e.pc}</b></td><td>${e.total}</td>
+      <td><b>${estrellasHtml(e.pc)}</b></td><td>${e.total}</td>
       <td style="color:var(--green);font-weight:800">${e.ven}</td>
       <td style="color:var(--red)">${e.per}</td><td>${e.abi}</td>
       <td><b>${e.total?Math.round((e.ven/e.total)*100):0}%</b></td></tr>`).join('')}
@@ -7181,12 +7197,12 @@ function svOportunidadesHtml(){
   const total = lista.reduce((t,a)=>t+(montoRepresentativo(a.muebles)||0),0);
   return `
     <p class="tiny" style="margin:0 0 12px">Clientes <b>decididos</b> o <b>muy interesados</b> que todavía no cerraron. En juego: <b>$ ${miles(total)}</b>.</p>
-    <table class="tabla-cintia"><thead><tr><th>Cliente</th><th>Interés</th><th>Próxima acción</th><th>Cotizado</th></tr></thead><tbody>
+    <table class="tabla-cintia"><thead><tr><th>Cliente</th><th>Calificación</th><th>Próxima acción</th><th>Cotizado</th></tr></thead><tbody>
     ${lista.map(a=>{
       const pl=infoPlazo(a);
       return `<tr style="cursor:pointer" onclick="editarDesdeHistorial('${a.id}')">
         <td><b>${escapeHtml(a.clienteNombre||'Sin nombre')}</b></td>
-        <td>${OPORT_EMOJI[a.percepcion]||''} ${a.percepcion||'–'}</td>
+        <td>${estrellasHtml(a.percepcion)}</td>
         <td><span class="pl ${pl.cls}">${pl.txt}</span></td>
         <td>${montoRepresentativo(a.muebles)?'$ '+miles(montoRepresentativo(a.muebles)):'–'}</td>
       </tr>`;
@@ -12088,7 +12104,7 @@ function pintarResumenPrevio(){
   const emo=OPORT_EMOJI[percepcionSel]||'○';
   $('resumenPrevio').innerHTML=`
     <div class="r"><span>Cliente</span><b>${nombreHtml} · ${telHtml}</b></div>
-    <div class="r"><span>Cómo lo viste</span><b>${emo} ${percepcionSel||'Sin definir'}</b></div>
+    <div class="r"><span>Calificación</span><b>${estrellasHtml(percepcionSel)}</b></div>
     <div class="r"><span>Cotizado</span><b>$ ${miles(total)} · ${suman.length} mueble${suman.length===1?'':'s'}</b></div>`;
 }
 function pintarProxPills(){
@@ -12487,7 +12503,7 @@ function abrirModoSeguimiento(a){
   const est=estadoDe(a);
   const estCls = est==='En seguimiento'?'estado-seg':(est==='Concretado'?'estado-conc':(est==='Rechazado'?'estado-rech':'estado-sin'));
   let badges=`<span class="seg-badge ${estCls}">${est||'Sin clasificar'}</span>`;
-  if(a.percepcion) badges+=`<span class="seg-badge percep">${a.percepcion}</span>`;
+  if(a.percepcion) badges+=`<span class="seg-badge percep">${estrellasHtml(a.percepcion,'estr-mini')}</span>`;
   $('segBadges').innerHTML=badges;
 
   // Consulta cerrada (Concretada/Rechazada): no hay "¿cuándo le volvemos a hablar?" —
@@ -12608,7 +12624,7 @@ function pintarSegHistorial(a){
   box.innerHTML=`<div class="seg-timeline">${historial.map(h=>{
     const emo=OPORT_EMOJI[h.percepcion]||'○';
     return `<div class="seg-tl-item">
-      <div class="seg-tl-fecha">${formatFechaRelativa(h.ts)}${h.percepcion?` <span class="seg-tl-oport">· ${emo} ${h.percepcion}</span>`:''}</div>
+      <div class="seg-tl-fecha">${formatFechaRelativa(h.ts)}${h.percepcion?` <span class="seg-tl-oport">· ${estrellasHtml(h.percepcion,'estr-mini')}</span>`:''}</div>
       <div class="seg-tl-txt">${escapeHtml(h.texto)}</div>
     </div>`;
   }).join('')}</div>`;
@@ -12696,7 +12712,7 @@ function renderResumenFicha(a){
     <div class="log-notas" style="font-size:14px"><b>${a.clienteNombre||'—'}</b>${tel?' · '+tel:''}</div>
     <div style="margin:8px 0 6px">
       ${a.resultado?`<span class="log-tag ${tagClass(a.resultado)}">${a.resultado}</span>`:''}
-      ${a.percepcion?`<span class="log-tag tag-sin">${a.percepcion}</span>`:''}
+      ${a.percepcion?`<span class="log-tag tag-sin">${estrellasHtml(a.percepcion,'estr-mini')}</span>`:''}
     </div>
     ${mueblesHtml?`<div style="margin-bottom:8px">${mueblesHtml}</div>`:''}
     ${totalCotizado?`<div class="log-monto">Cotizado: $ ${miles(totalCotizado)}</div>`:''}
@@ -13826,6 +13842,15 @@ function recParaTs(){
 .est-borrar:hover{color:var(--red)}
 
 /* GUARDAR a un tercio, con Cancelar al lado */
+/* ESTRELLAS: mismo componente en el tablero, la bitácora, el historial y los paneles */
+.estr{display:inline-flex;gap:1px;line-height:1;vertical-align:middle;white-space:nowrap}
+.estr .e-on{color:#f0a500}
+.estr .e-off{color:var(--line)}
+.estr-mini{font-size:11px}
+.c-situacion .sit-op .estr{font-size:15px}
+.pop-rapido .menu-op .estr{font-size:15px}
+.tabla-cintia .estr{font-size:14px}
+
 /* Muebles EDITABLES dentro de la ficha de venta: el nombre y el monto son inputs, y el
    tilde de la izquierda sigue siendo lo que marca si ese mueble se vendió o no. */
 .cm-item .cm-nom-inp,.cm-item .money-input{cursor:text}
