@@ -4570,7 +4570,6 @@ const METODOS_PAGO=[
   {t:'Otro',        ic:'…'}
 ];
 
-async 
 async function aplicarEstado(a,est){
   const previo=a.estadoManual;
   a.estadoManual=est;
@@ -5097,10 +5096,6 @@ function etapaSetBarra(i){
   }
   etapaSugerirProx(); pintarEtapa();
 }
-async 
-
-
-
 async function guardarEtapaSeguimiento(){
   const a=atenciones.find(x=>x.id===cerrandoId);
   if(!a){cerrarEtapa();return;}
@@ -7650,10 +7645,6 @@ function renderArchivadas(){
    nunca. Todo lo que se saca del circuito se ARCHIVA (archivarConsulta), y queda
    recuperable. Estas funciones quedan neutralizadas por si algo viejo las llamara: no
    borran, redirigen a archivar. Las ventas concretadas ni siquiera se archivan. */
-async 
-async 
-
-
 /* ---------------- panel de derivación inline ---------------- */
 let derivarVendorSeleccionado=null;
 
@@ -10028,7 +10019,6 @@ async function evCapturaEjemplo(input){ const f=input.files&&input.files[0]; if(
 function evQuitarCapturaEjemplo(){ evTmp.ejemploCaptura=null; renderEvaluar(); }
 function evDecision(d){ guardarBorradorEvaluar(); evTmp.decision=d; renderEvaluar(); }
 
-async 
 // Los textos que ya escribió no se pierden cuando el modal se vuelve a dibujar.
 function guardarBorradorEvaluar(){
   const g=id=>{const el=$(id); return el?el.value:undefined;};
@@ -10067,7 +10057,6 @@ async function evCargarComentario(){
   toast('Comentario cargado para '+nombreDe(a.vendedorId));
 }
 
-async 
 // Enter carga, Shift+Enter hace salto de línea (convención de chat).
 
 async function evCargarEjemplo(){
@@ -11582,8 +11571,6 @@ async function derivarInline(){
 }
 
 /* ---------------- modo rápido ---------------- */
-async 
-
 /* ---------------- muebles (fila en línea: mueble → detalle → monto → siguiente) ---------------- */
 /* Formato de miles en vivo para montos (input tipo texto, no number) */
 function formatearMontoInput(el){
