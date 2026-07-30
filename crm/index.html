@@ -513,6 +513,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .modal-caja{background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(15,26,42,.28);width:100%;max-width:620px;margin:auto}
 /* ===== Opción B: registro en una sola pantalla ===== */
 .modal-caja-b{max-width:1160px}
+/* Modo "solo muebles": modal angosto (media pantalla) y a una sola columna, para ver
+   únicamente muebles + total + guardar. */
+.modal-caja-b.solo-muebles-narrow{max-width:560px}
+.modal-caja-b.solo-muebles-narrow .reg-cols{grid-template-columns:1fr}
 /* ===== Modo seguimiento (consulta ya existente) ===== */
 .seg-header{margin-bottom:18px}
 .seg-titulo{margin:0 0 4px;font-size:19px;font-weight:800;color:var(--navy)}
@@ -5518,9 +5522,14 @@ function aplicarModoSoloMuebles(on){
   const foto=$('fotoInput'); hide(foto && foto.closest('.field'));
   hide($('cotizBadge'));
   hide($('modalBadge'));
+  hide($('campoBitacora'));                                   // sin bitácora
+  hide(document.querySelector('#modalFondo .fecha-conv'));    // sin fecha en el header
   // el título "La consulta" de la columna derecha estorba en este modo
   const col=$('colConsulta'); const tit=col && col.querySelector('.bloque-titulo-b');
   if(tit && !tit.closest('#wizMuebles')) hide(tit);
+  // modal angosto (media pantalla) y a una sola columna
+  const caja=document.querySelector('#modalFondo .modal-caja-b');
+  if(caja) caja.classList.toggle('solo-muebles-narrow', on);
 }
 function editarSoloMuebles(id){
   abrirModalCompletar(id, 0);   // paso 0 fuerza el wizard completo, no el modo seguimiento
