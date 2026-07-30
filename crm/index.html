@@ -1830,8 +1830,9 @@ textarea{resize:vertical;min-height:60px}
           <!-- BLOQUE · CLIENTE + CONSULTA en 2 columnas (rediseño 29/7) -->
           <div class="reg-cols">
             <!-- COLUMNA IZQUIERDA · el cliente -->
-            <div class="reg-col" id="colCliente">
-              <div class="bloque-titulo-b">La consulta</div>
+            <div class="reg-col abierto" id="colCliente">
+              <div class="bloque-titulo-b" onclick="solapa('colCliente')">La consulta<span class="solapa-chev">▼</span></div>
+              <div class="col-body">
 
             <div class="row">
               <div class="field" style="flex:2.2">
@@ -1901,10 +1902,12 @@ textarea{resize:vertical;min-height:60px}
               <input type="number" id="tiempoAtencionInput" class="hidden" placeholder="Minutos" style="margin-top:8px;max-width:160px">
             </div>
             </div>
+            </div>
             <!-- COLUMNA DERECHA · la consulta -->
             <div class="reg-col" id="colConsulta">
+<div class="bloque-titulo-b" onclick="solapa('colConsulta')">Muebles<span class="solapa-chev">▼</span></div>
+            <div class="col-body">
 <div class="wiz-step" id="wizMuebles">
-            <div class="bloque-titulo-b">Muebles</div>
             <label class="tomo tomo-muebles"><input type="checkbox" id="noTomoMuebles" onchange="toggleMuebles()"> no los pude tomar</label>
             <div id="mueblesWrap">
             <div class="mhead">
@@ -1949,6 +1952,8 @@ textarea{resize:vertical;min-height:60px}
               <input type="file" id="fotoInput" accept="image/*" multiple onchange="onPhotoSelected(event)" style="display:none">
               <div id="fotoPreview"></div>
             </div>
+
+            </div><!-- /col-body de la derecha -->
 
           <div class="acciones-reg">
             <button type="button" class="btn btn-guardar" id="btnGuardar" onclick="guardarAtencion()">✓ Guardar atención</button>
@@ -5661,9 +5666,10 @@ function aplicarModoSoloMuebles(on){
   hide($('modalBadge'));
   hide($('campoBitacora'));                                   // sin bitácora
   hide(document.querySelector('#modalFondo .fecha-conv'));    // sin fecha en el header
-  // el título "La consulta" de la columna derecha estorba en este modo
-  const col=$('colConsulta'); const tit=col && col.querySelector('.bloque-titulo-b');
-  if(tit && !tit.closest('#wizMuebles')) hide(tit);
+  // El título "La consulta" ya no vive en la columna derecha (rediseño 30/7): la
+  // derecha arranca en "Muebles", que en este modo justamente es lo que se quiere ver.
+  // En modo solo-muebles las solapas no aplican, así que se fuerza todo abierto.
+  document.querySelectorAll('.reg-col').forEach(c=>c.classList.add('abierto'));
   // modal angosto (media pantalla) y a una sola columna
   const caja=document.querySelector('#modalFondo .modal-caja-b');
   if(caja) caja.classList.toggle('solo-muebles-narrow', on);
@@ -11827,9 +11833,83 @@ function toggleSuma(i){
   mueblesActuales[i].elegido = !mueblesActuales[i].elegido;
   renderMuebleFilas();
 }
+/* ============ SELECTOR DE MUEBLE (30/7) ============
+   Lista fija en el orden que definió Brian. El campo sigue siendo texto libre: la lista
+   es un atajo, no una jaula. Busca el texto en CUALQUIER parte del nombre y sin acentos,
+   así "ratona" encuentra Mesa Ratona y "comoda" encuentra Cómodas.
+   Además guarda la CATEGORÍA en un campo propio (m.categoria) en vez de deducirla de la
+   primera palabra del nombre, que con esta lista mezclaba Mesa de luz con Mesa Ratona. */
+const MUEBLES_LISTA=['Mesa de luz','Mueble de TV','Cómodas','Camas','Biblioteca','Placard',
+  'Escritorio','Mesas','Sillas','Juegos de comedor','Juegos de dormitorio','Juego de living',
+  'Sillón','Alzada','Botinero','Modular','Mesa Ratona','Vajillero','Recibidor','Respaldo',
+  'Aparador','Pie de Cama','Cristalero','Chifonier','Mueble a medida'];
+const normMueble = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+/* Si lo escrito coincide exacto con un ítem de la lista, esa es la categoría. Si no, null
+   (texto libre: se guarda igual, pero no cuenta como categoría). */
+function categoriaDeTexto(txt){
+  const n=normMueble(txt); if(!n) return null;
+  return MUEBLES_LISTA.find(m=>normMueble(m)===n) || null;
+}
+function comboCaja(i){ const inp=$('mfMueble-'+i); return inp && inp.closest('.combo'); }
+function comboPintar(i){
+  const inp=$('mfMueble-'+i), lista=$('mfLista-'+i), caja=comboCaja(i);
+  if(!inp||!lista) return;
+  const q=inp.value.trim(), n=normMueble(q);
+  if(caja) caja.classList.toggle('con-texto', !!q);
+  const res = n ? MUEBLES_LISTA.filter(m=>normMueble(m).includes(n)) : MUEBLES_LISTA.slice();
+  let html = res.map((m,k)=>{
+    let vis=escapeHtml(m);
+    if(n){ const pos=normMueble(m).indexOf(n);
+      if(pos>=0) vis=escapeHtml(m.slice(0,pos))+'<b>'+escapeHtml(m.slice(pos,pos+n.length))+'</b>'+escapeHtml(m.slice(pos+n.length)); }
+    return `<div class="combo-op${k===0?' marcada':''}" data-v="${escapeHtml(m)}">${vis}</div>`;
+  }).join('');
+  if(!res.length) html='<div class="combo-vacio">No está en la lista.</div>';
+  if(q && !res.some(m=>normMueble(m)===n)) html+=`<div class="combo-op libre" data-v="${escapeHtml(q)}">Usar «${escapeHtml(q)}» tal cual</div>`;
+  lista.innerHTML=html;
+}
+function comboAbrir(i){ comboPintar(i); const c=comboCaja(i); if(c) c.classList.add('abierto'); }
+function comboCerrarTodos(){ document.querySelectorAll('.combo.abierto').forEach(c=>c.classList.remove('abierto')); }
+function comboInput(i,val){ actualizarMueble(i,'mueble',val); comboPintar(i); const c=comboCaja(i); if(c) c.classList.add('abierto'); }
+function comboElegir(i,val){
+  const inp=$('mfMueble-'+i); if(!inp) return;
+  inp.value=val; actualizarMueble(i,'mueble',val);
+  comboCerrarTodos();
+  const monto=$('mfMonto-'+i); if(monto){ monto.focus(); monto.select(); }   // derecho al monto
+}
+function comboBorrar(i){
+  const inp=$('mfMueble-'+i); if(!inp) return;
+  inp.value=''; actualizarMueble(i,'mueble','');
+  comboPintar(i); comboAbrir(i); inp.focus();
+}
+function comboKey(i,e){
+  const lista=$('mfLista-'+i), caja=comboCaja(i); if(!lista||!caja) return;
+  const ops=[...lista.querySelectorAll('.combo-op')];
+  let k=ops.findIndex(o=>o.classList.contains('marcada'));
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();
+    if(!caja.classList.contains('abierto')){ comboAbrir(i); return; }
+    if(!ops.length) return;
+    ops.forEach(o=>o.classList.remove('marcada'));
+    k = e.key==='ArrowDown' ? (k+1)%ops.length : (k-1+ops.length)%ops.length;
+    ops[k].classList.add('marcada'); ops[k].scrollIntoView({block:'nearest'});
+  }else if(e.key==='Enter'){
+    e.preventDefault();
+    if(caja.classList.contains('abierto') && k>=0) comboElegir(i, ops[k].dataset.v);
+    else { const monto=$('mfMonto-'+i); if(monto) monto.focus(); }
+  }else if(e.key==='Escape'){ comboCerrarTodos(); }
+}
+/* Un solo listener para todas las filas: elegir con el mouse y cerrar al tocar afuera. */
+document.addEventListener('mousedown',e=>{
+  const op=e.target.closest('.combo-op');
+  if(op){ const caja=op.closest('.combo'); if(caja){ e.preventDefault(); comboElegir(+caja.dataset.i, op.dataset.v); } return; }
+  if(!e.target.closest('.combo')) comboCerrarTodos();
+});
+
 function actualizarMueble(i,campo,val){
   if(!mueblesActuales[i]) return;
   mueblesActuales[i][campo] = (campo==='monto') ? (montoNumerico(val)||null) : val;
+  // La categoría se guarda aparte, no se deduce del texto al medir.
+  if(campo==='mueble') mueblesActuales[i].categoria = categoriaDeTexto(val);
   if(campo==='monto') actualizarTotal();
 }
 function renderMuebleFilas(){
@@ -11837,9 +11917,12 @@ function renderMuebleFilas(){
   if(!box) return;
   box.innerHTML = mueblesActuales.map((m,i)=>`
     <div class="mfila ${m.elegido?'suma':'nosuma'}">
-      <div class="f1"><input type="text" id="mfMueble-${i}" placeholder="Mueble" list="muebles-list" value="${(m.mueble||m.nombre||'').replace(/"/g,'&quot;')}"
-        oninput="actualizarMueble(${i},'mueble',this.value)"
-        onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('mfMonto-${i}').focus();}"></div>
+      <div class="f1"><div class="combo" data-i="${i}">
+        <input type="text" id="mfMueble-${i}" placeholder="Elegí o escribí el mueble" autocomplete="off" value="${(m.mueble||m.nombre||'').replace(/"/g,'&quot;')}"
+          oninput="comboInput(${i},this.value)" onfocus="comboAbrir(${i})" onkeydown="comboKey(${i},event)">
+        <button type="button" class="combo-x" onclick="comboBorrar(${i})" tabindex="-1">✕</button>
+        <div class="combo-lista" id="mfLista-${i}"></div>
+      </div></div>
       <div class="f3"><div class="monto-wrap"><span class="sig">$</span>
         <input type="text" inputmode="numeric" id="mfMonto-${i}" placeholder="" value="${m.monto?miles(m.monto):''}"
           oninput="formatearMontoInput(this);actualizarMueble(${i},'monto',this.value)"
@@ -11969,6 +12052,21 @@ function pintarFamPills(){
   ).join('');
   pintarTipoPills();
 }
+
+/* ============ SOLAPAS (pantalla angosta) ============
+   Arriba de 1000px no hace nada: las dos columnas se ven enteras. Abajo de 1000px cada
+   columna es una solapa y se abre de a una, para que el modal no quede kilométrico. */
+function solapa(id){
+  if(window.innerWidth>1000) return;
+  const el=$(id); if(!el) return;
+  const abierta=el.classList.contains('abierto');
+  document.querySelectorAll('#panelRegistro .reg-col').forEach(c=>c.classList.remove('abierto'));
+  if(!abierta) el.classList.add('abierto');
+}
+/* Al volver a pantalla ancha, las dos tienen que quedar abiertas o desaparecería una. */
+window.addEventListener('resize',()=>{
+  if(window.innerWidth>1000) document.querySelectorAll('.reg-col').forEach(c=>c.classList.add('abierto'));
+});
 
 /* ============ BARRA DE ETAPAS ============ */
 let etapaWizSel=0;                       // toda consulta arranca en "Consulta nueva"
@@ -13571,6 +13669,49 @@ function recParaTs(){
 .plegable.abierto .pl-chev{transform:rotate(180deg)}
 .plegable-cuerpo{display:none;padding:4px 12px 12px}
 .plegable.abierto .plegable-cuerpo{display:block}
+
+/* ============ MODO SOLAPAS (parte 5) ============
+   Brian trabaja con la pantalla partida al medio. Apilado en una columna el modal queda
+   larguísimo, así que abajo de 1000px cada columna se pliega en una solapa grande y se
+   abre de a una. El bloque de acciones (Guardar/Cancelar) NO está adentro del cuerpo
+   plegable, así que se ve siempre al final. */
+@media(max-width:1000px){
+  .reg-cols{grid-template-columns:1fr!important;gap:12px}
+  #colCliente > .bloque-titulo-b,
+  #colConsulta #wizMuebles > .bloque-titulo-b{
+    margin:0;padding:15px 16px;border:1px solid var(--line);border-radius:11px;background:#f7f9fb;
+    cursor:pointer;user-select:none;font-size:15.5px;display:flex;align-items:center;gap:10px}
+  #colCliente > .bloque-titulo-b:hover,
+  #colConsulta #wizMuebles > .bloque-titulo-b:hover{background:var(--line2)}
+  .reg-col.abierto > .bloque-titulo-b,
+  .reg-col.abierto #wizMuebles > .bloque-titulo-b{background:var(--navy);color:#fff;border-radius:11px 11px 0 0}
+  .solapa-chev{margin-left:auto;font-size:11px;opacity:.65;transition:transform .15s}
+  .reg-col.abierto .solapa-chev{transform:rotate(180deg);opacity:1}
+  .col-body{display:none;border:1px solid var(--line);border-top:0;border-radius:0 0 11px 11px;padding:16px 16px 4px}
+  .reg-col.abierto .col-body{display:block}
+  .etapas{grid-template-columns:repeat(2,1fr)}
+  .et:nth-child(4)::before{display:block}
+  .et:nth-child(2n)::before{display:none}
+  .acciones-reg{margin-top:14px}
+  .acciones-reg .btn-guardar{width:auto;flex:1}
+}
+
+/* SELECTOR DE MUEBLE: desplegable que además filtra mientras se escribe */
+.combo{position:relative}
+.combo input{padding-right:32px}
+.combo-lista{position:absolute;z-index:60;left:0;right:0;top:calc(100% + 4px);background:#fff;
+  border:1px solid var(--line);border-radius:11px;box-shadow:0 10px 28px rgba(15,26,42,.16);
+  max-height:260px;overflow-y:auto;padding:5px;display:none}
+.combo.abierto .combo-lista{display:block}
+.combo-op{padding:8px 11px;border-radius:8px;font-size:13.5px;color:var(--ink);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.combo-op:hover,.combo-op.marcada{background:var(--blue-l);color:var(--blue-d)}
+.combo-op b{color:var(--blue-d);font-weight:800}
+.combo-op.libre{color:var(--sec);font-style:italic;border-top:1px solid var(--line2);border-radius:0;margin-top:4px;padding-top:10px}
+.combo-vacio{padding:10px 11px;font-size:12.5px;color:var(--muted)}
+.combo-x{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:19px;height:19px;border:0;
+  background:var(--line2);color:var(--sec);border-radius:50%;font-size:10px;line-height:1;cursor:pointer;display:none;padding:0}
+.combo.con-texto .combo-x{display:block}
+.combo-x:hover{background:var(--red-l);color:var(--red)}
 
 /* CHAPA DE ESTADO en el header: no se elige, la calcula la etapa */
 .estado-chapa{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:5px 13px;font-size:12.5px;font-weight:800;border:1.5px solid;white-space:nowrap}
