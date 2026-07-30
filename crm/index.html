@@ -415,6 +415,14 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
    leían encimados. */
 #filasBox .crow:nth-child(-n+2) .ebtn .pop{bottom:auto;top:130%}
 .pop-rapido{width:190px!important;padding:8px!important;background:#fff!important}
+/* Popover "¿cuándo?" con 3 atajos + calendario para elegir cualquier fecha */
+.pop-cuando{width:230px!important}
+.pop-cuando .rap-atajos{display:flex;gap:5px;margin:6px 0}
+.pop-cuando .rap-atajos .menu-op{flex:1;text-align:center;padding:7px 4px;border:1px solid var(--line2);border-radius:7px;font-size:12px}
+.pop-cuando .rap-cal{display:flex;flex-direction:column;gap:4px;margin:8px 0;padding:8px 0;border-top:1px solid var(--line2);border-bottom:1px solid var(--line2)}
+.pop-cuando .rap-cal-lbl{font-size:11px;color:var(--muted);font-weight:700}
+.pop-cuando .rap-cal input[type=date]{width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--line2);border-radius:7px}
+.pop-cuando .menu-op-sin{color:var(--muted);font-size:12px}
 .pop-coment{width:300px!important;padding:13px!important;background:#ffffff!important;opacity:1!important;border:1px solid #cdd5df!important;border-radius:12px!important;box-shadow:0 16px 40px rgba(15,26,42,.28),0 3px 10px rgba(15,26,42,.16)!important;z-index:600!important}
 .pop-coment b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
 .cm-hist{font-size:12px;color:var(--ink);line-height:1.45;max-height:110px;overflow-y:auto;background:var(--surface-1,#f7f9fb);border-radius:6px;padding:7px 9px;margin-bottom:8px}
@@ -4881,12 +4889,16 @@ async function guardarCierre(){if(esSoloLectura())return avisoLectura();
    Reemplaza al desplegable chiquito de la tabla: muestra en qué etapa está, los 3 estados como
    botones, y según cuál se elija despliega abajo el formulario que corresponde (venta o rechazo). */
 let etapaSel=null;
+let etapaPercep=null, etapaFam=null, etapaTipo=null;   // clasificación rápida en la solapa de estado
 function abrirEtapaComercial(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
   cerrarPops();
   cerrandoId=id;
   etapaSel=estadoDe(a)||null;
+  etapaPercep=a.percepcion||null;
+  etapaTipo=a.tipoConsulta||null;
+  etapaFam=a.familiaConsulta||(etapaTipo&&TIPO_INFO[etapaTipo]?TIPO_INFO[etapaTipo].familia:null)||null;
   const cc=$('cierreCaja'); if(cc) cc.innerHTML='';  // que no queden IDs duplicados del modal de cierre
   pintarEtapa();
   $('modalEtapa').classList.remove('hidden');
@@ -4910,6 +4922,16 @@ function abrirCambioEstadoPedido(id){
   document.body.style.overflow='hidden';
 }
 function elegirEtapa(e){ etapaSel=e; pintarEtapa(); }
+/* Píldoras de clasificación dentro de la solapa de estado. Cambian el estado local y
+   re-pintan. Elegir tipo NO muestra fecha acá: la próxima acción se recalcula al Guardar
+   y se ve en la columna de acción. */
+function etapaSetPercep(p){ etapaPercep=(etapaPercep===p)?null:p; pintarEtapa(); }
+function etapaSetFam(f){
+  etapaFam=(etapaFam===f)?null:f; etapaTipo=null;
+  if(etapaFam==='Entrega inmediata') etapaTipo='Un mueble específico';
+  pintarEtapa();
+}
+function etapaSetTipo(t){ etapaTipo=(etapaTipo===t)?null:t; pintarEtapa(); }
 function pintarEtapa(){
   const a=atenciones.find(x=>x.id===cerrandoId); if(!a) return;
   const est=estadoDe(a);
@@ -4942,17 +4964,18 @@ function pintarEtapa(){
     cuerpo=`
       <p class="tiny" style="margin-bottom:12px">La consulta queda abierta y vuelve a sumar al monto en juego.${eraCerrada?` Estaba marcada como <b>${est}</b>.`:''}</p>
       <div class="field">
-        <label>¿Qué pasó? ${eraCerrada?'<span class="req">obligatorio</span>':'<span class="tiny" style="color:var(--muted)">(opcional)</span>'}</label>
-        <textarea id="segComentario" rows="2" placeholder="Ej: el cliente volvió a escribir, todavía lo está pensando"
-          oninput="this.classList.remove('campo-falta')"></textarea>
+        <label>¿Cómo lo viste al cliente?</label>
+        <div class="pills pills-nowrap">${PERCEPCIONES.map(p=>`<span class="pill ${etapaPercep===p?'on':''} ${p==='Rechazó'?'rojo':''}" onclick="etapaSetPercep('${p}')">${p}</span>`).join('')}</div>
       </div>
       <div class="field">
-        <label>¿Cuándo le volvemos a hablar?</label>
-        <div class="cierre-chips" id="segCuando">
-          ${[['hoy','Hoy'],['manana','Mañana'],['3dias','En 3 días'],['semana','En una semana'],['sin','Sin definir']]
-            .map(([v,l],i)=>`<span class="cierre-chip${i===1?' on':''}" data-v="${v}" onclick="segElegirCuando(this)">${l}</span>`).join('')}
-        </div>
+        <label>¿Qué preguntó el cliente?</label>
+        <div class="pills">${FAMILIAS_CONSULTA.map(f=>`<span class="pill ${etapaFam===f.fam?'on':''}" onclick="etapaSetFam('${f.fam.replace(/'/g,"\\'")}')">${escapeHtml(f.fam)}</span>`).join('')}</div>
       </div>
+      ${etapaFam?`<div class="field">
+        <label>¿Sobre qué? — ${escapeHtml(etapaFam)}</label>
+        <div class="pills">${((FAMILIAS_CONSULTA.find(f=>f.fam===etapaFam)||{}).tipos||[]).map(([t])=>`<span class="pill ${etapaTipo===t?'on':''}" onclick="etapaSetTipo('${t.replace(/'/g,"\\'")}')">${escapeHtml(t)}</span>`).join('')}</div>
+      </div>`:''}
+      <p class="tiny" style="color:var(--muted);margin:-2px 0 10px">📅 La próxima vez que hay que hablarle se calcula sola según el tipo, y se ve en la columna de acción.</p>
       ${puedeDerivar?`
       <div class="field">
         <label>¿Quién la sigue?</label>
@@ -5008,38 +5031,18 @@ function segElegirCuando(el){
 async function guardarEtapaSeguimiento(){
   const a=atenciones.find(x=>x.id===cerrandoId);
   if(!a){cerrarEtapa();return;}
-  const estPrevio=estadoDe(a);
-  const eraCerrada = estPrevio==='Concretado' || estPrevio==='Rechazado';
-  const comentario=($('segComentario')?.value||'').trim();
 
-  // Reabrir algo que estaba cerrado necesita explicación: alguien lo marcó mal y
-  // el que la reciba tiene que saber qué pasó.
-  if(eraCerrada && !comentario){
-    toast('Contá qué pasó para reabrir la consulta');
-    const c=$('segComentario'); if(c){ c.classList.add('campo-falta'); c.focus(); }
-    return;
-  }
+  // Clasificación rápida: cómo lo vio, qué preguntó y sobre qué
+  a.percepcion = etapaPercep || null;
+  a.familiaConsulta = etapaFam || null;
+  a.tipoConsulta = etapaTipo || null;
 
-  if(comentario){
-    a.historialContacto=a.historialContacto||[];
-    a.historialContacto.push({ts:new Date().toISOString(), texto:comentario, percepcion:null});
-    a.notas=comentario;
-  }
-
-  // Próxima acción
-  const cuando=document.querySelector('#segCuando .cierre-chip.on')?.dataset.v;
-  if(cuando && cuando!=='sin'){
-    const d=new Date(); d.setHours(0,0,0,0);
-    if(cuando==='manana') d.setDate(d.getDate()+1);
-    else if(cuando==='3dias') d.setDate(d.getDate()+3);
-    else if(cuando==='semana') d.setDate(d.getDate()+7);
+  // La PRÓXIMA ACCIÓN se calcula sola según el tipo (hoy + plazo del tipo, solo el día).
+  // No se elige acá: aparece en la columna de acción del costado y se puede pisar ahí.
+  if(etapaTipo && TIPO_INFO[etapaTipo]){
+    const dias = TIPO_INFO[etapaTipo].plazoDias < 1 ? 0 : Math.round(TIPO_INFO[etapaTipo].plazoDias);
+    const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+dias);
     a.proximaAccionTs=d.toISOString();
-    if(a.contactoId){
-      const c=contactoPorId(a.contactoId);
-      if(c){ c.proximaAccionTs=a.proximaAccionTs; await saveContactos(); }
-    }
-  }else if(cuando==='sin'){
-    a.proximaAccionTs=null;
   }
 
   // Reasignación: queda registrada para poder rastrear quién la tenía antes
@@ -5055,11 +5058,16 @@ async function guardarEtapaSeguimiento(){
   // contando como venta hecha ni como plata perdida.
   a.nroOrden=null; a.montoVendido=null; a.montoPerdido=null; a.resultadoMotivo=null;
 
+  if(a.contactoId){
+    const c=contactoPorId(a.contactoId);
+    if(c){ c.proximaAccionTs=a.proximaAccionTs; c.calificacion=a.percepcion; await saveContactos(); }
+  }
+
   await aplicarEstado(a,'En seguimiento');
   cerrarEtapa();
-  toast(nuevoVend && nuevoVend!==a.reasignadaDe && a.reasignadaDe
-    ? `Reabierta y pasada a ${nombreDe(a.vendedorId)}`
-    : 'Estado: En seguimiento');
+  toast(nuevoVend && a.reasignadaDe && nuevoVend!==a.reasignadaDe
+    ? `Pasada a ${nombreDe(a.vendedorId)}`
+    : 'Guardado');
 }
 
 /* ---------------- Baja de contacto: Cintia la puede hacer directo; el resto la pide ---------------- */
@@ -5355,9 +5363,18 @@ function logItemHtml(a){
           ? `<span class="pl pl-cerrada" title="Consulta ${est.toLowerCase()} — sin próxima acción">Cerrada</span>`
           : `<span class="ebtn rap-btn" title="Cambiar cuándo le hablamos" onclick="event.stopPropagation();togPop(this)">
           <span class="pl ${plazo.cls}">${plazo.txt}${plazo.det?`<span class="pl-d">${plazo.det}</span>`:''}</span>
-          <span class="pop pop-rapido">
+          <span class="pop pop-rapido pop-cuando">
             <b>¿Cuándo le volvemos a hablar?</b>
-            ${RAPIDO_CUANDO.map(([v,l])=>`<div class="menu-op" onclick="event.stopPropagation();rapidoCuando('${a.id}','${v}')">${l}</div>`).join('')}
+            <div class="rap-atajos">
+              <div class="menu-op" onclick="event.stopPropagation();rapidoCuando('${a.id}','hoy')">Hoy</div>
+              <div class="menu-op" onclick="event.stopPropagation();rapidoCuando('${a.id}','manana')">Mañana</div>
+              <div class="menu-op" onclick="event.stopPropagation();rapidoCuando('${a.id}','3dias')">En 3 días</div>
+            </div>
+            <div class="rap-cal">
+              <span class="rap-cal-lbl">📅 O elegí la fecha:</span>
+              <input type="date" onclick="event.stopPropagation()" onchange="rapidoCuandoFecha('${a.id}',this.value)">
+            </div>
+            <div class="menu-op menu-op-sin" onclick="event.stopPropagation();rapidoCuando('${a.id}','sin')">Sin definir</div>
           </span>
         </span>`}
       </div>
@@ -5461,19 +5478,26 @@ function elevarFilas(activo, enElEncabezado){
 const RAPIDO_CUANDO=[['hoy','Hoy'],['manana','Mañana'],['3dias','En 3 días'],
                      ['semana','En una semana'],['custom','Otra fecha…'],['sin','Sin definir']];
 
+/* Setea la próxima acción desde el CALENDARIO (input date), sin prompt. */
+async function rapidoCuandoFecha(id, val){
+  const a=atenciones.find(x=>x.id===id);
+  if(!a || !val) return;
+  cerrarPops();
+  const d=new Date(val+'T00:00:00');
+  if(isNaN(d)){ toast('Fecha inválida'); return; }
+  const ts=d.toISOString();
+  a.proximaAccionTs=ts;
+  if(a.contactoId){ const c=contactoPorId(a.contactoId); if(c){ c.proximaAccionTs=ts; await saveContactos(); } }
+  await saveAtenciones();
+  renderHistorial();
+  toast(`Próximo contacto: ${fechaConsultaCorta(ts)}`);
+}
 async function rapidoCuando(id, v){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
   cerrarPops();
   let ts=null;
-  if(v==='custom'){
-    const hoy=new Date().toISOString().slice(0,10);
-    const txt=prompt('¿Qué día le volvemos a hablar? (AAAA-MM-DD)', hoy);
-    if(!txt) return;
-    const d=new Date(txt+'T00:00:00');
-    if(isNaN(d)){ toast('Fecha inválida'); return; }
-    ts=d.toISOString();
-  }else if(v!=='sin'){
+  if(v!=='sin'){
     const d=new Date(); d.setHours(0,0,0,0);
     if(v==='manana') d.setDate(d.getDate()+1);
     else if(v==='3dias') d.setDate(d.getDate()+3);
