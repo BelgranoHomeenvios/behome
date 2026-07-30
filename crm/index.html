@@ -5571,15 +5571,9 @@ function logItemHtml(a){
         </div>
         ${esPostventa(a) ? '' : (cerrada
           ? `<span class="sit-op sit-cerrada" title="Consulta ${est.toLowerCase()}">Cerrada</span>`
-          : `<span class="ebtn rap-btn rap-op" title="Cambiar cómo viste al cliente" onclick="event.stopPropagation();togPop(this)">
-          <span class="sit-op">${estrellasHtml(a.percepcion)}</span>
-          <span class="pop pop-rapido">
-            <b>Calificá al cliente</b>
-            ${[3,2,1].map(v=>{const p=PERCEP_POR_ESTRELLA[v];
-              return `<div class="menu-op${a.percepcion===p?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','${p}')">${estrellasHtml(p)}</div>`;}).join('')}
-            <div class="menu-op${(!a.percepcion||!estrellasNum(a.percepcion))?' on':''}" onclick="event.stopPropagation();rapidoPercepcion('${a.id}','No sé todavía')">${estrellasHtml(null)} <span class="tiny">sin calificar</span></div>
-          </span>
-        </span>`)}
+          : `<span class="estr estr-fila" title="Tocá una estrella para calificar">${
+              [1,2,3].map(v=>`<span class="${v<=estrellasNum(a.percepcion)?'e-on':'e-off'}" onclick="event.stopPropagation();rapidoEstrella('${a.id}',${v})" title="${v} estrella${v===1?'':'s'} — si ya está prendida, la apaga">★</span>`).join('')
+            }</span>`)}
       </div>
       <div class="c-nom" ondblclick="editarSoloNombre('${a.id}')" title="Doble clic para editar el nombre y el contacto">
         ${canalIco}
@@ -5691,11 +5685,20 @@ async function rapidoCuando(id, v){
   toast(ts?`Próximo contacto: ${fechaConsultaCorta(ts)}`:'Sin próxima acción');
 }
 
-async function rapidoPercepcion(id, p){
+/* Calificar desde la fila, sin desplegable. Tocar una estrella la prende hasta ahí;
+   volver a tocar la última prendida la apaga, así se puede bajar hasta "sin calificar". */
+async function rapidoEstrella(id, v){
+  const a=atenciones.find(x=>x.id===id); if(!a) return;
+  const actual=estrellasNum(a.percepcion);
+  const nuevo = (actual===v) ? v-1 : v;
+  await rapidoPercepcion(id, nuevo ? PERCEP_POR_ESTRELLA[nuevo] : null, true);
+}
+async function rapidoPercepcion(id, p, directo){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
   cerrarPops();
-  a.percepcion = (a.percepcion===p) ? null : p;
+  // Desde las estrellas de la fila el valor viene ya calculado: no se togglea de nuevo.
+  a.percepcion = directo ? p : ((a.percepcion===p) ? null : p);
   if(a.contactoId){
     const c=contactoPorId(a.contactoId);
     if(c){ c.calificacion=a.percepcion; c.ultimaActividad=new Date().toISOString(); await saveContactos(); }
@@ -5928,9 +5931,15 @@ const FILTRO_PLAZO_OPCIONES=[
   ['todos','Cualquier plazo'],['vencidas','Atrasadas'],['hoy','Para hoy'],
   ['semana','Esta semana'],['mas','Más adelante'],['sin','Sin definir']
 ];
+/* El filtro de oportunidad ahora es por estrellas. '3','2','1' filtran por calificación
+   y 'sin' junta todo lo que no tiene estrellas (sin calificar, "No sé todavía",
+   "Rechazó", "Otros"), que en pantalla se ven igual. */
 const FILTRO_OPORT_OPCIONES=[
-  ['todos','Toda oportunidad'],['Decidido','Decidido'],['Muy interesado','Muy interesado'],['Potable','Potable'],
-  ['No sé todavía','No sé todavía'],['Poco interesado','Poco interesado'],['sin','Sin definir']
+  ['todos','Toda oportunidad'],
+  ['3','★★★'],
+  ['2','★★'],
+  ['1','★'],
+  ['sin','Sin calificar']
 ];
 const FILTRO_COMENT_OPCIONES=[['todos','Todos'],['con','Con comentario'],['sin','Sin comentario']];
 const FILTRO_EVAL_OPCIONES=[['todos','Todas'],['evaluadas','Evaluadas'],['sinevaluar','Sin evaluar']];
@@ -6158,8 +6167,8 @@ function construirListaFiltrada(){
      estado ya salen como Rechazadas (estadoDe), así que el filtro por defecto ('activas')
      las deja afuera solo — no hace falta esconder nada aparte. */
 
-  if(filtroOportunidad==='sin') l=l.filter(a=>!a.percepcion);
-  else if(filtroOportunidad!=='todos') l=l.filter(a=>a.percepcion===filtroOportunidad);
+  if(filtroOportunidad==='sin') l=l.filter(a=>!estrellasNum(a.percepcion));
+  else if(filtroOportunidad!=='todos') l=l.filter(a=>estrellasNum(a.percepcion)===+filtroOportunidad);
 
   if(filtroComentario==='con') l=l.filter(a=>!!(a.notas||a.resultadoMotivo));
   else if(filtroComentario==='sin') l=l.filter(a=>!(a.notas||a.resultadoMotivo));
@@ -6238,8 +6247,8 @@ function filtrosColumna(l){
   // evaluar. Las opciones concretas (Sin clasificar / En seguimiento / Concretado / Rechazado) sí filtran.
   if(filtroEstado==='sin') l=l.filter(a=>!estadoDe(a));
   else if(filtroEstado!=='activas' && filtroEstado!=='todos') l=l.filter(a=>estadoDe(a)===filtroEstado);
-  if(filtroOportunidad==='sin') l=l.filter(a=>!a.percepcion);
-  else if(filtroOportunidad!=='todos') l=l.filter(a=>a.percepcion===filtroOportunidad);
+  if(filtroOportunidad==='sin') l=l.filter(a=>!estrellasNum(a.percepcion));
+  else if(filtroOportunidad!=='todos') l=l.filter(a=>estrellasNum(a.percepcion)===+filtroOportunidad);
   if(filtroComentario==='con') l=l.filter(a=>!!(a.notas||a.resultadoMotivo));
   else if(filtroComentario==='sin') l=l.filter(a=>!(a.notas||a.resultadoMotivo));
   if(filtroPlazo!=='todos'){
@@ -13842,6 +13851,13 @@ function recParaTs(){
 .est-borrar:hover{color:var(--red)}
 
 /* GUARDAR a un tercio, con Cancelar al lado */
+/* ESTRELLAS DE LA FILA: se califican tocándolas. Sin barra gris de fondo — el área
+   clickeable es solo la estrella, no todo el ancho de la celda. */
+.estr-fila{gap:2px;cursor:default}
+.estr-fila>span{cursor:pointer;padding:0 1px;font-size:16px;line-height:1;transition:transform .1s,color .1s}
+.estr-fila>span:hover{transform:scale(1.2)}
+.estr-fila>span.e-off:hover{color:#f5c869}
+
 /* ESTRELLAS: mismo componente en el tablero, la bitácora, el historial y los paneles */
 .estr{display:inline-flex;gap:1px;line-height:1;vertical-align:middle;white-space:nowrap}
 .estr .e-on{color:#f0a500}
