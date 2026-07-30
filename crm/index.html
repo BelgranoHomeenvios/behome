@@ -1873,7 +1873,10 @@ textarea{resize:vertical;min-height:60px}
               <input type="tel" id="clienteTelefonoIG" placeholder="11 xxxx xxxx" oninput="chequearDupModal()">
             </div>
             <div id="modalDupAviso"></div>
-<div class="field">
+<!-- "¿Qué necesitaba el cliente?" salió de la vista (30/7): las dos opciones que
+                 importaban, Atención general y Entrega inmediata, ahora son etapas. El campo
+                 queda oculto para no perder el dato de las consultas viejas. -->
+            <div class="field hidden" id="campoFamilia">
               <label>¿Qué necesitaba el cliente?</label>
               <div class="pills" id="famPills"></div>
             </div>
@@ -1892,9 +1895,9 @@ textarea{resize:vertical;min-height:60px}
             <!-- ¿Cuándo volvemos? va acá, arriba de muebles: se deduce de qué preguntó / sobre qué -->
             <div class="field" id="campoProx">
               <label>Próxima acción</label>
-              <div id="proxAutoBox" class="prox-auto hidden"></div>
               <div class="pills" id="proxPills"></div>
               <input type="date" id="proxFechaCustom" onchange="pintarProxPills()" style="margin-top:8px;max-width:190px">
+              <div id="proxAutoBox" class="prox-auto hidden"></div>
             </div>
             <div class="field" id="campoTiempoTurno">
               <label>Tiempo del turno <span class="opt">(opcional)</span></label>
@@ -3011,14 +3014,16 @@ const FAMILIAS_CONSULTA=[
    consulta predice mejor cuándo hay que volver a llamar que lo que el cliente preguntó.
    `estado:null` = Sin clasificar. `plazo:null` = etapa cerrada, sin próxima acción. */
 const ETAPAS_CONSULTA=[
-  {ic:'✳', lbl:'Consulta nueva',          sub:'Acá arrancan todas',              estado:null,             plazo:1},
-  {ic:'⏳', lbl:'No respondió todavía',    sub:'Le escribimos y no contestó',     estado:null,             plazo:2},
-  {ic:'🚶', lbl:'Va a pasar por el local', sub:'Quedó en venir',                  estado:'En seguimiento', plazo:3},
-  {ic:'📐', lbl:'Tiene que medir',         sub:'Necesita medidas o fotos',        estado:'En seguimiento', plazo:5},
-  {ic:'📄', lbl:'Le envié el presupuesto', sub:'Ya tiene la propuesta',           estado:'En seguimiento', plazo:3},
-  {ic:'💬', lbl:'Negociando',              sub:'Está comparando o pidiendo precio',estado:'En seguimiento',plazo:2},
-  {ic:'✔', lbl:'Vendido',                 sub:'Cerró la compra',                 estado:'Concretado',     plazo:null},
-  {ic:'✖', lbl:'Perdido',                 sub:'No sigue con la compra',          estado:'Rechazado',      plazo:null, mala:true}
+  {ic:'✳', lbl:'Consulta nueva',          sub:'Acá arrancan todas',               estado:null,             plazo:1},
+  {ic:'⏳', lbl:'No respondió todavía',    sub:'Le escribimos y no contestó',      estado:null,             plazo:2},
+  {ic:'💡', lbl:'Atención general',        sub:'Preguntó algo puntual, no una compra', estado:'En seguimiento', plazo:3, fam:'Atención general'},
+  {ic:'🚶', lbl:'Va a pasar por el local', sub:'Quedó en venir',                   estado:'En seguimiento', plazo:3},
+  {ic:'📐', lbl:'Tiene que medir',         sub:'Necesita medidas o fotos',         estado:'En seguimiento', plazo:5},
+  {ic:'📄', lbl:'Le envié el presupuesto', sub:'Ya tiene la propuesta',            estado:'En seguimiento', plazo:3},
+  {ic:'💬', lbl:'Negociando',              sub:'Está comparando o pidiendo precio',estado:'En seguimiento', plazo:2},
+  {ic:'⚡', lbl:'Entrega inmediata',       sub:'Lo quiere ya, hay que resolverlo',  estado:'En seguimiento', plazo:1, fam:'Entrega inmediata'},
+  {ic:'✔', lbl:'Vendido',                 sub:'Cerró la compra',                  estado:'Concretado',     plazo:null},
+  {ic:'✖', lbl:'Perdido',                 sub:'No sigue con la compra',           estado:'Rechazado',      plazo:null, mala:true}
 ];
 /* "Rechazado" es el valor guardado de siempre (no se migra nada); "Perdido" es solo
    cómo se muestra de ahora en más. */
@@ -4833,8 +4838,8 @@ async function guardarCierre(){if(esSoloLectura())return avisoLectura();
   const a=atenciones.find(x=>x.id===cerrandoId);
   if(!a) return;
   // Si el cierre se disparó desde la barra de etapas, se deja registrado el paso.
-  if(cerrandoTipo==='Concretado') a.etapaConsulta=6;
-  else if(cerrandoTipo==='Rechazado') a.etapaConsulta=7;
+  if(cerrandoTipo==='Concretado') a.etapaConsulta=8;
+  else if(cerrandoTipo==='Rechazado') a.etapaConsulta=9;
   const cotizado=montoRepresentativo(a.muebles||[]);
 
   if(cerrandoTipo==='Concretado'){
@@ -4980,8 +4985,8 @@ function abrirCambioEstadoPedido(id){
   etapaPercep=a.percepcion||null;
   etapaTipo=a.tipoConsulta||null;
   etapaFam=a.familiaConsulta||(etapaTipo&&TIPO_INFO[etapaTipo]?TIPO_INFO[etapaTipo].familia:null)||null;
-  etapaBarSel = a.cambioEstadoPedido.estado==='Concretado' ? 6
-              : a.cambioEstadoPedido.estado==='Rechazado' ? 7 : etapaDesdeRegistro(a);
+  etapaBarSel = a.cambioEstadoPedido.estado==='Concretado' ? 8
+              : a.cambioEstadoPedido.estado==='Rechazado' ? 9 : etapaDesdeRegistro(a);
   etapaProxInit(a);
   const cc=$('cierreCaja'); if(cc) cc.innerHTML='';
   pintarEtapa();
@@ -5056,10 +5061,10 @@ function etapaProxCampoHtml(){
   const act=etapaAtajoCoincide();
   return `<div class="field" id="etapaCampoProx">
     <label>Próxima acción</label>
-    ${caja}
     <div class="pills">${PROX_OPCIONES_WIZ.map(o=>
       `<span class="pill ${act===o.v?'on':''}" onclick="etapaSetProx('${o.v}')">${o.t}</span>`).join('')}</div>
     <input type="date" class="prox-fecha-inline" value="${etapaProxFecha||''}" onchange="etapaSetProxFecha(this.value)">
+    ${caja}
   </div>`;
 }
 /* ============ SOLAPA "ETAPA COMERCIAL" — unificada con el modal (30/7) ============
@@ -5092,9 +5097,6 @@ function pintarEtapa(){
       <button class="btn btn-navy" style="width:100%;margin-top:6px" onclick="guardarEtapaSeguimiento()">Guardar</button>`;
   }
 
-  // Familias: si la consulta trae una vieja que ya no está en la lista, se muestra igual.
-  const fams = FAMILIAS_WIZARD.slice();
-  if(etapaFam && !fams.includes(etapaFam)) fams.push(etapaFam);
   const nEstrellas = ESTRELLAS_POR_PERCEP[etapaPercep]||0;
 
   $('etapaCaja').innerHTML=`
@@ -5112,11 +5114,6 @@ function pintarEtapa(){
     </div>
 
     <div class="field">
-      <label>¿Qué necesitaba el cliente?</label>
-      <div class="pills">${fams.map(f=>`<span class="pill ${etapaFam===f?'on':''}" onclick="etapaSetFam('${f.replace(/'/g,"\\'")}')">${escapeHtml(f)}</span>`).join('')}</div>
-    </div>
-
-    <div class="field">
       <label>¿En qué etapa quedó la consulta?</label>
       <div class="etapas">${ETAPAS_CONSULTA.map((e,i)=>
         `<div class="et ${i<etapaBarSel?'hecha':''} ${i===etapaBarSel?'on':''} ${e.mala?'mala':''}" onclick="etapaSetBarra(${i})">
@@ -5131,7 +5128,11 @@ function pintarEtapa(){
 /* Estrellas de esta pantalla: escriben el mismo campo percepcion de siempre. */
 function etapaSetEstrellas(v){ etapaPercep = v ? PERCEP_POR_ESTRELLA[v] : null; pintarEtapa(); }
 /* Mover la barra recalcula el estado y la fecha sugerida. */
-function etapaSetBarra(i){ etapaBarSel=i; etapaSugerirProx(); pintarEtapa(); }
+function etapaSetBarra(i){
+  etapaBarSel=i;
+  const f=ETAPAS_CONSULTA[i].fam; if(f) etapaFam=f;   // ver comentario en elegirEtapaWiz
+  etapaSugerirProx(); pintarEtapa();
+}
 async function guardarEtapaSinClasificar(){
   if(esSoloLectura())return avisoLectura();
   const a=atenciones.find(x=>x.id===cerrandoId); if(!a) return;
@@ -5683,6 +5684,9 @@ function aplicarModoSoloMuebles(on){
   hide($('cotizBadge'));
   hide($('modalBadge'));
   hide($('campoBitacora'));                                   // sin bitácora
+  const nt=$('notas'); hide(nt && nt.closest('.field'));      // sin comentario de la atención
+  hide($('chapaEstado'));                                     // la etapa no se ve acá: la chapa sobra
+  hide(document.querySelector('#panelRegistro .estado-auto'));
   hide(document.querySelector('#modalFondo .fecha-conv'));    // sin fecha en el header
   // El título "La consulta" ya no vive en la columna derecha (rediseño 30/7): la
   // derecha arranca en "Muebles", que en este modo justamente es lo que se quiere ver.
@@ -12121,6 +12125,10 @@ function pintarChapaEstado(){
 }
 function elegirEtapaWiz(i){
   etapaWizSel=i;
+  // Dos etapas llevan familia adentro (Atención general y Entrega inmediata). Se guarda
+  // igual en familiaConsulta, así el dato sobrevive aunque después la consulta avance
+  // a otra etapa — sin pedirle al vendedor un click extra.
+  const f=ETAPAS_CONSULTA[i].fam; if(f) famSeleccionada=f;
   pintarEtapaWiz();
   aplicarFechaAutomatica();   // el plazo lo manda la etapa
 }
@@ -12129,9 +12137,9 @@ function elegirEtapaWiz(i){
 function etapaDesdeRegistro(a){
   if(a && Number.isInteger(a.etapaConsulta) && ETAPAS_CONSULTA[a.etapaConsulta]) return a.etapaConsulta;
   const est = a ? estadoDe(a) : null;
-  if(est==='Concretado') return 6;
-  if(est==='Rechazado')  return 7;
-  if(est==='En seguimiento') return 2;
+  if(est==='Concretado') return 8;
+  if(est==='Rechazado')  return 9;
+  if(est==='En seguimiento') return 3;
   return 0;
 }
 function pintarTipoPills(){
@@ -13707,12 +13715,12 @@ function recParaTs(){
   #colConsulta #wizMuebles > .bloque-titulo-b:hover{background:var(--line2)}
   .reg-col.abierto > .bloque-titulo-b,
   .reg-col.abierto #wizMuebles > .bloque-titulo-b{background:var(--navy);color:#fff;border-radius:11px 11px 0 0}
-  .solapa-chev{margin-left:auto;font-size:11px;opacity:.65;transition:transform .15s}
+  .solapa-chev{display:inline;margin-left:auto;font-size:11px;opacity:.65;transition:transform .15s}
   .reg-col.abierto .solapa-chev{transform:rotate(180deg);opacity:1}
   .col-body{display:none;border:1px solid var(--line);border-top:0;border-radius:0 0 11px 11px;padding:16px 16px 4px}
   .reg-col.abierto .col-body{display:block}
   .etapas{grid-template-columns:repeat(2,1fr)}
-  .et:nth-child(4)::before{display:block}
+  .et:nth-child(5)::before{display:block}
   .et:nth-child(2n)::before{display:none}
   .acciones-reg{margin-top:14px}
   .acciones-reg .btn-guardar{width:auto;flex:1}
@@ -13745,11 +13753,11 @@ function recParaTs(){
 .estado-auto{font-size:11px;color:var(--muted)}
 
 /* BARRA DE ETAPAS · 8 pasos en 2 filas de 4 (no entran en un renglón en la columna) */
-.etapas{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 0;margin-bottom:8px}
+.etapas{display:grid;grid-template-columns:repeat(5,1fr);gap:4px 0;margin-bottom:8px}
 .et{position:relative;text-align:center;cursor:pointer;padding:6px 2px 8px;border-radius:9px}
 .et:hover{background:var(--line2)}
 .et::before{content:'';position:absolute;top:22px;left:50%;width:100%;height:2px;background:var(--line);z-index:0}
-.et:nth-child(4)::before,.et:nth-child(8)::before{display:none}
+.et:nth-child(5)::before,.et:nth-child(10)::before{display:none}
 .et-ico{position:relative;z-index:1;width:32px;height:32px;margin:0 auto 6px;border-radius:50%;background:#fff;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:14px}
 .et-lbl{font-size:10.5px;font-weight:700;color:var(--sec);line-height:1.25}
 .et.hecha .et-ico{border-color:#7fc79b;background:#eaf7ee}
@@ -13784,6 +13792,10 @@ function recParaTs(){
 .est-borrar:hover{color:var(--red)}
 
 /* GUARDAR a un tercio, con Cancelar al lado */
+/* El cartel verde va DEBAJO de los botones (pedido de Brian): primero se elige,
+   después se lee en qué quedó. Por eso el margen pasa de abajo a arriba. */
+#campoProx .prox-auto, #etapaCampoProx .prox-auto{margin:10px 0 0}
+.solapa-chev{display:none}          /* solo se muestra en modo solapa (ver @media) */
 .acciones-reg{display:flex;align-items:center;gap:18px;margin-top:14px}
 .acciones-reg .btn-guardar{width:33%;min-width:190px;padding:11px 16px;font-size:14px}
 .link-cancelar{color:var(--sec);font-size:13.5px;cursor:pointer}
