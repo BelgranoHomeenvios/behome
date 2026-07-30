@@ -4832,6 +4832,9 @@ async function volverASeguimiento(){if(esSoloLectura())return avisoLectura();
 async function guardarCierre(){if(esSoloLectura())return avisoLectura();
   const a=atenciones.find(x=>x.id===cerrandoId);
   if(!a) return;
+  // Si el cierre se disparó desde la barra de etapas, se deja registrado el paso.
+  if(cerrandoTipo==='Concretado') a.etapaConsulta=6;
+  else if(cerrandoTipo==='Rechazado') a.etapaConsulta=7;
   const cotizado=montoRepresentativo(a.muebles||[]);
 
   if(cerrandoTipo==='Concretado'){
@@ -4945,6 +4948,7 @@ let etapaPercep=null, etapaFam=null, etapaTipo=null;   // clasificación rápida
 /* Próxima acción dentro de Etapa comercial. Antes se calculaba sola al Guardar y no se
    veía acá; ahora se muestra la fecha sugerida por el tipo y se puede pisar en el momento. */
 let etapaProxSel=null, etapaProxFecha='', etapaProxAuto=false, etapaProxDias=0;
+let etapaBarSel=0;   // índice dentro de ETAPAS_CONSULTA: manda el estado de esta pantalla
 function abrirEtapaComercial(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
@@ -4954,6 +4958,7 @@ function abrirEtapaComercial(id){
   etapaPercep=a.percepcion||null;
   etapaTipo=a.tipoConsulta||null;
   etapaFam=a.familiaConsulta||(etapaTipo&&TIPO_INFO[etapaTipo]?TIPO_INFO[etapaTipo].familia:null)||null;
+  etapaBarSel=etapaDesdeRegistro(a);
   etapaProxInit(a);
   const cc=$('cierreCaja'); if(cc) cc.innerHTML='';  // que no queden IDs duplicados del modal de cierre
   pintarEtapa();
@@ -4975,6 +4980,8 @@ function abrirCambioEstadoPedido(id){
   etapaPercep=a.percepcion||null;
   etapaTipo=a.tipoConsulta||null;
   etapaFam=a.familiaConsulta||(etapaTipo&&TIPO_INFO[etapaTipo]?TIPO_INFO[etapaTipo].familia:null)||null;
+  etapaBarSel = a.cambioEstadoPedido.estado==='Concretado' ? 6
+              : a.cambioEstadoPedido.estado==='Rechazado' ? 7 : etapaDesdeRegistro(a);
   etapaProxInit(a);
   const cc=$('cierreCaja'); if(cc) cc.innerHTML='';
   pintarEtapa();
@@ -4986,12 +4993,7 @@ function elegirEtapa(e){ etapaSel=e; pintarEtapa(); }
    re-pintan. Elegir tipo NO muestra fecha acá: la próxima acción se recalcula al Guardar
    y se ve en la columna de acción. */
 function etapaSetPercep(p){ etapaPercep=(etapaPercep===p)?null:p; pintarEtapa(); }
-function etapaSetFam(f){
-  etapaFam=(etapaFam===f)?null:f; etapaTipo=null;
-  if(etapaFam==='Entrega inmediata') etapaTipo='Un mueble específico';
-  etapaSugerirProx();
-  pintarEtapa();
-}
+function etapaSetFam(f){ etapaFam=(etapaFam===f)?null:f; pintarEtapa(); }
 function etapaSetTipo(t){ etapaTipo=(etapaTipo===t)?null:t; etapaSugerirProx(); pintarEtapa(); }
 
 /* ----- Próxima acción dentro de Etapa comercial -----
@@ -5009,9 +5011,9 @@ function etapaProxInit(a){
   }
 }
 function etapaSugerirProx(){
-  const info = etapaTipo ? TIPO_INFO[etapaTipo] : null;
-  if(!info){ etapaProxAuto=false; return; }
-  const dias = info.plazoDias < 1 ? 0 : Math.round(info.plazoDias);
+  const et = ETAPAS_CONSULTA[etapaBarSel];
+  if(!et || et.plazo===null){ etapaProxAuto=false; return; }
+  const dias = et.plazo;
   const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+dias);
   etapaProxFecha=d.toISOString().slice(0,10);
   etapaProxSel='custom'; etapaProxAuto=true; etapaProxDias=dias;
@@ -5041,7 +5043,7 @@ function etapaProxCampoHtml(){
     const esHoy = d.toDateString()===new Date().toDateString();
     const txt = esHoy ? 'hoy mismo' : fechaLindaProx(d);
     const sub = etapaProxAuto
-      ? `· sugerido por el tipo (${etapaProxDias===0?'mismo día':etapaProxDias+' día'+(etapaProxDias===1?'':'s')}), podés cambiarlo`
+      ? `· sugerido por la etapa (${etapaProxDias===0?'mismo día':etapaProxDias+' día'+(etapaProxDias===1?'':'s')}), podés cambiarlo`
       : '· lo elegiste vos';
     caja=`<div class="prox-auto">📅 Volvé a escribirle <b>${txt}</b> <span class="pa-sub">${sub}</span></div>`;
   }else{
@@ -5054,49 +5056,25 @@ function etapaProxCampoHtml(){
     ${etapaProxSel==='custom'?`<input type="date" style="margin-top:8px;max-width:190px" value="${etapaProxFecha}" onchange="etapaSetProxFecha(this.value)">`:''}
   </div>`;
 }
+/* ============ SOLAPA "ETAPA COMERCIAL" — unificada con el modal (30/7) ============
+   Se sacaron las 4 píldoras de estado de arriba: el estado ya no se elige a mano, sale
+   del recorrido. Ahora esta pantalla tiene los MISMOS componentes y el MISMO orden que
+   el modal grande: calificación → qué necesitaba → etapa → próxima acción → guardar.
+   Cuando la etapa es Vendido o Perdido se despliega abajo la ficha de cierre de siempre. */
 function pintarEtapa(){
   const a=atenciones.find(x=>x.id===cerrandoId); if(!a) return;
-  const est=estadoDe(a);
-  // guardarCierre() lee cerrandoTipo, así que se fija acá según lo elegido
-  cerrandoTipo = (etapaSel==='Concretado'||etapaSel==='Rechazado') ? etapaSel : null;
+  const et=ETAPAS_CONSULTA[etapaBarSel]||ETAPAS_CONSULTA[0];
+  // etapaSel y cerrandoTipo son lo que ya leía guardarCierre(): se siguen alimentando,
+  // pero ahora salen de la barra en vez de un click del vendedor.
+  etapaSel = et.estado || 'Sin clasificar';
+  cerrandoTipo = (et.estado==='Concretado'||et.estado==='Rechazado') ? et.estado : null;
+
   let cuerpo='';
-  if(etapaSel==='Sin clasificar'){
-    cuerpo=`<p class="tiny" style="margin-bottom:12px">Vuelve a quedar <b>sin clasificar</b> (sin estado), como una consulta nueva sin trabajar.</p>
-      <button class="btn btn-navy" style="width:100%" onclick="guardarEtapaSinClasificar()">Guardar</button>`;
-  }else if(a.status==='pendiente' && etapaSel && etapaSel!=='Concretado' && etapaSel!=='Rechazado'){
-    // Para "En seguimiento" sobre una consulta sin ficha todavía pedimos completarla.
-    // Concretado y Rechazado, en cambio, van directo a su ficha (que ya pide todo lo
-    // necesario), sin el paso intermedio del wizard.
-    cuerpo=`
-      <p class="tiny" style="margin-bottom:12px">Se abre el seguimiento de la consulta para trabajarla (interés, próxima acción, historial). Desde ahí también podés marcarla Concretada o Rechazada.</p>
-      <button class="btn btn-navy" style="width:100%" onclick="etapaCompletarFicha()">Abrir seguimiento →</button>`;
-  }else if(etapaSel==='Concretado'){
-    cuerpo=htmlFormConcretado(a);
-  }else if(etapaSel==='Rechazado'){
-    cuerpo=htmlFormRechazado(a);
-  }else if(etapaSel==='En seguimiento'){
-    /* Reabrir una consulta cerrada casi nunca es solo cambiar el estado: alguien
-       la marcó mal, hay que dejar dicho por qué, cuándo se retoma y —si el que la
-       cerró mal no es quien debe seguirla— a quién se le pasa. */
-    const eraCerrada = est==='Concretado' || est==='Rechazado';
-    const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
-    // Reasignar es decisión de Cintia o de dirección: un vendedor no se saca de encima
-    // una consulta pasándosela a otro.
+  if(et.estado==='Concretado')      cuerpo=htmlFormConcretado(a);
+  else if(et.estado==='Rechazado')  cuerpo=htmlFormRechazado(a);
+  else {
     const puedeDerivar = esAuditora() || esAdmin();
     cuerpo=`
-      <p class="tiny" style="margin-bottom:12px">La consulta queda abierta y vuelve a sumar al monto en juego.${eraCerrada?` Estaba marcada como <b>${est}</b>.`:''}</p>
-      <div class="field">
-        <label>¿Cómo lo viste al cliente?</label>
-        <div class="pills pills-nowrap">${PERCEPCIONES.map(p=>`<span class="pill ${etapaPercep===p?'on':''} ${p==='Rechazó'?'rojo':''}" onclick="etapaSetPercep('${p}')">${p}</span>`).join('')}</div>
-      </div>
-      <div class="field">
-        <label>¿Qué preguntó el cliente?</label>
-        <div class="pills">${FAMILIAS_CONSULTA.map(f=>`<span class="pill ${etapaFam===f.fam?'on':''}" onclick="etapaSetFam('${f.fam.replace(/'/g,"\\'")}')">${escapeHtml(f.fam)}</span>`).join('')}</div>
-      </div>
-      ${etapaFam?`<div class="field">
-        <label>¿Sobre qué? — ${escapeHtml(etapaFam)}</label>
-        <div class="pills">${((FAMILIAS_CONSULTA.find(f=>f.fam===etapaFam)||{}).tipos||[]).map(([t])=>`<span class="pill ${etapaTipo===t?'on':''}" onclick="etapaSetTipo('${t.replace(/'/g,"\\'")}')">${escapeHtml(t)}</span>`).join('')}</div>
-      </div>`:''}
       ${etapaProxCampoHtml()}
       ${puedeDerivar?`
       <div class="field">
@@ -5104,22 +5082,50 @@ function pintarEtapa(){
         <select id="segVendedor" class="full">
           ${ORDEN_LOGIN.filter(uid=>['vendedor','auditora','admin'].includes(rolDe(uid))).map(uid=>`<option value="${uid}"${a.vendedorId===uid?' selected':''}>${escapeHtml(nombreDe(uid))}${a.vendedorId===uid?' (la tiene ahora)':''}</option>`).join('')}
         </select>
-        <p class="tiny" style="margin:4px 0 0;color:var(--muted)">Podés dejársela a quien la sigue: un vendedor, Cintia o dirección.</p>
       </div>`:''}
       <button class="btn btn-navy" style="width:100%;margin-top:6px" onclick="guardarEtapaSeguimiento()">Guardar</button>`;
-  }else{
-    cuerpo=`<p class="tiny" style="color:var(--muted)">Elegí una etapa: según cuál marques se despliega lo que hay que completar.</p>`;
   }
+
+  // Familias: si la consulta trae una vieja que ya no está en la lista, se muestra igual.
+  const fams = FAMILIAS_WIZARD.slice();
+  if(etapaFam && !fams.includes(etapaFam)) fams.push(etapaFam);
+  const nEstrellas = ESTRELLAS_POR_PERCEP[etapaPercep]||0;
+
   $('etapaCaja').innerHTML=`
-    <h3 style="margin-top:0">Etapa comercial · ${escapeHtml(a.clienteNombre||'este cliente')}</h3>
-    <p class="tiny" style="margin-top:-6px;margin-bottom:14px">${est?`Hoy está <b>${est}</b>. `:''}El origen de la consulta (canal, local) no se toca — es histórico.</p>
-    <div class="etapa-pills">
-      ${ESTADOS.map(e=>`<span class="etapa-pill ${ESTADO_CLS[e]} ${etapaSel===e?'on':''}" onclick="elegirEtapa('${e}')">${e}</span>`).join('')}
-      <span class="etapa-pill es-sin ${etapaSel==='Sin clasificar'?'on':''}" onclick="elegirEtapa('Sin clasificar')">Sin clasificar</span>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px">
+      <h3 style="margin:0">Etapa comercial · ${escapeHtml(a.clienteNombre||'este cliente')}</h3>
+      <span class="estado-chapa ${et.estado?CLASE_CHAPA[et.estado]:'es-sin'}"><span class="ec-pto"></span>${et.estado?ETIQUETA_ESTADO[et.estado]:'Sin clasificar'}</span>
     </div>
+    <p class="tiny" style="margin:0 0 14px">El estado se calcula solo según la etapa. El origen de la consulta (canal, local) no se toca — es histórico.</p>
+
+    <div class="field">
+      <label>Calificá al cliente</label>
+      <div class="estrellas">${[1,2,3].map(v=>
+        `<span class="est-x ${v<=nEstrellas?'on':''}" onclick="etapaSetEstrellas(${v})" title="${PERCEP_POR_ESTRELLA[v]}">★</span>`).join('')}
+        ${nEstrellas?`<span class="est-borrar" onclick="etapaSetEstrellas(0)" title="Sacar calificación">✕</span>`:''}</div>
+    </div>
+
+    <div class="field">
+      <label>¿Qué necesitaba el cliente?</label>
+      <div class="pills">${fams.map(f=>`<span class="pill ${etapaFam===f?'on':''}" onclick="etapaSetFam('${f.replace(/'/g,"\\'")}')">${escapeHtml(f)}</span>`).join('')}</div>
+    </div>
+
+    <div class="field">
+      <label>¿En qué etapa quedó la consulta?</label>
+      <div class="etapas">${ETAPAS_CONSULTA.map((e,i)=>
+        `<div class="et ${i<etapaBarSel?'hecha':''} ${i===etapaBarSel?'on':''} ${e.mala?'mala':''}" onclick="etapaSetBarra(${i})">
+           <div class="et-ico">${e.ic}</div><div class="et-lbl">${e.lbl}</div>
+         </div>`).join('')}</div>
+      <div class="et-pie"><b>${escapeHtml(et.lbl)}</b> · ${escapeHtml(et.sub)}</div>
+    </div>
+
     <div id="etapaCuerpo">${cuerpo}</div>
     <div class="modal-close" onclick="cerrarEtapa()">Cancelar</div>`;
 }
+/* Estrellas de esta pantalla: escriben el mismo campo percepcion de siempre. */
+function etapaSetEstrellas(v){ etapaPercep = v ? PERCEP_POR_ESTRELLA[v] : null; pintarEtapa(); }
+/* Mover la barra recalcula el estado y la fecha sugerida. */
+function etapaSetBarra(i){ etapaBarSel=i; etapaSugerirProx(); pintarEtapa(); }
 async function guardarEtapaSinClasificar(){
   if(esSoloLectura())return avisoLectura();
   const a=atenciones.find(x=>x.id===cerrandoId); if(!a) return;
@@ -5158,6 +5164,7 @@ async function guardarEtapaSeguimiento(){
   a.percepcion = etapaPercep || null;
   a.familiaConsulta = etapaFam || null;
   a.tipoConsulta = etapaTipo || null;
+  a.etapaConsulta = etapaBarSel;
 
   // La PRÓXIMA ACCIÓN la sugiere el tipo (hoy + plazo) pero ahora se ve y se edita en el
   // modal, así que se guarda lo que quedó elegido ahí. "Sin definir" la deja vacía.
@@ -5181,7 +5188,12 @@ async function guardarEtapaSeguimiento(){
     if(c){ c.proximaAccionTs=a.proximaAccionTs; c.calificacion=a.percepcion; await saveContactos(); }
   }
 
-  await aplicarEstado(a,'En seguimiento');
+  // El estado sale de la etapa elegida: las dos primeras (Consulta nueva / No respondió
+  // todavía) dejan la consulta SIN CLASIFICAR; de "Va a pasar por el local" en adelante
+  // pasa a En seguimiento. Vendido y Perdido no llegan acá: van por la ficha de cierre.
+  const estNuevo = (ETAPAS_CONSULTA[etapaBarSel]||{}).estado || null;
+  if(estNuevo){ await aplicarEstado(a, estNuevo); }
+  else { a.estadoManual=null; a.resultado=null; await saveAtenciones(); render(); }
   cerrarEtapa();
   toast(nuevoVend && a.reasignadaDe && nuevoVend!==a.reasignadaDe
     ? `Pasada a ${nombreDe(a.vendedorId)}`
