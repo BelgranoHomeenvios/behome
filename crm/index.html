@@ -6641,11 +6641,15 @@ function renderPanelGestion(listaVisible){
   if(puedeVerEquipo()){ box.classList.add('hidden'); return; }
   box.classList.remove('hidden');
 
-  // Base: las mismas consultas que ve el vendedor, sin aplicar el filtro de zona,
-  // para que los contadores no se vacíen cuando ya filtró por uno.
-  const base = (listaVisible||[]);
-  const n = z => base.filter(a=>zonaDe(a)===z).length;
-  const mias = atenciones.filter(a=>a.vendedorId===YO);
+  /* Base FIJA para los contadores: todas mis consultas del circuito, sin NINGÚN filtro
+     aplicado. Antes usaba listaVisible, que es la lista con todos los filtros puestos
+     (zona, estado, recordatorio, búsqueda, período), así que los números cambiaban según
+     dónde estabas parado: "Para hoy" decía 2 con un filtro y 12 con otro, y "Sin
+     clasificar" decía 0 pero al entrar mostraba 4. Un tablero tiene que decir siempre lo
+     mismo — es el mapa, no el resultado de la última búsqueda. */
+  const mias = atenciones.filter(a=>a.vendedorId===YO
+    && (typeof cuentaParaVendedor==='function' ? cuentaParaVendedor(a) : true));
+  const n = z => mias.filter(a=>zonaDe(a)===z).length;
 
   // Dos buzones separados: "Pendientes" junta los comentarios/coaching que Cintia le marca
   // (2da oportunidad, evaluación, revisión, asistencia 🙏); "Recordatorio" son los avisos con
@@ -6659,7 +6663,11 @@ function renderPanelGestion(listaVisible){
     {label:'Pendientes',     ico:'pendientes',  cnt:n('atrasada'),activo:(!seccionVendedor && zonaActiva==='atrasada'), act:`setZona('atrasada')`},
     {label:'Sin clasificar', ico:'sinclas',     cnt:n('sinclas'),activo:(!seccionVendedor && zonaActiva==='sinclas'),  act:`setZona('sinclas')`},
     {label:'Esta semana',    ico:'semana',      cnt:n('semana'), activo:(!seccionVendedor && zonaActiva==='semana'),   act:`setZona('semana')`},
-    {label:'Recordatorio',   ico:'recordatorio',cnt:recCount,    activo:(!seccionVendedor && filtroRecordatorio==='con'), act:`verRecordatorios()`},
+    // El contador tiene que contar EXACTAMENTE lo que el filtro va a mostrar. Antes sumaba
+    // todos los avisos (campanitas + los de Cintia: 2da oportunidad, "Marcá Concretada",
+    // revisiones), pero el filtro de la tabla solo mira a.recordatorioPendiente, que los de
+    // Cintia no prenden. Resultado: la tarjeta decía 5 y la tabla mostraba 2.
+    {label:'Recordatorio',   ico:'recordatorio',cnt:mias.filter(a=>!!a.recordatorioPendiente).length, activo:(!seccionVendedor && filtroRecordatorio==='con'), act:`verRecordatorios()`},
     {label:'Estadísticas',   ico:'estadisticas',cnt:undefined,   activo:(seccionVendedor==='estadisticas'),            act:`abrirSeccionVendedor('estadisticas')`},
     {label:'Evaluación',     ico:'evaluacion',  cnt:undefined,   activo:(seccionVendedor==='evaluacion'),              act:`abrirSeccionVendedor('evaluacion')`},
     {label:'Oportunidad',    ico:'oportunidad', cnt:mias.filter(a=>esOportunidadCaliente(a)).length, activo:(seccionVendedor==='oportunidad'), act:`abrirSeccionVendedor('oportunidad')`}
@@ -6779,6 +6787,16 @@ function setZona(z){
   // si no, la solapa quedaba pegada y parecía que el botón no hacía nada.
   seccionVendedor = null;
   filtroRecordatorio='todos';   // salir de "solo con campanita" al elegir otra zona
+  /* Entrar a un balde muestra ESE balde y nada más. Antes los filtros se acumulaban en
+     silencio: si venías de filtrar por Concretadas y tocabas "Pendientes", veías la
+     intersección de las dos cosas y parecía que el balde estaba vacío. El período y el
+     texto buscado NO se tocan: esos los eligió la persona a propósito. */
+  if(zonaActiva){
+    filtroEstado='activas';
+    if(typeof filtroPlazo!=='undefined')       filtroPlazo='todos';
+    if(typeof filtroOportunidad!=='undefined') filtroOportunidad='todos';
+    if(typeof filtroComentario!=='undefined')  filtroComentario='todos';
+  }
   renderHistorial();
 }
 
