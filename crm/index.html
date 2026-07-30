@@ -1061,6 +1061,11 @@ textarea{resize:vertical;min-height:60px}
 .progreso div{flex:1;height:5px;border-radius:3px;background:var(--line2);transition:background .2s ease}
 .progreso div.on{background:var(--blue)}
 .wiz-step{margin-bottom:4px}
+/* Rediseño en 2 columnas del modal "Registrar mi atención" (se usa siempre en compu).
+   Izquierda: el cliente. Derecha: la consulta. En pantallas angostas se apilan. */
+.reg-cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:4px}
+.reg-col{min-width:0}
+@media(max-width:820px){.reg-cols{grid-template-columns:1fr;gap:8px}}
 .paso-titulo{font-size:16px;font-weight:800;color:var(--navy);margin:0 0 2px}
 .paso-sub{font-size:11.5px;color:var(--muted);margin:0 0 14px}
 .mueble-fila-completa{border:1px solid var(--line);border-radius:9px;padding:10px;margin-bottom:8px;background:#fbfcfd}
@@ -1798,9 +1803,12 @@ textarea{resize:vertical;min-height:60px}
             <p class="tiny" style="margin-top:6px;color:var(--muted)">Si ya cerraste la venta o se rechazó, marcalo acá: al guardar te pide los datos del cierre, sin tener que pasar por "En seguimiento".</p>
           </div>
 
-          <!-- BLOQUE · CLIENTE -->
-          <div class="wiz-step" id="wizCliente">
-            <div class="bloque-titulo-b">Cliente</div>
+          <!-- BLOQUE · CLIENTE + CONSULTA en 2 columnas (rediseño 29/7) -->
+          <div class="reg-cols">
+            <!-- COLUMNA IZQUIERDA · el cliente -->
+            <div class="reg-col" id="colCliente">
+              <div class="bloque-titulo-b">El cliente</div>
+
             <div class="row">
               <div class="field" style="flex:2.2">
                 <label>Nombre del cliente</label>
@@ -1842,12 +1850,24 @@ textarea{resize:vertical;min-height:60px}
               <div class="pills" id="tiempoPills"></div>
               <input type="number" id="tiempoAtencionInput" class="hidden" placeholder="Minutos" style="margin-top:8px;max-width:160px">
             </div>
-          </div>
-
-          <div class="sep-b"></div>
-
-          <!-- BLOQUE · MUEBLES -->
-          <div class="wiz-step" id="wizMuebles">
+<div class="field">
+              <label>Comentario de la atención <span class="opt">(opcional)</span></label>
+              <textarea id="notas" rows="2" placeholder="Ej: le mostré la línea premium, quedó de pensarlo"></textarea>
+              <div class="chips-2 hidden" id="atajosNotas"></div>
+            </div>
+            </div>
+            <!-- COLUMNA DERECHA · la consulta -->
+            <div class="reg-col" id="colConsulta">
+              <div class="bloque-titulo-b">La consulta</div>
+<div class="field">
+              <label>¿Qué preguntó el cliente?</label>
+              <div class="pills" id="famPills"></div>
+            </div>
+            <div class="field hidden" id="tipoField">
+              <label id="tipoLabel">¿Sobre qué?</label>
+              <select id="tipoSelect" onchange="setTipoConsulta(this.value)" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff"></select>
+            </div>
+<div class="wiz-step" id="wizMuebles">
             <div class="bloque-titulo-b" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
               <span>Muebles</span>
               <label class="tomo" style="font-weight:400"><input type="checkbox" id="noTomoMuebles" onchange="toggleMuebles()"> no los pude tomar</label>
@@ -1881,27 +1901,16 @@ textarea{resize:vertical;min-height:60px}
           <div class="sep-b"></div>
 
           <!-- BLOQUE · PRÓXIMA ACCIÓN -->
-          <div class="wiz-step" id="wizProxima">
-            <div class="bloque-titulo-b">Próxima acción</div>
-            <div class="field">
-              <label>¿Qué preguntó el cliente?</label>
-              <div class="pills" id="famPills"></div>
-            </div>
-            <div class="field hidden" id="tipoField">
-              <label id="tipoLabel">¿Sobre qué?</label>
-              <select id="tipoSelect" onchange="setTipoConsulta(this.value)" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff"></select>
-            </div>
-            <div class="field">
-              <label>Comentario de la atención <span class="opt">(opcional)</span></label>
-              <textarea id="notas" rows="2" placeholder="Ej: le mostré la línea premium, quedó de pensarlo"></textarea>
-              <div class="chips-2 hidden" id="atajosNotas"></div>
-            </div>
-            <div class="field">
+<div class="field">
               <label>¿Cuándo le volvemos a hablar?</label>
               <div class="pills" id="proxPills"></div>
               <input type="date" id="proxFechaCustom" class="hidden" style="margin-top:8px;max-width:190px">
             </div>
-            <!-- "¿Sobre qué le vas a hablar?" sacado de la vista (Brian: no lo completan).
+            </div>
+          </div>
+
+          <!-- ocultos que no se muestran pero el guardado usa -->
+<!-- "¿Sobre qué le vas a hablar?" sacado de la vista (Brian: no lo completan).
                  Los inputs quedan ocultos para no romper el guardado/restaurado. -->
             <div class="hidden">
               <input type="text" id="proxTema">
@@ -1911,7 +1920,9 @@ textarea{resize:vertical;min-height:60px}
               <label>Bitácora de contacto</label>
               <div id="bitacoraLista"></div>
             </div>
-            <div class="field">
+
+          <!-- foto: renglón discreto antes de Guardar -->
+<div class="field">
               <label>Foto del presupuesto <span class="opt">(opcional)</span></label>
               <div class="photo-input-easy" id="photoDrop" onclick="document.getElementById('fotoInput').click()">
                 <span class="photo-emoji">📎</span>
@@ -1920,7 +1931,6 @@ textarea{resize:vertical;min-height:60px}
               </div>
               <div id="fotoPreview"></div>
             </div>
-          </div>
 
           <button type="button" class="btn btn-guardar" id="btnGuardar" style="margin-top:8px" onclick="guardarAtencion()">✓ Guardar atención</button>
         </div>
@@ -2210,6 +2220,10 @@ let LOCAL_ACTUAL=null;      // local del vendedor logueado
 let FILTRO_LOCAL_ADMIN='todos'; // local que está mirando el admin
 let LOCALES=JSON.parse(JSON.stringify(LOCALES_DEFAULT));
 let atenciones=[];
+/* Consultas ARCHIVADAS: se sacan del circuito (no entran a `atenciones`) pero nunca se
+   borran de la base. Se cargan a un costado para no contar en tablero ni métricas, y se
+   pueden ver y restaurar. Reemplaza al borrado definitivo: nada se destruye. */
+let atencionesArchivadas=[];
 let filtroActual='todo';
 let zonaActiva=null;
 let scopeActual='mias';
@@ -3102,9 +3116,8 @@ async function borrarDuplicado(id){
   const a=atenciones.find(x=>x.id===id); if(!a) return;
   if(!window.confirm(`¿Borrar la venta duplicada de ${nombreCliente(a)||'sin nombre'} (N° ${a.nroOrden||'—'} · $ ${miles(+a.montoVendido||0)})?\nNo se puede recuperar.`)) return;
   const i=atenciones.findIndex(x=>x.id===id); if(i>-1) atenciones.splice(i,1);
-  if(sb){ try{ await sb.from('consultas').delete().eq('id', id); }catch(e){ console.error('borrar duplicado', e); } }
-  delete _snapConsultas[id];
-  toast('Venta duplicada borrada');
+  await archivarConsulta(a, 'Duplicada (limpieza de concretadas)');
+  toast('Venta duplicada archivada');
   if(typeof renderPanelCintia==='function') renderPanelCintia();
 }
 /* VENTA COMPARTIDA entre dos vendedores: abre un modal para (1) unificar el cliente,
@@ -3283,7 +3296,7 @@ async function confirmarFusion(){
   for(const a of borrar){
     const i=atenciones.findIndex(x=>x.id===a.id);
     if(i>-1) atenciones.splice(i,1);
-    if(sb){ try{ await sb.from('consultas').delete().eq('id', a.id); }catch(e){ console.error('borrar remoto fusión',e); } }
+    await archivarConsulta(a, 'Fusionada (misma venta)');
   }
   await saveAtenciones();
   cerrarModalCompartida();
@@ -3465,6 +3478,10 @@ async function cargarConsultas(desde){
     rec.forEach(f => mapa.set(f.id, f));
     act.forEach(f => mapa.set(f.id, f));
     atenciones = [...mapa.values()].map(filaAConsulta);
+    // Las archivadas salen del circuito: no entran a `atenciones`, así no aparecen en el
+    // tablero ni cuentan en ninguna métrica. Quedan a un costado, recuperables.
+    atencionesArchivadas = atenciones.filter(a=>a.archivada);
+    atenciones = atenciones.filter(a=>!a.archivada);
     consultasDesde = corte;
     migrarSeguimientoLocal();
     _snapConsultas = {};
@@ -3636,9 +3653,18 @@ function suscribirConsultas(){
           delete _snapConsultas[p.old.id];
         }else{
           const a = filaAConsulta(p.new);
-          const i = atenciones.findIndex(x => x.id === a.id);
-          if(i > -1) atenciones[i] = a; else atenciones.push(a);
           _snapConsultas[a.id] = JSON.stringify(a);
+          const iA = atencionesArchivadas.findIndex(x => x.id === a.id);
+          if(a.archivada){
+            // Archivada (acá o por otro usuario): fuera del circuito, al costado.
+            const i = atenciones.findIndex(x => x.id === a.id);
+            if(i > -1) atenciones.splice(i, 1);
+            if(iA > -1) atencionesArchivadas[iA] = a; else atencionesArchivadas.push(a);
+          }else{
+            if(iA > -1) atencionesArchivadas.splice(iA, 1);   // la restauraron
+            const i = atenciones.findIndex(x => x.id === a.id);
+            if(i > -1) atenciones[i] = a; else atenciones.push(a);
+          }
         }
         if(YO) render();
       }catch(e){ console.error('realtime consultas', e); }
@@ -5040,7 +5066,7 @@ function abrirSolicitudEliminar(id){
   if(!a) return;
   solicitandoId=id;
   const nombre=a.clienteNombre || (a.origen==='rapido'?'Cliente de local nuevo':'Sin definir');
-  const directo=esAuditora();
+  const directo=esAuditora()||esAdmin();   // Cintia Y dirección archivan directo; el vendedor solicita
   $('solicitudCaja').innerHTML=`
     <h3 style="color:var(--red)">${directo?'Eliminar contacto':'Solicitar eliminar contacto'}</h3>
     <p class="tiny" style="margin-top:-4px;margin-bottom:16px">${directo
@@ -5062,13 +5088,21 @@ function cerrarModalSolicitud(){
 async function confirmarSolicitudEliminar(){
   const a=atenciones.find(x=>x.id===solicitandoId);
   if(!a){cerrarModalSolicitud();return;}
+  // Una venta concretada NO se archiva: queda siempre en Concretadas (regla de Brian). Si
+  // se marcó por error, primero hay que cambiarle el estado. La limpieza de duplicados es
+  // aparte (esa sí saca copias repetidas de una misma venta).
+  if(estadoDe(a)==='Concretado'){
+    toast('Es una venta concretada: no se archiva. Si es un error, cambiale el estado primero.');
+    cerrarModalSolicitud();
+    return;
+  }
   if(solicitudesEliminacion.some(s=>s.atencionId===a.id && s.estado==='pendiente')){
     toast('Ya hay una solicitud pendiente para este contacto');
     cerrarModalSolicitud();
     return;
   }
   const motivo=$('solicitudMotivo').value.trim();
-  const directo=esAuditora();
+  const directo=esAuditora()||esAdmin();   // Cintia Y dirección archivan directo; el vendedor solicita
   const registro={
     id:'sol_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
     atencionId:a.id,
@@ -5103,37 +5137,61 @@ async function confirmarSolicitudEliminar(){
   toast(directo ? 'Contacto eliminado' : 'Solicitud enviada a Cintia · consulta marcada como rechazada');
   renderHistorial();
 }
+/* Archivar = sacar del circuito sin borrar. Solo Cintia/dirección (puedeMarcarIntervencion).
+   La consulta se marca `archivada`, se persiste con el flag (queda en la base para siempre),
+   y se mueve de `atenciones` a `atencionesArchivadas` para que salga del tablero y de todas
+   las métricas al instante. Se persiste directo (no por saveAtenciones, que trabaja sobre
+   `atenciones`, de donde justo la sacamos). */
+async function archivarConsulta(a, motivo){
+  if(!a) return;
+  a.archivada={ por:YO, ts:new Date().toISOString(), motivo:motivo||null };
+  if(sb){ try{ await sb.from('consultas').upsert([consultaAFila(a)], {onConflict:'id'}); }catch(e){ console.error('archivar', e); } }
+  const i=atenciones.findIndex(x=>x.id===a.id);
+  if(i>-1) atenciones.splice(i,1);
+  if(!atencionesArchivadas.some(x=>x.id===a.id)) atencionesArchivadas.push(a);
+  _snapConsultas[a.id]=JSON.stringify(a);
+}
+async function restaurarArchivada(id){
+  if(esSoloLectura())return avisoLectura();
+  const i=atencionesArchivadas.findIndex(x=>x.id===id);
+  if(i<0) return;
+  const a=atencionesArchivadas[i];
+  delete a.archivada;
+  if(sb){ try{ await sb.from('consultas').upsert([consultaAFila(a)], {onConflict:'id'}); }catch(e){ console.error('restaurar', e); } }
+  atencionesArchivadas.splice(i,1);
+  if(!atenciones.some(x=>x.id===a.id)) atenciones.push(a);
+  _snapConsultas[a.id]=JSON.stringify(a);
+  render();
+  if(typeof renderPanelCintia==='function') renderPanelCintia();
+  toast('Cotización restaurada');
+}
 async function ejecutarBajaContacto(s){
-  const idx=atenciones.findIndex(a=>a.id===s.atencionId);
-  // Guardamos una copia completa antes de borrar — así, aunque la baja ya se haya ejecutado,
-  // Brian puede restaurarla desde el registro de auditoría si hace falta.
-  if(idx>-1) s.snapshotAtencion={...atenciones[idx]};
-  if(idx>-1) atenciones.splice(idx,1);
-  if(s.contactoId){
-    const key=Object.keys(CONTACTOS).find(k=>CONTACTOS[k].id===s.contactoId);
-    const siguSeUsa = atenciones.some(a=>a.contactoId===s.contactoId);
-    if(key && !siguSeUsa){ s.snapshotContacto={...CONTACTOS[key]}; delete CONTACTOS[key]; }
-  }
-  await saveAtenciones();
+  const a=atenciones.find(x=>x.id===s.atencionId);
+  // Ya no se borra ni se saca el contacto: la consulta se ARCHIVA (recuperable siempre).
+  if(a){ s.snapshotAtencion={...a}; await archivarConsulta(a, s.motivo); }
   await saveContactos();
 }
 async function restaurarBaja(id){if(esSoloLectura())return avisoLectura();
   const s=solicitudesEliminacion.find(x=>x.id===id);
-  if(!s || !s.snapshotAtencion) return;
-  if(!atenciones.some(a=>a.id===s.snapshotAtencion.id)) atenciones.push({...s.snapshotAtencion});
+  if(!s) return;
+  const iA=atencionesArchivadas.findIndex(x=>x.id===s.atencionId);
+  if(iA>-1){
+    await restaurarArchivada(s.atencionId);            // caso nuevo: estaba archivada
+  }else if(s.snapshotAtencion && !atenciones.some(a=>a.id===s.snapshotAtencion.id)){
+    const a={...s.snapshotAtencion}; delete a.archivada; // caso viejo: solo hay snapshot
+    atenciones.push(a); _snapConsultas[a.id]=JSON.stringify(a); await saveAtenciones();
+  }
   if(s.snapshotContacto){
     const yaExiste=Object.values(CONTACTOS).some(c=>c.id===s.snapshotContacto.id);
-    if(!yaExiste) CONTACTOS[s.snapshotContacto.telefono]={...s.snapshotContacto};
+    if(!yaExiste){ CONTACTOS[s.snapshotContacto.telefono]={...s.snapshotContacto}; await saveContactos(); }
   }
   s.estado='restaurada';
   s.restauradaPorId=YO;
   s.restauradaTs=new Date().toISOString();
-  await saveAtenciones();
-  await saveContactos();
   await saveSolicitudes();
   renderEliminacionesAdmin();
   renderHistorial();
-  toast('Contacto restaurado');
+  toast('Cotización restaurada');
 }
 function toggleReclamoBaja(id){
   const el=$('reclamo-form-'+id);
@@ -7311,8 +7369,7 @@ function htmlEliminaciones(){
             ${restaurada?'':`
             <div style="display:flex;gap:6px;flex-shrink:0">
               <button class="btn btn-outline btn-sm" onclick="toggleReclamoBaja('${s.id}')">${s.reclamo?'Editar reclamo':'Reclamar'}</button>
-              ${s.snapshotAtencion?`<button class="btn btn-outline btn-sm" onclick="if(confirm('¿Restaurar este contacto y su consulta?'))restaurarBaja('${s.id}')">Restaurar</button>`:''}
-              <button class="btn btn-sm" style="background:var(--red);color:#fff;border:none" onclick="eliminarDefinitivamente('${s.id}')" title="Borrar del sistema — no se puede restaurar">Eliminar definitivo</button>
+              <button class="btn btn-outline btn-sm" onclick="if(confirm('¿Restaurar esta cotización y su consulta?'))restaurarBaja('${s.id}')">Restaurar</button>
             </div>`}
           </div>
           ${restaurada?'':`
@@ -7332,52 +7389,54 @@ function htmlEliminaciones(){
     </div>
     <div class="section-title">Por vendedor (de las pedidas)</div>
     ${resumenVendHtml}
-    ${detalleHtml?`<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">Detalle completo <button class="btn btn-sm" style="background:var(--red);color:#fff;border:none;text-transform:none;letter-spacing:0" onclick="eliminarTodasDefinitivamente()">🗑️ Eliminar todas definitivamente</button></div>${detalleHtml}`:''}
+    ${detalleHtml?`<div class="section-title">Detalle completo</div>${detalleHtml}`:''}
   `;
 }
 function renderEliminacionesAdmin(){
   const box=$('eliminacionesAdminBox'); if(box) box.innerHTML=htmlEliminaciones();
+  renderArchivadas();
+}
+function htmlArchivadas(){
+  if(!atencionesArchivadas.length) return `<p class="cin-empty">No hay cotizaciones archivadas.</p>`;
+  const arr=atencionesArchivadas.slice().sort((a,b)=>{
+    const ta=a.archivada&&a.archivada.ts?new Date(a.archivada.ts):0;
+    const tb=b.archivada&&b.archivada.ts?new Date(b.archivada.ts):0;
+    return tb-ta;
+  });
+  return arr.map(a=>{
+    const arch=a.archivada||{};
+    const quien=arch.por?nombreDe(arch.por):'—';
+    const cuando=arch.ts?new Date(arch.ts).toLocaleDateString('es-AR'):'';
+    const motivo=arch.motivo?' · '+escapeHtml(arch.motivo):'';
+    return `<div class="solic-item">
+      <div>
+        <div class="pend-name">${escapeHtml(nombreCliente(a)||'Sin nombre')} · ${escapeHtml(nombreDe(a.vendedorId))}</div>
+        <div class="pend-sub">N° orden ${escapeHtml(a.nroOrden||'—')} · $ ${miles(+a.montoVendido||0)} · archivada por ${escapeHtml(quien)} el ${cuando}${motivo}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" style="flex-shrink:0" onclick="if(confirm('¿Restaurar esta cotización al circuito?'))restaurarArchivada('${a.id}')">Restaurar</button>
+    </div>`;
+  }).join('');
+}
+function renderArchivadas(){
+  const box=$('archivadasBox'); if(box) box.innerHTML=htmlArchivadas();
 }
 /* Baja definitiva: borra la consulta de la base (Supabase) y saca la solicitud, así ya no
    se puede restaurar. Purga de verdad, a diferencia de la baja normal que guarda un
    snapshot por si hay que reponerla. */
-async function eliminarDefinitivamente(id){if(esSoloLectura())return avisoLectura();
+/* Borrado definitivo DESACTIVADO (decisión de Brian 29/7): nada se elimina de la base
+   nunca. Todo lo que se saca del circuito se ARCHIVA (archivarConsulta), y queda
+   recuperable. Estas funciones quedan neutralizadas por si algo viejo las llamara: no
+   borran, redirigen a archivar. Las ventas concretadas ni siquiera se archivan. */
+async function eliminarDefinitivamente(id){
   const s=solicitudesEliminacion.find(x=>x.id===id);
-  if(!s) return;
-  if(!window.confirm('¿Eliminar DEFINITIVAMENTE este contacto del sistema? No se va a poder restaurar.')) return;
-  const atId = s.atencionId || (s.snapshotAtencion && s.snapshotAtencion.id);
-  if(atId){
-    if(sb){ try{ await sb.from('consultas').delete().eq('id', atId); }catch(e){ console.error('borrar consulta', e); } }
-    const i=atenciones.findIndex(a=>a.id===atId);
-    if(i>-1){ atenciones.splice(i,1); delete _snapConsultas[atId]; }
-  }
-  const j=solicitudesEliminacion.findIndex(x=>x.id===id);
-  if(j>-1) solicitudesEliminacion.splice(j,1);
-  await saveSolicitudes();
-  renderEliminacionesAdmin();
-  if(typeof renderCintiaMain==='function') renderCintiaMain();
-  render();
-  toast('Contacto eliminado definitivamente');
+  const a=s ? atenciones.find(x=>x.id===(s.atencionId||(s.snapshotAtencion&&s.snapshotAtencion.id))) : null;
+  if(a) await archivarConsulta(a, 'Baja (archivada, no se borra)');
+  toast('Ya no se elimina definitivamente: queda archivada y recuperable');
 }
-async function eliminarTodasDefinitivamente(){if(esSoloLectura())return avisoLectura();
-  const aprobadas=solicitudesEliminacion.filter(s=>s.estado==='aprobada');
-  if(!aprobadas.length){ toast('No hay bajas para eliminar'); return; }
-  if(!window.confirm(`¿Eliminar DEFINITIVAMENTE las ${aprobadas.length} bajas del sistema? No se van a poder restaurar.`)) return;
-  for(const s of aprobadas){
-    const atId = s.atencionId || (s.snapshotAtencion && s.snapshotAtencion.id);
-    if(atId){
-      if(sb){ try{ await sb.from('consultas').delete().eq('id', atId); }catch(e){ console.error('borrar consulta', e); } }
-      const i=atenciones.findIndex(a=>a.id===atId);
-      if(i>-1){ atenciones.splice(i,1); delete _snapConsultas[atId]; }
-    }
-  }
-  solicitudesEliminacion = solicitudesEliminacion.filter(s=>s.estado!=='aprobada');
-  await saveSolicitudes();
-  renderEliminacionesAdmin();
-  if(typeof renderCintiaMain==='function') renderCintiaMain();
-  render();
-  toast('Bajas eliminadas definitivamente');
+async function eliminarTodasDefinitivamente(){
+  toast('Ya no se elimina definitivamente: las bajas quedan archivadas y recuperables');
 }
+
 
 /* ---------------- panel de derivación inline ---------------- */
 let derivarVendorSeleccionado=null;
@@ -7708,6 +7767,11 @@ function renderCintiaMain(){
    eliminaciones, canales/destinos, datos) dentro del tablero, sin tabs de arriba. -------- */
 function htmlAdminConfig(){
   return `
+    <div class="card">
+      <h3>🗄️ Cotizaciones archivadas</h3>
+      <p class="tiny" style="margin-top:0;margin-bottom:12px">Las consultas que se sacaron del circuito. No se borran nunca: quedan acá y se pueden restaurar. La venta (N° de orden y monto) no se pierde.</p>
+      <div id="archivadasBox"></div>
+    </div>
     <div class="card">
       <h3>Locales</h3>
       <p class="tiny" style="margin-top:0;margin-bottom:12px">Cada local tiene su propia cola y su propio historial. "Rotación" reparte turnos entre varios vendedores; "Fijo" es un solo vendedor de cabecera con suplentes ocasionales que suman sus atenciones aparte, sin turnos ni derivación.</p>
@@ -9111,7 +9175,7 @@ function htmlCintiaMisPendientes(){
   </div>`;
   if(elimHtml) html+=`<div class="cin-card">
     <h3>Bajas de contacto</h3>
-    <p class="tiny" style="margin-top:-8px">Contactos ya dados de baja. Podés restaurarlos, reclamar, o eliminarlos definitivamente del sistema (no se pueden recuperar).</p>
+    <p class="tiny" style="margin-top:-8px">Contactos dados de baja. Podés restaurarlos o reclamar. No se borran nunca del sistema: quedan archivados y son recuperables.</p>
     ${elimHtml}
   </div>`;
   return html;
