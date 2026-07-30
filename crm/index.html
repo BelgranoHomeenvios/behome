@@ -12019,7 +12019,7 @@ function limpiarModal(){
   famSeleccionada=null; tipoSeleccionado=null;
   $('fotoPreview').innerHTML='';
   const f=$('fotoInput'); if(f) f.value='';
-  const plbl=$('photoLabel'); if(plbl) plbl.textContent='Tocá para adjuntar una foto del presupuesto';
+  const plbl=$('photoLabel'); if(plbl) plbl.textContent='Adjuntar imagen';
   photoDataUrls=[];
   mueblesActuales=[{mueble:'',observacion:'',monto:null,elegido:true}];
   $('fichaResumenBox').classList.add('hidden');
@@ -12522,7 +12522,7 @@ function onPhotoSelected(ev){
 function renderFotoPreview(){
   const box=$('fotoPreview'); if(!box) return;
   box.innerHTML=photoDataUrls.map((src,i)=>`<div class="foto-thumb"><img src="${src}" onclick="event.stopPropagation();verFotoGrande('${i}')"><button type="button" class="foto-x" title="Quitar esta foto" onclick="event.stopPropagation();quitarFoto(${i})">✕</button></div>`).join('');
-  const lbl=$('photoLabel'); if(lbl) lbl.textContent=photoDataUrls.length?`${photoDataUrls.length} foto${photoDataUrls.length===1?'':'s'} cargada${photoDataUrls.length===1?'':'s'} — tocá para agregar otra`:'Tocá para adjuntar una foto del presupuesto';
+  const lbl=$('photoLabel'); if(lbl) lbl.textContent=photoDataUrls.length?`${photoDataUrls.length} foto${photoDataUrls.length===1?'':'s'} — agregar otra`:'Adjuntar imagen';
 }
 function quitarFoto(i){ photoDataUrls.splice(i,1); renderFotoPreview(); }
 function verFotoGrande(i){ const src=photoDataUrls[+i]; if(!src)return; _lbFotos=photoDataUrls.slice(); _lbIdx=+i; $('lightboxImg').src=src; $('lbCliente').textContent=($('clienteNombre')&&$('clienteNombre').value)||'Foto del presupuesto'; $('lbSub').textContent=''; $('lbMonto').textContent=''; $('lbNotas').textContent=''; pintarLbThumbs(); $('lightbox').classList.add('active'); }
