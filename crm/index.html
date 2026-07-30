@@ -1827,7 +1827,7 @@ textarea{resize:vertical;min-height:60px}
           <div class="reg-cols">
             <!-- COLUMNA IZQUIERDA · el cliente -->
             <div class="reg-col" id="colCliente">
-              <div class="bloque-titulo-b">El cliente</div>
+              <div class="bloque-titulo-b">La consulta</div>
 
             <div class="row">
               <div class="field" style="flex:2.2">
@@ -1843,6 +1843,13 @@ textarea{resize:vertical;min-height:60px}
                   <input type="tel" id="clienteTelefono" placeholder="11 xxxx xxxx" oninput="chequearDupModal()">
                   <label class="tomo"><input type="checkbox" id="noTomoTel" onchange="toggleTelefono()"> no lo tomé</label>
                 </div>
+              </div>
+              <!-- La calificación va en la misma fila que nombre y teléfono. Por atrás sigue
+                   guardando el MISMO campo percepcion de siempre: 3=Muy interesado,
+                   2=Potable, 1=Poco interesado. Ninguna métrica se entera del cambio. -->
+              <div class="field" id="campoPercepcion" style="flex:0 0 auto;width:112px">
+                <label>Calificación</label>
+                <div class="estrellas" id="percepcionPills"></div>
               </div>
               <!-- N° de cotización: sacado de la vista (Brian confirmó que no lo usan). Queda
                    como input oculto para no romper las referencias del guardado/restaurado. -->
@@ -1861,24 +1868,6 @@ textarea{resize:vertical;min-height:60px}
               <input type="tel" id="clienteTelefonoIG" placeholder="11 xxxx xxxx" oninput="chequearDupModal()">
             </div>
             <div id="modalDupAviso"></div>
-            <div class="field" id="campoPercepcion">
-              <label>¿Cómo viste al cliente?</label>
-              <div class="pills pills-nowrap" id="percepcionPills"></div>
-            </div>
-            <div class="field" id="campoTiempoTurno">
-              <label>Tiempo del turno <span class="opt">(opcional)</span></label>
-              <div class="pills" id="tiempoPills"></div>
-              <input type="number" id="tiempoAtencionInput" class="hidden" placeholder="Minutos" style="margin-top:8px;max-width:160px">
-            </div>
-<div class="field">
-              <label>Comentario de la atención <span class="opt">(opcional)</span></label>
-              <textarea id="notas" rows="1" class="ta-auto" oninput="crecerTa(this)" placeholder="Ej: le mostré la línea premium, quedó de pensarlo"></textarea>
-              <div class="chips-2 hidden" id="atajosNotas"></div>
-            </div>
-            </div>
-            <!-- COLUMNA DERECHA · la consulta -->
-            <div class="reg-col" id="colConsulta">
-              <div class="bloque-titulo-b">La consulta</div>
 <div class="field">
               <label>¿Qué preguntó el cliente?</label>
               <div class="pills" id="famPills"></div>
@@ -1894,6 +1883,14 @@ textarea{resize:vertical;min-height:60px}
               <div class="pills" id="proxPills"></div>
               <input type="date" id="proxFechaCustom" class="hidden" style="margin-top:8px;max-width:190px">
             </div>
+            <div class="field" id="campoTiempoTurno">
+              <label>Tiempo del turno <span class="opt">(opcional)</span></label>
+              <div class="pills" id="tiempoPills"></div>
+              <input type="number" id="tiempoAtencionInput" class="hidden" placeholder="Minutos" style="margin-top:8px;max-width:160px">
+            </div>
+            </div>
+            <!-- COLUMNA DERECHA · la consulta -->
+            <div class="reg-col" id="colConsulta">
 <div class="wiz-step" id="wizMuebles">
             <div class="bloque-titulo-b">Muebles</div>
             <label class="tomo tomo-muebles"><input type="checkbox" id="noTomoMuebles" onchange="toggleMuebles()"> no los pude tomar</label>
@@ -1915,15 +1912,10 @@ textarea{resize:vertical;min-height:60px}
             </div>
           </div>
 
-            </div>
-          </div>
-
-          <!-- ocultos que no se muestran pero el guardado usa -->
-<!-- "¿Sobre qué le vas a hablar?" sacado de la vista (Brian: no lo completan).
-                 Los inputs quedan ocultos para no romper el guardado/restaurado. -->
-            <div class="hidden">
-              <input type="text" id="proxTema">
-              <div id="proxTemasPop"></div>
+<div class="field">
+              <label>Comentario de la atención <span class="opt">(opcional)</span></label>
+              <textarea id="notas" rows="1" class="ta-auto" oninput="crecerTa(this)" placeholder="Ej: le mostré la línea premium, quedó de pensarlo"></textarea>
+              <div class="chips-2 hidden" id="atajosNotas"></div>
             </div>
             <div class="field hidden" id="campoBitacora">
               <div class="plegable" id="plegBitacora">
@@ -1950,6 +1942,16 @@ textarea{resize:vertical;min-height:60px}
             <button type="button" class="btn btn-guardar" id="btnGuardar" onclick="guardarAtencion()">✓ Guardar atención</button>
             <span class="link-cancelar" onclick="cerrarModal()">Cancelar</span>
           </div>
+            </div>
+          </div>
+
+          <!-- ocultos que no se muestran pero el guardado usa -->
+<!-- "¿Sobre qué le vas a hablar?" sacado de la vista (Brian: no lo completan).
+                 Los inputs quedan ocultos para no romper el guardado/restaurado. -->
+            <div class="hidden">
+              <input type="text" id="proxTema">
+              <div id="proxTemasPop"></div>
+            </div>
         </div>
       </div>
       </div>
@@ -11694,12 +11696,33 @@ function pintarTodoWizard(){
 function pintarStepper(){ /* Opción B: sin stepper */ }
 
 /* ---------------- Paso 1 ---------------- */
+/* CALIFICACIÓN EN ESTRELLAS (30/7). Reemplaza a las 6 píldoras de percepción, pero
+   NO cambia el dato: por atrás se sigue guardando el mismo campo `percepcion` de
+   siempre, así ninguna métrica, filtro ni reporte se entera. Mapeo:
+     3 estrellas = Muy interesado · 2 = Potable · 1 = Poco interesado
+   Los valores viejos que no tienen equivalente ("No sé todavía", "Rechazó", "Otros")
+   se muestran con 0 estrellas y SE CONSERVAN mientras el vendedor no toque nada:
+   solo se pisan si hace click en una estrella. */
+const PERCEP_POR_ESTRELLA={1:'Poco interesado',2:'Potable',3:'Muy interesado'};
+const ESTRELLAS_POR_PERCEP={'Muy interesado':3,'Potable':2,'Poco interesado':1};
+function estrellasActuales(){ return ESTRELLAS_POR_PERCEP[percepcionSel]||0; }
 function pintarPercepcionPills(){
-  const html = PERCEPCIONES.map(p=>
-    `<span class="pill ${percepcionSel===p?'on':''} ${p==='Rechazó'?'rojo':''}" onclick="setPercepcion('${p}')">${p}</span>`
-  ).join('');
-  $('percepcionPills').innerHTML = html;
+  const box=$('percepcionPills'); if(!box) return;
+  const n=estrellasActuales();
+  box.innerHTML=[1,2,3].map(v=>
+    `<span class="est-x ${v<=n?'on':''}" onclick="setEstrellas(${v})" onmouseenter="previewEstrellas(${v})" title="${PERCEP_POR_ESTRELLA[v]}">★</span>`
+  ).join('') + (n?`<span class="est-borrar" onclick="setEstrellas(0)" title="Sacar calificación">✕</span>`:'');
+  box.onmouseleave=()=>pintarPercepcionPills();
 }
+function previewEstrellas(v){
+  const box=$('percepcionPills'); if(!box) return;
+  box.querySelectorAll('.est-x').forEach((s,i)=>s.classList.toggle('on', i<v));
+}
+function setEstrellas(v){
+  percepcionSel = v ? PERCEP_POR_ESTRELLA[v] : null;
+  pintarPercepcionPills();
+}
+/* setPercepcion sigue existiendo por si algo del código viejo la llama. */
 function setPercepcion(p){ percepcionSel = (percepcionSel===p)?null:p; pintarPercepcionPills(); }
 /* Tiempo del turno: solo tiene sentido en atención PRESENCIAL. Una consulta derivada por
    Cintia se atendió por WhatsApp/IG (virtual), así que no hay "turno" que medir → se oculta.
@@ -13427,6 +13450,14 @@ function recParaTs(){
 .plegable.abierto .pl-chev{transform:rotate(180deg)}
 .plegable-cuerpo{display:none;padding:4px 12px 12px}
 .plegable.abierto .plegable-cuerpo{display:block}
+
+/* CALIFICACIÓN en estrellas, en la fila del cliente */
+.estrellas{display:flex;align-items:center;gap:4px;height:42px}
+.est-x{font-size:24px;line-height:1;color:var(--line);cursor:pointer;user-select:none;transition:transform .1s}
+.est-x:hover{transform:scale(1.12)}
+.est-x.on{color:#f0a500}
+.est-borrar{font-size:11px;color:var(--muted);cursor:pointer;margin-left:5px}
+.est-borrar:hover{color:var(--red)}
 
 /* GUARDAR a un tercio, con Cancelar al lado */
 .acciones-reg{display:flex;align-items:center;gap:18px;margin-top:14px}
