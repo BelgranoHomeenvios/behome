@@ -5189,13 +5189,7 @@ function etapaCompletarFicha(){
   cerrarEtapa();
   // Si la consulta ya tiene datos (cliente o muebles), va directo al seguimiento enriquecido
   // —con las pills de etapa arriba— sin el paso extra de la ficha. Si está vacía, sí pide la ficha.
-  const tieneAlgo = a && ((a.clienteNombre && !/^sin/i.test(a.clienteNombre)) || (a.muebles && a.muebles.length));
-  if(tieneAlgo){
-    abrirModalCompletar(id, undefined, true);
-  }else{
-    abrirModalCompletar(id,0);
-    toast('Completá la ficha y después confirmás la etapa');
-  }
+  abrirModalCompletar(id, 0);
 }
 function segElegirCuando(el){
   el.parentElement.querySelectorAll('.cierre-chip').forEach(c=>c.classList.remove('on'));
@@ -5480,7 +5474,7 @@ function logItemHtml(a){
   // en vez de dejarlo vacío, que es justo lo que pediste.
   const canalMostrar = canalCorto(canalReal(a));
   const colsCintia = esAuditora()
-    ? `<div class="c-origen" ondblclick="editarDesdeHistorial('${a.id}')">
+    ? `<div class="c-origen" ondblclick="editarDesdeHistorial('${a.id}',0)">
          <span class="or-vend">${nombreDe(a.vendedorId)}</span>
          <span class="or-canal">${canalMostrar}</span>
        </div>`
@@ -5533,7 +5527,7 @@ function logItemHtml(a){
   return `
     <div class="crow zn-${zona}" ondblclick="dblFila(event,'${a.id}')">
       ${bellCol}
-      <div class="c-fecha" ondblclick="editarDesdeHistorial('${a.id}')">${fechaConsultaCorta(a.ts)}</div>
+      <div class="c-fecha" ondblclick="editarDesdeHistorial('${a.id}',0)">${fechaConsultaCorta(a.ts)}</div>
       <div class="c-plazo">
         ${cerrada
           ? `<span class="pl pl-cerrada" title="Consulta ${est.toLowerCase()} — sin próxima acción">Cerrada</span>`
@@ -5764,7 +5758,9 @@ function dblFila(ev,id){
   const propio = ev.target.closest('[ondblclick]');
   if(propio && propio!==ev.currentTarget) return;      // lo maneja la celda
   if(ev.target.closest('.ebtn,.pop,input,select,textarea,button,a')) return;
-  editarDesdeHistorial(id);
+  // paso 0 = wizard completo ("Editar consulta"). Sin el 0 caía en el modo seguimiento,
+  // que es otra pantalla: la de anotar qué pasó hoy, no la de editar la consulta.
+  editarDesdeHistorial(id, 0);
 }
 function editarSoloNombre(id){
   abrirModalCompletar(id, 0);   // paso 0 fuerza el wizard completo, no el modo seguimiento
@@ -5856,7 +5852,7 @@ function logItemCompactoHtml(a){
   const tel = a.noTomoTelefono ? 'sin teléfono' : (a.clienteTelefono||'');
   const totalCotizado=montoRepresentativo(a.muebles||[]);
   return `
-    <div class="log-item" style="cursor:pointer" onclick="editarDesdeHistorial('${a.id}')">
+    <div class="log-item" style="cursor:pointer" onclick="editarDesdeHistorial('${a.id}',0)">
       <div class="log-body">
         <div class="log-notas"><b>${a.clienteNombre||'—'}</b>${tel?' · '+tel:''}</div>
         ${totalCotizado?`<div class="log-monto">Cotizado: $ ${miles(totalCotizado)}</div>`:''}
@@ -7209,7 +7205,7 @@ function svOportunidadesHtml(){
     <table class="tabla-cintia"><thead><tr><th>Cliente</th><th>Calificación</th><th>Próxima acción</th><th>Cotizado</th></tr></thead><tbody>
     ${lista.map(a=>{
       const pl=infoPlazo(a);
-      return `<tr style="cursor:pointer" onclick="editarDesdeHistorial('${a.id}')">
+      return `<tr style="cursor:pointer" onclick="editarDesdeHistorial('${a.id}',0)">
         <td><b>${escapeHtml(a.clienteNombre||'Sin nombre')}</b></td>
         <td>${estrellasHtml(a.percepcion)}</td>
         <td><span class="pl ${pl.cls}">${pl.txt}</span></td>
@@ -9320,7 +9316,7 @@ function htmlCintiaMisPendientes(){
           <div class="pend-sub"><b>${escapeHtml(nombreDe(r.deId))}</b> → <b>${escapeHtml(nombreDe(r.paraId))}</b> · pedido por ${escapeHtml(nombreDe(r.porId))} · ${new Date(r.ts).toLocaleDateString('es-AR')}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
-          <button class="btn btn-outline btn-sm" onclick="editarDesdeHistorial('${a.id}')">Ver</button>
+          <button class="btn btn-outline btn-sm" onclick="editarDesdeHistorial('${a.id}',0)">Ver</button>
           <button class="btn btn-outline btn-sm" onclick="confirmarReasignacion('${a.id}',false)">Rechazar</button>
           <button class="btn btn-navy btn-sm" onclick="confirmarReasignacion('${a.id}',true)">Confirmar</button>
         </div>
@@ -9340,7 +9336,7 @@ function htmlCintiaMisPendientes(){
         ${cs.length?`<div style="display:flex;flex-direction:column;gap:5px">${cs.map(a=>`
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--line2);padding:7px 10px;border-radius:7px">
             <span class="tiny">${fechaConsultaCorta(a.ts)} · <b>${escapeHtml(nombreDe(a.vendedorId)||'—')}</b> · ${estadoDe(a)||'sin estado'}${a.canalDetalle?' · '+escapeHtml(a.canalDetalle):''}</span>
-            <button class="btn btn-outline btn-sm" style="flex-shrink:0" onclick="editarDesdeHistorial('${a.id}')">Ver / editar</button>
+            <button class="btn btn-outline btn-sm" style="flex-shrink:0" onclick="editarDesdeHistorial('${a.id}',0)">Ver / editar</button>
           </div>`).join('')}</div>`:''}
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <span class="tiny" style="color:var(--sec);font-weight:700">Que lo siga:</span>
@@ -9398,7 +9394,7 @@ function htmlCintiaMisPendientes(){
           ${s.motivo?`<div class="tiny" style="margin-top:3px">"${s.motivo}"</div>`:''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
-          ${s.atencionId && atenciones.some(a=>a.id===s.atencionId)?`<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorial('${s.atencionId}')">Ver / editar</button>`:''}
+          ${s.atencionId && atenciones.some(a=>a.id===s.atencionId)?`<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorial('${s.atencionId}',0)">Ver / editar</button>`:''}
           <button class="btn btn-outline btn-sm" onclick="resolverSolicitud('${s.id}','rechazada')">Rechazar</button>
           <button class="btn btn-navy btn-sm" onclick="resolverSolicitud('${s.id}','aprobada')">Aprobar</button>
         </div>
@@ -12413,7 +12409,7 @@ function abrirModalRapido(){
   $('modalTitulo').textContent='Registro rápido';
 }
 
-function abrirModalCompletar(id, paso, forzarSeg){
+function abrirModalCompletar(id, paso){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
   modalModo='completar';
@@ -12482,17 +12478,13 @@ function abrirModalCompletar(id, paso, forzarSeg){
   photoDataUrls=fotosDe(a).slice(); renderFotoPreview();
   $('fichaResumenBox').classList.add('hidden');
 
-  // Consulta YA cargada (tiene nombre o muebles y no es una pendiente vacía): abrir el
-  // modo seguimiento — enfocado en la acción de hoy, con el cliente resumido al pie.
-  // Pendiente recién derivada sin datos, o edición explícita (paso especificado): wizard completo.
-  const yaCargada = a.status!=='pendiente' && (a.clienteNombre || (a.muebles && a.muebles.length));
-  if((yaCargada && paso===undefined) || forzarSeg){
-    abrirModoSeguimiento(a);
-  }else{
-    $('seguimientoBox').classList.add('hidden');
-    $('wizardBox').classList.remove('hidden');
-    wizIr(paso||0);
-  }
+  // MODO SEGUIMIENTO ELIMINADO (30/7). Era una tercera pantalla con las reglas viejas
+  // (estado a mano, "Personalizado", "Sin definir") y sin barra de etapas ni calificación:
+  // se podía marcar Concretado ahí y quedaba contradiciendo la etapa. Ahora hay UNA sola
+  // pantalla de consulta. abrirModoSeguimiento y guardarSeguimiento quedan sin uso.
+  $('seguimientoBox').classList.add('hidden');
+  $('wizardBox').classList.remove('hidden');
+  wizIr(paso||0);
   abrirModalFondo();
 }
 
@@ -12765,7 +12757,10 @@ function mostrarEdicionCompleta(){
 
 function editarDesdeHistorial(id, paso){
   cambiarVista('cola');
-  abrirModalCompletar(id, paso);
+  // Por defecto SIEMPRE el wizard completo ("Editar consulta"). El modo seguimiento es
+  // otra pantalla y hay que pedirla explícito; si no, cualquier entrada nueva que alguien
+  // agregue mañana vuelve a caer ahí sin querer.
+  abrirModalCompletar(id, paso===undefined ? 0 : paso);
 }
 
 function abrirModalFondo(){
