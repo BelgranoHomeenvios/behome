@@ -712,7 +712,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .sv-rec-responder:hover{background:var(--blue);color:#fff}
 .sv-placeholder{padding:24px;text-align:center;color:var(--muted);font-size:13.5px;background:#fff;border:1px dashed var(--line);border-radius:10px}
 @media (min-width:900px){
-  .container{max-width:1233px}   /* +113px (~3 cm) para que entre el chip de etapa */
+  .container{max-width:1309px}   /* base 1120 + 113px (chip de etapa) + 76px (~2 cm más, pedido 30/7) */
   .center-wrap{padding:40px}
   .auth-card{max-width:680px}
   .mueble-entry-row input[type=text]{font-size:14px}
@@ -3034,14 +3034,14 @@ const FAMILIAS_CONSULTA=[
    consulta predice mejor cuándo hay que volver a llamar que lo que el cliente preguntó.
    `estado:null` = Sin clasificar. `plazo:null` = etapa cerrada, sin próxima acción. */
 const ETAPAS_CONSULTA=[
-  {ic:'✳', lbl:'Consulta nueva',          corto:'Nueva',          sub:'Acá arrancan todas',               estado:null,             plazo:1},
+  {ic:'✳', lbl:'Consulta nueva',          corto:'Sin etapa',      sub:'Acá arrancan todas',               estado:null,             plazo:1},
   {ic:'⏳', lbl:'No respondió todavía',    corto:'No respondió',   sub:'Le escribimos y no contestó',      estado:null,             plazo:2},
-  {ic:'💡', lbl:'Atención general',        corto:'At. general',    sub:'Preguntó algo puntual, no una compra', estado:'En seguimiento', plazo:3, fam:'Atención general'},
-  {ic:'🚶', lbl:'Va a pasar por el local', corto:'Pasa por local', sub:'Quedó en venir',                   estado:'En seguimiento', plazo:3},
+  {ic:'💡', lbl:'Atención general',        corto:'Atención general',sub:'Preguntó algo puntual, no una compra', estado:'En seguimiento', plazo:3, fam:'Atención general'},
+  {ic:'🚶', lbl:'Va a pasar por el local', corto:'Pasa x local',   sub:'Quedó en venir',                   estado:'En seguimiento', plazo:3},
   {ic:'📐', lbl:'Tiene que medir',         corto:'Tiene que medir',sub:'Necesita medidas o fotos',         estado:'En seguimiento', plazo:5},
-  {ic:'📄', lbl:'Le envié el presupuesto', corto:'Presupuesto',    sub:'Ya tiene la propuesta',            estado:'En seguimiento', plazo:3},
+  {ic:'📄', lbl:'Le envié el presupuesto', corto:'Le mandé presupuesto', sub:'Ya tiene la propuesta',            estado:'En seguimiento', plazo:3},
   {ic:'💬', lbl:'Negociando',              corto:'Negociando',     sub:'Está comparando o pidiendo precio',estado:'En seguimiento', plazo:2},
-  {ic:'⚡', lbl:'Entrega inmediata',       corto:'Entrega inm.',   sub:'Lo quiere ya, hay que resolverlo',  estado:'En seguimiento', plazo:1, fam:'Entrega inmediata'},
+  {ic:'⚡', lbl:'Entrega inmediata',       corto:'Entrega inmediata', sub:'Lo quiere ya, hay que resolverlo',  estado:'En seguimiento', plazo:1, fam:'Entrega inmediata'},
   {ic:'✔', lbl:'Concretado',              corto:'Concretado',     sub:'Cerró la compra',                  estado:'Concretado',     plazo:null},
   {ic:'✖', lbl:'Rechazado',               corto:'Rechazado',      sub:'No sigue con la compra',           estado:'Rechazado',      plazo:null, mala:true}
 ];
@@ -5579,7 +5579,7 @@ function logItemHtml(a){
             <span class="sit-dot ${est?ESTADO_CLS[est]:'es-sin'}" title="${est||'Sin clasificar'} — tocá para cambiar"></span>
           </span>
           ${(()=>{const i=etapaDesdeRegistro(a), e=ETAPAS_CONSULTA[i];
-            return `<span class="ebtn etapa-chip ${e.estado?CLASE_CHAPA[e.estado]:'es-sin'}" title="${escAttr(e.lbl+' — '+e.sub)}" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
+            return `<span class="etapa-chip ${e.estado?CLASE_CHAPA[e.estado]:'es-sin'}" title="${escAttr(e.lbl+' — '+e.sub)} · doble clic para cambiarla" ondblclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
               <span class="ec-ic">${e.ic}</span><span class="ec-tx">${escapeHtml(e.corto)}</span></span>`;})()}`}
         </div>
         ${esPostventa(a) ? '' : (cerrada
@@ -12278,7 +12278,10 @@ function etapaDesdeRegistro(a){
   const est = a ? estadoDe(a) : null;
   if(est==='Concretado') return 8;
   if(est==='Rechazado')  return 9;
-  if(est==='En seguimiento') return 3;
+  // "En seguimiento" NO se traduce a una etapa: antes devolvía 3 ("Pasa x local") y todas
+  // las consultas viejas aparecían ahí, que es un dato inventado — nadie dijo que el
+  // cliente iba a pasar. Arrancan sin etapa hasta que el vendedor marque una. Concretado
+  // y Rechazado sí se mapean porque esos son datos reales, no una deducción.
   return 0;
 }
 function pintarTipoPills(){
@@ -13938,7 +13941,7 @@ function recParaTs(){
 .c-situacion .sit-top{flex-wrap:wrap}
 .etapa-chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 9px;
   border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:11px;font-weight:800;
-  color:var(--muted);cursor:pointer;white-space:nowrap;overflow:hidden}
+  color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden}
 .etapa-chip .ec-ic{font-size:11px;flex-shrink:0}
 .etapa-chip .ec-tx{overflow:hidden;text-overflow:ellipsis}
 .etapa-chip.es-seg{color:var(--blue);border-color:#b9d0f5;background:var(--blue-l)}
