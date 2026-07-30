@@ -85,7 +85,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .b-add{background:var(--blue-l);color:var(--blue);border:none;border-radius:9px;padding:11px 15px;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .mhead{display:flex;gap:10px;padding:0 4px 7px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 .mhead .h1{flex:1.4}.mhead .h2{flex:1.4}.mhead .h3{flex:1}.mhead .h4{width:140px}.mhead .h5{width:34px}
-.mfila{display:flex;gap:10px;align-items:center;margin-bottom:9px;padding:9px 4px;border-radius:9px;transition:background .12s}
+.mfila{display:flex;gap:10px;align-items:center;margin-bottom:5px;padding:4px;border-radius:9px;transition:background .12s}
 .mfila.suma{background:var(--green-l)}
 .mfila.nosuma{background:var(--line2);opacity:.72}
 .mfila .f1{flex:1.4;min-width:0}.mfila .f2{flex:1.4;min-width:0}.mfila .f3{flex:1;min-width:0}
@@ -520,7 +520,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .modal-fondo.hidden{display:none}
 .modal-caja{background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(15,26,42,.28);width:100%;max-width:620px;margin:auto}
 /* ===== Opción B: registro en una sola pantalla ===== */
-.modal-caja-b{max-width:1160px}
+.modal-caja-b{max-width:1400px}
 /* Modo "solo muebles": modal angosto (media pantalla) y a una sola columna, para ver
    únicamente muebles + total + guardar. */
 .modal-caja-b.solo-muebles-narrow{max-width:560px}
@@ -1075,9 +1075,11 @@ textarea{resize:vertical;min-height:60px}
 .wiz-step{margin-bottom:4px}
 /* Rediseño en 2 columnas del modal "Registrar mi atención" (se usa siempre en compu).
    Izquierda: el cliente. Derecha: la consulta. En pantallas angostas se apilan. */
-.reg-cols{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:4px}
+.reg-cols{display:grid;grid-template-columns:1.27fr 1fr;gap:32px;margin-top:4px;align-items:start}
 .reg-col{min-width:0}
 .reg-col .pills-nowrap{flex-wrap:wrap}          /* en columna, las píldoras bajan en vez de cortarse */
+.reg-col .pill{padding:9px 11px}                 /* menos aire: cada grupo entra en un renglón */
+.reg-col .pills{gap:6px}
 .reg-col .row{flex-wrap:wrap}                    /* nombre/teléfono bajan si no entran */
 /* Cartel de la fecha sugerida automáticamente por el tipo de consulta. */
 .prox-auto{display:flex;align-items:center;gap:8px;background:#eaf7ee;border:1px solid #b7e0c2;border-radius:8px;padding:8px 11px;margin-bottom:8px;font-size:13px}
@@ -1870,7 +1872,7 @@ textarea{resize:vertical;min-height:60px}
             </div>
 <div class="field">
               <label>Comentario de la atención <span class="opt">(opcional)</span></label>
-              <textarea id="notas" rows="2" placeholder="Ej: le mostré la línea premium, quedó de pensarlo"></textarea>
+              <textarea id="notas" rows="1" class="ta-auto" oninput="crecerTa(this)" placeholder="Ej: le mostré la línea premium, quedó de pensarlo"></textarea>
               <div class="chips-2 hidden" id="atajosNotas"></div>
             </div>
             </div>
@@ -1887,16 +1889,14 @@ textarea{resize:vertical;min-height:60px}
             </div>
             <!-- ¿Cuándo volvemos? va acá, arriba de muebles: se deduce de qué preguntó / sobre qué -->
             <div class="field" id="campoProx">
-              <label>¿Cuándo le volvemos a hablar?</label>
+              <label>Próxima acción</label>
               <div id="proxAutoBox" class="prox-auto hidden"></div>
               <div class="pills" id="proxPills"></div>
               <input type="date" id="proxFechaCustom" class="hidden" style="margin-top:8px;max-width:190px">
             </div>
 <div class="wiz-step" id="wizMuebles">
-            <div class="bloque-titulo-b" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-              <span>Muebles</span>
-              <label class="tomo" style="font-weight:400"><input type="checkbox" id="noTomoMuebles" onchange="toggleMuebles()"> no los pude tomar</label>
-            </div>
+            <div class="bloque-titulo-b">Muebles</div>
+            <label class="tomo tomo-muebles"><input type="checkbox" id="noTomoMuebles" onchange="toggleMuebles()"> no los pude tomar</label>
             <div id="mueblesWrap">
             <div class="mhead">
               <span class="h1">Mueble</span><span class="h3">Monto</span>
@@ -1906,11 +1906,10 @@ textarea{resize:vertical;min-height:60px}
             <button type="button" class="b-add" onclick="agregarFilaMueble(true)" style="margin-top:8px">+ agregar otro mueble</button>
             <div class="total-presu">
               <div class="total-presu-top">
-                <div>
-                  <div class="t-lbl">Total del presupuesto</div>
-                  <div class="t-sub" id="totalSub"></div>
-                </div>
-                <div class="t-val" id="totalPresupuesto">$ 0</div>
+                <span class="t-sub" id="totalSub"></span>
+                <span class="t-sena" onclick="toggleSena&&toggleSena()">+ agregar seña</span>
+                <span class="t-lbl">Total</span>
+                <span class="t-val" id="totalPresupuesto">$ 0</span>
               </div>
               <div id="senaBox" class="sena-box hidden"></div>
             </div>
@@ -1928,25 +1927,31 @@ textarea{resize:vertical;min-height:60px}
               <div id="proxTemasPop"></div>
             </div>
             <div class="field hidden" id="campoBitacora">
-              <label>Bitácora de contacto</label>
-              <div id="bitacoraLista"></div>
+              <div class="plegable" id="plegBitacora">
+                <div class="plegable-cab" onclick="document.getElementById('plegBitacora').classList.toggle('abierto')">
+                  <span class="pl-tit">Historial de comentarios</span>
+                  <span class="pl-cant" id="bitacoraCant"></span>
+                  <span class="pl-chev">▼</span>
+                </div>
+                <div class="plegable-cuerpo"><div id="bitacoraLista"></div></div>
+              </div>
             </div>
 
           <!-- foto: renglón discreto antes de Guardar -->
 <div class="field">
-              <label>Foto del presupuesto <span class="opt">(opcional)</span></label>
-              <div class="photo-input-easy" id="photoDrop" onclick="document.getElementById('fotoInput').click()">
+              <button type="button" class="foto-mini" id="photoDrop" onclick="document.getElementById('fotoInput').click()">
                 <span class="photo-emoji">📎</span>
-                <span class="photo-label" id="photoLabel">Tocá para adjuntar una foto del presupuesto</span>
-                <input type="file" id="fotoInput" accept="image/*" multiple onchange="onPhotoSelected(event)" style="display:none">
-              </div>
+                <span class="photo-label" id="photoLabel">Adjuntar imagen</span>
+              </button>
+              <input type="file" id="fotoInput" accept="image/*" multiple onchange="onPhotoSelected(event)" style="display:none">
               <div id="fotoPreview"></div>
             </div>
 
-          <button type="button" class="btn btn-guardar" id="btnGuardar" style="margin-top:8px" onclick="guardarAtencion()">✓ Guardar atención</button>
+          <div class="acciones-reg">
+            <button type="button" class="btn btn-guardar" id="btnGuardar" onclick="guardarAtencion()">✓ Guardar atención</button>
+            <span class="link-cancelar" onclick="cerrarModal()">Cancelar</span>
+          </div>
         </div>
-
-        <div class="modal-close" onclick="cerrarModal()">Cancelar</div>
       </div>
       </div>
       </div>
@@ -5764,9 +5769,14 @@ function historialDe(a){
   if(a.notas) return [{ts:a.completadoTs||a.ts, texto:a.notas, percepcion:a.percepcion||null}];
   return [];
 }
+/* El comentario arranca en un renglón y se estira solo a medida que se escribe. */
+function crecerTa(t){ if(!t) return; t.style.height='auto'; t.style.height=t.scrollHeight+'px'; }
 function renderBitacora(a){
   const campo=$('campoBitacora'), box=$('bitacoraLista');
   const historial = a ? historialDe(a) : [];
+  const pleg=$('plegBitacora'), cant=$('bitacoraCant');
+  if(pleg) pleg.classList.remove('abierto');        // siempre arranca plegado
+  if(cant) cant.textContent = historial.length || '';
   if(!historial.length){ campo.classList.add('hidden'); box.innerHTML=''; return; }
   campo.classList.remove('hidden');
   box.innerHTML = `<div class="bitacora-timeline">${historial.map(h=>{
@@ -11999,6 +12009,7 @@ function limpiarModal(){
   const cmail=$('campoMail'); if(cmail) cmail.classList.add('hidden');
   const mlw=$('mailLinkWrap'); if(mlw) mlw.classList.remove('hidden');
   const dav=$('modalDupAviso'); if(dav) dav.innerHTML='';
+  crecerTa($('notas'));                // el comentario vuelve a un renglón
   _senaEditada=false; _senaManual=0;   // la seña arranca en la sugerida en cada consulta
   ['noTomoNombre','noTomoTel','noTomoMuebles'].forEach(id=>{const e=$(id); if(e) e.checked=false;});
   ['clienteNombre','clienteTelefono'].forEach(id=>{const e=$(id); if(e) e.disabled=false;});
@@ -12141,6 +12152,7 @@ function abrirModalCompletar(id, paso, forzarSeg){
   pintarFamPills();
 
   $('notas').value=a.notas||'';
+  crecerTa($('notas'));
   proxSeleccionada=null;
 
   photoDataUrls=fotosDe(a).slice(); renderFotoPreview();
@@ -13372,6 +13384,57 @@ function recParaTs(){
 .sv-rec-grupo.g-man{border-left-color:var(--blue)}
 .sv-rec-grupo.g-sem{border-left-color:#94a3b8}
 .sv-rec-grupo.g-lej,.sv-rec-grupo.g-sin{border-left-color:var(--line2)}
+</style>
+
+<style>
+/* ============================================================
+   MODAL COMPACTO (parte 1) — 30/7. Va al final: gana por orden y
+   se revierte borrando este bloque entero.
+   ============================================================ */
+
+/* comentario de un renglón que crece mientras se escribe */
+.ta-auto{resize:none;overflow:hidden;min-height:42px;line-height:1.45}
+
+/* "no los pude tomar" debajo del título de Muebles, a la izquierda */
+.tomo-muebles{font-weight:400;text-transform:none;font-size:12px;color:var(--sec);margin:-6px 0 10px;display:inline-flex;gap:5px;align-items:center}
+.modal-caja-b .mhead{padding-bottom:5px}
+
+/* TOTAL: se va el bloque azul, queda un renglón alineado a la derecha */
+.modal-caja-b .total-presu{background:transparent;color:var(--ink);border-top:2px solid var(--line2);
+  border-radius:0;padding:11px 0 0;margin-top:12px}
+.modal-caja-b .total-presu-top{display:flex;align-items:baseline;gap:12px}
+.modal-caja-b .total-presu .t-sub{font-size:11.5px;color:var(--muted);opacity:1;margin:0}
+.modal-caja-b .total-presu .t-sena{font-size:11.5px;font-weight:700;color:var(--blue);cursor:pointer;margin-left:auto}
+.modal-caja-b .total-presu .t-lbl{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;opacity:1}
+.modal-caja-b .total-presu .t-val{font-size:21px;font-weight:800;color:var(--navy)}
+.modal-caja-b .total-presu .sena-box{border-top-color:var(--line2)}
+.modal-caja-b .total-presu .sena-row .k{color:var(--sec);opacity:1}
+.modal-caja-b .total-presu .sena-row .v{color:var(--ink)}
+.modal-caja-b .total-presu .sena-hint{color:var(--muted);opacity:1}
+
+/* FOTO: botón chico en vez de un renglón entero */
+.foto-mini{display:inline-flex;align-items:center;gap:7px;border:1px dashed var(--line);border-radius:9px;
+  background:#fff;color:var(--sec);font-size:12.5px;font-weight:700;padding:8px 13px;cursor:pointer;font-family:inherit}
+.foto-mini:hover{border-color:var(--blue);color:var(--blue);border-style:solid}
+.foto-mini .photo-emoji{font-size:14px}
+
+/* HISTORIAL DE COMENTARIOS plegado */
+.plegable{border:1px solid var(--line);border-radius:10px;background:#fbfcfd;overflow:hidden}
+.plegable-cab{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;user-select:none}
+.plegable-cab:hover{background:var(--line2)}
+.plegable-cab .pl-tit{font-size:11.5px;font-weight:700;color:var(--sec);text-transform:uppercase;letter-spacing:.03em}
+.plegable-cab .pl-cant{font-size:11px;font-weight:700;color:var(--muted);background:var(--line2);border-radius:999px;padding:1px 8px}
+.plegable-cab .pl-cant:empty{display:none}
+.plegable-cab .pl-chev{margin-left:auto;font-size:10px;color:var(--muted);transition:transform .15s}
+.plegable.abierto .pl-chev{transform:rotate(180deg)}
+.plegable-cuerpo{display:none;padding:4px 12px 12px}
+.plegable.abierto .plegable-cuerpo{display:block}
+
+/* GUARDAR a un tercio, con Cancelar al lado */
+.acciones-reg{display:flex;align-items:center;gap:18px;margin-top:14px}
+.acciones-reg .btn-guardar{width:33%;min-width:190px;padding:11px 16px;font-size:14px}
+.link-cancelar{color:var(--sec);font-size:13.5px;cursor:pointer}
+.link-cancelar:hover{color:var(--red)}
 </style>
 </body>
 </html>
