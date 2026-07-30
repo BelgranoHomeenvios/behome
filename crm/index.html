@@ -423,6 +423,26 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .pop-cuando .rap-cal-lbl{font-size:11px;color:var(--muted);font-weight:700}
 .pop-cuando .rap-cal input[type=date]{width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--line2);border-radius:7px}
 .pop-cuando .menu-op-sin{color:var(--muted);font-size:12px}
+/* Grilla del mes, siempre abierta. Con .cal-arriba se dibuja ENCIMA de los 3 botones,
+   para las filas que están en la mitad de abajo de la pantalla. */
+.pop-cuando{width:250px!important;display:flex;flex-direction:column}
+.pop-cuando>b{order:0}
+.pop-cuando .rap-atajos{order:2}
+.pop-cuando .rap-cal{order:3}
+.pop-cuando .menu-op-sin{order:4}
+.pop-cuando.cal-arriba .rap-cal{order:1;border-top:0;padding-top:0;margin-top:4px}
+.pop-cuando .rap-cal{padding:8px 0}
+.cal-head{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--ink);margin-bottom:6px}
+.cal-head b{font-weight:800;text-transform:capitalize}
+.cal-nav{cursor:pointer;padding:0 8px;font-size:16px;color:var(--sec);border-radius:6px;user-select:none}
+.cal-nav:hover{background:var(--line2);color:var(--blue)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
+.cal-dw{font-size:9.5px;font-weight:800;color:var(--muted);text-align:center;padding:2px 0}
+.cal-d{font-size:11.5px;text-align:center;padding:5px 0;border-radius:6px;cursor:pointer;color:var(--ink);user-select:none}
+.cal-d:hover{background:var(--blue);color:#fff}
+.cal-d.vacia{visibility:hidden;cursor:default}
+.cal-d.pasado{color:var(--muted)}
+.cal-d.hoy{outline:1.5px solid var(--blue);font-weight:800;color:var(--blue)}
 .pop-coment{width:300px!important;padding:13px!important;background:#ffffff!important;opacity:1!important;border:1px solid #cdd5df!important;border-radius:12px!important;box-shadow:0 16px 40px rgba(15,26,42,.28),0 3px 10px rgba(15,26,42,.16)!important;z-index:600!important}
 .pop-coment b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
 .cm-hist{font-size:12px;color:var(--ink);line-height:1.45;max-height:110px;overflow-y:auto;background:var(--surface-1,#f7f9fb);border-radius:6px;padding:7px 9px;margin-bottom:8px}
@@ -692,7 +712,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .sv-rec-responder:hover{background:var(--blue);color:#fff}
 .sv-placeholder{padding:24px;text-align:center;color:var(--muted);font-size:13.5px;background:#fff;border:1px dashed var(--line);border-radius:10px}
 @media (min-width:900px){
-  .container{max-width:1120px}
+  .container{max-width:1233px}   /* +113px (~3 cm) para que entre el chip de etapa */
   .center-wrap{padding:40px}
   .auth-card{max-width:680px}
   .mueble-entry-row input[type=text]{font-size:14px}
@@ -3014,20 +3034,20 @@ const FAMILIAS_CONSULTA=[
    consulta predice mejor cuándo hay que volver a llamar que lo que el cliente preguntó.
    `estado:null` = Sin clasificar. `plazo:null` = etapa cerrada, sin próxima acción. */
 const ETAPAS_CONSULTA=[
-  {ic:'✳', lbl:'Consulta nueva',          sub:'Acá arrancan todas',               estado:null,             plazo:1},
-  {ic:'⏳', lbl:'No respondió todavía',    sub:'Le escribimos y no contestó',      estado:null,             plazo:2},
-  {ic:'💡', lbl:'Atención general',        sub:'Preguntó algo puntual, no una compra', estado:'En seguimiento', plazo:3, fam:'Atención general'},
-  {ic:'🚶', lbl:'Va a pasar por el local', sub:'Quedó en venir',                   estado:'En seguimiento', plazo:3},
-  {ic:'📐', lbl:'Tiene que medir',         sub:'Necesita medidas o fotos',         estado:'En seguimiento', plazo:5},
-  {ic:'📄', lbl:'Le envié el presupuesto', sub:'Ya tiene la propuesta',            estado:'En seguimiento', plazo:3},
-  {ic:'💬', lbl:'Negociando',              sub:'Está comparando o pidiendo precio',estado:'En seguimiento', plazo:2},
-  {ic:'⚡', lbl:'Entrega inmediata',       sub:'Lo quiere ya, hay que resolverlo',  estado:'En seguimiento', plazo:1, fam:'Entrega inmediata'},
-  {ic:'✔', lbl:'Vendido',                 sub:'Cerró la compra',                  estado:'Concretado',     plazo:null},
-  {ic:'✖', lbl:'Perdido',                 sub:'No sigue con la compra',           estado:'Rechazado',      plazo:null, mala:true}
+  {ic:'✳', lbl:'Consulta nueva',          corto:'Nueva',          sub:'Acá arrancan todas',               estado:null,             plazo:1},
+  {ic:'⏳', lbl:'No respondió todavía',    corto:'No respondió',   sub:'Le escribimos y no contestó',      estado:null,             plazo:2},
+  {ic:'💡', lbl:'Atención general',        corto:'At. general',    sub:'Preguntó algo puntual, no una compra', estado:'En seguimiento', plazo:3, fam:'Atención general'},
+  {ic:'🚶', lbl:'Va a pasar por el local', corto:'Pasa por local', sub:'Quedó en venir',                   estado:'En seguimiento', plazo:3},
+  {ic:'📐', lbl:'Tiene que medir',         corto:'Tiene que medir',sub:'Necesita medidas o fotos',         estado:'En seguimiento', plazo:5},
+  {ic:'📄', lbl:'Le envié el presupuesto', corto:'Presupuesto',    sub:'Ya tiene la propuesta',            estado:'En seguimiento', plazo:3},
+  {ic:'💬', lbl:'Negociando',              corto:'Negociando',     sub:'Está comparando o pidiendo precio',estado:'En seguimiento', plazo:2},
+  {ic:'⚡', lbl:'Entrega inmediata',       corto:'Entrega inm.',   sub:'Lo quiere ya, hay que resolverlo',  estado:'En seguimiento', plazo:1, fam:'Entrega inmediata'},
+  {ic:'✔', lbl:'Concretado',              corto:'Concretado',     sub:'Cerró la compra',                  estado:'Concretado',     plazo:null},
+  {ic:'✖', lbl:'Rechazado',               corto:'Rechazado',      sub:'No sigue con la compra',           estado:'Rechazado',      plazo:null, mala:true}
 ];
 /* "Rechazado" es el valor guardado de siempre (no se migra nada); "Perdido" es solo
    cómo se muestra de ahora en más. */
-const ETIQUETA_ESTADO={'En seguimiento':'En seguimiento','Concretado':'Concretado','Rechazado':'Perdido'};
+const ETIQUETA_ESTADO={'En seguimiento':'En seguimiento','Concretado':'Concretado','Rechazado':'Rechazado'};
 const CLASE_CHAPA={'En seguimiento':'es-seg','Concretado':'es-conc','Rechazado':'es-perd'};
 
 /* Las 5 familias que ve el vendedor en el wizard. FAMILIAS_CONSULTA (abajo) queda
@@ -5540,10 +5560,7 @@ function logItemHtml(a){
               <div class="menu-op" onclick="event.stopPropagation();rapidoCuando('${a.id}','manana')">Mañana</div>
               <div class="menu-op" onclick="event.stopPropagation();rapidoCuando('${a.id}','3dias')">En 3 días</div>
             </div>
-            <div class="rap-cal">
-              <span class="rap-cal-lbl">📅 O elegí la fecha:</span>
-              <input type="date" onclick="event.stopPropagation()" onchange="rapidoCuandoFecha('${a.id}',this.value)">
-            </div>
+            <div class="rap-cal" id="cal-${a.id}" onclick="event.stopPropagation()"></div>
             <div class="menu-op menu-op-sin" onclick="event.stopPropagation();rapidoCuando('${a.id}','sin')">Sin definir</div>
           </span>
         </span>`}
@@ -5560,16 +5577,19 @@ function logItemHtml(a){
           </span>` : `
           <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
             <span class="sit-dot ${est?ESTADO_CLS[est]:'es-sin'}" title="${est||'Sin clasificar'} — tocá para cambiar"></span>
-          </span>`}
-          <span class="ebtn cm-ico sit-ico${(tieneFoto(a))?'':' apagado'}" title="${(tieneFoto(a))?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
+          </span>
+          ${(()=>{const i=etapaDesdeRegistro(a), e=ETAPAS_CONSULTA[i];
+            return `<span class="ebtn etapa-chip ${e.estado?CLASE_CHAPA[e.estado]:'es-sin'}" title="${escAttr(e.lbl+' — '+e.sub)}" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
+              <span class="ec-ic">${e.ic}</span><span class="ec-tx">${escapeHtml(e.corto)}</span></span>`;})()}`}
         </div>
         ${esPostventa(a) ? '' : (cerrada
           ? `<span class="sit-op sit-cerrada" title="Consulta ${est.toLowerCase()}">Cerrada</span>`
-          : `<span class="estr estr-fila" title="Tocá una estrella para calificar">${
-              [1,2,3].map(v=>`<span class="${v<=estrellasNum(a.percepcion)?'e-on':'e-off'}" onclick="event.stopPropagation();rapidoEstrella('${a.id}',${v})" title="${v} estrella${v===1?'':'s'} — si ya está prendida, la apaga">★</span>`).join('')
-            }</span>`)}
+          : '')}
       </div>
       <div class="c-nom" ondblclick="editarSoloNombre('${a.id}')" title="Doble clic para editar el nombre y el contacto">
+        ${cerrada ? '' : `<span class="estr estr-fila" title="Tocá una estrella para calificar">${
+          [1,2,3].map(v=>`<span class="${v<=estrellasNum(a.percepcion)?'e-on':'e-off'}" onclick="event.stopPropagation();rapidoEstrella('${a.id}',${v})" title="${v} estrella${v===1?'':'s'} — si ya está prendida, la apaga">★</span>`).join('')
+        }</span>`}
         ${canalIco}
         <div class="c-nom-inner">
         <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
@@ -5644,6 +5664,53 @@ const RAPIDO_CUANDO=[['hoy','Hoy'],['manana','Mañana'],['3dias','En 3 días'],
                      ['semana','En una semana'],['custom','Otra fecha…'],['sin','Sin definir']];
 
 /* Setea la próxima acción desde el CALENDARIO (input date), sin prompt. */
+/* ============ CALENDARIO INLINE DEL POPOVER DE ACCIÓN (30/7) ============
+   Antes había un input[type=date] y el calendario del navegador se abría donde él
+   quería — a veces tapado o fuera de pantalla. Ahora la grilla es nuestra: se dibuja
+   ya abierta y, si la fila está en la mitad de abajo de la pantalla, se pone ARRIBA de
+   los tres botones en vez de abajo. */
+const CAL_DIAS=['DO','LU','MA','MI','JU','VI','SA'];
+const CAL_MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const _calMes={};   // id de consulta -> mes que se está mirando
+function calHtml(id){
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  const base=_calMes[id] ? new Date(_calMes[id]) : new Date(hoy.getFullYear(),hoy.getMonth(),1);
+  const anio=base.getFullYear(), mes=base.getMonth();
+  const primero=new Date(anio,mes,1), arranque=primero.getDay();
+  const dias=new Date(anio,mes+1,0).getDate();
+  let celdas='';
+  for(let i=0;i<arranque;i++) celdas+='<span class="cal-d vacia"></span>';
+  for(let d=1;d<=dias;d++){
+    const f=new Date(anio,mes,d);
+    const iso=`${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const esHoy = f.getTime()===hoy.getTime();
+    const pasado = f<hoy;
+    celdas+=`<span class="cal-d${esHoy?' hoy':''}${pasado?' pasado':''}" onclick="event.stopPropagation();rapidoCuandoFecha('${id}','${iso}')">${d}</span>`;
+  }
+  return `<div class="cal-head">
+      <span class="cal-nav" onclick="event.stopPropagation();calMover('${id}',-1)">‹</span>
+      <b>${CAL_MESES[mes]} ${anio}</b>
+      <span class="cal-nav" onclick="event.stopPropagation();calMover('${id}',1)">›</span>
+    </div>
+    <div class="cal-grid">${CAL_DIAS.map(d=>`<span class="cal-dw">${d}</span>`).join('')}${celdas}</div>`;
+}
+function calMover(id,n){
+  const base=_calMes[id] ? new Date(_calMes[id]) : new Date();
+  base.setDate(1); base.setMonth(base.getMonth()+n);
+  _calMes[id]=base.toISOString();
+  const box=document.getElementById('cal-'+id); if(box) box.innerHTML=calHtml(id);
+}
+/* Se llama al abrir el popover: dibuja la grilla y decide si va arriba o abajo. */
+function calAbrir(pop,id){
+  const box=pop.querySelector('.rap-cal'); if(!box) return;
+  _calMes[id]=null;
+  box.innerHTML=calHtml(id);
+  // Si la fila está en la mitad de abajo de la pantalla, la grilla sube: queda arriba
+  // de los tres botones y no se va de pantalla.
+  const r=pop.getBoundingClientRect();
+  const abajo = r.top > window.innerHeight*0.5;
+  pop.classList.toggle('cal-arriba', abajo);
+}
 async function rapidoCuandoFecha(id, val){
   const a=atenciones.find(x=>x.id===id);
   if(!a || !val) return;
@@ -5811,6 +5878,9 @@ function togPop(el){
     const fila=el.closest('.crow');
     if(fila) fila.classList.add('fila-arriba');
     elevarFilas(true, !!el.closest('#cheadBox'));
+    // El popover de acción trae la grilla del mes ya abierta.
+    const pc=el.querySelector('.pop-cuando');
+    if(pc){ const cal=pc.querySelector('.rap-cal'); if(cal) calAbrir(pc, cal.id.replace(/^cal-/,'')); }
   }
 }
 document.addEventListener('click',e=>{ if(!e.target.closest('.ebtn')) cerrarPops(); });
@@ -5937,6 +6007,10 @@ const FILTRO_OPORT_OPCIONES=[
   ['1','★'],
   ['sin','Sin calificar']
 ];
+/* Filtro por etapa: se arma solo desde ETAPAS_CONSULTA para que no se desincronice. */
+const FILTRO_ETAPA_OPCIONES=[['todos','Toda etapa']].concat(
+  ETAPAS_CONSULTA.map((e,i)=>[String(i), e.ic+' '+e.lbl]));
+let filtroEtapa='todos';
 const FILTRO_COMENT_OPCIONES=[['todos','Todos'],['con','Con comentario'],['sin','Sin comentario']];
 const FILTRO_EVAL_OPCIONES=[['todos','Todas'],['evaluadas','Evaluadas'],['sinevaluar','Sin evaluar']];
 let filtroRecordatorio='todos'; // 'todos' | 'con' | 'sin'
@@ -5968,7 +6042,7 @@ function popFiltroOpciones(campo, opciones, actual){
 }
 function cheadHtml(){
   const estActivo=filtroEstado!=='activas', plazoActivo=filtroPlazo!=='todos',
-        oportActivo=filtroOportunidad!=='todos', comentActivo=filtroComentario!=='todos',
+        oportActivo=filtroOportunidad!=='todos', etapaActivo=filtroEtapa!=='todos', comentActivo=filtroComentario!=='todos',
         buscActivo=!!filtroBusqueda, vendActivo=filtroVendedorCintia!=='todos', canalActivo=filtroCanalCintia!=='todos',
         evalActivo=filtroEvaluacion!=='todos';
   let colsCintia='', evalCol='', montoCol='<span class="h-monto">Cotizado</span>';
@@ -6006,8 +6080,11 @@ function cheadHtml(){
       <span class="pop pop-down"><b>Filtrar por plazo</b>${popFiltroOpciones('plazo',FILTRO_PLAZO_OPCIONES,filtroPlazo)}</span>
     </span></span>
     <span class="h-situacion">
-      <span class="ebtn filtro-head ${oportActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Oportunidad<span class="arrow">▾</span>
-        <span class="pop pop-down"><b>Filtrar por oportunidad</b>${popFiltroOpciones('oport',FILTRO_OPORT_OPCIONES,filtroOportunidad)}</span>
+      <span class="ebtn filtro-head ${etapaActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Etapa<span class="arrow">▾</span>
+        <span class="pop pop-down"><b>Filtrar por etapa</b>${popFiltroOpciones('etapa',FILTRO_ETAPA_OPCIONES,filtroEtapa)}</span>
+      </span>
+      <span class="ebtn filtro-head sub ${oportActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Calificación<span class="arrow">▾</span>
+        <span class="pop pop-down"><b>Filtrar por calificación</b>${popFiltroOpciones('oport',FILTRO_OPORT_OPCIONES,filtroOportunidad)}</span>
       </span>
       ${puedeVerEquipo() ? `<span class="ebtn filtro-head sub ${estActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Estado<span class="arrow">▾</span>
         <span class="pop pop-down"><b>Filtrar por estado</b>${popFiltroOpciones('estado',FILTRO_ESTADO_OPCIONES,filtroEstado)}</span>
@@ -6047,6 +6124,7 @@ function setFiltroHeader(campo,valor){
   if(campo==='estado') filtroEstado=valor;
   else if(campo==='plazo') filtroPlazo=valor;
   else if(campo==='oport') filtroOportunidad=valor;
+  else if(campo==='etapa') filtroEtapa=valor;
   else if(campo==='coment') filtroComentario=valor;
   else if(campo==='vendedorCintia') filtroVendedorCintia=valor;
   else if(campo==='canalCintia') filtroCanalCintia=valor;
@@ -6079,6 +6157,7 @@ function filtrosActivos(){
   if(filtroEstado!=='activas') f.push({k:'estado', t:'Estado: '+etiquetaOpcion(FILTRO_ESTADO_OPCIONES,filtroEstado)});
   if(filtroPlazo!=='todos') f.push({k:'plazo', t:'Acción: '+etiquetaOpcion(FILTRO_PLAZO_OPCIONES,filtroPlazo)});
   if(filtroOportunidad!=='todos') f.push({k:'oport', t:'Oportunidad: '+etiquetaOpcion(FILTRO_OPORT_OPCIONES,filtroOportunidad)});
+  if(filtroEtapa!=='todos') f.push({k:'etapa', t:'Etapa: '+etiquetaOpcion(FILTRO_ETAPA_OPCIONES,filtroEtapa)});
   if(filtroComentario!=='todos') f.push({k:'coment', t:'Comentarios: '+etiquetaOpcion(FILTRO_COMENT_OPCIONES,filtroComentario)});
   if(filtroBusqueda) f.push({k:'busqueda', t:'Buscando: “'+filtroBusqueda+'”'});
   if(ordenFecha) f.push({k:'ordenFecha', t:'Orden: '+etiquetaOpcion(ORDEN_FECHA_OPCIONES,ordenFecha)});
@@ -6100,6 +6179,7 @@ function limpiarFiltro(k){
   else if(k==='ordenFecha') ordenFecha=null;
   else if(k==='plazo') filtroPlazo='todos';
   else if(k==='oport') filtroOportunidad='todos';
+  else if(k==='etapa') filtroEtapa='todos';
   else if(k==='coment') filtroComentario='todos';
   else if(k==='recordatorio') filtroRecordatorio='todos';
   else if(k==='asistPend'){ filtroAsistPend=false; if(typeof renderPanelCintia==='function') renderPanelCintia(); }
@@ -6110,7 +6190,7 @@ function limpiarFiltro(k){
 }
 function limpiarTodosLosFiltros(){
   reiniciarPaginado();
-  zonaActiva=null; filtroEstado='activas'; filtroPlazo='todos'; filtroOportunidad='todos';
+  zonaActiva=null; filtroEstado='activas'; filtroPlazo='todos'; filtroOportunidad='todos'; filtroEtapa='todos';
   filtroComentario='todos'; filtroBusqueda=''; ordenFecha=null; filtroRecordatorio='todos';
   filtroVendedorCintia='todos'; filtroCanalCintia='todos'; filtroEvaluacion='todos';
   filtroCanalGrupo='todos'; filtroPostventa='pendientes'; filtroAsistPend=false;
@@ -6165,6 +6245,7 @@ function construirListaFiltrada(){
 
   if(filtroOportunidad==='sin') l=l.filter(a=>!estrellasNum(a.percepcion));
   else if(filtroOportunidad!=='todos') l=l.filter(a=>estrellasNum(a.percepcion)===+filtroOportunidad);
+  if(filtroEtapa!=='todos') l=l.filter(a=>etapaDesdeRegistro(a)===+filtroEtapa);
 
   if(filtroComentario==='con') l=l.filter(a=>!!(a.notas||a.resultadoMotivo));
   else if(filtroComentario==='sin') l=l.filter(a=>!(a.notas||a.resultadoMotivo));
@@ -6245,6 +6326,7 @@ function filtrosColumna(l){
   else if(filtroEstado!=='activas' && filtroEstado!=='todos') l=l.filter(a=>estadoDe(a)===filtroEstado);
   if(filtroOportunidad==='sin') l=l.filter(a=>!estrellasNum(a.percepcion));
   else if(filtroOportunidad!=='todos') l=l.filter(a=>estrellasNum(a.percepcion)===+filtroOportunidad);
+  if(filtroEtapa!=='todos') l=l.filter(a=>etapaDesdeRegistro(a)===+filtroEtapa);
   if(filtroComentario==='con') l=l.filter(a=>!!(a.notas||a.resultadoMotivo));
   else if(filtroComentario==='sin') l=l.filter(a=>!(a.notas||a.resultadoMotivo));
   if(filtroPlazo!=='todos'){
@@ -13846,6 +13928,26 @@ function recParaTs(){
 .est-borrar:hover{color:var(--red)}
 
 /* GUARDAR a un tercio, con Cancelar al lado */
+/* ============ ETAPA EN LA COLUMNA (30/7) ============
+   La etapa NO tiene columna propia: vive al lado del punto de estado, en la columna que
+   antes se llamaba "Oportunidad" y ahora se llama "Etapa". La tabla se ensanchó 3 cm
+   (1120 -> 1233px) para que el chip entre sin apretar el resto. */
+.c-situacion,.chead .h-situacion{flex:2.6}
+.c-situacion .sit-top{flex-wrap:wrap}
+.etapa-chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 9px;
+  border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:11px;font-weight:800;
+  color:var(--muted);cursor:pointer;white-space:nowrap;overflow:hidden}
+.etapa-chip .ec-ic{font-size:11px;flex-shrink:0}
+.etapa-chip .ec-tx{overflow:hidden;text-overflow:ellipsis}
+.etapa-chip.es-seg{color:var(--blue);border-color:#b9d0f5;background:var(--blue-l)}
+.etapa-chip.es-conc{color:var(--green);border-color:#a9dcbc;background:var(--green-l)}
+.etapa-chip.es-perd{color:var(--red);border-color:#f0b9b3;background:var(--red-l)}
+.etapa-chip:hover{filter:brightness(.96)}
+@media(max-width:1160px){ .etapa-chip{font-size:10px;padding:3px 7px} }
+
+/* Las estrellas ahora viven al lado del contacto */
+.c-nom .estr-fila{flex-shrink:0;margin-right:2px}
+
 /* ESTRELLAS DE LA FILA: se califican tocándolas. Sin barra gris de fondo — el área
    clickeable es solo la estrella, no todo el ancho de la celda. */
 .estr-fila{gap:2px;cursor:default}
