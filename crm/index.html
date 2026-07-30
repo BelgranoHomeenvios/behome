@@ -5517,7 +5517,7 @@ function logItemHtml(a){
     : '';
 
   return `
-    <div class="crow zn-${zona}">
+    <div class="crow zn-${zona}" ondblclick="dblFila(event,'${a.id}')">
       ${bellCol}
       <div class="c-fecha" ondblclick="editarDesdeHistorial('${a.id}')">${fechaConsultaCorta(a.ts)}</div>
       <div class="c-plazo">
@@ -5553,7 +5553,6 @@ function logItemHtml(a){
           <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
             <span class="sit-dot ${est?ESTADO_CLS[est]:'es-sin'}" title="${est||'Sin clasificar'} — tocá para cambiar"></span>
           </span>`}
-          <span class="ebtn cm-ico sit-ico" title="Editar / ver todo" onclick="event.stopPropagation();editarDesdeHistorial('${a.id}')">✏️</span>
           <span class="ebtn cm-ico sit-ico${(tieneFoto(a))?'':' apagado'}" title="${(tieneFoto(a))?'Ver foto del presupuesto':(a.fotoVencida?'La foto ya venció':'Cargar foto del presupuesto')}" onclick="event.stopPropagation();fotoRapidaConsulta('${a.id}')">🖼️</span>
         </div>
         ${esPostventa(a) ? '' : (cerrada
@@ -5738,6 +5737,16 @@ function editarSoloMuebles(id){
    scroll, igual que editarSoloMuebles hace con los muebles. Ahorra abrir la ficha entera
    solo para corregir un nombre. Si el nombre estaba con "no lo tomé", se destilda para
    poder escribirlo. */
+/* Doble clic en cualquier espacio libre de la fila = abrir la consulta. Reemplaza al
+   lápiz que estaba en la columna de oportunidad. Las celdas que YA tienen su propio
+   doble clic (fecha, nombre, muebles, origen) siguen mandando: si el doble clic salió
+   de una de ellas, esta función no hace nada y deja que actúe la específica. */
+function dblFila(ev,id){
+  const propio = ev.target.closest('[ondblclick]');
+  if(propio && propio!==ev.currentTarget) return;      // lo maneja la celda
+  if(ev.target.closest('.ebtn,.pop,input,select,textarea,button,a')) return;
+  editarDesdeHistorial(id);
+}
 function editarSoloNombre(id){
   abrirModalCompletar(id, 0);   // paso 0 fuerza el wizard completo, no el modo seguimiento
   setTimeout(()=>{
