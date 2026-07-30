@@ -1753,7 +1753,11 @@ textarea{resize:vertical;min-height:60px}
       <div class="modal-caja modal-caja-b">
       <div class="card" id="panelRegistro" style="margin-bottom:0">
         <div class="modal-head-b">
-          <h3 id="modalTitulo">Registrar atención</h3>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0">
+            <h3 id="modalTitulo" style="margin:0">Registrar atención</h3>
+            <span class="estado-chapa es-sin" id="chapaEstado"><span class="ec-pto"></span>Sin clasificar</span>
+            <span class="estado-auto">se calcula solo según la etapa</span>
+          </div>
           <div class="fecha-conv">
             <label for="fechaConversacion">Fecha de la conversación</label>
             <input type="date" id="fechaConversacion">
@@ -1869,9 +1873,17 @@ textarea{resize:vertical;min-height:60px}
             </div>
             <div id="modalDupAviso"></div>
 <div class="field">
-              <label>¿Qué preguntó el cliente?</label>
+              <label>¿Qué necesitaba el cliente?</label>
               <div class="pills" id="famPills"></div>
             </div>
+            <div class="field" id="campoEtapa">
+              <label>¿En qué etapa quedó la consulta?</label>
+              <div class="etapas" id="etapasWiz"></div>
+              <div class="et-pie" id="etapaPie"></div>
+              <div class="aviso-pend" id="avisoPendiente"></div>
+            </div>
+            <!-- "¿Sobre qué?" salió de la vista (lo reemplaza la etapa). Los inputs quedan
+                 ocultos para no romper el guardado ni el restaurado de datos viejos. -->
             <div class="field hidden" id="tipoField">
               <label id="tipoLabel">¿Sobre qué?</label>
               <div class="pills" id="tipoPills"></div>
@@ -1881,7 +1893,7 @@ textarea{resize:vertical;min-height:60px}
               <label>Próxima acción</label>
               <div id="proxAutoBox" class="prox-auto hidden"></div>
               <div class="pills" id="proxPills"></div>
-              <input type="date" id="proxFechaCustom" class="hidden" style="margin-top:8px;max-width:190px">
+              <input type="date" id="proxFechaCustom" onchange="pintarProxPills()" style="margin-top:8px;max-width:190px">
             </div>
             <div class="field" id="campoTiempoTurno">
               <label>Tiempo del turno <span class="opt">(opcional)</span></label>
@@ -2986,6 +2998,35 @@ const FAMILIAS_CONSULTA=[
     ['Medidas',2],['Colores o terminaciones',2],['Amoblamiento completo',3],['Búsqueda de una categoría',3]]},
   {fam:'Otras', tipos:[['Sin clasificar',5]]},
 ];
+/* ============ ETAPA DE LA CONSULTA (30/7) ============
+   Reemplaza al campo "¿Sobre qué?" y pasa a ser LA verdad del pipeline. El ESTADO
+   (En seguimiento / Concretado / Rechazado) ya no se elige a mano: se deriva de acá,
+   así no puede quedar una consulta "Vendida" y "En seguimiento" al mismo tiempo.
+   El PLAZO de la próxima acción también sale de la etapa: en qué punto quedó la
+   consulta predice mejor cuándo hay que volver a llamar que lo que el cliente preguntó.
+   `estado:null` = Sin clasificar. `plazo:null` = etapa cerrada, sin próxima acción. */
+const ETAPAS_CONSULTA=[
+  {ic:'✳', lbl:'Consulta nueva',          sub:'Acá arrancan todas',              estado:null,             plazo:1},
+  {ic:'⏳', lbl:'No respondió todavía',    sub:'Le escribimos y no contestó',     estado:null,             plazo:2},
+  {ic:'🚶', lbl:'Va a pasar por el local', sub:'Quedó en venir',                  estado:'En seguimiento', plazo:3},
+  {ic:'📐', lbl:'Tiene que medir',         sub:'Necesita medidas o fotos',        estado:'En seguimiento', plazo:5},
+  {ic:'📄', lbl:'Le envié el presupuesto', sub:'Ya tiene la propuesta',           estado:'En seguimiento', plazo:3},
+  {ic:'💬', lbl:'Negociando',              sub:'Está comparando o pidiendo precio',estado:'En seguimiento',plazo:2},
+  {ic:'✔', lbl:'Vendido',                 sub:'Cerró la compra',                 estado:'Concretado',     plazo:null},
+  {ic:'✖', lbl:'Perdido',                 sub:'No sigue con la compra',          estado:'Rechazado',      plazo:null, mala:true}
+];
+/* "Rechazado" es el valor guardado de siempre (no se migra nada); "Perdido" es solo
+   cómo se muestra de ahora en más. */
+const ETIQUETA_ESTADO={'En seguimiento':'En seguimiento','Concretado':'Concretado','Rechazado':'Perdido'};
+const CLASE_CHAPA={'En seguimiento':'es-seg','Concretado':'es-conc','Rechazado':'es-perd'};
+
+/* Las 5 familias que ve el vendedor en el wizard. FAMILIAS_CONSULTA (abajo) queda
+   intacta para no romper los datos viejos ni la solapa de Etapa comercial. */
+const FAMILIAS_WIZARD=['Atención general','Comprar mueble','Entrega inmediata','Mueble a medida','Otras'];
+/* Atajos de fecha del wizard: sin "Sin definir" (toda consulta abierta lleva fecha) y
+   sin "Personalizado" (el calendario está siempre a la vista). */
+const PROX_OPCIONES_WIZ=[{v:'hoy',t:'Hoy'},{v:'manana',t:'Mañana'},{v:'3dias',t:'En 3 días'}];
+
 /* Índice tipo→{familia,plazoDias} para buscar rápido sin recorrer todo. */
 const TIPO_INFO={};
 FAMILIAS_CONSULTA.forEach(f=>f.tipos.forEach(([t,d])=>{ TIPO_INFO[t]={familia:f.fam, plazoDias:d}; }));
@@ -11688,7 +11729,7 @@ function pintarTodoWizard(){
   // Muebles
   pintarCantPills(); renderMuebleFilas();
   // Próxima acción
-  pintarFamPills(); pintarProxPills(); pintarAtajos();
+  pintarFamPills(); pintarEtapaWiz(); pintarProxPills(); pintarAtajos();
   ajustarCamposPorModo();
   const recActual = completandoId ? atenciones.find(x=>x.id===completandoId) : null;
   renderBitacora(recActual);
@@ -11909,8 +11950,8 @@ function pintarResumenPrevio(){
     <div class="r"><span>Cotizado</span><b>$ ${miles(total)} · ${suman.length} mueble${suman.length===1?'':'s'}</b></div>`;
 }
 function pintarProxPills(){
-  $('proxPills').innerHTML = PROX_OPCIONES.map(o=>
-    `<span class="pill ${proxSeleccionada===o.v?'on':''} ${o.gris?'gris':''}" onclick="setProx(${o.v?`'${o.v}'`:'null'})">${o.t}</span>`
+  $('proxPills').innerHTML = PROX_OPCIONES_WIZ.map(o=>
+    `<span class="pill ${atajoQueCoincide()===o.v?'on':''}" onclick="setProx('${o.v}')">${o.t}</span>`
   ).join('');
 }
 /* Selector de tipo de consulta (familia → tipo). Parte 1: solo registra el tipo elegido en
@@ -11919,14 +11960,68 @@ function pintarProxPills(){
 let famSeleccionada=null, tipoSeleccionado=null;
 function pintarFamPills(){
   const box=$('famPills'); if(!box) return;
-  box.innerHTML = FAMILIAS_CONSULTA.map(f=>
-    `<span class="pill ${famSeleccionada===f.fam?'on':''}" onclick="setFamilia('${f.fam.replace(/'/g,"\\'")}')">${f.fam}</span>`
+  // Si la consulta traía una familia vieja que ya no está en la lista (ej. "Asesoramiento"),
+  // se muestra igual al final para no perder el dato ni dejar el campo en blanco.
+  const lista = FAMILIAS_WIZARD.slice();
+  if(famSeleccionada && !lista.includes(famSeleccionada)) lista.push(famSeleccionada);
+  box.innerHTML = lista.map(f=>
+    `<span class="pill ${famSeleccionada===f?'on':''}" onclick="setFamilia('${f.replace(/'/g,"\\'")}')">${f}</span>`
   ).join('');
   pintarTipoPills();
+}
+
+/* ============ BARRA DE ETAPAS ============ */
+let etapaWizSel=0;                       // toda consulta arranca en "Consulta nueva"
+function pintarEtapaWiz(){
+  const box=$('etapasWiz'); if(!box) return;
+  box.innerHTML = ETAPAS_CONSULTA.map((e,i)=>
+    `<div class="et ${i<etapaWizSel?'hecha':''} ${i===etapaWizSel?'on':''} ${e.mala?'mala':''}" onclick="elegirEtapaWiz(${i})">
+       <div class="et-ico">${e.ic}</div><div class="et-lbl">${e.lbl}</div>
+     </div>`).join('');
+  const e=ETAPAS_CONSULTA[etapaWizSel];
+  const pie=$('etapaPie'); if(pie) pie.innerHTML=`<b>${e.lbl}</b> · ${e.sub}`;
+  // Vendido / Perdido: se avisa que al guardar hay que completar los datos del cierre.
+  const av=$('avisoPendiente');
+  if(av){
+    const txt = e.estado==='Concretado' ? 'Al guardar te va a pedir el <b>N° de orden y el monto vendido</b>.'
+              : e.estado==='Rechazado'  ? 'Al guardar te va a pedir el <b>motivo</b> por el que se perdió.' : '';
+    av.innerHTML=txt; av.classList.toggle('ver', !!txt);
+  }
+  // Una consulta cerrada no necesita próxima acción.
+  const cp=$('campoProx'); if(cp) cp.style.display = (e.plazo===null) ? 'none' : '';
+  pintarChapaEstado();
+}
+/* El estado NO se elige: sale de la etapa. nuevaEstadoSel es la variable que ya usaba
+   el guardado para encadenar la ficha de cierre, así que se sigue alimentando de acá. */
+function pintarChapaEstado(){
+  const est=ETAPAS_CONSULTA[etapaWizSel].estado;
+  nuevaEstadoSel = est || 'En seguimiento';
+  const ch=$('chapaEstado'); if(!ch) return;
+  ch.className='estado-chapa '+(est?CLASE_CHAPA[est]:'es-sin');
+  ch.innerHTML='<span class="ec-pto"></span>'+(est?ETIQUETA_ESTADO[est]:'Sin clasificar');
+}
+function elegirEtapaWiz(i){
+  etapaWizSel=i;
+  pintarEtapaWiz();
+  aplicarFechaAutomatica();   // el plazo lo manda la etapa
+}
+/* Al reabrir una consulta: si ya tiene etapa guardada se usa; si es vieja, se deduce
+   del estado que tenga hoy para no arrancar todas en "Consulta nueva". */
+function etapaDesdeRegistro(a){
+  if(a && Number.isInteger(a.etapaConsulta) && ETAPAS_CONSULTA[a.etapaConsulta]) return a.etapaConsulta;
+  const est = a ? estadoDe(a) : null;
+  if(est==='Concretado') return 6;
+  if(est==='Rechazado')  return 7;
+  if(est==='En seguimiento') return 2;
+  return 0;
 }
 function pintarTipoPills(){
   const box=$('tipoPills'); const field=$('tipoField'); const lbl=$('tipoLabel');
   if(!box) return;
+  // "¿Sobre qué?" ya no se muestra: lo reemplazó la barra de etapas. El campo sigue
+  // existiendo oculto para no romper el guardado ni los datos viejos.
+  if(field) field.classList.add('hidden');
+  if(true) return;
   if(!famSeleccionada){ box.innerHTML=''; if(field) field.classList.add('hidden'); return; }
   if(field) field.classList.remove('hidden');
   if(lbl) lbl.textContent = '¿Sobre qué? — '+famSeleccionada;
@@ -11954,9 +12049,10 @@ function setTipoConsulta(t){
    calendario. La temperatura NO la toca (decisión de Brian: solo el tipo manda). */
 function aplicarFechaAutomatica(){
   const box=$('proxAutoBox');
-  const info = tipoSeleccionado ? TIPO_INFO[tipoSeleccionado] : null;
-  if(!info){ if(box){ box.classList.add('hidden'); box.innerHTML=''; } return; }
-  const dias = info.plazoDias < 1 ? 0 : Math.round(info.plazoDias);
+  // El plazo lo manda la ETAPA (antes lo mandaba el tipo, que ya no existe en la vista).
+  const et = ETAPAS_CONSULTA[etapaWizSel];
+  if(!et || et.plazo===null){ if(box){ box.classList.add('hidden'); box.innerHTML=''; } return; }
+  const dias = et.plazo;
   const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+dias);
   // dejar la fecha cargada en el calendario y marcar "Personalizado" como elegido
   const f=$('proxFechaCustom');
@@ -11966,17 +12062,34 @@ function aplicarFechaAutomatica(){
   if(box){
     const txt = dias===0 ? 'hoy mismo' : fechaLindaProx(d);
     box.classList.remove('hidden');
-    box.innerHTML = `📅 Volvé a escribirle <b>${txt}</b> <span class="pa-sub">· sugerido por el tipo (${dias===0?'mismo día':dias+' día'+(dias===1?'':'s')}), podés cambiarlo</span>`;
+    box.innerHTML = `📅 Volvé a escribirle <b>${txt}</b> <span class="pa-sub">· sugerido por la etapa (${dias===0?'mismo día':dias+' día'+(dias===1?'':'s')}), podés cambiarlo</span>`;
   }
 }
 function fechaLindaProx(d){
   const dias=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   return dias[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
 }
-function setProx(v){ proxSeleccionada=v; pintarProxPills();
+/* El calendario del wizard está SIEMPRE a la vista: los atajos solo le escriben la
+   fecha. Un solo dato, sin "Personalizado" de por medio. */
+function setProx(v){
+  proxSeleccionada = v;
   const f=$('proxFechaCustom');
-  if(f){ f.classList.toggle('hidden', v!=='custom');
-    if(v==='custom'&&!f.value){const d=new Date();d.setDate(d.getDate()+1);f.value=d.toISOString().slice(0,10);} }
+  if(f && PLAZO_ATAJO[v]!==undefined){
+    const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+PLAZO_ATAJO[v]);
+    f.value=d.toISOString().slice(0,10);
+    proxSeleccionada='custom';
+  }
+  pintarProxPills();
+}
+const PLAZO_ATAJO={hoy:0,manana:1,'3dias':3};
+/* Marca el atajo que coincida con la fecha que hay cargada. */
+function atajoQueCoincide(){
+  const f=$('proxFechaCustom'); if(!f||!f.value) return null;
+  for(const k in PLAZO_ATAJO){
+    const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+PLAZO_ATAJO[k]);
+    if(d.toISOString().slice(0,10)===f.value) return k;
+  }
+  return null;
 }
 function pintarAtajos(){
   const lista = atajosExpandidos ? ATAJOS_BASE.concat(ATAJOS_MAS) : ATAJOS_BASE;
@@ -12037,6 +12150,8 @@ function limpiarModal(){
   ['clienteNombre','clienteTelefono'].forEach(id=>{const e=$(id); if(e) e.disabled=false;});
   const mw=$('mueblesWrap'); if(mw){ mw.style.opacity=''; mw.style.pointerEvents=''; }
   percepcionSel=null; tiempoSel=null; proxSeleccionada=null; atajosExpandidos=false;
+  etapaWizSel=0; pintarEtapaWiz();          // toda consulta nueva arranca en "Consulta nueva"
+  { const f=$('proxFechaCustom'); if(f) f.value=''; }
   aplicarModoSoloMuebles(false);   // por si venía del modo "solo muebles", restaurar todo
   { const pb=$('proxAutoBox'); if(pb){ pb.classList.add('hidden'); pb.innerHTML=''; } }
   famSeleccionada=null; tipoSeleccionado=null;
@@ -12075,7 +12190,7 @@ function abrirModalNueva(){
   completandoId=null;
   origenAutoEstado=null;
   limpiarModal();
-  const we=$('wizEstado'); if(we) we.style.display='';
+  const we=$('wizEstado'); if(we) we.style.display='none';   // reemplazado por la barra de etapas
   resetNuevaEstado();
   setFechaConversacion(null);
   // Atención directa en el local: siempre presencial, así que va el tiempo de turno y el campo es teléfono.
@@ -12175,6 +12290,7 @@ function abrirModalCompletar(id, paso, forzarSeg){
 
   $('notas').value=a.notas||'';
   crecerTa($('notas'));
+  etapaWizSel=etapaDesdeRegistro(a); pintarEtapaWiz();
   proxSeleccionada=null;
 
   photoDataUrls=fotosDe(a).slice(); renderFotoPreview();
@@ -12632,6 +12748,9 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
     rec.sinMuebles=noTomoMuebles;
     rec.tipoConsulta=tipoSeleccionado||rec.tipoConsulta||null;
     rec.familiaConsulta=famSeleccionada||rec.familiaConsulta||null;
+    // La ETAPA manda: guarda el paso elegido y deriva de ahí el estado de siempre.
+    rec.etapaConsulta=etapaWizSel;
+    rec.estadoManual = ETAPAS_CONSULTA[etapaWizSel].estado || null;
     rec.motivoSinMueble=null;
     rec.motivoSinTiempo=null;
     rec.fotos=photoDataUrls.slice();
@@ -12702,6 +12821,8 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
     sinMuebles:noTomoMuebles,
     tipoConsulta:tipoSeleccionado||null,
     familiaConsulta:famSeleccionada||null,
+    etapaConsulta:etapaWizSel,
+    estadoManual: ETAPAS_CONSULTA[etapaWizSel].estado || null,
     motivoSinMueble: null,
     motivoSinTiempo: null,
     fotos:photoDataUrls.slice(),
@@ -13450,6 +13571,40 @@ function recParaTs(){
 .plegable.abierto .pl-chev{transform:rotate(180deg)}
 .plegable-cuerpo{display:none;padding:4px 12px 12px}
 .plegable.abierto .plegable-cuerpo{display:block}
+
+/* CHAPA DE ESTADO en el header: no se elige, la calcula la etapa */
+.estado-chapa{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:5px 13px;font-size:12.5px;font-weight:800;border:1.5px solid;white-space:nowrap}
+.estado-chapa .ec-pto{width:8px;height:8px;border-radius:50%;background:currentColor}
+.estado-chapa.es-sin{color:var(--muted);border-color:var(--line);background:#fff}
+.estado-chapa.es-seg{color:var(--blue);border-color:#b9d0f5;background:var(--blue-l)}
+.estado-chapa.es-conc{color:var(--green);border-color:#a9dcbc;background:var(--green-l)}
+.estado-chapa.es-perd{color:var(--red);border-color:#f0b9b3;background:var(--red-l)}
+.estado-auto{font-size:11px;color:var(--muted)}
+
+/* BARRA DE ETAPAS · 8 pasos en 2 filas de 4 (no entran en un renglón en la columna) */
+.etapas{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 0;margin-bottom:8px}
+.et{position:relative;text-align:center;cursor:pointer;padding:6px 2px 8px;border-radius:9px}
+.et:hover{background:var(--line2)}
+.et::before{content:'';position:absolute;top:22px;left:50%;width:100%;height:2px;background:var(--line);z-index:0}
+.et:nth-child(4)::before,.et:nth-child(8)::before{display:none}
+.et-ico{position:relative;z-index:1;width:32px;height:32px;margin:0 auto 6px;border-radius:50%;background:#fff;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:14px}
+.et-lbl{font-size:10.5px;font-weight:700;color:var(--sec);line-height:1.25}
+.et.hecha .et-ico{border-color:#7fc79b;background:#eaf7ee}
+.et.hecha::before{background:#7fc79b}
+.et.on .et-ico{background:var(--green);border-color:var(--green);color:#fff}
+.et.on .et-lbl{color:var(--green);font-weight:800}
+.et.on{background:var(--green-l)}
+.et.on.mala .et-ico{background:var(--red);border-color:var(--red)}
+.et.on.mala .et-lbl{color:var(--red)}
+.et.on.mala{background:var(--red-l)}
+.et-pie{font-size:12px;color:var(--muted);border-top:1px solid var(--line2);padding-top:8px}
+.et-pie b{color:var(--sec)}
+.aviso-pend{display:none;margin-top:9px;background:#fff7e6;border:1px solid #f0d9a8;border-radius:9px;padding:9px 12px;font-size:12.5px;color:#7a4a00;line-height:1.45}
+.aviso-pend.ver{display:block}
+
+/* el calendario del wizard, en la misma fila que los atajos */
+#campoProx #proxFechaCustom{width:auto;max-width:165px;padding:8px 10px;font-size:13px;border-radius:999px;margin-top:0;display:inline-block;vertical-align:middle}
+#campoProx #proxPills{display:inline-flex;vertical-align:middle;margin-right:6px}
 
 /* CALIFICACIÓN en estrellas, en la fila del cliente */
 .estrellas{display:flex;align-items:center;gap:4px;height:42px}
