@@ -10067,7 +10067,7 @@ function htmlEjemplosDelMes(){
             <span class="ev-chip a" style="font-size:10px;padding:2px 7px">${a.ejemploDelMes.target==='direccion'?'🔒 Solo dirección':'Para el vendedor'}</span>
           </div>
           ${a.ejemploDelMes.motivo?`<div class="tiny" style="margin-top:6px;padding:8px 10px;background:var(--line2);border-radius:7px"><b>Motivo:</b> ${escapeHtml(a.ejemploDelMes.motivo)}</div>`:''}
-          ${a.ejemploDelMes.captura?`<img src="${a.ejemploDelMes.captura}" style="max-width:100%;border-radius:8px;border:1px solid var(--line);margin-top:6px">`:''}
+          ${a.ejemploDelMes.captura?`<div class="ev-caps"><div class="ev-cap"><img src="${a.ejemploDelMes.captura}" onclick="verImagen('${a.ejemploDelMes.captura}')" title="Tocá para verla en grande"></div></div>`:''}
         </div>
         <button class="btn btn-navy btn-sm" onclick="marcarEjemploLeido('${a.id}')">Leído</button>
       </div>`;
@@ -10198,6 +10198,20 @@ async function evCaptura(input){
   guardarBorradorEvaluar(); renderEvaluar();
 }
 function evQuitarCaptura(i){ (evTmp.capturas||[]).splice(i,1); guardarBorradorEvaluar(); renderEvaluar(); }
+/* Las capturas se guardan chiquitas (miniatura de 2x2 cm) y se abren en grande al tocarlas.
+   Así no rompen el layout del modal y siguen siendo consultables cuando hagan falta. */
+function verImagen(src){
+  if(!src) return;
+  let v=document.getElementById('visorImg');
+  if(!v){
+    v=document.createElement('div'); v.id='visorImg'; v.className='visor-img';
+    v.onclick=()=>v.classList.add('hidden');
+    v.innerHTML='<span class="visor-x">×</span><img>';
+    document.body.appendChild(v);
+  }
+  v.querySelector('img').src=src;
+  v.classList.remove('hidden');
+}
 
 /* "Cargar" guarda ese pedazo en el registro YA, sin esperar al botón grande. Si Cintia cierra
    el modal a mitad de camino, el comentario y el ejemplo ya quedaron guardados. */
@@ -10293,16 +10307,19 @@ function renderEvaluar(){
     <div><b>Nunca respondió</b><span>El cliente no contestó nunca — no hay nada que evaluar.</span></div>
   </div>`;
 
-  const ejesHtml = ev.nuncaRespondio ? '' : `
-    <div class="ev-field"><label>Atención</label>${axisSel('atencion',EV_ATENCION)}</div>
-    <div class="ev-field"><label>Consulta</label>${axisSel('consulta',EV_CONSULTA)}</div>
-    <div class="ev-field"><label>Cliente</label>${axisSel('cliente',EV_CLIENTE)}</div>`;
+  // Aunque el cliente nunca haya respondido, Cintia igual puede evaluar: importa saber
+  // si el vendedor le volvió a escribir o lo dejó morir. Con "Nunca respondió" marcado
+  // los ejes quedan OPCIONALES (no bloquean el Guardar), pero siguen a la vista.
+  const ejesHtml = `
+    <div class="ev-field"><label>Atención${ev.nuncaRespondio?' <span class="opt">(opcional)</span>':''}</label>${axisSel('atencion',EV_ATENCION)}</div>
+    <div class="ev-field"><label>Consulta${ev.nuncaRespondio?' <span class="opt">(opcional)</span>':''}</label>${axisSel('consulta',EV_CONSULTA)}</div>
+    <div class="ev-field"><label>Cliente${ev.nuncaRespondio?' <span class="opt">(opcional)</span>':''}</label>${axisSel('cliente',EV_CLIENTE)}</div>`;
 
   const comentarioHtml=`<div class="ev-field">
     <label>Comentario para ${escapeHtml(vNom)} <span class="opt">(opcional)</span></label>
     <textarea id="evFbTexto" class="ev-ta" rows="2" placeholder="Ej: acá te confundiste… (Tab para seguir si no querés cargar)" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.fbTexto||'')}</textarea>
     <div class="ev-caps">
-      ${(ev.capturas||[]).map((c,i)=>`<div class="ev-cap"><img src="${c}"><span class="x" onclick="evQuitarCaptura(${i})" title="Quitar">×</span></div>`).join('')}
+      ${(ev.capturas||[]).map((c,i)=>`<div class="ev-cap"><img src="${c}" onclick="verImagen('${c}')" title="Tocá para verla en grande"><span class="x" onclick="event.stopPropagation();evQuitarCaptura(${i})" title="Quitar">×</span></div>`).join('')}
       <label class="ev-cap-add" title="Podés elegir varias a la vez">📎<span>${(ev.capturas||[]).length?'Sumar':'Adjuntar'}</span>
         <input type="file" accept="image/*" multiple style="display:none" onchange="evCaptura(this)"></label>
     </div>
@@ -10316,13 +10333,17 @@ function renderEvaluar(){
     const decSel=`<select id="evSelDecision" class="ev-sel" onchange="evDecision(this.value)">
       <option value="rechazada" ${(ev.decision!=='segunda'&&ev.decision!=='pedirConcretada'&&ev.decision!=='pedirRechazada')?'selected':''}>${esRechazada?'Queda rechazada':'Sigue en seguimiento'}</option>
       <option value="segunda" ${ev.decision==='segunda'?'selected':''}>2da oportunidad</option>
-      ${!esRechazada?`<option value="pedirConcretada" ${ev.decision==='pedirConcretada'?'selected':''}>✅ Pedirle al vendedor que la marque Concretada</option>
-      <option value="pedirRechazada" ${ev.decision==='pedirRechazada'?'selected':''}>❌ Pedirle al vendedor que la marque Rechazada</option>`:''}
+      <option value="pedirConcretada" ${ev.decision==='pedirConcretada'?'selected':''}>✅ Pasar a concretada</option>
+      <option value="pedirConcretadaNueva" ${ev.decision==='pedirConcretadaNueva'?'selected':''}>✅ Pasar a concretada + generar consulta nueva</option>
+      ${!esRechazada?`<option value="pedirRechazada" ${ev.decision==='pedirRechazada'?'selected':''}>❌ Pasar a rechazada</option>`:''}
     </select>`;
     let sub='';
-    if(ev.decision==='pedirConcretada' || ev.decision==='pedirRechazada'){
-      const q=ev.decision==='pedirConcretada'?'Concretada':'Rechazada';
+    if(ev.decision==='pedirConcretada' || ev.decision==='pedirRechazada' || ev.decision==='pedirConcretadaNueva'){
+      const q=ev.decision==='pedirRechazada'?'Rechazada':'Concretada';
       sub=`<p class="tiny" style="margin:6px 0 0">Le va a llegar al vendedor un recordatorio para marcarla como <b>${q}</b> y cargar los datos que faltan (${q==='Rechazada'?'el motivo del rechazo':'la seña, muebles, etc.'}). Vos no la cerrás — la cierra él.</p>`;
+      if(ev.decision==='pedirConcretadaNueva'){
+        sub+=`<p class="tiny" style="margin:6px 0 0;color:var(--blue)">Además se le crea una <b>consulta nueva</b> a ${escapeHtml(a.clienteNombre||'este cliente')}, con el mismo vendedor, para que pueda seguir trabajando lo que quedó pendiente (ej: compró la mesa de luz pero también preguntó por un respaldo).</p>`;
+      }
     }else if(ev.decision==='segunda'){
       sub=`<div class="ev-field"><label>¿A qué agente se la derivás?</label>
         <select id="evDerivar" class="ev-sel" onchange="guardarBorradorEvaluar()">
@@ -10487,11 +10508,13 @@ function abrirVistaEvaluacion(id){
     <div class="ev-hd"><div><h3>Tu evaluación</h3><div class="meta">${escapeHtml(a.clienteNombre||'Sin nombre')}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}${a.evaluadoTs?' · '+new Date(a.evaluadoTs).toLocaleDateString('es-AR'):''}</div></div></div>
     <div style="padding:14px 2px 2px">
       ${ejes}
-      ${(comTxt || (c && c.captura)) ? `<div class="vev-com">
-        <div class="vev-com-de">💬 ${nombreDe(c.deId)} te comentó</div>
-        ${comTxt?`<p>${escapeHtml(comTxt)}</p>`:''}
-        ${c.captura?`<img src="${c.captura}" style="max-width:100%;border-radius:8px;border:1px solid var(--line);margin-top:8px">`:''}
-      </div>` : ''}
+      ${(()=>{ // ahora pueden ser varias capturas: se muestran como miniaturas que se abren
+        const caps = c ? (c.capturas && c.capturas.length ? c.capturas : (c.captura?[c.captura]:[])) : [];
+        return (comTxt || caps.length) ? `<div class="vev-com">
+          <div class="vev-com-de">💬 ${nombreDe(c.deId)} te comentó</div>
+          ${comTxt?`<p>${escapeHtml(comTxt)}</p>`:''}
+          ${caps.length?`<div class="ev-caps">${caps.map(x=>`<div class="ev-cap"><img src="${x}" onclick="verImagen('${x}')" title="Tocá para verla en grande"></div>`).join('')}</div>`:''}
+        </div>` : ''; })()}
       ${(a.ejemploDelMes && a.ejemploDelMes.visibleVendedor) ? `<div class="vev-com" style="background:${a.ejemploDelMes.tipo==='malo'?'var(--red-l)':'var(--green-l)'};border:none">
         <div class="vev-com-de" style="color:${a.ejemploDelMes.tipo==='malo'?'var(--red)':'var(--green)'}">${a.ejemploDelMes.tipo==='malo'?'👎 Ejemplo a mejorar':'👍 Ejemplo del mes'}</div>
         ${a.ejemploDelMes.motivo?`<p>${escapeHtml(a.ejemploDelMes.motivo)}</p>`:''}
@@ -10693,16 +10716,45 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
       a.historialContacto.push({ts:new Date().toISOString(), texto:'🚒 Intervino '+nombreDe(YO)+' (derivó a 2da oportunidad)', porId:YO, intervencion:true});
     }
     toast('Levantada a 2da oportunidad — '+nombreDe(destino));
-  }else if(ev.decision==='pedirConcretada' || ev.decision==='pedirRechazada'){
+  }else if(ev.decision==='pedirConcretada' || ev.decision==='pedirRechazada' || ev.decision==='pedirConcretadaNueva'){
     // Cintia no cierra la consulta: le pide al vendedor que la marque y cargue los datos.
-    const estPed = ev.decision==='pedirConcretada' ? 'Concretado' : 'Rechazado';
+    const estPed = ev.decision==='pedirRechazada' ? 'Rechazado' : 'Concretado';
     a.cambioEstadoPedido={ estado:estPed, porId:YO, ts:new Date().toISOString() };
     if(!a.cintiaIntervino){
       a.cintiaIntervino={ts:new Date().toISOString(), porId:YO};
       a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
       a.historialContacto.push({ts:new Date().toISOString(), texto:'🚒 Intervino '+nombreDe(YO)+' (pidió marcar '+estPed+')', porId:YO, intervencion:true});
     }
-    toast('Le va a llegar al vendedor para que la marque '+(estPed==='Concretado'?'Concretada':'Rechazada'));
+    let extra='';
+    if(ev.decision==='pedirConcretadaNueva'){
+      // Caso real: el cliente compró la mesa de luz PERO también había preguntado por un
+      // respaldo. Al concretarse, la consulta sale de seguimiento y el vendedor pierde el
+      // hilo de lo que quedó abierto. Se le abre una consulta nueva del mismo cliente,
+      // con el mismo vendedor, para que pueda seguir trabajándolo.
+      const nueva={
+        id:'at_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+        ts:new Date().toISOString(), localId:a.localId||null,
+        vendedorId:a.vendedorId, registradoPor:YO,
+        derivada:true, origen:'derivada',
+        canal:a.canal||'presencial', canalDetalle:a.canalDetalle||null,
+        contactoId:a.contactoId||null,
+        fueraDeTurno:false, status:'pendiente',
+        clienteNombre:a.clienteNombre||'', clienteTelefono:a.clienteTelefono||null,
+        noTomoTelefono:!!a.noTomoTelefono, clienteTelefonoIG:a.clienteTelefonoIG||null,
+        muebles:[], notas:'', resultado:null, resultadoMotivo:null,
+        etapaConsulta:0, estadoManual:null,
+        hasPhoto:false, photoThumb:null, crmSync:false,
+        vieneDeConsultaId:a.id,
+        historialContacto:[{ts:new Date().toISOString(),
+          texto:'Consulta nueva abierta por '+nombreDe(YO)+' al concretarse la anterior — quedó algo por trabajar',
+          porId:YO}]
+      };
+      atenciones.push(nueva);
+      a.generoConsultaNuevaId=nueva.id;
+      a.historialContacto.push({ts:new Date().toISOString(), texto:'➕ '+nombreDe(YO)+' abrió una consulta nueva para seguir trabajando al cliente', porId:YO});
+      extra=' y le abrí una consulta nueva';
+    }
+    toast('Le va a llegar al vendedor para que la marque '+(estPed==='Concretado'?'Concretada':'Rechazada')+extra);
   }else{
     // Los dos motivos solo tienen sentido si el vendedor efectivamente la rechazó.
     if(estadoActual==='Rechazado'){
@@ -14075,6 +14127,18 @@ function recParaTs(){
   font-size:15px;color:var(--muted);background:#fff}
 .ev-cap-add span{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
 .ev-cap-add:hover{border-color:var(--blue);color:var(--blue);border-style:solid}
+.ev-cap{width:76px;height:76px}          /* 2x2 cm aprox */
+.ev-cap-add{width:76px;height:76px}
+.ev-cap img{cursor:zoom-in}
+.ev-cap img:hover{opacity:.85}
+
+/* Visor: la captura chica se abre a pantalla completa y se cierra tocando en cualquier lado */
+.visor-img{position:fixed;inset:0;z-index:9999;background:rgba(15,26,42,.88);display:flex;
+  align-items:center;justify-content:center;padding:34px;cursor:zoom-out}
+.visor-img.hidden{display:none}
+.visor-img img{max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.visor-x{position:absolute;top:16px;right:22px;color:#fff;font-size:34px;line-height:1;cursor:pointer;opacity:.85}
+.visor-x:hover{opacity:1}
 
 /* SELECTOR DE MUEBLE: desplegable que además filtra mientras se escribe */
 .combo{position:relative}
