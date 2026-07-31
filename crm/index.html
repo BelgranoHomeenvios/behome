@@ -10135,7 +10135,7 @@ function abrirEvaluar(id){
     nuncaRespondio:!!a.nuncaRespondio
   };
   renderEvaluar();
-  _evalAncho('560px');
+  _evalAncho('1040px');   // dos columnas: entra todo sin scrollear
   $('modalEvaluar').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
@@ -14050,6 +14050,31 @@ function recParaTs(){
   .acciones-reg{margin-top:14px}
   .acciones-reg .btn-guardar{width:auto;flex:1}
 }
+
+/* ============ EVALUACIÓN DE CINTIA EN 2 COLUMNAS (31/7) ============
+   Antes era una sola columna larguísima y había que scrollear para llegar a Guardar.
+   Ahora: izquierda "cómo se atendió" (lo que evalúa), derecha "qué hacemos" (lo que
+   decide). Abajo de 1000px vuelve a una sola columna. */
+.ev-form.ev-2col{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start;
+  padding:18px 22px 14px;max-height:82vh;overflow-y:auto}
+.ev-2col .ev-col{display:flex;flex-direction:column;gap:15px;min-width:0}
+.ev-2col .ev-col-tit{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);border-bottom:2px solid var(--line2);padding-bottom:7px;margin-bottom:2px}
+.ev-2col .ev-nunca{margin-bottom:0}
+@media(max-width:1000px){ .ev-form.ev-2col{grid-template-columns:1fr;gap:18px} }
+
+/* Varias capturas: miniaturas con ✕ y un botón para sumar más */
+.ev-caps{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.ev-cap{position:relative;width:62px;height:62px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.ev-cap img{width:100%;height:100%;object-fit:cover;display:block}
+.ev-cap .x{position:absolute;top:2px;right:2px;width:17px;height:17px;border-radius:50%;
+  background:rgba(15,26,42,.72);color:#fff;font-size:12px;line-height:17px;text-align:center;cursor:pointer}
+.ev-cap .x:hover{background:var(--red)}
+.ev-cap-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  width:62px;height:62px;border:1px dashed var(--line);border-radius:8px;cursor:pointer;
+  font-size:15px;color:var(--muted);background:#fff}
+.ev-cap-add span{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.ev-cap-add:hover{border-color:var(--blue);color:var(--blue);border-style:solid}
 
 /* SELECTOR DE MUEBLE: desplegable que además filtra mientras se escribe */
 .combo{position:relative}
