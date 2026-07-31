@@ -623,6 +623,8 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 /* Contacto invertido: teléfono grande arriba, nombre debajo (más legible) */
 .c-nom{display:flex;flex-direction:row;align-items:center;gap:8px}
 .c-nom-inner{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px;min-width:0}
+.c-nom-alt{color:var(--muted);font-size:10.5px;margin-left:5px}
+.dato-bloq{background:#f1f5f9!important;color:#64748b!important;cursor:not-allowed}
 .c-canal-emoji{flex-shrink:0;font-size:14px;line-height:1;display:inline-flex;align-items:center}
 .c-canal-ico{flex-shrink:0;display:inline-flex;align-items:center;line-height:1}
 .canal-filtros{display:flex;gap:5px;align-items:center;margin-top:6px;flex-wrap:nowrap}
@@ -2351,6 +2353,14 @@ function copiarContacto(id){
   const esIG = a.canal==='virtual' && a.canalDetalle==='instagram';
   copiarTexto(a.clienteTelefono, esIG?'Usuario copiado':'Teléfono copiado');
 }
+/* En una consulta de IG con teléfono cargado, el @usuario baja al segundo renglón y se
+   copia desde ahí (el principal ya copia el teléfono). */
+function copiarIG(id){
+  const a=atenciones.find(x=>x.id===id); if(!a) return;
+  const ig=valorDato(a,'instagram');
+  if(!ig){ toast('No hay usuario de Instagram'); return; }
+  copiarTexto(ig,'Usuario de Instagram copiado');
+}
 function copiarCampoTelefono(){
   const v=$('clienteTelefono').value.trim();
   if(!v){ toast('No hay nada para copiar'); return; }
@@ -2374,6 +2384,62 @@ function esConsultaIG(a){ return !!(a && a.canal==='virtual' && /instagram/i.tes
 function esAdmin(){return rolDe(YO)==='admin';}
 function esAuditora(){return rolDe(YO)==='auditora';}
 function puedeVerEquipo(){return esAdmin()||esAuditora();}
+
+/* ===== DATOS DE CONTACTO BLOQUEADOS =====
+   Nombre, teléfono, usuario de IG y mail son la IDENTIDAD del cliente: de ahí salen la
+   deduplicación, la fusión, la base de clientes y el historial de recompra. Si Cintia o
+   dirección ya los cargaron, el vendedor NO los pisa. Sí puede completar los que están
+   vacíos — ese dato lo consigue él y hace falta.
+   `a.datoDe` guarda quién dejó el valor actual de cada campo, de acá en adelante. Los
+   registros viejos no lo tienen: para esos manda quién cargó la consulta (registradoPor). */
+const CAMPOS_CONTACTO={nombre:'clienteNombre', telefono:'clienteTelefono', instagram:'clienteInstagram', email:'clienteEmail'};
+function rolMandaSobreDatos(uid){ const r=rolDe(uid||''); return r==='auditora'||r==='admin'; }
+function valorDato(rec,campo){
+  if(!rec) return '';
+  if(campo==='instagram'){
+    const ig=rec.clienteInstagram || ((rec.clienteTelefono||'')[0]==='@' ? rec.clienteTelefono : '');
+    return (ig||'').trim();
+  }
+  const v=rec[CAMPOS_CONTACTO[campo]];
+  return (v==null?'':String(v)).trim();
+}
+function datoBloqueado(rec,campo){
+  if(!rec) return false;
+  if(puedeVerEquipo()) return false;              // Cintia y dirección editan siempre
+  if(!valorDato(rec,campo)) return false;         // vacío: el vendedor lo puede cargar
+  const de=(rec.datoDe||{})[campo];
+  if(de) return rolMandaSobreDatos(de);
+  return rolMandaSobreDatos(rec.registradoPor);   // dato viejo, sin rastro por campo
+}
+function quienCargoDato(rec,campo){ return (rec&&rec.datoDe&&rec.datoDe[campo]) || (rec&&rec.registradoPor) || null; }
+function marcarDato(rec,campo,valor){
+  rec.datoDe=rec.datoDe||{};
+  if((valor==null?'':String(valor)).trim()) rec.datoDe[campo]=YO; else delete rec.datoDe[campo];
+}
+/* Escribe el campo solo si no está bloqueado para mí. Devuelve true si escribió. */
+function setDatoContacto(rec,campo,valor){
+  if(datoBloqueado(rec,campo)) return false;
+  const v=(valor==null?'':String(valor)).trim();
+  rec[CAMPOS_CONTACTO[campo]]= v || null;
+  marcarDato(rec,campo,v);
+  return true;
+}
+/* Pone en solo-lectura los campos que no me tocan, con el motivo en el tooltip. */
+function aplicarBloqueosContacto(a){
+  const ig = a ? esConsultaIG(a) : false;
+  [['clienteNombre','nombre','noTomoNombre'],
+   ['clienteTelefono', ig?'instagram':'telefono','noTomoTel'],
+   ['clienteTelefonoIG','telefono',null],
+   ['clienteEmail','email',null]].forEach(([inputId,campo,chkId])=>{
+    const el=$(inputId); if(!el) return;
+    const lock = a ? datoBloqueado(a,campo) : false;
+    el.readOnly=lock;
+    el.classList.toggle('dato-bloq', lock);
+    el.title = lock ? ('Lo cargó '+nombreDe(quienCargoDato(a,campo))+' — si está mal, pedíselo con el 🙏') : '';
+    const chk = chkId ? $(chkId) : null;
+    if(chk) chk.disabled=lock;
+  });
+}
 /* Con la columna Vendedor a la vista, el título tiene que decir la verdad: dirección
    arranca mirando al equipo entero, no sus propias consultas. */
 function tituloConsultas(){
@@ -4752,8 +4818,8 @@ function htmlFormConcretado(a){
       </div>
 
       <div class="row">
-        <div class="field" style="flex:1"><label>Nombre <span class="opt">(si lo tenés)</span></label><input type="text" id="cierreNombre" value="${escAttr(a.clienteNombre||'')}" placeholder="Nombre y apellido"></div>
-        <div class="field" style="flex:1"><label>Teléfono <span class="opt">(si lo tenés)</span></label><input type="text" id="cierreTelefono" value="${escAttr(a.clienteTelefono||'')}" placeholder="11 xxxx xxxx"></div>
+        <div class="field" style="flex:1"><label>Nombre <span class="opt">(si lo tenés)</span></label><input type="text" id="cierreNombre" value="${escAttr(a.clienteNombre||'')}" placeholder="Nombre y apellido" ${datoBloqueado(a,'nombre')?'readonly class="dato-bloq" title="Lo cargó '+escAttr(nombreDe(quienCargoDato(a,'nombre')))+'"':''}></div>
+        <div class="field" style="flex:1"><label>Teléfono <span class="opt">(si lo tenés)</span></label><input type="text" id="cierreTelefono" value="${escAttr(a.clienteTelefono||'')}" placeholder="11 xxxx xxxx" ${datoBloqueado(a,'telefono')?'readonly class="dato-bloq" title="Lo cargó '+escAttr(nombreDe(quienCargoDato(a,'telefono')))+'"':''}></div>
       </div>
 
       <div class="field" style="margin-bottom:2px">
@@ -5013,8 +5079,8 @@ async function guardarCierre(){if(esSoloLectura())return avisoLectura();
   // concreta una consulta que entró sin datos y se saltea el wizard). Si ya estaban,
   // vienen autocompletados; si el vendedor los edita, se actualizan.
   const cNom=$('cierreNombre'), cTel=$('cierreTelefono');
-  if(cNom && cNom.value.trim()){ a.clienteNombre=cNom.value.trim(); a.noTomoNombre=false; }
-  if(cTel && cTel.value.trim()){ a.clienteTelefono=cTel.value.trim(); a.noTomoTelefono=false; }
+  if(cNom && cNom.value.trim() && setDatoContacto(a,'nombre',cNom.value.trim())) a.noTomoNombre=false;
+  if(cTel && cTel.value.trim() && setDatoContacto(a,'telefono',cTel.value.trim())) a.noTomoTelefono=false;
   // Si la consulta estaba pendiente (se cerró directo, sin pasar por el wizard),
   // se completa acá mismo para que quede como una consulta cerrada normal.
   if(a.status==='pendiente'){
@@ -5524,6 +5590,13 @@ function logItemHtml(a){
   const dupMotivo = motivoDuplicado(a);
   const tel = a.noTomoTelefono ? 'sin teléfono' : (a.clienteTelefono || 'Sin definir');
   const telCopiable = !a.noTomoTelefono && a.clienteTelefono;
+  /* CONSULTA DE IG CON TELÉFONO: el teléfono pasa a ser el contacto PRINCIPAL (es por
+     donde se le escribe) y el @usuario baja al segundo renglón, donde iba el nombre.
+     Así quedan los dos datos a la vista: por dónde entró y por dónde se lo contacta.
+     Mientras no haya teléfono, el @usuario sigue siendo el principal, como hasta ahora. */
+  const _igRow = valorDato(a,'instagram');
+  const _telEsNumero = !!(a.clienteTelefono && a.clienteTelefono[0]!=='@' && normTel(a.clienteTelefono).length>=8);
+  const igSegundoPlano = esConsultaIG(a) && !!_igRow && _telEsNumero && !a.noTomoTelefono;
   const muebles = a.muebles||[];
   const totalCotizado=montoRepresentativo(muebles);
   const plazo=infoPlazo(a);
@@ -5661,7 +5734,13 @@ function logItemHtml(a){
         }</span>`}
         ${canalIco}
         <div class="c-nom-inner">
-        <span class="c-nom-txt"><b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        <span class="c-nom-txt">${(()=>{
+          if(!igSegundoPlano) return `<b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>`;
+          // El nombre solo se muestra al lado si aporta algo: en IG suele ser el mismo handle.
+          const _nom=(nombreMostrar||'').trim();
+          const _mismo = !_nom || _nom==='Sin definir' || normContacto('@'+_nom.replace(/\s+/g,'').toLowerCase())===normContacto(_igRow);
+          return `<b class="nom-copy" onclick="event.stopPropagation();copiarIG('${a.id}')" title="Instagram: ${escAttr(_igRow)}${_mismo?'':' · '+escAttr(_nom)} — tocá para copiar el usuario">${escapeHtml(truncPalabras(_igRow,2))}</b>${_mismo?'':`<span class="c-nom-alt" title="${escAttr(_nom)}">${escapeHtml(truncPalabras(_nom,1))}</span>`}`;
+        })()}${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
@@ -12928,6 +13007,7 @@ function toggleMuebles(){
 }
 
 function limpiarModal(){
+  aplicarBloqueosContacto(null);   // una consulta nueva no tiene nada bloqueado
   ['clienteNombre','clienteTelefono','clienteTelefonoIG','clienteEmail','nroCotizacion','notas','tiempoAtencionInput'].forEach(id=>{const e=$(id); if(e) e.value='';});
   const cig=$('campoTelefonoIG'); if(cig) cig.classList.add('hidden');
   const cmail=$('campoMail'); if(cmail) cmail.classList.add('hidden');
@@ -13061,6 +13141,7 @@ function abrirModalCompletar(id, paso){
     if(a.noTomoTelefono){$('noTomoTel').checked=true;$('clienteTelefono').disabled=true;}
     else{$('clienteTelefono').value=a.clienteTelefono||'';}
   }
+  aplicarBloqueosContacto(a);
   const dav0=$('modalDupAviso'); if(dav0) dav0.innerHTML='';
 
   if(a.tiempoAtencionMin){
@@ -13500,20 +13581,26 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
   if(modalModo==='completar'){
     const rec=atenciones.find(x=>x.id===completandoId);
     if(!rec){toast('No se encontró la consulta');return;}
-    rec.clienteNombre=nombre;
-    rec.clienteEmail=emailCliente||rec.clienteEmail||null;
-    rec.noTomoNombre=noTomoNombre;
+    // Cada campo se escribe solo si no está bloqueado: si Cintia lo cargó, queda como está.
+    if(setDatoContacto(rec,'nombre',nombre)) rec.noTomoNombre=noTomoNombre;
+    setDatoContacto(rec,'email',emailCliente||rec.clienteEmail||'');
     const esIGrec = esConsultaIG(rec);
     if(esIGrec){
       // Campo principal = usuario de IG; el teléfono es el campo aparte que agrega el vendedor.
       const igHandle = noTomo ? '' : tel;
       const telIG = $('clienteTelefonoIG') ? $('clienteTelefonoIG').value.trim() : '';
-      rec.clienteInstagram = igHandle || rec.clienteInstagram || null;
-      rec.clienteTelefono = noTomo ? null : (telIG || igHandle || null);
-      rec.noTomoTelefono = noTomo && !telIG;
+      setDatoContacto(rec,'instagram', igHandle || rec.clienteInstagram || '');
+      if(!datoBloqueado(rec,'telefono')){
+        rec.clienteTelefono = noTomo ? null : (telIG || rec.clienteInstagram || igHandle || null);
+        rec.noTomoTelefono = noTomo && !telIG;
+        marcarDato(rec,'telefono',rec.clienteTelefono);
+      }
     }else{
-      rec.clienteTelefono=noTomo?null:tel;
-      rec.noTomoTelefono=noTomo;
+      if(!datoBloqueado(rec,'telefono')){
+        rec.clienteTelefono=noTomo?null:tel;
+        rec.noTomoTelefono=noTomo;
+        marcarDato(rec,'telefono',rec.clienteTelefono);
+      }
     }
     rec.muebles=muebles;
     {
