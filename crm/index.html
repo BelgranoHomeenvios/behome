@@ -10810,6 +10810,8 @@ function cerrarRecordar(){
   $('modalRecordar').classList.add('hidden');
   document.body.style.overflow='';
   recordandoUid=null; recordandoConsultaId=null; reasignandoId=null;
+  const caja=document.querySelector('#modalRecordar .modal-caja');
+  if(caja) caja.style.maxWidth='';     // vuelve al ancho normal de los recordatorios
 }
 async function guardarRecordatorio(){
   if(!recordandoUid) return;
@@ -11010,12 +11012,16 @@ function abrirReasignar(id){
   // Cintia y dirección también atienden consultas: si no están en la lista, la única
   // forma de que Cintia se quede una era pasársela a un vendedor y pedírsela de vuelta.
   const vendedores=Object.keys(USUARIOS).filter(uid=>['vendedor','auditora','admin'].includes(rolDe(uid)));
+  // Este panel comparte la caja con los recordatorios, que es angosta. Se ensancha solo
+  // para la reasignación (7 nombres en un renglón) y cerrarRecordar la deja como estaba.
+  const caja=document.querySelector('#modalRecordar .modal-caja');
+  if(caja) caja.style.maxWidth='580px';
   $('recordarCaja').innerHTML=`
     <h3 style="margin-top:0">Reasignar consulta</h3>
     <p class="tiny" style="margin-top:-6px;margin-bottom:16px"><b>${a.clienteNombre||'Sin nombre'}</b> está asignada a ${nombreDe(a.vendedorId)}.</p>
     <div class="field"><label>Nuevo vendedor</label>
-      <div class="pills" id="reasignarPills">
-        ${vendedores.map(uid=>`<span class="pill ${uid===a.vendedorId?'on':''}" data-uid="${uid}" onclick="pickReasignarVendedor(this)">${nombreDe(uid)}${uid===YO?' (yo)':''}${uid===a.vendedorId?' · la tiene':''}</span>`).join('')}
+      <div class="pills pills-reasignar" id="reasignarPills">
+        ${vendedores.map(uid=>`<span class="pill ${uid===a.vendedorId?'on':''}" data-uid="${uid}" onclick="pickReasignarVendedor(this)" title="${uid===a.vendedorId?'La tiene ahora':''}">${nombreDe(uid)}${uid===YO?' (yo)':''}</span>`).join('')}
       </div>
     </div>
     <button class="btn btn-navy" style="width:100%" onclick="guardarReasignacion()">Reasignar</button>
@@ -14141,6 +14147,10 @@ function recParaTs(){
 .visor-img img{max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
 .visor-x{position:absolute;top:16px;right:22px;color:#fff;font-size:34px;line-height:1;cursor:pointer;opacity:.85}
 .visor-x:hover{opacity:1}
+
+/* Reasignar: los 7 nombres en un solo renglón */
+.pills-reasignar{flex-wrap:nowrap;gap:5px}
+.pills-reasignar .pill{padding:9px 10px;font-size:12px;white-space:nowrap}
 
 /* SELECTOR DE MUEBLE: desplegable que además filtra mientras se escribe */
 .combo{position:relative}
