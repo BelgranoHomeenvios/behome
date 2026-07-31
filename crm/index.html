@@ -2291,7 +2291,23 @@ let filtroPlazo='todos';
 let filtroOportunidad='todos';
 let filtroComentario='todos';
 let filtroBusqueda='';
+/* El filtro de vendedor acepta VARIOS a la vez: Cintia trabaja "Ale y Cristian" como
+   un bloque. Se guarda como array; 'todos' sigue siendo el string de siempre para no
+   romper el resto del código que lo lee. */
 let filtroVendedorCintia='todos';
+function vendFiltrados(){ return Array.isArray(filtroVendedorCintia) ? filtroVendedorCintia : (filtroVendedorCintia==='todos'?[]:[filtroVendedorCintia]); }
+function vendActivoFiltro(){ return vendFiltrados().length>0; }
+/* Toca un vendedor: lo suma o lo saca de la selección, sin cerrar el desplegable. */
+function toggleFiltroVendedor(uid){
+  if(uid==='todos'){ filtroVendedorCintia='todos'; }
+  else{
+    const sel=vendFiltrados().slice();
+    const i=sel.indexOf(uid);
+    if(i>=0) sel.splice(i,1); else sel.push(uid);
+    filtroVendedorCintia = sel.length ? sel : 'todos';
+  }
+  reiniciarPaginado(); render();
+}
 let filtroCanalCintia='todos';
 let filtroEvaluacion='todos'; // 'todos' | 'evaluadas' | 'sinevaluar' — solo para Cintia
 let filtroCanalGrupo='todos'; // 'todos' | 'whatsapp' | 'instagram' | 'local' — filtro por canal desde Contacto
@@ -6044,7 +6060,7 @@ function popFiltroOpciones(campo, opciones, actual){
 function cheadHtml(){
   const estActivo=filtroEstado!=='activas', plazoActivo=filtroPlazo!=='todos',
         oportActivo=filtroOportunidad!=='todos', etapaActivo=filtroEtapa!=='todos', comentActivo=filtroComentario!=='todos',
-        buscActivo=!!filtroBusqueda, vendActivo=filtroVendedorCintia!=='todos', canalActivo=filtroCanalCintia!=='todos',
+        buscActivo=!!filtroBusqueda, vendActivo=vendActivoFiltro(), canalActivo=filtroCanalCintia!=='todos',
         evalActivo=filtroEvaluacion!=='todos';
   let colsCintia='', evalCol='', montoCol='<span class="h-monto">Cotizado</span>';
   if(esAuditora()){
@@ -6054,7 +6070,12 @@ function cheadHtml(){
     colsCintia = `
     <span class="h-origen">
       <span class="ebtn filtro-head ${vendActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Vendedor<span class="arrow">▾</span>
-        <span class="pop pop-down"><b>Filtrar por vendedor</b>${popFiltroOpciones('vendedorCintia',opcionesVend,filtroVendedorCintia)}</span>
+        <span class="pop pop-down"><b>Filtrar por vendedor <span class="tiny" style="font-weight:400;text-transform:none">— podés marcar varios</span></b>
+          ${(()=>{const sel=vendFiltrados();
+            return opcionesVend.map(([v,t])=>{
+              const on = v==='todos' ? !sel.length : sel.includes(v);
+              return `<div class="filt-op ${on?'on':''}" onclick="event.stopPropagation();toggleFiltroVendedor('${v}')">${t}${on?'<span class="chk">✓</span>':''}</div>`;
+            }).join('');})()}</span>
       </span>
       <span class="ebtn filtro-head sub ${canalActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Canal<span class="arrow">▾</span>
         <span class="pop pop-down"><b>Filtrar por canal</b>${popFiltroOpciones('canalCintia',opcionesCanal,filtroCanalCintia)}</span>
@@ -6167,7 +6188,7 @@ function filtrosActivos(){
   if(puedeRecordar() && filtroRecordatorio!=='todos') f.push({k:'recordatorio', t:etiquetaOpcion(FILTRO_REC_OPCIONES,filtroRecordatorio)});
   if(filtroAsistPend) f.push({k:'asistPend', t:'Mensajes de vendedores'});
   if(esAuditora()){
-    if(filtroVendedorCintia!=='todos') f.push({k:'vendedorCintia', t:'Vendedor: '+nombreDe(filtroVendedorCintia)});
+    if(vendActivoFiltro()) f.push({k:'vendedorCintia', t:'Vendedor: '+vendFiltrados().map(nombreDe).join(' + ')});
     if(filtroCanalCintia!=='todos') f.push({k:'canalCintia', t:'Canal: '+filtroCanalCintia});
     if(filtroEvaluacion!=='todos') f.push({k:'evaluacion', t:'Evaluación: '+etiquetaOpcion(FILTRO_EVAL_OPCIONES,filtroEvaluacion)});
   }
@@ -6298,7 +6319,7 @@ function construirListaFiltrada(){
   // permanente ahora también se aplica acá — antes quedaba afuera a propósito, pero pasa a
   // valer para Consultas igual que para el resto de sus secciones.
   if(esAuditora()){
-    if(filtroVendedorCintia!=='todos') l=l.filter(a=>a.vendedorId===filtroVendedorCintia);
+    if(vendActivoFiltro()){ const _v=vendFiltrados(); l=l.filter(a=>_v.includes(a.vendedorId)); }
     if(filtroCanalCintia!=='todos') l=l.filter(a=>canalReal(a)===filtroCanalCintia);
     if(filtroEvaluacion==='evaluadas') l=l.filter(a=>a.evaluada);
     else if(filtroEvaluacion==='sinevaluar') l=l.filter(a=>!a.evaluada);
@@ -6354,7 +6375,7 @@ function filtrosColumna(l){
     if(filtroAsistPend) l=l.filter(a=>asistPendienteParaMi(a));
   }
   if(esAuditora()){
-    if(filtroVendedorCintia!=='todos') l=l.filter(a=>a.vendedorId===filtroVendedorCintia);
+    if(vendActivoFiltro()){ const _v=vendFiltrados(); l=l.filter(a=>_v.includes(a.vendedorId)); }
     if(filtroCanalCintia!=='todos') l=l.filter(a=>canalReal(a)===filtroCanalCintia);
     if(filtroEvaluacion==='evaluadas') l=l.filter(a=>a.evaluada);
     else if(filtroEvaluacion==='sinevaluar') l=l.filter(a=>!a.evaluada);
@@ -8038,15 +8059,15 @@ function renderCintiaBotones(){
     // El contador de "Mis pendientes" tiene que coincidir con lo que se ve adentro
     // (htmlCintiaMisPendientes): solicitudes, atrasadas propias, por vincular, revisiones,
     // fusiones/conflictos y — para el admin — las bajas de contacto.
-    const pend = solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length
-             + atenciones.filter(a=>cuentaParaVendedor(a) && a.vendedorId===YO && zonaDe(a)==='atrasada' && dentroDePeriodoCintia(a.ts)).length
-             + pendientesVincularCliente().filter(a=>dentroDePeriodoCintia(a.ts)).length
-             + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length
+    const pend = solicitudesEliminacion.filter(s=>s.estado==='pendiente').length
+             + atenciones.filter(a=>cuentaParaVendedor(a) && a.vendedorId===YO && zonaDe(a)==='atrasada').length
+             + pendientesVincularCliente().length
+             + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin())).length
              + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length
              + asistenciasParaMi().length
              + solicitudesEliminacion.filter(s=>s.estado==='aprobada').length;
     const itemsA=[
-      {id:'resumen',       label:'Resumen',            ic:'resumen'},
+      {id:'resumen',       label:'Resumen del día',    ic:'resumen'},
       {id:'consultas',     label:'Consultas',          ic:'consultas'},
       {id:'misconsultas',  label:'Mis consultas',      ic:'estados', cnt:abiertasMias},
       {id:'mispendientes', label:'Mis pendientes',     ic:'bajas',   cnt:pend},
@@ -8063,13 +8084,13 @@ function renderCintiaBotones(){
     return;
   }
   const items=[
-    {id:'resumen', label:'Resumen', ic:'resumen'},
+    {id:'resumen', label:'Resumen del día', ic:'resumen'},
     {id:'consultas', label:'Consultas', ic:'consultas'},
     {id:'evaluar', label:'Para evaluar', ic:'evaluar', cnt:colaEvaluarCintia().length},
-    {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts) && consultaAbiertaCintia(a)).length + estadosPedido.filter(e=>!e.respondido && dentroDePeriodoCintia(e.ts)).length + consultasInvalidas.filter(c=>dentroDePeriodoCintia(c.ts)).length},
-    {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)).length},
+    {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && consultaAbiertaCintia(a)).length + estadosPedido.filter(e=>!e.respondido).length + consultasInvalidas.length},
+    {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a)).length},
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
-    {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length + asistenciasParaMi().length},
+    {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente').length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin())).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length + asistenciasParaMi().length},
     {id:'clientes', label:'Clientes', ic:'pulso'},
     ...(esAdmin() ? [{id:'ejemplos', label:'Ejemplo del mes', ic:'evaluar', cnt:atenciones.filter(a=>a.ejemploDelMes && !a.ejemploDelMes.leido).length}] : []),
   ];
@@ -8442,7 +8463,76 @@ function deltaHtml(actual, anterior){
   return `<span class="delta ${dif>0?'up':'down'}">${dif>0?'▲':'▼'}${Math.abs(dif)}%</span>`;
 }
 
-function htmlCintiaResumen(){
+/* ============ RESUMEN DEL DÍA (31/7) ============
+   Lo que Cintia necesita a la mañana: a quién había que hablarle hoy y qué quedó sin
+   completar, de TODOS los vendedores, agrupado por persona. Antes tenía que entrar
+   vendedor por vendedor para armarse esta lista.
+   No depende del filtro de período: lo de hoy es lo de hoy. */
+function htmlResumenDelDia(){
+  const abiertas = atenciones.filter(a=>cuentaParaVendedor(a));
+  const zonas = {atrasada:'Atrasadas', hoy:'Para hoy', sinclas:'Sin clasificar'};
+  const relevantes = abiertas.filter(a=>zonas[zonaDe(a)]);
+  if(!relevantes.length){
+    return `<div class="cin-card"><h3>Resumen del día</h3>
+      <p class="cin-empty">El equipo está al día: no hay nada atrasado, para hoy ni sin clasificar.</p></div>`;
+  }
+  // Agrupado por vendedor, el que más deuda tiene arriba.
+  const porVend={};
+  relevantes.forEach(a=>{ (porVend[a.vendedorId]=porVend[a.vendedorId]||[]).push(a); });
+  const orden=Object.keys(porVend).sort((x,y)=>porVend[y].length-porVend[x].length);
+  const ORDEN_ZONA={atrasada:0, hoy:1, sinclas:2};
+  const totAtr=relevantes.filter(a=>zonaDe(a)==='atrasada').length;
+  const totHoy=relevantes.filter(a=>zonaDe(a)==='hoy').length;
+  const totSin=relevantes.filter(a=>zonaDe(a)==='sinclas').length;
+
+  const bloques=orden.map(uid=>{
+    const l=porVend[uid].slice().sort((a,b)=>{
+      const d=ORDEN_ZONA[zonaDe(a)]-ORDEN_ZONA[zonaDe(b)];
+      return d || (new Date(fechaUltimoMovimiento(a))-new Date(fechaUltimoMovimiento(b)));
+    });
+    const c=z=>l.filter(a=>zonaDe(a)===z).length;
+    const filas=l.map(a=>{
+      const z=zonaDe(a);
+      const et=ETAPAS_CONSULTA[etapaDesdeRegistro(a)];
+      return `<tr>
+        <td><span class="rd-z rd-${z}">${zonas[z]}</span></td>
+        <td class="rd-cli">${escapeHtml(a.clienteNombre||'Sin nombre')}
+          <span class="rd-tel">${escapeHtml(a.clienteTelefono||a.clienteTelefonoIG||'')}</span></td>
+        <td><span class="etapa-chip ${et.estado?CLASE_CHAPA[et.estado]:'es-sin'}"><span class="ec-ic">${et.ic}</span><span class="ec-tx">${escapeHtml(et.corto)}</span></span></td>
+        <td class="rd-dias">${diasSinContacto(a)}d sin contacto</td>
+        <td class="rd-acc">
+          <span class="rd-btn" onclick="editarDesdeHistorial('${a.id}',0)" title="Abrir la consulta">Abrir</span>
+          <span class="rd-btn rd-rec" onclick="abrirRecordarConsulta('${a.id}')" title="Mandarle un recordatorio al vendedor">🔔 Recordar</span>
+        </td></tr>`;
+    }).join('');
+    return `<div class="rd-vend">
+      <div class="rd-vend-hd">
+        <b>${escapeHtml(nombreDe(uid))}</b>
+        <span class="rd-cnt">${c('atrasada')?`<i class="rd-z rd-atrasada">${c('atrasada')} atrasadas</i>`:''}
+          ${c('hoy')?`<i class="rd-z rd-hoy">${c('hoy')} para hoy</i>`:''}
+          ${c('sinclas')?`<i class="rd-z rd-sinclas">${c('sinclas')} sin clasificar</i>`:''}</span>
+      </div>
+      <table class="rd-tabla">${filas}</table>
+    </div>`;
+  }).join('');
+
+  return `<div class="cin-card">
+    <h3>Resumen del día <span class="cnt-pill">${relevantes.length}</span></h3>
+    <p class="tiny" style="margin-top:-8px">A quién hay que hablarle hoy y qué quedó sin completar, de todo el equipo. No lo toca el filtro de período de abajo.</p>
+    <div class="rd-tot">
+      ${totAtr?`<span class="rd-z rd-atrasada">${totAtr} atrasadas</span>`:''}
+      ${totHoy?`<span class="rd-z rd-hoy">${totHoy} para hoy</span>`:''}
+      ${totSin?`<span class="rd-z rd-sinclas">${totSin} sin clasificar</span>`:''}
+    </div>
+    ${bloques}
+  </div>`;
+}
+
+/* La tabla "Detalle por vendedor" y los dos gráficos se calculan acá adentro, con
+   veinte variables locales. En vez de duplicar todo eso para Estadísticas, se le pide a
+   la misma función que devuelva ese pedazo: htmlCintiaResumen(true). */
+function htmlDetalleVendedorEst(){ return htmlCintiaResumen(true); }
+function htmlCintiaResumen(soloAnalisis){
   if(resumenVendedor) return htmlResumenDetalleVendedor(resumenVendedor);
 
   const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
@@ -8574,8 +8664,10 @@ function htmlCintiaResumen(){
   // Ni Cintia ni Brian ven las tarjetas de pantallas acá: se entra a la pantalla de un
   // vendedor desde el desplegable de arriba ("Ver la pantalla de:"), que queda siempre
   // visible para volver a la propia sesión con un clic.
-  return activosBar + canalPills + rankingHtml + detalleHtml
-       + graficoContactosPorTiempo(actual) + graficoContactosPorCanal(actual);
+  // El detalle por vendedor y los dos gráficos se mudaron a Estadísticas: son análisis,
+  // no la agenda del día. Acá queda lo operativo, que es lo que Cintia mira a la mañana.
+  if(soloAnalisis) return detalleHtml + graficoContactosPorTiempo(actual) + graficoContactosPorCanal(actual);
+  return htmlResumenDelDia() + activosBar + canalPills + rankingHtml;
 }
 /* Módulo para que Cintia entre a la pantalla de cada vendedor y le dé soporte. Solo
    vendedores (no Brian ni ella misma). Usa el mismo "ver como" que dirección; la barra
@@ -9259,6 +9351,9 @@ function estCardCanales(rango){
 }
 
 function htmlCintiaEstadisticas(){
+  // El detalle por vendedor y los dos gráficos de contactos vinieron acá desde Resumen:
+  // son análisis de un período, y este es el lugar donde el filtro de período aplica.
+  const _traidos = htmlDetalleVendedorEst();   // trae la tabla por vendedor + los 2 gráficos
   const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
   const rango=estRango();
   const base=estBase(rango);
@@ -9290,7 +9385,7 @@ function htmlCintiaEstadisticas(){
 
   const notaCmp = conCmp ? `<div class="est-note alerta" style="margin:0 0 12px"><b>Comparando contra ${estFmtRango(estRangoCmp())}, medido a la misma altura:</b> del período de referencia solo cuento las evaluaciones que ya existían a esta misma distancia del cierre. Sin esta corrección, todo período en curso parece un desastre contra uno ya cerrado.</div>` : '';
 
-  return controles + notaCmp +
+  return controles + notaCmp + _traidos +
     estCardResultado(baseConFantasmas, baseCmpConFantasmas) +
     estCardCobertura(base, baseCmp) +
     estCardPlata(base) +
@@ -9360,17 +9455,19 @@ function verAsistPendientes(){
   renderHistorial();
 }
 function htmlCintiaMisPendientes(){
-  const pendientes=solicitudesEliminacion.filter(s=>s.estado==='pendiente' && dentroDePeriodoCintia(s.ts)).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
-  const misAtrasados=atenciones.filter(a=>cuentaParaVendedor(a) && a.vendedorId===YO && zonaDe(a)==='atrasada' && dentroDePeriodoCintia(a.ts));
-  const porVincular=pendientesVincularCliente().filter(a=>dentroDePeriodoCintia(a.ts));
+  // Sin filtro de período: un pendiente no deja de estar pendiente porque sea viejo.
+  // Además el contador del balde tiene que dar exactamente lo que se ve acá adentro.
+  const pendientes=solicitudesEliminacion.filter(s=>s.estado==='pendiente').sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+  const misAtrasados=atenciones.filter(a=>cuentaParaVendedor(a) && a.vendedorId===YO && zonaDe(a)==='atrasada');
+  const porVincular=pendientesVincularCliente();
   // Revisiones de evaluación que los vendedores pidieron y me tocan a mí (o que escalé y siguen abiertas).
-  const revisiones=atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin()) && dentroDePeriodoCintia(a.ts)).sort((a,b)=>new Date(a.revisionEval.ts)-new Date(b.revisionEval.ts));
+  const revisiones=atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin())).sort((a,b)=>new Date(a.revisionEval.ts)-new Date(b.revisionEval.ts));
   const fusiones=notasSinAccion.filter(n=>n.tipo==='fusion' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   const conflictos=notasSinAccion.filter(n=>n.tipo==='conflicto_vendedor' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   const elimHtml = esAdmin() ? htmlEliminaciones() : '';
   const limpieza = htmlLimpiezaConcretadas();   // duplicados / sin N° de orden / mismo teléfono
   // Reasignaciones que pidieron los vendedores y esperan que Cintia (o dirección) las confirme.
-  const reasignaciones=atenciones.filter(a=>a.reasignacionPedida && a.reasignacionPedida.paraId && dentroDePeriodoCintia(a.ts))
+  const reasignaciones=atenciones.filter(a=>a.reasignacionPedida && a.reasignacionPedida.paraId)
     .sort((a,b)=>new Date(a.reasignacionPedida.ts)-new Date(b.reasignacionPedida.ts));
   const asistencias=asistenciasParaMi();
   if(!pendientes.length && !misAtrasados.length && !porVincular.length && !revisiones.length && !fusiones.length && !conflictos.length && !reasignaciones.length && !asistencias.length && !elimHtml && !limpieza) return `<div class="cin-card"><p class="cin-empty">No tenés nada pendiente por ahora.</p></div>`;
@@ -9767,7 +9864,7 @@ function graficoContactosPorTiempo(base){
   if(!r) return '';
   const {tramos,unidad}=r;
   const serie=contarPorTramo(base, tramos);
-  const w=680,h=210,pad={l:34,r:12,t:12,b:26};
+  const w=680,h=140,pad={l:34,r:12,t:10,b:22};
   const maxY=Math.max(4,...serie);
   const px=i=>pad.l+(w-pad.l-pad.r)*(tramos.length>1?i/(tramos.length-1):0.5);
   const py=n=>h-pad.b-(h-pad.t-pad.b)*(n/maxY);
@@ -9808,7 +9905,7 @@ function graficoContactosPorCanal(base){
   const canales=Object.entries(totPorCanal).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]);
   if(!canales.length) return '';
   const series=canales.map(c=>contarPorTramo(base, tramos, a=>(estCanalDe(a)||'Sin canal')===c));
-  const w=680,h=210,pad={l:34,r:12,t:12,b:26};
+  const w=680,h=140,pad={l:34,r:12,t:10,b:22};
   const maxY=Math.max(4,...series.flat());
   const px=i=>pad.l+(w-pad.l-pad.r)*(tramos.length>1?i/(tramos.length-1):0.5);
   const py=n=>h-pad.b-(h-pad.t-pad.b)*(n/maxY);
@@ -14154,6 +14251,30 @@ function recParaTs(){
 /* Reasignar: los 7 nombres en un solo renglón */
 .pills-reasignar{flex-wrap:nowrap;gap:5px}
 .pills-reasignar .pill{padding:9px 10px;font-size:12px;white-space:nowrap}
+
+/* ============ RESUMEN DEL DÍA ============ */
+.rd-tot{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 16px}
+.rd-z{display:inline-flex;align-items:center;border-radius:999px;padding:3px 10px;font-size:11px;
+  font-weight:800;white-space:nowrap;font-style:normal}
+.rd-atrasada{background:var(--red-l);color:var(--red)}
+.rd-hoy{background:#fff7e6;color:var(--amber,#b45309)}
+.rd-sinclas{background:var(--line2);color:var(--sec)}
+.rd-vend{border:1px solid var(--line);border-radius:11px;margin-bottom:12px;overflow:hidden}
+.rd-vend-hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#f7f9fb;border-bottom:1px solid var(--line)}
+.rd-vend-hd b{font-size:14px;color:var(--navy)}
+.rd-cnt{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.rd-tabla{width:100%;border-collapse:collapse}
+.rd-tabla td{padding:8px 12px;border-bottom:1px solid var(--line2);font-size:12.5px;vertical-align:middle}
+.rd-tabla tr:last-child td{border-bottom:none}
+.rd-tabla tr:hover{background:#fafbfc}
+.rd-cli{font-weight:700;color:var(--ink)}
+.rd-tel{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.rd-dias{color:var(--muted);white-space:nowrap}
+.rd-acc{text-align:right;white-space:nowrap}
+.rd-btn{display:inline-block;padding:5px 11px;border:1px solid var(--line);border-radius:8px;
+  font-size:11.5px;font-weight:700;color:var(--sec);cursor:pointer;background:#fff;margin-left:6px}
+.rd-btn:hover{border-color:var(--blue);color:var(--blue)}
+.rd-rec:hover{border-color:var(--amber,#b45309);color:var(--amber,#b45309)}
 
 /* SELECTOR DE MUEBLE: desplegable que además filtra mientras se escribe */
 .combo{position:relative}
