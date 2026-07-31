@@ -12185,11 +12185,16 @@ function comboInput(i,val){ actualizarMueble(i,'mueble',val); comboPintar(i); co
 function comboElegir(i,val,cat,cod,precio){
   const inp=$('mfMueble-'+i); if(!inp) return;
   inp.value=val; actualizarMueble(i,'mueble',val);
-  // El precio aproximado se carga en el monto si está vacío. Nunca pisa lo que el
-  // vendedor ya escribió: lo suyo manda siempre.
-  if(precio){
-    const mo=$('mfMonto-'+i);
-    if(mo && !montoNumerico(mo.value)){ mo.value=miles(+precio); actualizarMueble(i,'monto',mo.value); }
+  // PRECIO AUTOMÁTICO. Se escribe cuando el monto está vacío o cuando el que hay lo
+  // puso el sistema (o sea: si el vendedor eligió Sillas y después se corrige a Juego de
+  // comedor, el precio se actualiza al nuevo). Lo que NUNCA se toca es un monto que
+  // tipeó una persona: ese manda siempre.
+  const mo=$('mfMonto-'+i);
+  const fila=mueblesActuales[i];
+  const puedeEscribir = mo && fila && (!montoNumerico(mo.value) || fila.montoAuto);
+  if(puedeEscribir){
+    if(precio){ mo.value=miles(+precio); actualizarMueble(i,'monto',mo.value); fila.montoAuto=true; }
+    else if(fila.montoAuto){ mo.value=''; actualizarMueble(i,'monto',''); }   // el nuevo no tiene precio: se limpia
   }
   // La categoría y el código vienen del catálogo, no se deducen del texto.
   if(mueblesActuales[i]){
@@ -12231,6 +12236,9 @@ document.addEventListener('mousedown',e=>{
 function actualizarMueble(i,campo,val){
   if(!mueblesActuales[i]) return;
   mueblesActuales[i][campo] = (campo==='monto') ? (montoNumerico(val)||null) : val;
+  // Si el monto lo tocó una persona, deja de ser automático y nadie se lo pisa más.
+  // comboElegir lo vuelve a marcar como automático cuando es él el que lo escribe.
+  if(campo==='monto') mueblesActuales[i].montoAuto=false;
   // La categoría se guarda aparte, no se deduce del texto al medir.
   if(campo==='mueble') mueblesActuales[i].categoria = categoriaDeTexto(val);
   if(campo==='monto') actualizarTotal();
