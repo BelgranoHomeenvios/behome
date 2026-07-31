@@ -1131,7 +1131,7 @@ textarea{resize:vertical;min-height:60px}
 .presu-sub{font-size:11px;color:var(--muted);margin-top:1px}
 .presu-monto{font-size:12px;font-weight:700;color:var(--navy);margin-top:2px}
 
-.lightbox{position:fixed;inset:0;background:rgba(10,16,26,.9);display:none;align-items:center;justify-content:center;z-index:80;padding:20px}
+.lightbox{position:fixed;inset:0;background:rgba(10,16,26,.9);display:none;align-items:center;justify-content:center;z-index:9998;padding:20px}
 .lightbox.active{display:flex}
 .lightbox-inner{max-width:520px;width:100%}
 .lightbox img{width:100%;border-radius:10px;max-height:60vh;object-fit:contain;background:#fff}
@@ -7697,9 +7697,13 @@ async function aplicarCorreccionesBaseUI(){
     render();
   }catch(e){ console.error(e); if(box) box.innerHTML='<span style="color:var(--red)">Se cortó al aplicar: '+(e.message||e)+'. Podés volver a apretar Aplicar — retoma lo que faltó.</span>'; if(btn) btn.disabled=false; }
 }
-function htmlEliminaciones(){
-  const aprobadas=solicitudesEliminacion.filter(s=>s.estado==='aprobada');
+function htmlEliminaciones(opt){
+  const soloPend = !!(opt && opt.soloPendientes);
+  const aprobadas = soloPend ? [] : solicitudesEliminacion.filter(s=>s.estado==='aprobada');
   const pendientes=solicitudesEliminacion.filter(s=>s.estado==='pendiente');
+  // En "Mis pendientes" se muestran solo las que esperan decisión; si no hay ninguna,
+  // el bloque no se dibuja y deja de ocupar lugar.
+  if(soloPend && !pendientes.length) return '';
   // Los registros viejos (de antes de distinguir el origen) los tratamos como "vendedor",
   // que era el único circuito que existía en ese momento.
   const propias=aprobadas.filter(s=>s.origen==='propia');
@@ -8064,8 +8068,7 @@ function renderCintiaBotones(){
              + pendientesVincularCliente().length
              + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin())).length
              + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length
-             + asistenciasParaMi().length
-             + solicitudesEliminacion.filter(s=>s.estado==='aprobada').length;
+             + asistenciasParaMi().length;   // las bajas YA aprobadas no cuentan: no hay nada que decidir
     const itemsA=[
       {id:'resumen',       label:'Resumen del día',    ic:'resumen'},
       {id:'consultas',     label:'Consultas',          ic:'consultas'},
@@ -9464,7 +9467,8 @@ function htmlCintiaMisPendientes(){
   const revisiones=atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin())).sort((a,b)=>new Date(a.revisionEval.ts)-new Date(b.revisionEval.ts));
   const fusiones=notasSinAccion.filter(n=>n.tipo==='fusion' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   const conflictos=notasSinAccion.filter(n=>n.tipo==='conflicto_vendedor' && !n.visto).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
-  const elimHtml = esAdmin() ? htmlEliminaciones() : '';
+  // Solo las bajas que ESPERAN decisión. El historial de las aprobadas vive en Clientes.
+  const elimHtml = esAdmin() ? htmlEliminaciones({soloPendientes:true}) : '';
   const limpieza = htmlLimpiezaConcretadas();   // duplicados / sin N° de orden / mismo teléfono
   // Reasignaciones que pidieron los vendedores y esperan que Cintia (o dirección) las confirme.
   const reasignaciones=atenciones.filter(a=>a.reasignacionPedida && a.reasignacionPedida.paraId)
@@ -10049,7 +10053,7 @@ function htmlCintiaClientes(){
     ${paginadorHtml(_cliPagina, totalPagCli, 'irPaginaCli')}
     <p class="tiny" style="margin-top:6px;text-align:center;color:var(--muted)">Mostrando ${(_cliPagina-1)*POR_CLI+1}–${Math.min(_cliPagina*POR_CLI, filas.length)} de ${miles(filas.length)}${clientesBusqueda?` (de ${miles(totalBase)} en total)`:''} · página ${_cliPagina} de ${totalPagCli}</p>`}
     <p class="tiny" style="margin-top:10px">⭐ = ya compró. <b>Vendedor</b> es quien lo atendió la última vez. ${fusionModoCli?'Tocá 2 clientes para fusionarlos.':'Tocá una fila para ver la ficha completa.'} El buscador mira TODOS los ${miles(totalBase)} clientes.</p>
-  </div>`;
+  </div>` + (esAdmin()||esAuditora() ? htmlEliminaciones() : '');
 }
 
 function htmlFichaCliente(id){
