@@ -9442,7 +9442,13 @@ function asistPendienteParaMi(a){
   const paraMi = esAdmin() ? (dest===YO) : (dest==='cintia' && esAuditora());
   if(!paraMi) return false;
   const ult=h.mensajes[h.mensajes.length-1];
-  return ult && ult.deId!==YO;
+  if(!ult || ult.deId===YO) return false;
+  // Son mensajes, no tareas: alcanza con ABRIRLOS para que dejen de figurar como
+  // pendientes. Antes había que contestar o marcar "resuelta", y el aviso quedaba
+  // prendido aunque ya lo hubieras leído.
+  const leido = h.leidoPor && h.leidoPor[YO];
+  if(leido && new Date(leido).getTime() >= new Date(ult.ts).getTime()) return false;
+  return true;
 }
 /* Botón "Ver en la tabla" de la tarjeta de mensajes: lleva a Cintia/dirección a la vista
    Consultas con el filtro puesto, para ver cada consulta con toda su fila. Toggle. */
@@ -10948,6 +10954,7 @@ function abrirAsistencia(id){
   $('modalAsistencia').classList.remove('hidden');
   document.body.style.overflow='hidden';
   marcarAsistenciaLeida(id);
+  render();                    // el emoji de "sin leer" se apaga apenas se abre
 }
 function cerrarAsistencia(){ $('modalAsistencia').classList.add('hidden'); document.body.style.overflow=''; asistId=null; render(); }
 function marcarAsistenciaLeida(id){
@@ -10995,8 +11002,8 @@ function htmlAsistencia(a){
     <textarea id="asistInput" class="ev-ta" rows="2" placeholder="Escribí un mensaje…"></textarea>
     <div style="display:flex;gap:8px;margin-top:8px">
       <button class="btn btn-navy" style="flex:1" onclick="enviarAsistencia()">Enviar</button>
-      ${(msgs.length && !resuelta)?`<button class="btn btn-outline" onclick="resolverAsistencia()">Marcar resuelta</button>`:''}
-    </div>`;
+    </div>
+    <p class="tiny" style="text-align:center;margin:8px 0 0;color:var(--muted)">ESC para cerrar</p>`;
 }
 async function enviarAsistencia(){
   if(esSoloLectura())return avisoLectura();
