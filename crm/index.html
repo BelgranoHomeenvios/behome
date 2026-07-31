@@ -10318,6 +10318,8 @@ function renderEvaluar(){
   const comentarioHtml=`<div class="ev-field">
     <label>Comentario para ${escapeHtml(vNom)} <span class="opt">(opcional)</span></label>
     <textarea id="evFbTexto" class="ev-ta" rows="2" placeholder="Ej: acá te confundiste… (Tab para seguir si no querés cargar)" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.fbTexto||'')}</textarea>
+  </div>`;
+  const capturasHtml=`<div class="ev-field">
     <div class="ev-caps">
       ${(ev.capturas||[]).map((c,i)=>`<div class="ev-cap"><img src="${c}" onclick="verImagen('${c}')" title="Tocá para verla en grande"><span class="x" onclick="event.stopPropagation();evQuitarCaptura(${i})" title="Quitar">×</span></div>`).join('')}
       <label class="ev-cap-add" title="Podés elegir varias a la vez">📎<span>${(ev.capturas||[]).length?'Sumar':'Adjuntar'}</span>
@@ -10424,6 +10426,8 @@ function renderEvaluar(){
         ${nuncaHtml}
         ${ejesHtml}
         ${comentarioHtml}
+        ${intervineHtml}
+        ${capturasHtml}
       </div>
       <div class="ev-col">
         <div class="ev-col-tit">Qué hacemos</div>
@@ -10431,7 +10435,6 @@ function renderEvaluar(){
         ${oportHtml}
         ${obsHtml}
         ${ejemploHtml}
-        ${intervineHtml}
         <button id="evGuardar" class="btn btn-navy" style="width:100%;margin-top:10px${completa?'':';opacity:.45;cursor:not-allowed'}" onclick="guardarEvaluacionCintia()" ${completa?'':'disabled'}>
           ${(!esConcretada && ev.decision==='segunda')?'Guardar y derivar':'Guardar evaluación'}
         </button>
