@@ -2380,7 +2380,7 @@ function comentarioVendedorTexto(a){
 }
 function hayComentarioVendedor(a){
   const cv=a && a.comentarioVendedor; if(!cv) return false;
-  return !!comentarioVendedorTexto(a) || !!cv.captura;
+  return !!comentarioVendedorTexto(a) || !!cv.captura || !!(cv.capturas&&cv.capturas.length);
 }
 function nombreLocal(id){ if(!id) return 'Virtual'; return (LOCALES[id]||{n:id}).n;}
 
@@ -10103,7 +10103,7 @@ function calificaPerdida(ev){
 }
 
 let evaluandoId=null;
-let evTmp={atencion:null,consulta:null,cliente:null,decision:'rechazada',fbAbierto:false,capturaData:null,ejemplo:false,nuncaRespondio:false};
+let evTmp={atencion:null,consulta:null,cliente:null,decision:'rechazada',fbAbierto:false,capturas:[],ejemplo:false,nuncaRespondio:false};
 
 function abrirEvaluar(id){
   const a=atenciones.find(x=>x.id===id);
@@ -10121,7 +10121,10 @@ function abrirEvaluar(id){
     decision:a.evalDecision||'rechazada',
     fbAbierto:true, fbCargado:false,
     fbTexto:(a.comentarioVendedor&&a.comentarioVendedor.texto)||'',
-    capturaData:(a.comentarioVendedor&&a.comentarioVendedor.captura)||null,
+    // Antes era una sola captura. Ahora es una lista; los registros viejos traen una
+    // sola en `captura` y se convierte a lista al abrir, sin migrar nada.
+    capturas:(a.comentarioVendedor&&(a.comentarioVendedor.capturas
+              || (a.comentarioVendedor.captura?[a.comentarioVendedor.captura]:[])))||[],
     motivoCintia:(a.motivoCintia && MOTIVOS_RECHAZO.some(m=>m.t===a.motivoCintia))?a.motivoCintia:'',
     ejemploTarget:(a.ejemploDelMes&&a.ejemploDelMes.target)||'',
     ejemploTipo:(a.ejemploDelMes&&a.ejemploDelMes.tipo)||'bueno',
@@ -10181,14 +10184,20 @@ function guardarBorradorEvaluar(){
   const e=g('evEjemploMotivo'); if(e!==undefined) evTmp.ejemploMotivo=e;
   const ed=g('evEjemploMotivoDir'); if(ed!==undefined) evTmp.ejemploMotivoDir=ed;
 }
+/* Varias capturas: una conversación de WhatsApp casi nunca entra en una sola imagen. */
 async function evCaptura(input){
-  const f=input.files&&input.files[0];
-  if(!f) return;
-  const r=new FileReader();
-  r.onload=()=>{ evTmp.capturaData=r.result; guardarBorradorEvaluar(); renderEvaluar(); };
-  r.readAsDataURL(f);
+  const fs=[...(input.files||[])]; if(!fs.length) return;
+  if(!Array.isArray(evTmp.capturas)) evTmp.capturas=[];
+  await Promise.all(fs.map(f=>new Promise(res=>{
+    const r=new FileReader();
+    r.onload=()=>{ evTmp.capturas.push(r.result); res(); };
+    r.onerror=res;
+    r.readAsDataURL(f);
+  })));
+  input.value='';                       // permite volver a elegir el mismo archivo
+  guardarBorradorEvaluar(); renderEvaluar();
 }
-function evQuitarCaptura(){ evTmp.capturaData=null; guardarBorradorEvaluar(); renderEvaluar(); }
+function evQuitarCaptura(i){ (evTmp.capturas||[]).splice(i,1); guardarBorradorEvaluar(); renderEvaluar(); }
 
 /* "Cargar" guarda ese pedazo en el registro YA, sin esperar al botón grande. Si Cintia cierra
    el modal a mitad de camino, el comentario y el ejemplo ya quedaron guardados. */
@@ -10197,9 +10206,9 @@ async function evCargarComentario(){
   const a=atenciones.find(x=>x.id===evaluandoId);
   if(!a) return;
   const txt=(evTmp.fbTexto||'').trim();
-  if(!txt && !evTmp.capturaData){ toast('Escribí el comentario primero'); return; }
+  if(!txt && !(evTmp.capturas||[]).length){ toast('Escribí el comentario primero'); return; }
   a.comentarioVendedor={
-    texto:txt, captura:evTmp.capturaData||null,
+    texto:txt, captura:(evTmp.capturas||[])[0]||null, capturas:(evTmp.capturas||[]).slice(),
     paraId:a.vendedorId, deId:YO, ts:new Date().toISOString(), leido:false
   };
   evTmp.fbCargado=true;
@@ -10211,7 +10220,7 @@ function evEditarComentario(){ evTmp.fbCargado=false; renderEvaluar(); }
 async function evBorrarComentario(){
   const a=atenciones.find(x=>x.id===evaluandoId);
   if(a) a.comentarioVendedor=null;
-  evTmp.fbCargado=false; evTmp.fbTexto=''; evTmp.capturaData=null; evTmp.fbAbierto=false;
+  evTmp.fbCargado=false; evTmp.fbTexto=''; evTmp.capturas=[]; evTmp.fbAbierto=false;
   await saveAtenciones();
   renderEvaluar();
   toast('Comentario borrado');
@@ -10292,9 +10301,11 @@ function renderEvaluar(){
   const comentarioHtml=`<div class="ev-field">
     <label>Comentario para ${escapeHtml(vNom)} <span class="opt">(opcional)</span></label>
     <textarea id="evFbTexto" class="ev-ta" rows="2" placeholder="Ej: acá te confundiste… (Tab para seguir si no querés cargar)" oninput="guardarBorradorEvaluar()">${escapeHtml(ev.fbTexto||'')}</textarea>
-    ${ev.capturaData
-      ? `<div class="ev-adj" onclick="evQuitarCaptura()"><img src="${ev.capturaData}"> Captura adjunta — clic para quitar</div>`
-      : `<label class="ev-adj">📎 Adjuntar captura<input type="file" accept="image/*" style="display:none" onchange="evCaptura(this)"></label>`}
+    <div class="ev-caps">
+      ${(ev.capturas||[]).map((c,i)=>`<div class="ev-cap"><img src="${c}"><span class="x" onclick="evQuitarCaptura(${i})" title="Quitar">×</span></div>`).join('')}
+      <label class="ev-cap-add" title="Podés elegir varias a la vez">📎<span>${(ev.capturas||[]).length?'Sumar':'Adjuntar'}</span>
+        <input type="file" accept="image/*" multiple style="display:none" onchange="evCaptura(this)"></label>
+    </div>
   </div>`;
 
   // ¿Qué hacemos con la consulta?
@@ -10386,18 +10397,24 @@ function renderEvaluar(){
       ${monto?`<div class="monto"><div class="n">$ ${miles(monto)}</div><div class="l">en juego</div></div>`:''}
       <button class="btn-close" onclick="cerrarEvaluar()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Cerrar">×</button>
     </div>
-    <div class="ev-form">
-      ${nuncaHtml}
-      ${ejesHtml}
-      ${comentarioHtml}
-      ${decisionHtml}
-      ${oportHtml}
-      ${obsHtml}
-      ${ejemploHtml}
-      ${intervineHtml}
-      <button id="evGuardar" class="btn btn-navy" style="width:100%;margin-top:8px${completa?'':';opacity:.45;cursor:not-allowed'}" onclick="guardarEvaluacionCintia()" ${completa?'':'disabled'}>
-        ${(!esConcretada && ev.decision==='segunda')?'Guardar y derivar':'Guardar evaluación'}
-      </button>
+    <div class="ev-form ev-2col">
+      <div class="ev-col">
+        <div class="ev-col-tit">Cómo se atendió</div>
+        ${nuncaHtml}
+        ${ejesHtml}
+        ${comentarioHtml}
+      </div>
+      <div class="ev-col">
+        <div class="ev-col-tit">Qué hacemos</div>
+        ${decisionHtml}
+        ${oportHtml}
+        ${obsHtml}
+        ${ejemploHtml}
+        ${intervineHtml}
+        <button id="evGuardar" class="btn btn-navy" style="width:100%;margin-top:10px${completa?'':';opacity:.45;cursor:not-allowed'}" onclick="guardarEvaluacionCintia()" ${completa?'':'disabled'}>
+          ${(!esConcretada && ev.decision==='segunda')?'Guardar y derivar':'Guardar evaluación'}
+        </button>
+      </div>
       <div class="modal-close" onclick="cerrarEvaluar()">Cancelar</div>
     </div>`;
 
@@ -10621,9 +10638,9 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
   // Si escribió algo pero nunca lo cargó, igual se guarda acá para no perderle el texto.
   if(ev.fbCargado){
     // ya está en a.comentarioVendedor, se respeta tal cual
-  }else if(ev.fbAbierto && ((ev.fbTexto||'').trim() || ev.capturaData)){
+  }else if(ev.fbAbierto && ((ev.fbTexto||'').trim() || (ev.capturas||[]).length)){
     a.comentarioVendedor={
-      texto:(ev.fbTexto||'').trim(), captura:ev.capturaData||null,
+      texto:(ev.fbTexto||'').trim(), captura:(ev.capturas||[])[0]||null, capturas:(ev.capturas||[]).slice(),
       paraId:a.vendedorId, deId:YO, ts:new Date().toISOString(), leido:false
     };
   }else{
@@ -12185,16 +12202,16 @@ function comboInput(i,val){ actualizarMueble(i,'mueble',val); comboPintar(i); co
 function comboElegir(i,val,cat,cod,precio){
   const inp=$('mfMueble-'+i); if(!inp) return;
   inp.value=val; actualizarMueble(i,'mueble',val);
-  // PRECIO AUTOMÁTICO. Se escribe cuando el monto está vacío o cuando el que hay lo
-  // puso el sistema (o sea: si el vendedor eligió Sillas y después se corrige a Juego de
-  // comedor, el precio se actualiza al nuevo). Lo que NUNCA se toca es un monto que
-  // tipeó una persona: ese manda siempre.
+  // PRECIO AUTOMÁTICO. Elegir un mueble de la lista SIEMPRE reescribe el monto con el
+  // precio de ese mueble. Antes se respetaba el monto tipeado a mano, pero eso hacía que
+  // una vez que el vendedor tocaba el número el precio no se actualizara nunca más — y
+  // el orden natural es al revés: primero se elige el mueble, después se ajusta la plata.
+  // Si el mueble nuevo no tiene precio, solo se limpia lo que había puesto el sistema.
   const mo=$('mfMonto-'+i);
   const fila=mueblesActuales[i];
-  const puedeEscribir = mo && fila && (!montoNumerico(mo.value) || fila.montoAuto);
-  if(puedeEscribir){
+  if(mo && fila){
     if(precio){ mo.value=miles(+precio); actualizarMueble(i,'monto',mo.value); fila.montoAuto=true; }
-    else if(fila.montoAuto){ mo.value=''; actualizarMueble(i,'monto',''); }   // el nuevo no tiene precio: se limpia
+    else if(fila.montoAuto){ mo.value=''; actualizarMueble(i,'monto',''); }
   }
   // La categoría y el código vienen del catálogo, no se deducen del texto.
   if(mueblesActuales[i]){
