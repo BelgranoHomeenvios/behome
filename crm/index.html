@@ -2374,6 +2374,13 @@ function esConsultaIG(a){ return !!(a && a.canal==='virtual' && /instagram/i.tes
 function esAdmin(){return rolDe(YO)==='admin';}
 function esAuditora(){return rolDe(YO)==='auditora';}
 function puedeVerEquipo(){return esAdmin()||esAuditora();}
+/* Con la columna Vendedor a la vista, el título tiene que decir la verdad: dirección
+   arranca mirando al equipo entero, no sus propias consultas. */
+function tituloConsultas(){
+  if(esAuditora()) return 'Consultas';
+  if(esAdmin() && scopeActual==='equipo') return 'Consultas del equipo';
+  return 'Mis consultas';
+}
 /* Modo lectura: cuando Cintia (auditora) entra a la pantalla de un vendedor
    con "ver como", ve TODO pero no puede modificar nada de esa pantalla. Su
    laburo de auditora (evaluar, marcar 🤝, etc.) lo hace desde su propia vista,
@@ -2598,7 +2605,7 @@ function entrarApp(){
   }
   $('scopeRowHistorial').classList.toggle('hidden', !puedeVerEquipo() || esAuditora());
   sincronizarCardFiltros();
-  $('tituloColaOperativa').textContent = esAuditora() ? 'Consultas' : 'Mis consultas';
+  $('tituloColaOperativa').textContent = tituloConsultas();
   $('exportRow').classList.toggle('hidden', !esAdmin());
   $('historialHint').textContent = esAdmin()
     ? 'Puente manual al CRM hasta conectar la integración directa. Cada registro guarda el id de vendedor y de local para vincularlo sin fricción.'
@@ -3219,8 +3226,8 @@ async function borrarDuplicado(id){
   if(!puedeMarcarIntervencion()) return;
   const a=atenciones.find(x=>x.id===id); if(!a) return;
   if(!window.confirm(`¿Borrar la venta duplicada de ${nombreCliente(a)||'sin nombre'} (N° ${a.nroOrden||'—'} · $ ${miles(+a.montoVendido||0)})?\nNo se puede recuperar.`)) return;
-  const i=atenciones.findIndex(x=>x.id===id); if(i>-1) atenciones.splice(i,1);
-  await archivarConsulta(a, 'Duplicada (limpieza de concretadas)');
+  const ok = await archivarConsulta(a, 'Duplicada (limpieza de concretadas)');
+  if(!ok){ if(typeof renderPanelCintia==='function') renderPanelCintia(); return; }
   toast('Venta duplicada archivada');
   if(typeof renderPanelCintia==='function') renderPanelCintia();
 }
@@ -3397,14 +3404,18 @@ async function confirmarFusion(){
   queda.clienteTelefono=conTel.clienteTelefono; queda.clienteInstagram=conTel.clienteInstagram; queda.noTomoTelefono=conTel.noTomoTelefono;
   queda.historialContacto=Array.isArray(queda.historialContacto)?queda.historialContacto:[];
   queda.historialContacto.push({ts:new Date().toISOString(), texto:'🔗 Unificada con '+borrar.length+' consulta(s) del mismo cliente', porId:YO, intervencion:true});
+  /* La fila NO se saca del array acá: la saca archivarConsulta y solo si la base
+     confirmó. Antes se sacaba primero y se archivaba después, así que si la escritura
+     fallaba la pantalla decía "unificado" y la consulta volvía en la próxima carga. */
+  let fallaron=0;
   for(const a of borrar){
-    const i=atenciones.findIndex(x=>x.id===a.id);
-    if(i>-1) atenciones.splice(i,1);
-    await archivarConsulta(a, 'Fusionada (misma venta)');
+    const ok = await archivarConsulta(a, 'Fusionada (misma venta)');
+    if(!ok) fallaron++;
   }
   await saveAtenciones();
   cerrarModalCompartida();
-  toast(borrar.length>1?'Unificado: quedó 1 de '+arr.length:'Unificado: quedó 1 venta');
+  if(fallaron){ toast('No se pudo unificar '+fallaron+' de '+borrar.length+' — mirá la consola (F12)'); }
+  else toast(borrar.length>1?'Unificado: quedó 1 de '+arr.length:'Unificado: quedó 1 venta');
   render();
   if(typeof renderPanelCintia==='function') renderPanelCintia();
 }
@@ -3427,6 +3438,19 @@ function htmlLimpiezaConcretadas(){
       <button class="btn btn-outline btn-sm" onclick="abrirModalCompletar('${a.id}')">Editar</button>
       <button class="btn btn-outline btn-sm" style="color:var(--red)" onclick="borrarDuplicado('${a.id}')">🗑 Borrar</button>
     </span>`;
+  /* Falta un dato que solo tiene el que hizo la venta (el N° de orden): la dirección no
+     lo completa por él, se lo PIDE. La 🔔 le deja el pendiente en su lista hasta que lo
+     cargue. Acá NO va "Borrar": es una venta real, y las ventas no se archivan. */
+  const pedirODejar=(a,clave)=>{
+    if(a.recordatorioPendiente) return `<span style="display:flex;gap:8px;flex:0 0 auto;align-items:center">
+        <span class="tiny" style="color:var(--amber);white-space:nowrap" title="${escAttr(a.recordatorioComentario||'')}">🔔 Avisado a ${escapeHtml(nombreDe(a.vendedorId))}${a.recordatorioTs?' · '+fechaConsultaCorta(a.recordatorioTs):''}</span>
+        <button class="btn btn-outline btn-sm" onclick="abrirModalCompletar('${a.id}')">Editar</button>
+      </span>`;
+    return `<span style="display:flex;gap:6px;flex:0 0 auto">
+        <button class="btn btn-outline btn-sm" style="color:var(--amber)" onclick="pedirDatoAlVendedor('${a.id}','${clave}')" title="Le queda pendiente a ${escAttr(nombreDe(a.vendedorId))} hasta que lo cargue">🔔 Avisar</button>
+        <button class="btn btn-outline btn-sm" onclick="abrirModalCompletar('${a.id}')">Editar</button>
+      </span>`;
+  };
   return `<div class="cin-card"><h3>🧹 Limpieza de concretadas <span class="cnt-pill">${dupOrden.length+sinOrden.length+dupTel.length}</span></h3>
     <p class="tiny" style="margin-top:-8px">Ventas repetidas o incompletas para ordenar. Elegí el período arriba (ej. Ayer / Hoy).</p>
     ${dupOrden.length ? `<div style="margin-bottom:14px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--red)">Mismo N° de orden — dejá 1 y borrá el resto (${dupOrden.length})</b>
@@ -3439,7 +3463,7 @@ function htmlLimpiezaConcretadas(){
       </div>`;}).join('')}
     </div>` : ''}
     ${sinOrden.length ? `<div style="margin-bottom:14px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--amber)">Concretadas SIN N° de orden — cargales el número (${sinOrden.length})</b>
-      ${sinOrden.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px;font-size:12.5px;padding:5px 2px"><span>${_lc(a)}</span>${editarBorrar(a)}</div>`).join('')}
+      ${sinOrden.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px;font-size:12.5px;padding:5px 2px"><span>${_lc(a)}</span>${pedirODejar(a,'orden')}</div>`).join('')}
     </div>` : ''}
     ${dupTel.length ? `<div><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">Mismo teléfono — unificá o borrá (${dupTel.length})</b>
       ${dupTel.map(([,arr])=>`<div style="margin-top:7px;padding:8px 10px;background:var(--line2);border-radius:8px">
@@ -5360,14 +5384,36 @@ async function confirmarSolicitudEliminar(){
    y se mueve de `atenciones` a `atencionesArchivadas` para que salga del tablero y de todas
    las métricas al instante. Se persiste directo (no por saveAtenciones, que trabaja sobre
    `atenciones`, de donde justo la sacamos). */
+/* Devuelve true solo si la base CONFIRMÓ el archivado. Antes el error de Supabase se
+   ignoraba (upsert devuelve {error}, no tira excepción): la fila desaparecía de la
+   pantalla, la base seguía teniéndola activa y volvía sola en la próxima carga. Ahora,
+   si falla, se deshace la marca y la consulta se queda donde estaba, con el error a la
+   vista — es preferible que no archive a que mienta. */
 async function archivarConsulta(a, motivo){
-  if(!a) return;
+  if(!a) return false;
+  const previo = a.archivada;
   a.archivada={ por:YO, ts:new Date().toISOString(), motivo:motivo||null };
-  if(sb){ try{ await sb.from('consultas').upsert([consultaAFila(a)], {onConflict:'id'}); }catch(e){ console.error('archivar', e); } }
+  if(sb){
+    try{
+      const {error} = await sb.from('consultas').upsert([consultaAFila(a)], {onConflict:'id'});
+      if(error){
+        console.error('archivar', error);
+        if(previo===undefined) delete a.archivada; else a.archivada=previo;
+        toast('No se pudo archivar: '+(error.message||'la base rechazó el cambio'));
+        return false;
+      }
+    }catch(e){
+      console.error('archivar', e);
+      if(previo===undefined) delete a.archivada; else a.archivada=previo;
+      toast('No se pudo archivar (sin conexión) — quedó como estaba');
+      return false;
+    }
+  }
   const i=atenciones.findIndex(x=>x.id===a.id);
   if(i>-1) atenciones.splice(i,1);
   if(!atencionesArchivadas.some(x=>x.id===a.id)) atencionesArchivadas.push(a);
   _snapConsultas[a.id]=JSON.stringify(a);
+  return true;
 }
 async function restaurarArchivada(id){
   if(esSoloLectura())return avisoLectura();
@@ -5510,7 +5556,9 @@ function logItemHtml(a){
   // registrada in situ) no hay canalDetalle guardado — son de local, así que lo mostramos así
   // en vez de dejarlo vacío, que es justo lo que pediste.
   const canalMostrar = canalCorto(canalReal(a));
-  const colsCintia = esAuditora()
+  // Vendedor + Canal: lo ve Cintia Y dirección (Brian). El admin necesita saber de quién
+  // es cada consulta y por dónde entró; sin eso la tabla del equipo no se puede leer.
+  const colsCintia = puedeVerEquipo()
     ? `<div class="c-origen" ondblclick="editarDesdeHistorial('${a.id}',0)">
          <span class="or-vend">${nombreDe(a.vendedorId)}</span>
          <span class="or-canal">${canalMostrar}</span>
@@ -5538,18 +5586,22 @@ function logItemHtml(a){
   // Campanita: atajo directo para pedirle al vendedor que se ocupe de esta consulta.
   // Ámbar cuando ya hay un recordatorio pendiente, para no mandar dos veces lo mismo.
   const puedeAsist = (YO===a.vendedorId || esAuditora() || esAdmin());
-  const tieneHilo = !!(a.asistencia && a.asistencia.mensajes && a.asistencia.mensajes.length);
+  // Solo cuentan las conversaciones que YO puedo ver: si el vendedor habla con Cintia,
+  // dirección no ve ni el ícono encendido, y al revés.
+  const _misHilos = hilosVisibles(a);
+  const tieneHilo = _misHilos.length>0;
+  const _nMsgs = _misHilos.reduce((t,h)=>t+h.mensajes.length,0);
   // El 🙏 solo se enciende si hay una conversación ABIERTA. Una vez resuelta, la fila
   // vuelve al estado "sin conversación" aunque el historial quede guardado — si hace
   // falta, se arranca un hilo nuevo. Así la marca significa "hay algo pendiente", no
   // "alguna vez se habló".
-  const hiloAbierto = tieneHilo && a.asistencia.estado!=='resuelta';
+  const hiloAbierto = _misHilos.some(h=>h.estado!=='resuelta');
   // La campanita queda sola en su columna. El 🙏 de comentarios/asistencia se movió al
   // costado, con el resto de los íconos de acción de la fila.
   // 🙏 (comentarios/asistencia) va al lado de la campanita 🔔, en la misma columna.
   const asistBtn = puedeAsist
     ? `<span class="asist-btn ${asistenciaSinLeer(a)?'sinleer':''} ${hiloAbierto?'activo':''}" role="button" tabindex="0"
-          title="${hiloAbierto?('Conversación interna — '+a.asistencia.mensajes.length+' mensaje(s)'):'Pedir asistencia o comentar (interno, no es WhatsApp)'}"
+          title="${hiloAbierto?('Conversación interna — '+_nMsgs+' mensaje(s)'):'Pedir asistencia o comentar (interno, no es WhatsApp)'}"
           onclick="event.stopPropagation();abrirAsistencia('${a.id}')">🙏</span>`
     : '';
   const bellCol = (puedeRecordar()||puedeAsist)
@@ -6063,7 +6115,7 @@ function cheadHtml(){
         buscActivo=!!filtroBusqueda, vendActivo=vendActivoFiltro(), canalActivo=filtroCanalCintia!=='todos',
         evalActivo=filtroEvaluacion!=='todos';
   let colsCintia='', evalCol='', montoCol='<span class="h-monto">Cotizado</span>';
-  if(esAuditora()){
+  if(puedeVerEquipo()){
     const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
     const opcionesVend=[['todos','Todos'],...vendedores.map(uid=>[uid,nombreDe(uid)])];
     const opcionesCanal=[['todos','Todos'],...CANALES.map(c=>[c,c]),['Sin definir','Sin definir']];
@@ -6081,7 +6133,10 @@ function cheadHtml(){
         <span class="pop pop-down"><b>Filtrar por canal</b>${popFiltroOpciones('canalCintia',opcionesCanal,filtroCanalCintia)}</span>
       </span>
     </span>`;
-    // Cintia evalúa desempeño, no plata cotizada — ese campo no le aporta acá.
+  }
+  if(esAuditora()){
+    // Cintia evalúa desempeño, no plata cotizada — ese campo no le aporta acá. Dirección SÍ
+    // conserva Cotizado: mira plata, no desempeño. Y la columna Evaluar es solo de Cintia.
     montoCol='';
     evalCol = `<span class="h-eval"><span class="ebtn filtro-head ${evalActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Evaluación<span class="arrow">▾</span>
       <span class="pop pop-down"><b>Filtrar por evaluación</b>${popFiltroOpciones('evaluacion',FILTRO_EVAL_OPCIONES,filtroEvaluacion)}</span>
@@ -6185,13 +6240,13 @@ function filtrosActivos(){
   if(filtroComentario!=='todos') f.push({k:'coment', t:'Comentarios: '+etiquetaOpcion(FILTRO_COMENT_OPCIONES,filtroComentario)});
   if(filtroBusqueda) f.push({k:'busqueda', t:'Buscando: “'+filtroBusqueda+'”'});
   if(ordenFecha) f.push({k:'ordenFecha', t:'Orden: '+etiquetaOpcion(ORDEN_FECHA_OPCIONES,ordenFecha)});
-  if(puedeRecordar() && filtroRecordatorio!=='todos') f.push({k:'recordatorio', t:etiquetaOpcion(FILTRO_REC_OPCIONES,filtroRecordatorio)});
+  if(puedeRecordar() && filtroRecordatorio!=='todos') f.push({k:'recordatorio', t: filtroRecordatorio==='pend' ? 'Con algo pendiente' : etiquetaOpcion(FILTRO_REC_OPCIONES,filtroRecordatorio)});
   if(filtroAsistPend) f.push({k:'asistPend', t:'Mensajes de vendedores'});
-  if(esAuditora()){
+  if(puedeVerEquipo()){
     if(vendActivoFiltro()) f.push({k:'vendedorCintia', t:'Vendedor: '+vendFiltrados().map(nombreDe).join(' + ')});
     if(filtroCanalCintia!=='todos') f.push({k:'canalCintia', t:'Canal: '+filtroCanalCintia});
-    if(filtroEvaluacion!=='todos') f.push({k:'evaluacion', t:'Evaluación: '+etiquetaOpcion(FILTRO_EVAL_OPCIONES,filtroEvaluacion)});
   }
+  if(esAuditora() && filtroEvaluacion!=='todos') f.push({k:'evaluacion', t:'Evaluación: '+etiquetaOpcion(FILTRO_EVAL_OPCIONES,filtroEvaluacion)});
   return f;
 }
 
@@ -6312,15 +6367,18 @@ function construirListaFiltrada(){
   if(puedeRecordar()){
     if(filtroRecordatorio==='con')      l=l.filter(a=>!!a.recordatorioPendiente);
     else if(filtroRecordatorio==='sin') l=l.filter(a=>!a.recordatorioPendiente);
+    else if(filtroRecordatorio==='pend'){ const _sp=idsConPendienteVendedor(); l=l.filter(a=>_sp.has(a.id)); }
     if(filtroAsistPend) l=l.filter(a=>asistPendienteParaMi(a));
   }
 
   // Vendedor, Canal y Evaluación solo se ven (y se filtran) en la vista de Cintia. El período
   // permanente ahora también se aplica acá — antes quedaba afuera a propósito, pero pasa a
   // valer para Consultas igual que para el resto de sus secciones.
-  if(esAuditora()){
+  if(puedeVerEquipo()){
     if(vendActivoFiltro()){ const _v=vendFiltrados(); l=l.filter(a=>_v.includes(a.vendedorId)); }
     if(filtroCanalCintia!=='todos') l=l.filter(a=>canalReal(a)===filtroCanalCintia);
+  }
+  if(esAuditora()){
     if(filtroEvaluacion==='evaluadas') l=l.filter(a=>a.evaluada);
     else if(filtroEvaluacion==='sinevaluar') l=l.filter(a=>!a.evaluada);
     if(!buscar) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
@@ -6372,11 +6430,14 @@ function filtrosColumna(l){
   if(puedeRecordar()){
     if(filtroRecordatorio==='con')      l=l.filter(a=>!!a.recordatorioPendiente);
     else if(filtroRecordatorio==='sin') l=l.filter(a=>!a.recordatorioPendiente);
+    else if(filtroRecordatorio==='pend'){ const _sp=idsConPendienteVendedor(); l=l.filter(a=>_sp.has(a.id)); }
     if(filtroAsistPend) l=l.filter(a=>asistPendienteParaMi(a));
   }
-  if(esAuditora()){
+  if(puedeVerEquipo()){
     if(vendActivoFiltro()){ const _v=vendFiltrados(); l=l.filter(a=>_v.includes(a.vendedorId)); }
     if(filtroCanalCintia!=='todos') l=l.filter(a=>canalReal(a)===filtroCanalCintia);
+  }
+  if(esAuditora()){
     if(filtroEvaluacion==='evaluadas') l=l.filter(a=>a.evaluada);
     else if(filtroEvaluacion==='sinevaluar') l=l.filter(a=>!a.evaluada);
   }
@@ -6672,8 +6733,10 @@ function renderPanelGestion(listaVisible){
   // Dos buzones separados: "Pendientes" junta los comentarios/coaching que Cintia le marca
   // (2da oportunidad, evaluación, revisión, asistencia 🙏); "Recordatorio" son los avisos con
   // 🔔 (los que se pone el vendedor o le manda Cintia). Ambos abren una sección, no filtran.
-  const recs = recordatoriosDeVendedor();
-  const recCount  = recs.length;   // los dos buzones juntos: campanitas + coaching
+  // El contador tiene que dar EXACTAMENTE las filas que aparecen al tocar el botón:
+  // consultas (no avisos) y dentro del período que ya está aplicado en `base`.
+  const _pendIds = idsConPendienteVendedor();
+  const recCount = base.filter(a=>_pendIds.has(a.id)).length;
   const ICO={hoy:'evaluar',pendientes:'bajas',sinclas:'consultas',semana:'estados',
              recordatorio:'bajas',estadisticas:'ventas',evaluacion:'evaluar',oportunidad:'pulso'};
   const items=[
@@ -6681,7 +6744,7 @@ function renderPanelGestion(listaVisible){
     {label:'Pendientes',     ico:'pendientes',  cnt:n('atrasada'),activo:(!seccionVendedor && zonaActiva==='atrasada'), act:`setZona('atrasada')`},
     {label:'Sin clasificar', ico:'sinclas',     cnt:n('sinclas'),activo:(!seccionVendedor && zonaActiva==='sinclas'),  act:`setZona('sinclas')`},
     {label:'Esta semana',    ico:'semana',      cnt:n('semana'), activo:(!seccionVendedor && zonaActiva==='semana'),   act:`setZona('semana')`},
-    {label:'Recordatorio',   ico:'recordatorio',cnt:recCount,    activo:(!seccionVendedor && filtroRecordatorio==='con'), act:`verRecordatorios()`},
+    {label:'Recordatorio',   ico:'recordatorio',cnt:recCount,    activo:(!seccionVendedor && filtroRecordatorio==='pend'), act:`verRecordatorios()`},
     {label:'Estadísticas',   ico:'estadisticas',cnt:undefined,   activo:(seccionVendedor==='estadisticas'),            act:`abrirSeccionVendedor('estadisticas')`},
     {label:'Evaluación',     ico:'evaluacion',  cnt:undefined,   activo:(seccionVendedor==='evaluacion'),              act:`abrirSeccionVendedor('evaluacion')`},
     {label:'Oportunidad',    ico:'oportunidad', cnt:mias.filter(a=>esOportunidadCaliente(a)).length, activo:(seccionVendedor==='oportunidad'), act:`abrirSeccionVendedor('oportunidad')`}
@@ -6809,10 +6872,10 @@ function setZona(z){
    y todo lo de siempre, y desde ahí abra la 🔔. Reusa filtroRecordatorio, que ya existía
    como filtro de la columna. Toggle: si ya estaba activo, se apaga. */
 function verRecordatorios(){
-  const yaActivo = !seccionVendedor && filtroRecordatorio==='con';
+  const yaActivo = !seccionVendedor && filtroRecordatorio==='pend';
   seccionVendedor=null;
   zonaActiva=null;
-  filtroRecordatorio = yaActivo ? 'todos' : 'con';
+  filtroRecordatorio = yaActivo ? 'todos' : 'pend';
   reiniciarPaginado();
   mostrarTablaVendedor(true);
   renderHistorial();
@@ -6824,6 +6887,13 @@ function verRecordatorios(){
    de Cintia que antes se perdían: 2da oportunidad, coaching sin leer, revisión respondida. */
 let solapaVendedorActiva = null;
 
+/* Ids de las consultas del vendedor que tienen ALGO pendiente para él. Una misma
+   consulta puede tener varios avisos a la vez (campanita + 🙏 + coaching): acá cuenta
+   UNA sola vez, porque el botón filtra la TABLA y la tabla muestra consultas, no avisos.
+   Ese era el desfasaje del contador (7 avisos sobre 4 consultas). */
+function idsConPendienteVendedor(){
+  return new Set(recordatoriosDeVendedor().map(it=>it.a.id));
+}
 function recordatoriosDeVendedor(){
   const mias = atenciones.filter(a=>a.vendedorId===YO);
   const items=[];
@@ -6846,15 +6916,17 @@ function recordatoriosDeVendedor(){
         texto:a.revisionEval.respuesta, porId:a.revisionEval.resueltoPorId, ts:a.revisionEval.resueltoTs}));
   // 4) Comentarios/asistencia (🙏) que Cintia o dirección le dejaron y todavía no resolvió.
   //    Cuando Cintia comenta, queda acá automáticamente para que el vendedor sepa qué hacer.
-  mias.filter(a=>{
-    const h=a.asistencia;
-    if(!h || h.estado==='resuelta' || !h.mensajes || !h.mensajes.length) return false;
-    const ult=h.mensajes[h.mensajes.length-1];
-    return ult && ult.deId!==YO;   // el último mensaje no es del propio vendedor: hay algo para leer/hacer
-  }).forEach(a=>{
-    const ult=a.asistencia.mensajes[a.asistencia.mensajes.length-1];
-    items.push({tipo:'asistencia', a, monto:montoRepresentativo(a.muebles)||0,
-      texto:ult.texto, porId:ult.deId, ts:ult.ts});
+  // El vendedor puede tener dos conversaciones abiertas (una con Cintia y otra con
+  // dirección): se listan las dos por separado, no una sola.
+  mias.forEach(a=>{
+    Object.keys(hilosDe(a)).forEach(k=>{
+      const h=hilosDe(a)[k];
+      if(!h || h.estado==='resuelta' || !h.mensajes || !h.mensajes.length) return;
+      const ult=h.mensajes[h.mensajes.length-1];
+      if(!ult || ult.deId===YO) return;   // el último es suyo: no hay nada para leer
+      items.push({tipo:'asistencia', a, clave:k, monto:montoRepresentativo(a.muebles)||0,
+        texto:ult.texto, porId:ult.deId, ts:ult.ts});
+    });
   });
   // 5) Cintia le pidió desde la evaluación que marque la consulta Concretada/Rechazada.
   mias.filter(a=>a.cambioEstadoPedido && a.cambioEstadoPedido.estado)
@@ -6898,7 +6970,7 @@ function mostrarTablaVendedor(mostrar){
   if(periodo) periodo.classList.toggle('hidden', !mostrar);
   if(busq) busq.classList.toggle('hidden', !mostrar);
   if(filtros && !mostrar) filtros.classList.add('hidden');
-  if(titulo) titulo.textContent = mostrar ? (esAuditora()?'Consultas':'Mis consultas') : TITULOS_SECCION_VENDEDOR[seccionVendedor]||'Mis consultas';
+  if(titulo) titulo.textContent = mostrar ? tituloConsultas() : TITULOS_SECCION_VENDEDOR[seccionVendedor]||'Mis consultas';
 }
 const TITULOS_SECCION_VENDEDOR={pendientes:'Pendientes', recordatorio:'Recordatorio', estadisticas:'Estadísticas', evaluacion:'Evaluación', oportunidad:'Oportunidad'};
 
@@ -9429,20 +9501,23 @@ function htmlCintiaEstadisticas(){
    hilo abierto, y el destino soy yo. Cintia ve las de destino 'cintia'; Brian (admin)
    ve las que lo eligieron a él. Cada uno maneja SOLO las suyas. */
 function asistenciasParaMi(){
+  const ultTs=a=>{ const h=hilosDe(a)[miClaveAsist()]; const m=h&&h.mensajes; return m&&m.length?new Date(m[m.length-1].ts):0; };
   return atenciones.filter(a=>asistPendienteParaMi(a) && dentroDePeriodoCintia(a.ts))
-    .sort((x,y)=>new Date(y.asistencia.mensajes[y.asistencia.mensajes.length-1].ts)-new Date(x.asistencia.mensajes[x.asistencia.mensajes.length-1].ts));
+    .sort((x,y)=>ultTs(y)-ultTs(x));
 }
 /* ¿Esta consulta tiene un mensaje de vendedor pendiente PARA MÍ? Cintia ve los de destino
    'cintia'; Brian (admin) los que lo eligieron a él. Mismo criterio que la tarjeta, pero
    por fila, para poder filtrar la tabla. */
 function asistPendienteParaMi(a){
-  const h=a.asistencia;
+  const mia=miClaveAsist();
+  if(!mia) return false;                 // el vendedor no tiene "Mis pendientes" de asistencia
+  const h=hilosDe(a)[mia];               // solo MI conversación: la del otro no existe para mí
   if(!h || h.estado==='resuelta' || !h.mensajes || !h.mensajes.length) return false;
-  const dest=h.destinoId||'cintia';
-  const paraMi = esAdmin() ? (dest===YO) : (dest==='cintia' && esAuditora());
-  if(!paraMi) return false;
   const ult=h.mensajes[h.mensajes.length-1];
-  if(!ult || ult.deId===YO) return false;
+  if(!ult) return false;
+  // Lo dejé sin leer a propósito: vuelve a la lista aunque el último mensaje sea mío.
+  if(h.sinLeerPara && h.sinLeerPara[YO]) return true;
+  if(ult.deId===YO) return false;
   // Son mensajes, no tareas: alcanza con ABRIRLOS para que dejen de figurar como
   // pendientes. Antes había que contestar o marcar "resuelta", y el aviso quedaba
   // prendido aunque ya lo hubieras leído.
@@ -9487,7 +9562,8 @@ function htmlCintiaMisPendientes(){
     <p class="tiny" style="margin-top:2px">Comentarios internos que te mandaron y esperan tu respuesta. Cada consulta se ve como en la tabla.</p>
     <div class="asist-filas">
     ${asistencias.map(a=>{
-      const ult=a.asistencia.mensajes[a.asistencia.mensajes.length-1];
+      const _hm=(hilosDe(a)[miClaveAsist()]||{}).mensajes||[];
+      const ult=_hm[_hm.length-1]||{texto:''};
       return `<div class="asist-fila-wrap">
         ${logItemHtml(a)}
         <div class="asist-fila-msg">
@@ -10940,26 +11016,99 @@ let recordandoConsultaId=null;
    El vendedor y Cintia/Brian se escriben acá (no es WhatsApp del cliente). Queda todo
    guardado en la consulta; cuando se resuelve, se archiva pero se puede seguir leyendo. */
 let asistId=null;
-function asistenciaSinLeer(a){
-  if(!a || !a.asistencia || !a.asistencia.mensajes || !a.asistencia.mensajes.length) return false;
-  if(a.asistencia.estado==='resuelta') return false;   // resuelta = nada pendiente
-  const last=a.asistencia.mensajes[a.asistencia.mensajes.length-1];
+let asistClave=null;   // en cuál de las conversaciones estoy parado
+
+/* UN HILO POR INTERLOCUTOR. Lo que el vendedor habla con Cintia y lo que habla con
+   dirección son DOS conversaciones distintas y privadas: cada una la ven solo sus dos
+   partes. Antes había un único `a.asistencia` con un `destinoId`, y como el modal no
+   miraba ese destino, Cintia podía abrir y leer lo que el vendedor le escribía a Brian
+   (y al revés). El destino solo ruteaba "Mis pendientes".
+   Los hilos viejos se siguen leyendo donde están: NO hay migración masiva, cada consulta
+   se convierte sola la primera vez que alguien escribe en ella. */
+function hilosDe(a){
+  if(a && a.asistencias) return a.asistencias;
+  const h = a && a.asistencia;
+  if(h && h.mensajes && h.mensajes.length) return {[h.destinoId||'cintia']: h};
+  return {};
+}
+function migrarAsistencias(a){
+  if(!a.asistencias){ a.asistencias = hilosDe(a); delete a.asistencia; }
+  return a.asistencias;
+}
+function uidAuditora(){ return ORDEN_LOGIN.find(u=>rolDe(u)==='auditora')||'cintia'; }
+function uidDireccion(){ return ORDEN_LOGIN.find(u=>rolDe(u)==='admin')||'brian'; }
+/* La clave del hilo es con quién habla el vendedor. Se mantiene 'cintia' como clave de la
+   auditora porque es la que ya usaban los datos viejos en destinoId. */
+function nombreInterlocutor(k){ return nombreDe(k==='cintia'?uidAuditora():k); }
+function miClaveAsist(){ return esAuditora() ? 'cintia' : (esAdmin() ? YO : null); }
+/* Qué conversaciones de esta consulta puedo ver YO. Cintia y dirección: SOLO la propia,
+   exista o no (para poder arrancarla). El vendedor: las suyas. Cualquier otro: ninguna. */
+function clavesVisibles(a){
+  const mia=miClaveAsist();
+  if(mia) return [mia];
+  if(a && YO===a.vendedorId) return Object.keys(hilosDe(a));
+  return [];
+}
+function hilosVisibles(a){
+  const hs=hilosDe(a);
+  return clavesVisibles(a).map(k=>hs[k]).filter(h=>h && h.mensajes && h.mensajes.length);
+}
+function hiloSinLeer(h){
+  if(!h || !h.mensajes || !h.mensajes.length) return false;
+  if(h.estado==='resuelta') return false;   // resuelta = nada pendiente
+  // Marca MANUAL: leí el mensaje pero lo dejé sin leer a propósito para volver después.
+  // Pesa más que el cálculo automático y es por persona.
+  if(h.sinLeerPara && h.sinLeerPara[YO]) return true;
+  const last=h.mensajes[h.mensajes.length-1];
   if(last.deId===YO) return false;
-  const visto=a.asistencia.leidoPor && a.asistencia.leidoPor[YO];
+  const visto=h.leidoPor && h.leidoPor[YO];
   return !visto || new Date(last.ts).getTime()>new Date(visto).getTime();
 }
-function abrirAsistencia(id){
+function asistenciaSinLeer(a){ return hilosVisibles(a).some(hiloSinLeer); }
+function abrirAsistencia(id, clave){
+  const a=atenciones.find(x=>x.id===id);
   asistId=id;
+  // Abre la conversación que tiene algo sin leer; si no, la que tenga mensajes; si no hay
+  // ninguna, la que corresponda a mi rol (el vendedor elige con las solapas).
+  const vis=clavesVisibles(a), hs=hilosDe(a);
+  asistClave = clave || vis.find(k=>hiloSinLeer(hs[k]))
+             || vis.find(k=>hs[k]&&hs[k].mensajes&&hs[k].mensajes.length)
+             || vis[0] || miClaveAsist() || 'cintia';
   pintarAsistencia();
   $('modalAsistencia').classList.remove('hidden');
   document.body.style.overflow='hidden';
   marcarAsistenciaLeida(id);
   render();                    // el emoji de "sin leer" se apaga apenas se abre
 }
-function cerrarAsistencia(){ $('modalAsistencia').classList.add('hidden'); document.body.style.overflow=''; asistId=null; render(); }
+function cerrarAsistencia(){ $('modalAsistencia').classList.add('hidden'); document.body.style.overflow=''; asistId=null; asistClave=null; render(); }
+/* El vendedor pasa de la conversación con Cintia a la de dirección (y viceversa). */
+function cambiarHiloAsist(k){ asistClave=k; pintarAsistencia(); marcarAsistenciaLeida(asistId); render(); }
 function marcarAsistenciaLeida(id){
-  const a=atenciones.find(x=>x.id===id);
-  if(a && a.asistencia){ a.asistencia.leidoPor=a.asistencia.leidoPor||{}; a.asistencia.leidoPor[YO]=new Date().toISOString(); saveAtenciones(); }
+  const a=atenciones.find(x=>x.id===id); if(!a) return;
+  const prev=hilosDe(a)[asistClave];
+  if(!prev || !prev.mensajes || !prev.mensajes.length) return;  // hilo que todavía no existe
+  const h=migrarAsistencias(a)[asistClave];
+  h.leidoPor=h.leidoPor||{}; h.leidoPor[YO]=new Date().toISOString();
+  // Abrir el hilo es leerlo: si lo había dejado marcado sin leer, la marca se cae.
+  if(h.sinLeerPara) delete h.sinLeerPara[YO];
+  saveAtenciones();
+}
+/* "Dejarlo sin leer": leí el mensaje pero no lo puedo atender ahora y no quiero que
+   desaparezca de mis pendientes. Vuelve a contar como sin leer (🙏 encendido en la fila
+   y, si el hilo es para mí, otra vez en Mis pendientes) hasta que lo abra de nuevo. */
+async function marcarAsistenciaSinLeer(){
+  if(esSoloLectura())return avisoLectura();
+  const a=atenciones.find(x=>x.id===asistId); if(!a) return;
+  const prev=hilosDe(a)[asistClave];
+  if(!prev || !prev.mensajes || !prev.mensajes.length) return;
+  const h=migrarAsistencias(a)[asistClave];
+  h.sinLeerPara=h.sinLeerPara||{};
+  h.sinLeerPara[YO]=true;
+  // El "leído" automático también se corre para atrás, si no el cálculo lo vuelve a apagar.
+  if(h.leidoPor) delete h.leidoPor[YO];
+  await saveAtenciones();
+  cerrarAsistencia();          // cerrar es parte del gesto: lo dejo para después
+  toast('Queda marcado como sin leer');
 }
 function pintarAsistencia(){
   const a=atenciones.find(x=>x.id===asistId); if(!a) return;
@@ -10968,13 +11117,13 @@ function pintarAsistencia(){
   const inp=$('asistInput'); if(inp) inp.focus();
 }
 function htmlAsistencia(a){
-  const msgs=(a.asistencia&&a.asistencia.mensajes)||[];
-  const resuelta=a.asistencia&&a.asistencia.estado==='resuelta';
+  const hs=hilosDe(a);
+  const brianId=uidDireccion();
   const soyVendedor=!esAdmin()&&!esAuditora();
-  // Destino actual del hilo: a quién le llega este comentario. Por defecto Cintia, salvo
-  // que ya se haya elegido otro. ADMIN_UID es Brian; ORDEN_LOGIN tiene el resto.
-  const brianId=ORDEN_LOGIN.find(u=>rolDe(u)==='admin')||'brian';
-  const destino=(a.asistencia&&a.asistencia.destinoId)||'cintia';
+  if(!asistClave) asistClave = miClaveAsist() || 'cintia';
+  const h = hs[asistClave] || {mensajes:[], estado:'abierta'};
+  const msgs = h.mensajes || [];
+  const resuelta = h.estado==='resuelta';
   const hilo = msgs.length
     ? msgs.map(m=>{
         const mio=m.deId===YO;
@@ -10984,24 +11133,28 @@ function htmlAsistencia(a){
         </div>`;
       }).join('')
     : `<p class="cin-empty" style="margin:6px 0">Todavía no hay mensajes. Escribí para empezar.</p>`;
-  // Selector de destino: lo elige el VENDEDOR mientras el hilo no arrancó, o cuando está
-  // resuelto (ahí un mensaje nuevo abre una conversación nueva y puede ir a otro destino).
-  const puedeElegirDestino = soyVendedor && (resuelta || !msgs.some(m=>m.deId!==YO));
-  const selDestino = puedeElegirDestino ? `
-    <div style="display:flex;align-items:center;gap:8px;margin:2px 2px 10px">
-      <span class="tiny" style="color:var(--muted);font-weight:700">Enviar a:</span>
-      <label class="tomo" style="font-weight:400"><input type="radio" name="asistDest" value="cintia" ${destino==='cintia'?'checked':''}> Cintia</label>
-      <label class="tomo" style="font-weight:400"><input type="radio" name="asistDest" value="${brianId}" ${destino!=='cintia'?'checked':''}> ${escapeHtml(nombreDe(brianId))}</label>
-    </div>` : (soyVendedor && destino!=='cintia' ? `<p class="tiny" style="margin:2px 2px 8px;color:var(--muted)">Enviado a <b>${escapeHtml(nombreDe(brianId))}</b>.</p>` : '');
+  /* El vendedor tiene DOS conversaciones posibles y separadas: elige en cuál se para.
+     Reemplaza al viejo selector "Enviar a", que solo servía para arrancar el hilo y después
+     dejaba a los dos destinatarios metidos en la misma conversación.
+     Cintia y dirección NO ven solapas: solo existe la suya, sin rastro de la otra. */
+  const cabeza = soyVendedor
+    ? `<div style="display:flex;gap:6px;margin:2px 2px 10px;flex-wrap:wrap">
+        ${[['cintia',nombreInterlocutor('cintia')],[brianId,nombreInterlocutor(brianId)]].map(([k,n])=>{
+          const hk=hs[k], cn=(hk&&hk.mensajes)?hk.mensajes.length:0;
+          return `<button class="btn btn-sm ${asistClave===k?'btn-navy':'btn-outline'}" onclick="cambiarHiloAsist('${k}')" title="Conversación con ${escAttr(n)} — es privada entre ustedes dos">${escapeHtml(n)}${cn?` (${cn})`:''}${hiloSinLeer(hk)?' <b style="color:var(--red)">●</b>':''}</button>`;
+        }).join('')}
+      </div>`
+    : `<p class="tiny" style="margin:2px 2px 10px;color:var(--muted)">Conversación privada con <b>${escapeHtml(nombreDe(a.vendedorId))}</b>.</p>`;
   return `<div class="ev-hd"><div><h3>🙏 Asistencia interna</h3>
       <div class="meta">${escapeHtml(a.clienteNombre||'Sin nombre')} · ${nombreDe(a.vendedorId)}${resuelta?' · <b style="color:var(--green)">resuelta</b>':''}</div></div>
       <button class="btn-close" onclick="cerrarAsistencia()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer">×</button></div>
-    <p class="tiny" style="margin:8px 2px 4px;color:var(--muted)">Conversación interna entre el vendedor y Cintia/dirección — no le llega al cliente.</p>
-    ${selDestino}
+    <p class="tiny" style="margin:8px 2px 4px;color:var(--muted)">Conversación interna — no le llega al cliente. Solo la ven ${soyVendedor?'vos y '+escapeHtml(nombreInterlocutor(asistClave)):'vos y '+escapeHtml(nombreDe(a.vendedorId))}.</p>
+    ${cabeza}
     <div class="asist-hilo" id="asistHilo">${hilo}</div>
     <textarea id="asistInput" class="ev-ta" rows="2" placeholder="Escribí un mensaje…"></textarea>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="btn btn-navy" style="flex:1" onclick="enviarAsistencia()">Enviar</button>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn btn-navy" style="flex:1;min-width:160px" onclick="enviarAsistencia()">Enviar</button>
+      ${msgs.length?`<button class="btn btn-outline" style="flex:0 0 auto" title="Lo leíste pero no lo podés atender ahora: vuelve a figurar como sin leer hasta que lo abras de nuevo" onclick="marcarAsistenciaSinLeer()">📩 Dejarlo sin leer</button>`:''}
     </div>
     <p class="tiny" style="text-align:center;margin:8px 0 0;color:var(--muted)">ESC para cerrar</p>`;
 }
@@ -11010,39 +11163,50 @@ async function enviarAsistencia(){
   const a=atenciones.find(x=>x.id===asistId); if(!a) return;
   const inp=$('asistInput'); const txt=(inp?inp.value:'').trim();
   if(!txt){ if(inp) inp.focus(); return; }
-  a.asistencia=a.asistencia||{mensajes:[],estado:'abierta',leidoPor:{}};
-  const reabriendo = a.asistencia.estado==='resuelta';   // hilo resuelto que se retoma
-  // Destino del hilo: lo fija el vendedor con el selector la primera vez, o al retomar un
-  // hilo resuelto (ahí puede cambiar de destinatario). Cintia/Brian escribiendo no lo tocan.
-  const destSel=document.querySelector('input[name=asistDest]:checked');
-  if(destSel && (reabriendo || !a.asistencia.destinoId || !a.asistencia.mensajes.some(m=>m.deId!==YO))) a.asistencia.destinoId=destSel.value;
-  if(!a.asistencia.destinoId) a.asistencia.destinoId='cintia';
-  a.asistencia.mensajes.push({deId:YO, deNombre:nombreDe(YO), rol:rolDe(YO), texto:txt, ts:new Date().toISOString()});
-  a.asistencia.estado='abierta';
-  a.asistencia.leidoPor=a.asistencia.leidoPor||{}; a.asistencia.leidoPor[YO]=new Date().toISOString();
+  const hs=migrarAsistencias(a);
+  // Cintia y dirección escriben SIEMPRE en su propio hilo: no pueden mandar al del otro.
+  // El vendedor escribe en la solapa donde está parado.
+  const clave = miClaveAsist() || asistClave || 'cintia';
+  asistClave = clave;
+  const h = hs[clave] = hs[clave] || {mensajes:[], estado:'abierta', leidoPor:{}};
+  h.destinoId = clave;   // se conserva por compatibilidad con los datos viejos
+  h.mensajes.push({deId:YO, deNombre:nombreDe(YO), rol:rolDe(YO), texto:txt, ts:new Date().toISOString()});
+  h.estado='abierta';
+  h.leidoPor=h.leidoPor||{}; h.leidoPor[YO]=new Date().toISOString();
   await saveAtenciones();
   pintarAsistencia();
 }
 async function resolverAsistencia(){
   if(esSoloLectura())return avisoLectura();
-  const a=atenciones.find(x=>x.id===asistId); if(!a||!a.asistencia) return;
-  a.asistencia.estado = a.asistencia.estado==='resuelta' ? 'abierta' : 'resuelta';
+  const a=atenciones.find(x=>x.id===asistId); if(!a) return;
+  const prev=hilosDe(a)[asistClave];
+  if(!prev || !prev.mensajes || !prev.mensajes.length) return;
+  const h=migrarAsistencias(a)[asistClave];
+  h.estado = h.estado==='resuelta' ? 'abierta' : 'resuelta';
   await saveAtenciones();
   pintarAsistencia();
   render();   // que la fila de atrás refleje el 🙏 apagado sin esperar a cerrar
 }
-function abrirRecordarConsulta(id){
+function abrirRecordarConsulta(id, sugerido){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
   recordandoConsultaId=id;
   // Si ya hay un recordatorio pendiente, primero se muestra (con opción de eliminarlo);
   // si no, va directo al formulario de crear uno nuevo.
   if(a.recordatorioPendiente) mostrarRecordatorioExistente(a);
-  else formRecordarConsulta(a);
+  else formRecordarConsulta(a, sugerido);
   $('modalRecordar').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
-function formRecordarConsulta(a){
+/* Pedidos de dato que la dirección NO completa: los completa el que cargó la venta.
+   Texto fijo por clave para no meter comillas sueltas dentro de un onclick. */
+const PEDIDOS_AL_VENDEDOR={
+  orden:'Completá el N° de venta de esta venta concretada.'
+};
+function pedirDatoAlVendedor(id, clave){
+  abrirRecordarConsulta(id, PEDIDOS_AL_VENDEDOR[clave]||'');
+}
+function formRecordarConsulta(a, sugerido){
   const propio = a.vendedorId===YO;
   $('recordarCaja').innerHTML= propio
     ? `<h3 style="margin-top:0">Recordarme esto</h3>
@@ -11064,6 +11228,7 @@ function formRecordarConsulta(a){
        <button class="btn btn-navy" style="width:100%" onclick="guardarRecordatorioConsulta()">Enviar recordatorio</button>
        <div class="modal-close" onclick="cerrarRecordar()">Cancelar</div>`;
   recProxSel='hoy'; const rf=$('recFechaCustom'); if(rf)rf.value=''; pintarRecPills();
+  if(sugerido){ const tx=$('recComentario'); if(tx){ tx.value=sugerido; } }
 }
 function mostrarRecordatorioExistente(a){
   const de = a.recordatorioDe && a.recordatorioDe!==YO ? nombreDe(a.recordatorioDe) : null;
