@@ -624,6 +624,29 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-nom{display:flex;flex-direction:row;align-items:center;gap:8px}
 .c-nom-inner{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px;min-width:0}
 .c-nom-alt{color:var(--muted);font-size:10.5px;margin-left:5px}
+.mv-fecha{display:flex;align-items:center;gap:8px;margin:6px 0 12px;flex-wrap:wrap}
+.mv-fecha label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase}
+.mv-fecha input[type=date]{padding:5px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px}
+.mv-equipo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;background:#f8fafc;border-radius:10px;margin-bottom:10px}
+.mv-chip{display:inline-block;font-style:normal;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;background:#e2e8f0;color:#334155;margin:2px 4px 2px 0}
+.mv-concretadas{background:#dcfce7;color:#166534}.mv-rechazadas{background:#fee2e2;color:#991b1b}
+.mv-estados{background:#dbeafe;color:#1e40af}.mv-evaluadas{background:#fef3c7;color:#92400e}
+.mv-clic{cursor:pointer;border:1px solid transparent}
+.mv-clic:hover{filter:brightness(.94)}
+.mv-clic.on{outline:2px solid var(--navy);outline-offset:1px}
+.mv-filtro{display:flex;align-items:center;gap:10px;font-size:12px;color:#334155;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:6px 10px;margin-bottom:10px}
+.mv-x{cursor:pointer;color:var(--navy);font-weight:700;text-decoration:underline}
+.mv-hd{cursor:pointer;user-select:none;border-radius:8px;padding:5px 8px;transition:background .12s}
+.mv-hd:hover{background:#f1f5f9}
+.mv-flecha{display:inline-block;width:12px;color:var(--muted);font-size:11px}
+.mv-tot{display:inline-block;margin-left:6px;font-weight:700;font-size:11px;color:var(--muted)}
+.mv-vend{margin-bottom:4px}
+.mv-tabla td{vertical-align:top;padding:3px 6px}
+.mv-h{font-size:11px;color:var(--muted);white-space:nowrap}
+.mv-t{font-size:12px;white-space:nowrap}
+.mv-c{font-size:12px;font-weight:600}
+.mv-tel{font-weight:400;color:var(--muted);font-size:11px}
+.mv-e{font-size:11px;color:var(--muted)}
 .dato-bloq{background:#f1f5f9!important;color:#64748b!important;cursor:not-allowed}
 .c-canal-emoji{flex-shrink:0;font-size:14px;line-height:1;display:inline-flex;align-items:center}
 .c-canal-ico{flex-shrink:0;display:inline-flex;align-items:center;line-height:1}
@@ -3691,21 +3714,34 @@ async function cargarConsultas(desde){
   }
 }
 
+/* ÚNICO punto por el que entran filas nuevas a memoria DESPUÉS de la carga inicial.
+   Las archivadas van a `atencionesArchivadas`, NUNCA a `atenciones`. Sin este filtro,
+   cualquier carga posterior (el histórico en segundo plano que corre solo a los 1,2 s,
+   el cambio de período, "Ver más", la cola de evaluación) volvía a meter en el tablero
+   una consulta ya archivada: se archivaba bien, se guardaba bien, y reaparecía sola.
+   Ese era el bug de la consulta que "volvía" después de fusionarla o darla de baja. */
+function sumarConsultasCargadas(filas){
+  const conocidas=new Set(atenciones.map(a=>a.id));
+  const yaArch=new Set(atencionesArchivadas.map(a=>a.id));
+  let nuevas=0;
+  (filas||[]).forEach(f=>{
+    if(conocidas.has(f.id) || yaArch.has(f.id)) return;
+    const a=filaAConsulta(f);
+    if(a.archivada){ atencionesArchivadas.push(a); return; }   // fuera del circuito
+    atenciones.push(a);
+    _snapConsultas[a.id]=JSON.stringify(a);
+    nuevas++;
+  });
+  return nuevas;
+}
+
 /* "Ver más": trae un rango de fechas elegido a mano y lo suma a lo ya cargado */
 async function cargarConsultasRango(desde, hasta){
   if(!sb) return 0;
   try{
     const data = await traerTodo(()=>sb.from('consultas').select(COLS_CONSULTA)
       .gte('fecha', desde).lte('fecha', hasta));
-    const conocidas = new Set(atenciones.map(a => a.id));
-    let nuevas = 0;
-    data.forEach(f => {
-      if(conocidas.has(f.id)) return;
-      const a = filaAConsulta(f);
-      atenciones.push(a);
-      _snapConsultas[a.id] = JSON.stringify(a);
-      nuevas++;
-    });
+    const nuevas = sumarConsultasCargadas(data);
     if(desde < consultasDesde) consultasDesde = desde;
     if(nuevas) construirRecuperacionIG();
     render();
@@ -3721,13 +3757,7 @@ async function cargarPendientesEvaluacion(){
     const data = await traerTodo(()=>sb.from('consultas').select(COLS_CONSULTA)
       .eq('evaluable', true).eq('evaluada', false)
       .gte('fecha', fechaCorteVentana()));
-    const conocidas = new Set(atenciones.map(a => a.id));
-    data.forEach(f => {
-      if(conocidas.has(f.id)) return;
-      const a = filaAConsulta(f);
-      atenciones.push(a);
-      _snapConsultas[a.id] = JSON.stringify(a);
-    });
+    sumarConsultasCargadas(data);
   }catch(e){ console.error('cargarPendientesEvaluacion', e); }
 }
 
@@ -3737,7 +3767,7 @@ async function buscarClienteEnBase(telefono){
   try{
     const data = await traerTodo(()=>sb.from('consultas').select(COLS_CONSULTA)
       .eq('telefono', normContacto(telefono)));
-    return data.map(filaAConsulta);
+    return data.map(filaAConsulta).filter(a=>!a.archivada);
   }catch(e){ console.error('buscarClienteEnBase', e); return []; }
 }
 
@@ -3794,6 +3824,16 @@ function proximoNroCotiz(){
   return max+1;
 }
 
+/* Deja fechado el cambio de estado comparando contra lo último que se persistió. */
+function sellarCambioEstado(a, snapPrevio){
+  if(!snapPrevio) return;                       // consulta nueva: no es un cambio
+  let prev; try{ prev=JSON.parse(snapPrevio); }catch(e){ return; }
+  const antes=estadoDe(prev)||null, ahora=estadoDe(a)||null;
+  if(antes===ahora) return;
+  a.estadoTs=new Date().toISOString();
+  a.estadoPorId=YO;
+  a.estadoAnterior=antes;
+}
 async function saveAtenciones(){
   if(!sb || _aplicandoRemoto) return;
   if(esSoloLectura()) return; // Cintia mirando la planilla de un vendedor: nunca persiste
@@ -3806,7 +3846,13 @@ async function saveAtenciones(){
   }
   for(const a of atenciones){
     const j = JSON.stringify(a);
-    if(_snapConsultas[a.id] !== j){ _colaGuardado.add(a.id); _snapConsultas[a.id] = j; }
+    if(_snapConsultas[a.id] !== j){
+      // Todos los caminos que cambian una consulta terminan acá, así que este es el único
+      // lugar donde hace falta detectar un cambio de estado — no hay que tocar las seis
+      // funciones que lo modifican. Sin esto no había forma de saber CUÁNDO cambió.
+      sellarCambioEstado(a, _snapConsultas[a.id]);
+      _colaGuardado.add(a.id); _snapConsultas[a.id] = JSON.stringify(a);
+    }
   }
   if(!_colaGuardado.size) return;
   // Hubo un cambio real hecho por esta persona: queda registrada la hora de la última
@@ -8622,6 +8668,170 @@ function deltaHtml(actual, anterior){
    completar, de TODOS los vendedores, agrupado por persona. Antes tenía que entrar
    vendedor por vendedor para armarse esta lista.
    No depende del filtro de período: lo de hoy es lo de hoy. */
+
+/* ===== MOVIMIENTOS DEL DÍA (solo dirección) =====
+   Qué hizo cada agente en UN día concreto. Siempre por día, nunca por semana: el objetivo
+   es mirar la jornada, no un promedio. Se reconstruye de las marcas de tiempo que ya
+   guarda cada consulta (no hay una tabla de eventos aparte), así que funciona hacia atrás
+   para todo lo que quedó fechado. */
+let movDiaFecha = null;   // null = hoy
+/* Qué agentes están desplegados. Arrancan TODOS cerrados: la tarjeta se lee de un vistazo
+   por los baldes y el detalle se abre solo del que interesa. Vive fuera del render para
+   que no se cierre solo cada vez que la pantalla se vuelve a dibujar. */
+let movDiaAbiertos = new Set();
+/* Filtro por TIPO de movimiento. Los baldes que ya estaban arriba pasan a ser el filtro:
+   tocás "3 concretadas" y la tarjeta queda solo con eso. No se agrega una barra nueva —
+   el número que querés mirar es el botón para mirarlo. */
+let movDiaTipo = null;   // null = todos
+function movDiaSetTipo(k){
+  movDiaTipo = (movDiaTipo===k) ? null : k;
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+}
+function movDiaToggle(uid){
+  if(movDiaAbiertos.has(uid)) movDiaAbiertos.delete(uid); else movDiaAbiertos.add(uid);
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+}
+function movDiaTodos(abrir){
+  movDiaAbiertos = abrir ? new Set(movimientosDelDia().filter(movDiaPasaTipo).map(m=>m.porId||'—')) : new Set();
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+}
+function movDiaYMD(){ return movDiaFecha || formatDateInput(new Date()); }
+function _dia(ts){ try{ return formatDateInput(new Date(ts)); }catch(e){ return null; } }
+function _hora(ts){ try{ return new Date(ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+
+const MOV_TIPOS={
+  consulta:    {lbl:'Cargó la consulta',   ic:'📥', k:'cargadas'},
+  atencion:    {lbl:'Registró la atención',ic:'📝', k:'atenciones'},
+  seguimiento: {lbl:'Anotó un seguimiento',ic:'💬', k:'seguimientos'},
+  estado:      {lbl:'Cambió el estado',    ic:'🔄', k:'estados'},
+  concreto:    {lbl:'Concretó',            ic:'✅', k:'concretadas'},
+  rechazo:     {lbl:'Rechazó',             ic:'⛔', k:'rechazadas'},
+  evaluacion:  {lbl:'Evaluó',              ic:'⭐', k:'evaluadas'},
+  segunda:     {lbl:'Derivó 2da oportunidad',ic:'♻️', k:'segundas'},
+  recordatorio:{lbl:'Mandó un recordatorio',ic:'🔔', k:'recordatorios'},
+  mensaje:     {lbl:'Escribió un mensaje interno',ic:'🙏', k:'mensajes'},
+  archivo:     {lbl:'Archivó',             ic:'🗄️', k:'archivadas'}
+};
+
+function movDiaPasaTipo(m){ return !movDiaTipo || MOV_TIPOS[m.tipo].k===movDiaTipo; }
+
+function movimientosDelDia(ymd){
+  const dia = ymd || movDiaYMD();
+  const out = [];
+  const add = (ts, porId, tipo, a, extra) => {
+    if(!ts || _dia(ts)!==dia) return;
+    out.push({ts, porId: porId||a.vendedorId||null, tipo, a, extra: extra||''});
+  };
+  const todas = atenciones.concat(atencionesArchivadas);
+  todas.forEach(a=>{
+    add(a.ts, a.registradoPor, 'consulta', a, canalCorto(canalReal(a)));
+    add(a.completadoTs, a.vendedorId, 'atencion', a);
+    (a.historialContacto||[]).forEach(h=> add(h.ts, a.vendedorId, 'seguimiento', a, (h.texto||'').slice(0,80)));
+    const est = estadoDe(a);
+    if(a.cerradoTs && est==='Concretado') add(a.cerradoTs, a.cerradoPorId||a.vendedorId, 'concreto', a,
+      (a.nroOrden?'N° '+a.nroOrden+' · ':'') + (a.montoVendido?'$ '+miles(a.montoVendido):''));
+    if(a.cerradoTs && est==='Rechazado') add(a.cerradoTs, a.cerradoPorId||a.vendedorId, 'rechazo', a, a.resultadoMotivo||'');
+    // El cierre ya se cuenta arriba: acá van solo los cambios de estado que no son cierres.
+    if(a.estadoTs && est!=='Concretado' && est!=='Rechazado')
+      add(a.estadoTs, a.estadoPorId, 'estado', a, (a.estadoAnterior||'sin estado')+' → '+(est||'sin estado'));
+    add(a.evaluadoTs, uidAuditora(), 'evaluacion', a);
+    if(a.segundaOportunidad) add(a.segundaOportunidad.ts, a.segundaOportunidad.porId, 'segunda', a,
+      a.segundaOportunidad.derivadaA?('a '+nombreDe(a.segundaOportunidad.derivadaA)):'');
+    if(a.recordatorioTs) add(a.recordatorioTs, a.recordatorioDe, 'recordatorio', a, (a.recordatorioComentario||'').slice(0,80));
+    const hs = hilosDe(a);
+    Object.keys(hs).forEach(k=> (hs[k].mensajes||[]).forEach(m=> add(m.ts, m.deId, 'mensaje', a, (m.texto||'').slice(0,80))));
+    if(a.archivada) add(a.archivada.ts, a.archivada.por, 'archivo', a, a.archivada.motivo||'');
+  });
+  out.sort((x,y)=> new Date(y.ts)-new Date(x.ts));
+  return out;
+}
+
+function htmlMovimientosDelDia(){
+  if(!esAdmin()) return '';
+  const dia = movDiaYMD();
+  const hoyYMD = formatDateInput(new Date());
+  const ayer = new Date(); ayer.setDate(ayer.getDate()-1);
+  const todosLosMovs = movimientosDelDia(dia);
+  const movs = todosLosMovs.filter(movDiaPasaTipo);
+  // Baldes: primero el equipo, después cada agente. Se cuenta por TIPO de movimiento.
+  const porAg = {};
+  movs.forEach(m=>{ const u=m.porId||'—'; (porAg[u]=porAg[u]||[]).push(m); });
+  const cuenta = l => { const c={}; l.forEach(m=>{ const k=MOV_TIPOS[m.tipo].k; c[k]=(c[k]||0)+1; }); return c; };
+  const ORDEN_K=['concretadas','rechazadas','estados','seguimientos','atenciones','evaluadas','cargadas','segundas','recordatorios','mensajes','archivadas'];
+  // clickeable=true solo en la fila del equipo: ahí es donde se elige qué mirar.
+  const chips = (c, clickeable) => ORDEN_K.filter(k=>c[k]).map(k=>
+      clickeable
+        ? `<i class="mv-chip mv-${k} mv-clic ${movDiaTipo===k?'on':''}" onclick="movDiaSetTipo('${k}')" title="${movDiaTipo===k?'Quitar el filtro':'Ver solo '+k}">${c[k]} ${k}</i>`
+        : `<i class="mv-chip mv-${k}">${c[k]} ${k}</i>`).join('');
+  const agentes = Object.keys(porAg).sort((x,y)=>porAg[y].length-porAg[x].length);
+  // Los baldes del equipo se cuentan sobre el día COMPLETO, no sobre lo filtrado: si no,
+  // al filtrar por "concretadas" desaparecerían los demás y no habría cómo volver.
+  const totales = cuenta(todosLosMovs);
+
+  const barra = `<div class="mv-fecha">
+      <label>Día</label>
+      <input type="date" id="movDiaInput" value="${dia}" max="${hoyYMD}" onchange="movDiaSetFecha(this.value)">
+      <button class="btn btn-sm ${dia===hoyYMD?'btn-navy':'btn-outline'}" onclick="movDiaSetFecha('${hoyYMD}')">Hoy</button>
+      <button class="btn btn-sm ${dia===formatDateInput(ayer)?'btn-navy':'btn-outline'}" onclick="movDiaSetFecha('${formatDateInput(ayer)}')">Ayer</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-outline btn-sm" onclick="movDiaTodos(true)">Abrir todos</button>
+      <button class="btn btn-outline btn-sm" onclick="movDiaTodos(false)">Cerrar todos</button>
+    </div>`;
+
+  if(!todosLosMovs.length){
+    return `<div class="cin-card"><h3>Movimientos del día</h3>
+      <p class="tiny" style="margin-top:-8px">Todo lo que hizo cada agente ese día. Solo lo ve dirección.</p>
+      ${barra}<p class="cin-empty">No hay movimientos registrados para ese día.</p></div>`;
+  }
+
+  const bloques = agentes.map(uid=>{
+    const l = porAg[uid];
+    const filas = l.map(m=>{
+      const t = MOV_TIPOS[m.tipo];
+      const cli = nombreCliente(m.a) || 'Sin nombre';
+      const tel = m.a.clienteTelefono || valorDato(m.a,'instagram') || '';
+      return `<tr>
+        <td class="mv-h">${_hora(m.ts)}</td>
+        <td class="mv-t">${t.ic} ${t.lbl}</td>
+        <td class="mv-c">${escapeHtml(cli)}${tel?` <span class="mv-tel">${escapeHtml(tel)}</span>`:''}</td>
+        <td class="mv-e">${escapeHtml(m.extra||'')}</td>
+        <td class="mv-a"><span class="rd-btn" onclick="editarDesdeHistorial('${m.a.id}',0)">Abrir</span></td>
+      </tr>`;
+    }).join('');
+    const abierto = !!movDiaTipo || movDiaAbiertos.has(uid);
+    return `<div class="rd-vend mv-vend">
+      <div class="rd-vend-hd mv-hd" role="button" tabindex="0" onclick="movDiaToggle('${uid}')"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();movDiaToggle('${uid}')}"
+           title="${abierto?'Ocultar':'Ver'} el detalle de ${escAttr(nombreDe(uid))}">
+        <b><span class="mv-flecha">${abierto?'▾':'▸'}</span> ${escapeHtml(nombreDe(uid))}
+          <span class="mv-tot">${l.length}</span></b>
+        <span class="rd-cnt">${chips(cuenta(l), false)}</span></div>
+      ${abierto?`<table class="rd-tabla mv-tabla">${filas}</table>`:''}
+    </div>`;
+  }).join('');
+
+  return `<div class="cin-card">
+    <h3>Movimientos del día <span class="cnt-pill">${movs.length}${movDiaTipo?' / '+todosLosMovs.length:''}</span></h3>
+    <p class="tiny" style="margin-top:-8px">Todo lo que hizo cada agente ese día, con el cliente y el teléfono. Solo lo ve dirección. No lo toca el filtro de período de abajo.</p>
+    ${barra}
+    <div class="mv-equipo"><b>Todo el equipo</b> <span class="rd-cnt">${chips(totales, true)}</span></div>
+    ${movDiaTipo?`<div class="mv-filtro">Viendo solo <b>${movDiaTipo}</b> · ${movs.length} movimiento${movs.length===1?'':'s'}
+      <span class="mv-x" onclick="movDiaSetTipo('${movDiaTipo}')">✕ quitar filtro</span></div>`:''}
+    ${bloques}
+  </div>`;
+}
+async function movDiaSetFecha(v){
+  movDiaFecha = v || null;
+  movDiaAbiertos = new Set();          // otro día, otro detalle: se cierra todo
+  movDiaTipo = null;
+  // Un día viejo puede caer fuera de lo que hay cargado en memoria: se trae antes de pintar.
+  try{
+    const d = new Date(v+'T00:00:00');
+    if(consultasDesde && d < new Date(consultasDesde)) await cargarConsultasRango(d.toISOString(), new Date(new Date(consultasDesde).getTime()-1).toISOString());
+  }catch(e){ console.error('movDia', e); }
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+}
+
 function htmlResumenDelDia(){
   const abiertas = atenciones.filter(a=>cuentaParaVendedor(a));
   const zonas = {atrasada:'Atrasadas', hoy:'Para hoy', sinclas:'Sin clasificar'};
@@ -8821,7 +9031,7 @@ function htmlCintiaResumen(soloAnalisis){
   // El detalle por vendedor y los dos gráficos se mudaron a Estadísticas: son análisis,
   // no la agenda del día. Acá queda lo operativo, que es lo que Cintia mira a la mañana.
   if(soloAnalisis) return detalleHtml + graficoContactosPorTiempo(actual) + graficoContactosPorCanal(actual);
-  return htmlResumenDelDia() + activosBar + canalPills + rankingHtml;
+  return htmlMovimientosDelDia() + htmlResumenDelDia() + activosBar + canalPills + rankingHtml;
 }
 /* Módulo para que Cintia entre a la pantalla de cada vendedor y le dé soporte. Solo
    vendedores (no Brian ni ella misma). Usa el mismo "ver como" que dirección; la barra
