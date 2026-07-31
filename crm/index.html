@@ -11007,13 +11007,15 @@ function abrirReasignar(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a) return;
   reasignandoId=id;
-  const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
+  // Cintia y dirección también atienden consultas: si no están en la lista, la única
+  // forma de que Cintia se quede una era pasársela a un vendedor y pedírsela de vuelta.
+  const vendedores=Object.keys(USUARIOS).filter(uid=>['vendedor','auditora','admin'].includes(rolDe(uid)));
   $('recordarCaja').innerHTML=`
     <h3 style="margin-top:0">Reasignar consulta</h3>
     <p class="tiny" style="margin-top:-6px;margin-bottom:16px"><b>${a.clienteNombre||'Sin nombre'}</b> está asignada a ${nombreDe(a.vendedorId)}.</p>
     <div class="field"><label>Nuevo vendedor</label>
       <div class="pills" id="reasignarPills">
-        ${vendedores.map(uid=>`<span class="pill ${uid===a.vendedorId?'on':''}" data-uid="${uid}" onclick="pickReasignarVendedor(this)">${nombreDe(uid)}</span>`).join('')}
+        ${vendedores.map(uid=>`<span class="pill ${uid===a.vendedorId?'on':''}" data-uid="${uid}" onclick="pickReasignarVendedor(this)">${nombreDe(uid)}${uid===YO?' (yo)':''}${uid===a.vendedorId?' · la tiene':''}</span>`).join('')}
       </div>
     </div>
     <button class="btn btn-navy" style="width:100%" onclick="guardarReasignacion()">Reasignar</button>
