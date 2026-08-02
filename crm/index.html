@@ -3611,7 +3611,7 @@ async function loadState(){
   await loadRecordatorios();
   pintarConfigLocales();
   cargarCatalogo();           // no bloquea: si tarda o falla, el desplegable usa la lista corta
-  await cargarConsultas();
+  await cargarConsultas(); await cargarReclamos();
   if(YO) render();
 }
 
@@ -8273,6 +8273,7 @@ function renderCintiaBotones(){
       {id:'mispendientes', label:'Mis pendientes',     ic:'bajas',   cnt:pend},
       {id:'estadisticas',  label:'Estadísticas',       ic:'ventas'},
       {id:'clientes',      label:'Clientes',           ic:'pulso'},
+      {id:'reclamos',       label:'Reclamos',          ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(rcAbierto).length:0)},
       {id:'direccion',     label:'Panel de dirección', ic:'ventas'},
       {id:'configuracion', label:'Configuración',      ic:'evaluar'},
     ];
@@ -8292,6 +8293,7 @@ function renderCintiaBotones(){
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
     {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente').length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin())).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length + asistenciasParaMi().length},
     {id:'clientes', label:'Clientes', ic:'pulso'},
+    {id:'reclamos', label:'Reclamos', ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(rcAbierto).length:0)},
     ...(esAdmin() ? [{id:'ejemplos', label:'Ejemplo del mes', ic:'evaluar', cnt:atenciones.filter(a=>a.ejemploDelMes && !a.ejemploDelMes.leido).length}] : []),
   ];
   $('cintiaBotones').innerHTML=items.map(it=>`
@@ -8309,6 +8311,7 @@ function renderCintiaMain(){
     else if(cintiaSeccion==='mispendientes') box.innerHTML=htmlCintiaMisPendientes();
     else if(cintiaSeccion==='estadisticas') box.innerHTML=htmlCintiaEstadisticas();
     else if(cintiaSeccion==='clientes') box.innerHTML=htmlCintiaClientes();
+    else if(cintiaSeccion==='reclamos') box.innerHTML=htmlReclamos();
     else if(cintiaSeccion==='direccion'){ box.innerHTML='<div id="direccionBox"></div>'; renderDireccion(); }
     else if(cintiaSeccion==='configuracion'){ box.innerHTML=htmlAdminConfig(); pintarConfigLocales(); renderEliminacionesAdmin(); renderConfigCanalesDestinos(); }
     else box.innerHTML='';
@@ -8322,6 +8325,7 @@ function renderCintiaMain(){
   else if(cintiaSeccion==='estadisticas') box.innerHTML=htmlCintiaEstadisticas();
   else if(cintiaSeccion==='mispendientes') box.innerHTML=htmlCintiaMisPendientes();
   else if(cintiaSeccion==='clientes') box.innerHTML=htmlCintiaClientes();
+  else if(cintiaSeccion==='reclamos') box.innerHTML=htmlReclamos();
   else if(cintiaSeccion==='ejemplos') box.innerHTML=htmlEjemplosDelMes();
 }
 
@@ -14880,5 +14884,382 @@ function recParaTs(){
 .link-cancelar{color:var(--sec);font-size:13.5px;cursor:pointer}
 .link-cancelar:hover{color:var(--red)}
 </style>
+
+<style>
+/* ============================================================
+   MÓDULO RECLAMOS — 2/8. Bloque propio al final: gana por orden
+   y se revierte borrándolo entero.
+   ========================================================== */
+.rc-wrap{padding:2px 0 18px}
+.rc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.rc-tit{margin:0;font-size:18px;font-weight:700;color:var(--ink)}
+.rc-btn-alta{background:#b42318;color:#fff;border:none;font-weight:600}
+.rc-btn-alta:hover{background:#96190f}
+.rc-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.rc-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.rc-card-lbl{font-size:11.5px;color:var(--sec);margin-bottom:4px}
+.rc-card-n{font-size:22px;font-weight:700;color:var(--ink)}
+.rc-card-n.rc-amb{color:var(--amber)} .rc-card-n.rc-rojo{color:var(--red)}
+.rc-tabla{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.rc-tabla th{text-align:left;font-size:11.5px;color:var(--sec);font-weight:600;padding:9px 12px;background:var(--line2);border-bottom:1px solid var(--line)}
+.rc-tabla td{padding:10px 12px;font-size:13px;border-bottom:1px solid var(--line2);vertical-align:top}
+.rc-fila{cursor:pointer} .rc-fila:hover{background:var(--line2)}
+.rc-num{font-variant-numeric:tabular-nums;color:var(--sec);white-space:nowrap}
+.rc-sub{font-size:11.5px;color:var(--muted)}
+.rc-rojo{color:var(--red);font-weight:600}
+.rc-vacio{color:var(--muted);text-align:center;padding:26px 12px}
+.rc-pie{font-size:11.5px;color:var(--muted);margin-top:8px}
+.rc-chapa{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;background:var(--line2);color:var(--sec);margin-right:5px}
+.rc-e-nuevo{background:#fdecea;color:#b42318}
+.rc-e-analisis{background:#fff7e6;color:#b45309}
+.rc-e-propuesta{background:#e7effc;color:#1e5fce}
+.rc-e-gestion{background:#e7effc;color:#1a51b0}
+.rc-e-cierre{background:#e7f5ec;color:#15803d}
+.rc-warn{background:#fff7e6;color:#b45309}
+/* Modal de alta: UNA columna y cabecera roja, para que no se confunda con
+   el modal de consultas (azul, dos columnas). */
+#rcModal{position:fixed;inset:0;background:rgba(15,26,42,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:28px 16px}
+#rcModal.hidden{display:none}
+.rc-caja{background:#fff;border-radius:14px;width:100%;max-width:620px;box-shadow:0 12px 40px rgba(15,26,42,.22)}
+.rc-caja-head{background:#b42318;color:#fff;padding:16px 20px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:between;gap:12px}
+.rc-caja-head h3{margin:0;font-size:19px;font-weight:700;flex:1}
+.rc-caja-head .rc-x{cursor:pointer;font-size:20px;opacity:.85;line-height:1}
+.rc-caja-body{padding:18px 20px;max-height:calc(100vh - 210px);overflow:auto}
+.rc-caja-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.rc-buscador{background:var(--line2);border-radius:10px;padding:12px 14px;margin-bottom:16px}
+.rc-lbl{font-size:12px;color:var(--sec);margin-bottom:6px}
+.rc-row{display:flex;gap:8px} .rc-row input{flex:1}
+.rc-res{margin-top:10px} .rc-res-msg{font-size:12px;color:var(--muted);padding:6px 2px}
+.rc-res-item{position:relative;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin-bottom:6px;cursor:pointer;font-size:13px}
+.rc-res-item:hover{border-color:var(--blue)}
+.rc-fuente{position:absolute;right:9px;top:8px;font-size:10.5px;color:var(--muted)}
+.rc-sec{margin-bottom:18px}
+.rc-sec-tit{font-size:11.5px;font-weight:700;color:var(--sec);text-transform:uppercase;letter-spacing:.04em;margin-bottom:9px;padding-bottom:5px;border-bottom:1px solid var(--line2)}
+.rc-f{display:block;font-size:12px;color:var(--sec);margin-bottom:11px}
+.rc-f input,.rc-f select,.rc-f textarea{display:block;width:100%;margin-top:4px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-family:inherit;color:var(--ink)}
+.rc-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rc-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:640px){.rc-grid2,.rc-grid3{grid-template-columns:1fr}}
+</style>
+<div id="rcModal" class="hidden">
+  <div class="rc-caja">
+    <div class="rc-caja-head"><h3>Cargar reclamo</h3><span class="rc-x" onclick="rcCerrarAlta()">&times;</span></div>
+    <div class="rc-caja-body" id="rcModalBody"></div>
+    <div class="rc-caja-foot">
+      <button class="btn rc-btn-alta" onclick="rcGuardarAlta()">Registrar reclamo</button>
+      <button class="btn btn-outline btn-sm" onclick="rcCerrarAlta()">Cancelar</button>
+      <span class="rc-sub">Se guarda abierto. La solución y el costo se cargan después.</span>
+    </div>
+  </div>
+</div>
+<script>
+/* ============================================================================
+   MÓDULO RECLAMOS — Parte 1 (alta + lista)
+   Bloque independiente: no toca consultas ni sus métricas. El reclamo es una
+   entidad propia, una por mueble con problema, agrupada por cliente.
+   ========================================================================= */
+
+/* --- Listas cerradas ---------------------------------------------------- */
+const RC_PROBLEMAS = {
+  'Terminación':      ['Filo','Laqueado','Rayas o marcas','Nivelación','Tono de paraíso','Fabricación','Diseño'],
+  'Rotura o daño':    ['En el transporte','En el armado','Con el uso','Pieza faltante o dañada'],
+  'Servicio y entrega':['Entrega incompleta','Expreso','Disconformidad con el envío','Demora'],
+  'Error en el pedido':['Error en la compra','Mal asesoramiento','Medida equivocada','Color o modelo equivocado'],
+  'Otros':            ['Otros']
+};
+const RC_RESPONSABLES = ['Flete','Proveedor','Fábrica','Carpintero','Vendedor','Cliente','Desgaste en el tiempo','Sin determinar'];
+/* dias = plazo de la gestión de la solución una vez que el cliente acepta */
+const RC_SOLUCIONES = [
+  {id:'trae_fabrica',   lbl:'Trae el mueble a fábrica',      dias:10},
+  {id:'flete_domicilio',lbl:'Va el flete a domicilio',       dias:10},
+  {id:'carpintero',     lbl:'Va carpintero a domicilio',     dias:10},
+  {id:'devolucion',     lbl:'Devolución total del dinero',   dias:5},
+  {id:'descuento',      lbl:'Descuento parcial',             dias:5},
+  {id:'asesoramiento',  lbl:'Recomendaciones de uso',        dias:3},
+  {id:'cambio_fabrica', lbl:'Cambio del mueble en fábrica',  dias:21},
+  {id:'cambio_domic',   lbl:'Cambio del mueble en domicilio',dias:21},
+  {id:'otros',          lbl:'Otros',                         dias:null}
+];
+const RC_ETAPAS = [
+  {id:'nuevo',    lbl:'Reclamo nuevo',        dias:0},
+  {id:'analisis', lbl:'Análisis',             dias:2},
+  {id:'propuesta',lbl:'Propuesta al cliente', dias:2},
+  {id:'gestion',  lbl:'Gestión de la solución',dias:null},
+  {id:'cierre',   lbl:'Cerrado',              dias:null}
+];
+const RC_CIERRES  = ['Resuelto','Resuelto con asesoramiento','Sin solución','Cliente desistió'];
+const RC_COSTOS   = ['Sin costo','Costo bajo','Costo medio','Costo alto','Devolución'];
+const RC_FLETES   = ['Ivan','Fabian Ramirez','Juan Fredes','Juan Berrina','Expreso','Retiro','Pedro'];
+const RC_PROVEEDORES = ['Tony','Matias','Raul','Henrique','Michelle','Luciano','Vicente','Otros'];
+const RC_MUEBLES = ['Cómodas','Mesas','Muebles de TV','Mesas de luz','Escritorios','Aparadores','Mesas ratonas','Bibliotecas','Placard','Modulares','Sillas','Vajilleros','Camas','Respaldos','Botineros','Comedor','Chifonier','Estante flotante'];
+const RC_DIAS_VIEJO = 15;   // a partir de acá el reclamo se marca como demorado
+
+/* Solo Cintia y dirección ven el módulo. El vendedor no. */
+function puedeVerReclamos(){ return (typeof esAdmin==='function' && esAdmin()) || (typeof esAuditora==='function' && esAuditora()); }
+
+/* --- Estado y persistencia ---------------------------------------------- */
+var reclamos = [];
+var _rcSnap = {};            // id -> JSON de lo último guardado
+var _rcCola = new Set();
+var _rcTimer = null;
+var _rcAplicandoRemoto = false;
+
+function rcNuevoId(){ return 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
+/* Numeración corrida propia, para poder contar reclamos totales y por mes. */
+function rcProximoNum(){ return reclamos.reduce((m,r)=>Math.max(m, +r.num||0), 0) + 1; }
+/* Etiqueta visible: 4231-R1 si tiene orden, si no SN + número corrido. */
+function rcEtiqueta(r){
+  if(!r.orden) return 'SN'+(r.num||'');
+  const hermanos = reclamos.filter(x=>x.orden===r.orden).sort((a,b)=>(a.num||0)-(b.num||0));
+  const i = hermanos.findIndex(x=>x.id===r.id);
+  return r.orden + '-R' + (i>=0 ? i+1 : 1);
+}
+
+async function cargarReclamos(){
+  if(!sb) return;
+  try{
+    const {data,error} = await sb.from('reclamos').select('id,data');
+    if(error){ console.error('cargarReclamos', error); return; }
+    reclamos = (data||[]).map(f=>f.data).filter(Boolean);
+    _rcSnap = {};
+    reclamos.forEach(r=>{ _rcSnap[r.id] = JSON.stringify(r); });
+  }catch(e){ console.error(e); }
+}
+
+/* Mismo mecanismo incremental que las consultas: se detecta qué cambió y se
+   manda solo eso, con un respiro de 400ms para no escribir por cada tecla. */
+async function guardarReclamos(){
+  if(!sb || _rcAplicandoRemoto) return;
+  for(const r of reclamos){
+    const j = JSON.stringify(r);
+    if(_rcSnap[r.id] !== j){ _rcCola.add(r.id); _rcSnap[r.id] = j; }
+  }
+  if(!_rcCola.size) return;
+  clearTimeout(_rcTimer);
+  _rcTimer = setTimeout(async ()=>{
+    const ids = [..._rcCola]; _rcCola.clear();
+    const filas = ids.map(id=>{ const r=reclamos.find(x=>x.id===id); return r ? {id:r.id, data:r, actualizado_en:new Date().toISOString(), actualizado_por:(typeof usuarioActualEmail!=='undefined'?usuarioActualEmail:null)} : null; }).filter(Boolean);
+    if(!filas.length) return;
+    const {error} = await sb.from('reclamos').upsert(filas, {onConflict:'id'});
+    if(error){ console.error('guardarReclamos', error); toast('No se pudo guardar el reclamo: '+error.message); ids.forEach(id=>_rcCola.add(id)); }
+  }, 400);
+}
+
+/* --- Helpers de lectura -------------------------------------------------- */
+function rcAbierto(r){ return r.etapa !== 'cierre'; }
+function rcDiasAbierto(r){
+  const fin = r.etapa==='cierre' && r.cerradoTs ? new Date(r.cerradoTs) : new Date();
+  return Math.max(0, Math.round((fin - new Date(r.ts)) / 86400000));
+}
+function rcEtapaLbl(id){ const e=RC_ETAPAS.find(x=>x.id===id); return e?e.lbl:'—'; }
+function rcAtrasado(r){ return rcAbierto(r) && r.proximaAccionTs && new Date(r.proximaAccionTs) < new Date(); }
+/* La próxima acción sale del plazo de la etapa, igual que en consultas. */
+function rcFechaPorPlazo(dias){
+  if(dias===null || dias===undefined) return null;
+  const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + dias);
+  return d.toISOString();
+}
+function rcFechaCorta(iso){
+  if(!iso) return '—';
+  const d=new Date(iso); const hoy=new Date();
+  return d.getDate()+'/'+(d.getMonth()+1)+(d.getFullYear()!==hoy.getFullYear()?('/'+String(d.getFullYear()).slice(2)):'');
+}
+function rcEsc(t){ return String(t==null?'':t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* --- Pantalla: lista ----------------------------------------------------- */
+function htmlReclamos(){
+  const abiertos  = reclamos.filter(rcAbierto);
+  const sinSol    = abiertos.filter(r=>!r.solucion);
+  const viejos    = abiertos.filter(r=>rcDiasAbierto(r) >= RC_DIAS_VIEJO);
+  const atrasados = abiertos.filter(rcAtrasado);
+
+  const card = (lbl,n,cls)=>`<div class="rc-card"><div class="rc-card-lbl">${lbl}</div><div class="rc-card-n ${cls||''}">${n}</div></div>`;
+
+  const orden = [...reclamos].sort((a,b)=>{
+    if(rcAbierto(a)!==rcAbierto(b)) return rcAbierto(a)?-1:1;
+    return rcDiasAbierto(b)-rcDiasAbierto(a);
+  });
+
+  const filas = orden.length ? orden.map(r=>`
+    <tr class="rc-fila" ondblclick="rcAbrirFicha('${r.id}')">
+      <td class="rc-num">${rcEsc(rcEtiqueta(r))}</td>
+      <td><b>${rcEsc(r.clienteNombre||'—')}</b><div class="rc-sub">${rcEsc(r.clienteTelefono||'')}</div></td>
+      <td>${rcEsc(r.mueble||'—')}<div class="rc-sub">${rcEsc(r.problema||'')}${r.subProblema?' · '+rcEsc(r.subProblema):''}</div></td>
+      <td><span class="rc-chapa rc-e-${r.etapa}">${rcEsc(rcEtapaLbl(r.etapa))}</span>${r.aConfirmar?'<span class="rc-chapa rc-warn">a confirmar</span>':''}</td>
+      <td class="${rcAtrasado(r)?'rc-rojo':''}">${rcAbierto(r)?rcDiasAbierto(r):'—'}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="5" class="rc-vacio">Todavía no hay reclamos cargados.</td></tr>`;
+
+  return `
+  <div class="rc-wrap">
+    <div class="rc-head">
+      <h3 class="rc-tit">Reclamos</h3>
+      <button class="btn rc-btn-alta" onclick="rcAbrirAlta()">＋ Cargar reclamo</button>
+    </div>
+    <div class="rc-cards">
+      ${card('Abiertos', abiertos.length)}
+      ${card('Sin solución definida', sinSol.length, 'rc-amb')}
+      ${card('Atrasados', atrasados.length, 'rc-rojo')}
+      ${card('Hace '+RC_DIAS_VIEJO+' días o más', viejos.length, 'rc-rojo')}
+    </div>
+    <table class="rc-tabla">
+      <thead><tr><th>Reclamo</th><th>Cliente</th><th>Mueble y problema</th><th>Etapa</th><th>Días</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div class="rc-pie">Doble clic en una fila para abrir el reclamo.</div>
+  </div>`;
+}
+
+/* --- Alta ---------------------------------------------------------------- */
+var rcDraft = null;
+
+function rcAbrirAlta(){
+  rcDraft = { id:rcNuevoId(), num:rcProximoNum(), ts:new Date().toISOString(),
+              etapa:'nuevo', aConfirmar:false, registradoPor:(typeof YO!=='undefined'?YO:null),
+              clienteNombre:'', clienteTelefono:'', orden:'', fechaEntrega:'', chofer:'',
+              mueble:'', problema:'', subProblema:'', detalle:'', origen:'LiveConnect' };
+  const c=$('rcModal'); if(c){ c.classList.remove('hidden'); rcPintarAlta(); }
+}
+function rcCerrarAlta(){ const c=$('rcModal'); if(c) c.classList.add('hidden'); rcDraft=null; }
+
+function rcPintarAlta(){
+  const d = rcDraft; if(!d) return;
+  const subs = RC_PROBLEMAS[d.problema] || [];
+  $('rcModalBody').innerHTML = `
+    <div class="rc-buscador">
+      <div class="rc-lbl">Buscar la venta — teléfono, nombre o N° de orden</div>
+      <div class="rc-row">
+        <input id="rcBuscar" placeholder="11 5540 9812 · 4231 · Marcela" onkeydown="if(event.key==='Enter'){event.preventDefault();rcBuscarVenta();}">
+        <button class="btn btn-sm" onclick="rcBuscarVenta()">Buscar</button>
+      </div>
+      <div id="rcResultados" class="rc-res"></div>
+    </div>
+
+    <div class="rc-sec">
+      <div class="rc-sec-tit">El cliente</div>
+      <div class="rc-grid2">
+        <label class="rc-f">Nombre<input id="rcNombre" value="${rcEsc(d.clienteNombre)}" oninput="rcDraft.clienteNombre=this.value"></label>
+        <label class="rc-f">Teléfono<input id="rcTel" value="${rcEsc(d.clienteTelefono)}" oninput="rcDraft.clienteTelefono=this.value"></label>
+      </div>
+      <div class="rc-grid3">
+        <label class="rc-f">N° de orden<input id="rcOrden" value="${rcEsc(d.orden)}" oninput="rcDraft.orden=this.value"></label>
+        <label class="rc-f">Fecha de entrega<input type="date" id="rcFEnt" value="${rcEsc(d.fechaEntrega)}" oninput="rcDraft.fechaEntrega=this.value"></label>
+        <label class="rc-f">Chofer<select id="rcChofer" onchange="rcDraft.chofer=this.value"><option value="">—</option>${RC_FLETES.map(f=>`<option ${d.chofer===f?'selected':''}>${f}</option>`).join('')}</select></label>
+      </div>
+    </div>
+
+    <div class="rc-sec">
+      <div class="rc-sec-tit">El problema</div>
+      <label class="rc-f">Mueble reclamado
+        <input id="rcMueble" list="rcMueblesList" value="${rcEsc(d.mueble)}" placeholder="Cómoda Oslo" oninput="rcDraft.mueble=this.value">
+        <datalist id="rcMueblesList">${RC_MUEBLES.map(m=>`<option value="${m}">`).join('')}</datalist>
+      </label>
+      <div class="rc-grid2">
+        <label class="rc-f">Problema
+          <select id="rcProblema" onchange="rcSetProblema(this.value)">
+            <option value="">Elegir…</option>
+            ${Object.keys(RC_PROBLEMAS).map(p=>`<option ${d.problema===p?'selected':''}>${p}</option>`).join('')}
+          </select></label>
+        <label class="rc-f">¿En qué se ve?
+          <select id="rcSub" ${subs.length?'':'disabled'} onchange="rcDraft.subProblema=this.value">
+            <option value="">${subs.length?'Elegir…':'Elegí un problema primero'}</option>
+            ${subs.map(x=>`<option ${d.subProblema===x?'selected':''}>${x}</option>`).join('')}
+          </select></label>
+      </div>
+      <label class="rc-f">Qué dijo el cliente
+        <textarea id="rcDetalle" rows="3" oninput="rcDraft.detalle=this.value">${rcEsc(d.detalle)}</textarea></label>
+      <label class="rc-f">¿Por dónde entró?
+        <select id="rcOrigen" onchange="rcDraft.origen=this.value">
+          ${['LiveConnect','Vino al local','Aviso del chofer o Lucas'].map(o=>`<option ${d.origen===o?'selected':''}>${o}</option>`).join('')}
+        </select></label>
+    </div>`;
+  setTimeout(()=>{ const b=$('rcBuscar'); if(b) b.focus(); }, 50);
+}
+
+function rcSetProblema(v){
+  rcDraft.problema = v; rcDraft.subProblema='';
+  rcPintarAlta();
+  const p=$('rcProblema'); if(p) p.focus();
+}
+
+/* Busca primero en el CRM (clientes que ya consultaron) y, si parece un número
+   de orden, también en Logística — que es donde Lucas carga chofer y entrega. */
+async function rcBuscarVenta(){
+  const q = ($('rcBuscar').value||'').trim();
+  const box = $('rcResultados');
+  if(!q){ box.innerHTML=''; return; }
+  box.innerHTML = '<div class="rc-res-msg">Buscando…</div>';
+  const res = [];
+
+  // 1) Clientes del CRM
+  try{
+    const norm = t=>String(t||'').toLowerCase().replace(/[^\wáéíóúñ@]/g,'');
+    const nq = norm(q);
+    const vistos = new Set();
+    (typeof atenciones!=='undefined'?atenciones:[]).forEach(a=>{
+      const tel=String(a.clienteTelefono||''), nom=String(a.clienteNombre||'');
+      if(!nq) return;
+      if(norm(tel).includes(nq) || norm(nom).includes(nq)){
+        const k = norm(tel)||norm(nom);
+        if(vistos.has(k)) return; vistos.add(k);
+        res.push({fuente:'CRM', nombre:nom, tel:tel, orden:a.nroOrden||'', fecha:'', chofer:'', muebles:(a.muebles||[]).map(m=>m.mueble).filter(Boolean).join(', ')});
+      }
+    });
+  }catch(e){ console.error(e); }
+
+  // 2) Logística, solo lectura, cuando la búsqueda parece un N° de orden
+  if(/^\d{3,6}$/.test(q) && typeof sbLOG!=='undefined' && sbLOG){
+    try{
+      const {data,error} = await sbLOG.from('ordenes').select('data').eq('data->>boleta', q).limit(5);
+      if(!error && data){
+        data.map(f=>f.data).filter(Boolean).forEach(o=>{
+          res.unshift({fuente:'Logística', nombre:o.cliente||'', tel:o.tel1||o.tel2||'', orden:o.boleta||'',
+                       fecha:o.fecha||'', chofer:o.flete||'', muebles:(o.muebles||[]).map(m=>m.nombre||m.mueble||'').filter(Boolean).join(', ')});
+        });
+      }
+    }catch(e){ console.error('logistica', e); }
+  }
+
+  if(!res.length){ box.innerHTML = '<div class="rc-res-msg">No apareció nada. Cargá el nombre y el teléfono a mano acá abajo.</div>'; return; }
+  box.innerHTML = res.slice(0,6).map((r,i)=>`
+    <div class="rc-res-item" onclick="rcTomarVenta(${i})">
+      <div><b>${rcEsc(r.nombre||'Sin nombre')}</b> <span class="rc-sub">${rcEsc(r.tel)}</span></div>
+      <div class="rc-sub">${r.orden?('Orden '+rcEsc(r.orden)):'sin orden'}${r.chofer?' · '+rcEsc(r.chofer):''}${r.muebles?' · '+rcEsc(r.muebles):''}</div>
+      <span class="rc-fuente">${r.fuente}</span>
+    </div>`).join('');
+  window._rcRes = res;
+}
+
+function rcTomarVenta(i){
+  const r = (window._rcRes||[])[i]; if(!r || !rcDraft) return;
+  rcDraft.clienteNombre = r.nombre || rcDraft.clienteNombre;
+  rcDraft.clienteTelefono = r.tel || rcDraft.clienteTelefono;
+  rcDraft.orden = r.orden || rcDraft.orden;
+  rcDraft.fechaEntrega = r.fecha ? String(r.fecha).slice(0,10) : rcDraft.fechaEntrega;
+  rcDraft.chofer = r.chofer || rcDraft.chofer;
+  if(!rcDraft.mueble && r.muebles) rcDraft.mueble = r.muebles.split(',')[0].trim();
+  rcPintarAlta();
+  toast('Datos traídos de ' + r.fuente);
+}
+
+async function rcGuardarAlta(){
+  const d = rcDraft; if(!d) return;
+  if(!d.clienteNombre.trim() && !d.clienteTelefono.trim()) return toast('Poné al menos el nombre o el teléfono del cliente');
+  if(!d.problema) return toast('Elegí el problema');
+  if(!d.detalle.trim()) return toast('Escribí qué dijo el cliente');
+  // La próxima acción sale sola del plazo de la etapa siguiente (análisis, 2 días).
+  d.proximaAccionTs = rcFechaPorPlazo(RC_ETAPAS.find(e=>e.id==='analisis').dias);
+  d.historial = [{etapa:'nuevo', ts:d.ts, por:d.registradoPor}];
+  reclamos.push(d);
+  await guardarReclamos();
+  rcCerrarAlta();
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+  toast('Reclamo cargado');
+}
+
+/* Ficha completa: Parte 2. Por ahora avisa para no dejar un clic muerto. */
+function rcAbrirFicha(id){ toast('La ficha del reclamo se construye en la Parte 2'); }
+
+</script>
 </body>
 </html>
