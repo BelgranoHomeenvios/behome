@@ -14898,8 +14898,12 @@ function recParaTs(){
 .rc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .rc-tit{margin:0;font-size:18px;font-weight:700;color:var(--ink)}
 .rc-btn-alta{background:#b42318;color:#fff;border:none;font-weight:600}
-.herobtns .btn-reclamo{background:#e5484d;color:#fff;border:none;font-weight:600;width:auto;flex:0 0 auto}
+.herobtns{align-items:center}
+/* Al otro extremo del hero y al 70% del tamaño de un botón normal. */
+.herobtns .btn-reclamo{background:#e5484d;color:#fff;border:none;font-weight:600;width:auto;flex:0 0 auto;
+  margin-left:auto;padding:9px 12px;font-size:10.5px;border-radius:7px;letter-spacing:.01em}
 .herobtns .btn-reclamo:hover{background:#c93a3f}
+@media(max-width:640px){.herobtns .btn-reclamo{margin-left:0}}
 .rc-btn-alta:hover{background:#96190f}
 .rc-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
 .rc-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
@@ -14926,12 +14930,14 @@ function recParaTs(){
    el modal de consultas (azul, dos columnas). */
 #rcModal{position:fixed;inset:0;background:rgba(15,26,42,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:28px 16px}
 #rcModal.hidden{display:none}
-.rc-caja{background:#fff;border-radius:14px;width:100%;max-width:730px;box-shadow:0 12px 40px rgba(15,26,42,.22)}
+.rc-caja{background:#fff;border-radius:14px;width:100%;max-width:620px;box-shadow:0 12px 40px rgba(15,26,42,.22)}
 .rc-caja-head{background:#b42318;color:#fff;padding:16px 20px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:between;gap:12px}
 .rc-caja-head h3{margin:0;font-size:19px;font-weight:700;flex:1}
 .rc-caja-head .rc-x{cursor:pointer;font-size:20px;opacity:.85;line-height:1}
 .rc-caja-body{padding:18px 20px;max-height:calc(100vh - 210px);overflow:auto}
 .rc-caja-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.rc-caja-foot .btn{width:auto;flex:0 0 auto;padding:12px 18px;font-size:15px}
+.rc-caja-foot .rc-sub{flex:1 1 100%;font-size:12px;margin-top:2px}
 .rc-buscador{background:var(--line2);border-radius:10px;padding:12px 14px;margin-bottom:16px}
 .rc-lbl{font-size:12px;color:var(--sec);margin-bottom:6px}
 .rc-row{display:flex;gap:8px} .rc-row input{flex:1}
@@ -14940,15 +14946,15 @@ function recParaTs(){
 .rc-res-item:hover{border-color:var(--blue)}
 .rc-fuente{position:absolute;right:9px;top:8px;font-size:10.5px;color:var(--muted)}
 .rc-sec{margin-bottom:18px}
-.rc-sec-tit{font-size:11.5px;font-weight:700;color:var(--sec);text-transform:uppercase;letter-spacing:.04em;margin-bottom:9px;padding-bottom:5px;border-bottom:1px solid var(--line2)}
-.rc-f{display:block;font-size:12px;color:var(--sec);margin-bottom:11px}
-.rc-f input,.rc-f select,.rc-f textarea{display:block;width:100%;margin-top:4px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-family:inherit;color:var(--ink)}
+.rc-sec-tit{font-size:12.5px;font-weight:700;color:var(--sec);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid var(--line2)}
+.rc-f{display:block;font-size:13px;color:var(--sec);margin-bottom:12px}
+.rc-f input,.rc-f select,.rc-f textarea{display:block;width:100%;margin-top:5px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;color:var(--ink)}
 .rc-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .rc-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-.rc-grid-nom{display:grid;grid-template-columns:1.3fr 1fr 0.9fr;gap:12px}
+.rc-grid-nom{display:grid;grid-template-columns:1.25fr 1fr 0.8fr;gap:10px}
 .rc-grid-ent{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:420px}
 .rc-fecha-wrap{display:flex;align-items:center;gap:6px}
-.rc-fecha-wrap input{width:100px!important}
+.rc-fecha-wrap input{width:120px!important}
 .rc-anio{font-size:12.5px;color:var(--muted);white-space:nowrap}
 .rc-buscando{font-size:11.5px;color:var(--blue);margin-top:-6px;margin-bottom:8px}
 .rc-otro{margin-top:6px}
@@ -15134,7 +15140,7 @@ function rcAbrirAlta(){
   rcDraft = { id:rcNuevoId(), num:rcProximoNum(), ts:new Date().toISOString(),
               etapa:'nuevo', aConfirmar:false, registradoPor:(typeof YO!=='undefined'?YO:null),
               clienteNombre:'', clienteTelefono:'', orden:'', fechaEntrega:'', chofer:'',
-              mueble:'', problema:'', problemaOtro:'', subProblema:'', subProblemaOtro:'', detalle:'', origen:'LiveConnect' };
+              mueble:'', problema:'', problemaOtro:'', subProblema:'', subProblemaOtro:'', detalle:'', origen:'Virtual' };
   const c=$('rcModal'); if(c){ c.classList.remove('hidden'); rcPintarAlta(); }
 }
 function rcCerrarAlta(){ const c=$('rcModal'); if(c) c.classList.add('hidden'); rcDraft=null; }
@@ -15150,20 +15156,18 @@ function rcPintarAlta(){
         <label class="rc-f">Nombre
           <input id="rcNombre" value="${rcEsc(d.clienteNombre)}" oninput="rcDraft.clienteNombre=this.value"></label>
         <label class="rc-f">Teléfono
-          <input id="rcTel" value="${rcEsc(d.clienteTelefono)}" oninput="rcDraft.clienteTelefono=this.value"
-                 onkeydown="if(event.key==='Enter'){event.preventDefault();rcBuscarVenta(this.value);}"></label>
+          <input id="rcTel" value="${rcEsc(d.clienteTelefono)}"
+                 oninput="rcDraft.clienteTelefono=this.value; rcBuscarPronto(this.value);"></label>
         <label class="rc-f">N° de compra
-          <input id="rcOrden" value="${rcEsc(d.orden)}" placeholder="4231" oninput="rcDraft.orden=this.value"
-                 onkeydown="if(event.key==='Enter'){event.preventDefault();rcBuscarVenta(this.value);}"
-                 onblur="rcBuscarVenta(this.value)"></label>
+          <input id="rcOrden" value="${rcEsc(d.orden)}" placeholder="4231"
+                 oninput="rcDraft.orden=this.value; rcBuscarPronto(this.value);"></label>
       </div>
       <div id="rcResultados" class="rc-res"></div>
       <div class="rc-grid-ent">
         <label class="rc-f">Fecha de entrega
           <span class="rc-fecha-wrap">
-            <input id="rcFEnt" placeholder="dd/mm" maxlength="5" value="${rcEsc(rcFechaADdMm(d.fechaEntrega))}"
-                   oninput="rcMascaraFecha(this)">
-            <span class="rc-anio">/ ${RC_ANIO_DEFECTO}</span>
+            <input id="rcFEnt" placeholder="dd/mm/aa" maxlength="8" value="${rcEsc(rcFechaADdMm(d.fechaEntrega))}"
+                   oninput="rcMascaraFecha(this)" onblur="rcCompletarAnio(this)">
           </span></label>
         <label class="rc-f">Chofer
           <select id="rcChofer" onchange="rcDraft.chofer=this.value"><option value="">—</option>
@@ -15201,7 +15205,7 @@ function rcPintarAlta(){
         <textarea id="rcDetalle" rows="3" oninput="rcDraft.detalle=this.value">${rcEsc(d.detalle)}</textarea></label>
       <label class="rc-f">¿Por dónde entró?
         <select id="rcOrigen" onchange="rcDraft.origen=this.value">
-          ${['LiveConnect','Vino al local','Aviso del chofer o Lucas'].map(o=>`<option ${d.origen===o?'selected':''}>${o}</option>`).join('')}
+          ${['Virtual','Vino al local','Aviso del chofer','Aviso de Lucas'].map(o=>`<option ${d.origen===o?'selected':''}>${o}</option>`).join('')}
         </select></label>
     </div>`;
   setTimeout(()=>{ const b=$('rcNombre'); if(b) b.focus(); }, 50);
@@ -15209,22 +15213,34 @@ function rcPintarAlta(){
 
 /* Fecha sin año: se escribe dd/mm y el año lo pone RC_ANIO_DEFECTO. */
 function rcMascaraFecha(inp){
-  let v = inp.value.replace(/[^\d]/g,'').slice(0,4);
-  if(v.length>2) v = v.slice(0,2)+'/'+v.slice(2);
+  if(!rcDraft) return;
+  let v = inp.value.replace(/[^\d]/g,'').slice(0,6);
+  if(v.length>4) v = v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4);
+  else if(v.length>2) v = v.slice(0,2)+'/'+v.slice(2);
+  // Apenas tiene día y mes se completa el año solo, para no tipearlo todos los días.
+  if(v.length===5) v = v + '/' + String(RC_ANIO_DEFECTO).slice(2);
   inp.value = v;
   rcDraft.fechaEntrega = rcDdMmAFecha(v);
 }
+function rcCompletarAnio(inp){
+  if(!rcDraft) return;
+  const v=inp.value.trim();
+  if(/^\d{1,2}\/\d{1,2}$/.test(v)){ inp.value = v+'/'+String(RC_ANIO_DEFECTO).slice(2); }
+  rcDraft.fechaEntrega = rcDdMmAFecha(inp.value);
+}
 function rcDdMmAFecha(v){
-  const m = /^(\d{1,2})\/(\d{1,2})$/.exec(v||'');
+  const m = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/.exec(String(v||'').trim());
   if(!m) return '';
   const dd=String(+m[1]).padStart(2,'0'), mm=String(+m[2]).padStart(2,'0');
   if(+dd<1||+dd>31||+mm<1||+mm>12) return '';
-  return RC_ANIO_DEFECTO+'-'+mm+'-'+dd;
+  let aa = m[3] ? m[3] : String(RC_ANIO_DEFECTO).slice(2);
+  const anio = aa.length===4 ? aa : '20'+String(aa).padStart(2,'0');
+  return anio+'-'+mm+'-'+dd;
 }
 function rcFechaADdMm(iso){
   if(!iso) return '';
   const p=String(iso).slice(0,10).split('-');
-  return p.length===3 ? p[2]+'/'+p[1] : '';
+  return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0].slice(2) : '';
 }
 function rcSetSub(v){ rcDraft.subProblema=v; if(v==='Otros') rcPintarAlta(); }
 
@@ -15236,6 +15252,12 @@ function rcSetProblema(v){
 
 /* Busca primero en el CRM (clientes que ya consultaron) y, si parece un número
    de orden, también en Logística — que es donde Lucas carga chofer y entrega. */
+/* Reconoce al cliente mientras Cintia escribe, sin esperar a que salte de campo. */
+var _rcBuscarTimer=null;
+function rcBuscarPronto(v){
+  clearTimeout(_rcBuscarTimer);
+  _rcBuscarTimer = setTimeout(()=>rcBuscarVenta(v), 350);
+}
 async function rcBuscarVenta(valor){
   const q = String(valor!==undefined ? valor : '').trim();
   const box = $('rcResultados');
