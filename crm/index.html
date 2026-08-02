@@ -8095,7 +8095,7 @@ function renderPanelCintia(){
     // El reclamo se carga desde el hero, disponible en cualquier sección, y en rojo
     // para que no se confunda con la carga de consultas.
     const btnReclamo = puedeVerReclamos()
-      ? `<button class="btn btn-reclamo" onclick="rcAbrirAlta()">＋ Cargar reclamo</button>` : '';
+      ? `<button class="btn btn-reclamo" onclick="rcAbrirAlta()">＋ Reclamo</button>` : '';
     heroBtns.innerHTML = (admin
       ? `<button class="btn btn-white" onclick="abrirRegistroAdminLocal()">🏬 Registrar atención en local</button>
          <button class="btn btn-white" onclick="abrirCargaRapidaCintia()">💬 Cargar consulta virtual</button>`
@@ -8129,7 +8129,7 @@ function renderPanelCintia(){
   $('colaOperativa').classList.toggle('hidden', !mostrarTabla);
 }
 function cintiaIrSeccion(id){
-  cintiaSeccion=id; resumenVendedor=null;
+  cintiaSeccion=id; resumenVendedor=null; if(typeof rcFichaId!=='undefined') rcFichaId=null;
   if(id!=='consultas'){ filtroConteoVendedor=null; filtroConteoTipo=null; filtroAsistPend=false; }
   if(esAdmin()){
     if(id==='consultas') scopeActual='equipo';
@@ -14901,9 +14901,56 @@ function recParaTs(){
 .herobtns{align-items:center}
 /* Al otro extremo del hero y al 70% del tamaño de un botón normal. */
 .herobtns .btn-reclamo{background:#e5484d;color:#fff;border:none;font-weight:600;width:auto;flex:0 0 auto;
-  margin-left:auto;padding:9px 12px;font-size:10.5px;border-radius:7px;letter-spacing:.01em}
+  margin-left:auto;padding:10px 16px;font-size:14px;border-radius:8px;letter-spacing:.01em}
 .herobtns .btn-reclamo:hover{background:#c93a3f}
 @media(max-width:640px){.herobtns .btn-reclamo{margin-left:0}}
+/* Grilla del tablero en DOS filas: 4 baldes arriba y 5 abajo. Se arma sobre 20
+   columnas: los primeros 4 ocupan 5 cada uno, los 5 siguientes ocupan 4. */
+/* ---- Ficha del reclamo (pantalla propia) ---- */
+.rc-ficha-head{display:flex;align-items:center;gap:12px;padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.rc-volver{font-size:12.5px;color:var(--muted);cursor:pointer}
+.rc-volver:hover{color:var(--blue)}
+.rc-ficha-tit{font-size:17px;color:var(--ink)}
+.rc-stepper{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+.rc-paso{text-align:center;cursor:pointer;padding:6px 2px;border-radius:9px}
+.rc-paso:hover{background:var(--line2)}
+.rc-bola{width:34px;height:34px;margin:0 auto 6px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;background:#fff}
+.rc-paso-lbl{font-size:11.5px;color:var(--muted)}
+.rc-paso.hecha .rc-bola{background:#e7f5ec;border-color:#bfe3cd}
+.rc-paso.hecha .rc-paso-lbl{color:var(--sec)}
+.rc-paso.activa{background:#e7effc}
+.rc-paso.activa .rc-bola{background:#1e5fce;border-color:#1e5fce}
+.rc-paso.activa .rc-paso-lbl{color:#1a51b0;font-weight:700}
+.rc-alerta{background:#fff7e6;color:#b45309;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:16px}
+.rc-alerta-roja{background:#fdecea;color:#b42318}
+.rc-ficha-cols{display:grid;grid-template-columns:1.35fr 1fr;gap:22px}
+@media(max-width:900px){.rc-ficha-cols{grid-template-columns:1fr}.rc-stepper{grid-template-columns:repeat(3,1fr)}}
+.rc-mini-lbl{font-size:11.5px;color:var(--muted);margin:4px 0 8px}
+.rc-subetapas{margin-top:12px}
+.rc-chips{display:flex;flex-wrap:wrap;gap:6px}
+.rc-chip{font-size:12px;padding:5px 11px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--sec);cursor:pointer}
+.rc-chip:hover{border-color:var(--blue)}
+.rc-chip.hecha{background:#e7f5ec;border-color:#bfe3cd;color:#15803d}
+.rc-chip.activa{background:#1e5fce;border-color:#1e5fce;color:#fff;font-weight:600}
+.rc-bitacora{background:var(--line2);border-radius:10px;padding:12px;max-height:300px;overflow:auto;margin-bottom:8px}
+.rc-nota{padding-bottom:9px;margin-bottom:9px;border-bottom:1px solid var(--line)}
+.rc-nota:last-child{border-bottom:none;padding-bottom:0;margin-bottom:0}
+.rc-nota-meta{font-size:11.5px;color:var(--muted)}
+.rc-nota-txt{font-size:13px;color:var(--sec)}
+.rc-nota-input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit}
+.rc-btn-nota{width:100%;margin-top:6px;background:#0f2f5c;color:#fff;border:none}
+.rc-cierre-sel{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit}
+.rc-ficha-pie{display:flex;gap:10px;align-items:center;margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
+.rc-ficha-pie .btn{width:auto;flex:0 0 auto}
+@media(min-width:901px){
+  .gridbtn{grid-template-columns:repeat(20,1fr)!important;gap:10px!important}
+  .gridbtn > .gb:nth-child(-n+4){grid-column:span 5}
+  .gridbtn > .gb:nth-child(n+5){grid-column:span 4}
+  .gridbtn > .gb{min-height:0!important;padding:10px 12px!important}
+  .gridbtn > .gb .lbl{font-size:11.5px!important}
+  .gridbtn > .gb .cnt{font-size:21px!important;margin-top:2px!important}
+  .gridbtn > .gb .ic{transform:scale(.85);transform-origin:right center}
+}
 .rc-btn-alta:hover{background:#96190f}
 .rc-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
 .rc-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
@@ -15092,6 +15139,7 @@ function rcEsc(t){ return String(t==null?'':t).replace(/[&<>"']/g, c=>({'&':'&am
 
 /* --- Pantalla: lista ----------------------------------------------------- */
 function htmlReclamos(){
+  if(rcFichaId) return htmlFichaReclamo();
   const abiertos  = reclamos.filter(rcAbierto);
   const sinSol    = abiertos.filter(r=>!r.solucion);
   const viejos    = abiertos.filter(r=>rcDiasAbierto(r) >= RC_DIAS_VIEJO);
@@ -15193,20 +15241,18 @@ function rcPintarAlta(){
           ${d.subProblema==='Otros' ? `<input class="rc-otro" id="rcSubOtro" placeholder="¿Cuál?" value="${rcEsc(d.subProblemaOtro||'')}" oninput="rcDraft.subProblemaOtro=this.value">` : ''}
         </label>
       </div>
-      <label class="rc-f">Mueble reclamado
-        <input id="rcMueble" list="rcMueblesList" value="${rcEsc(d.mueble)}" placeholder="Cómoda Oslo" oninput="rcDraft.mueble=this.value">
-        <datalist id="rcMueblesList">${RC_MUEBLES.map(m=>`<option value="${m}">`).join('')}</datalist>
-      </label>
-    </div>
-
-    <div class="rc-sec">
-      <div class="rc-sec-tit">El cliente</div>
-      <label class="rc-f">Qué dijo
-        <textarea id="rcDetalle" rows="3" oninput="rcDraft.detalle=this.value">${rcEsc(d.detalle)}</textarea></label>
-      <label class="rc-f">¿Por dónde entró?
-        <select id="rcOrigen" onchange="rcDraft.origen=this.value">
-          ${['Virtual','Vino al local','Aviso del chofer','Aviso de Lucas'].map(o=>`<option ${d.origen===o?'selected':''}>${o}</option>`).join('')}
-        </select></label>
+      <div class="rc-grid2">
+        <label class="rc-f">Mueble reclamado
+          <input id="rcMueble" list="rcMueblesList" value="${rcEsc(d.mueble)}" placeholder="Cómoda Oslo" oninput="rcDraft.mueble=this.value">
+          <datalist id="rcMueblesList">${RC_MUEBLES.map(m=>`<option value="${m}">`).join('')}</datalist>
+        </label>
+        <label class="rc-f">¿Por dónde entró?
+          <select id="rcOrigen" onchange="rcDraft.origen=this.value">
+            ${['Virtual','Vino al local','Aviso del chofer','Aviso de Lucas'].map(o=>`<option ${d.origen===o?'selected':''}>${o}</option>`).join('')}
+          </select></label>
+      </div>
+      <label class="rc-f">Observaciones
+        <textarea id="rcDetalle" rows="2" oninput="rcDraft.detalle=this.value">${rcEsc(d.detalle)}</textarea></label>
     </div>`;
   setTimeout(()=>{ const b=$('rcNombre'); if(b) b.focus(); }, 50);
 }
@@ -15318,9 +15364,12 @@ function rcTomarVenta(i){
 
 async function rcGuardarAlta(completo){
   const d = rcDraft; if(!d) return;
-  if(!d.clienteNombre.trim() && !d.clienteTelefono.trim()) return toast('Poné al menos el nombre o el teléfono del cliente');
-  if(!d.problema) return toast('Elegí el problema');
-  if(!d.detalle.trim()) return toast('Escribí qué dijo el cliente');
+  // "Cargar todo ahora" pasa derecho a la ficha aunque no haya nada cargado:
+  // los campos se completan allá, que es donde está todo junto.
+  if(!completo){
+    if(!d.clienteNombre.trim() && !d.clienteTelefono.trim()) return toast('Poné al menos el nombre o el teléfono del cliente');
+    if(!d.problema) return toast('Elegí el problema');
+  }
   // La próxima acción sale sola del plazo de la etapa siguiente (análisis, 2 días).
   d.proximaAccionTs = rcFechaPorPlazo(RC_ETAPAS.find(e=>e.id==='analisis').dias);
   d.historial = [{etapa:'nuevo', ts:d.ts, por:d.registradoPor}];
@@ -15332,8 +15381,241 @@ async function rcGuardarAlta(completo){
   if(completo){ rcAbrirFicha(id); } else { toast('Reclamo registrado'); }
 }
 
-/* Ficha completa: Parte 2. Por ahora avisa para no dejar un clic muerto. */
-function rcAbrirFicha(id){ toast('La ficha del reclamo se construye en la Parte 2'); }
+
+/* ============================================================================
+   MÓDULO RECLAMOS — Parte 2: la ficha, como pantalla propia
+   ========================================================================= */
+
+/* Las sub-etapas dependen del tipo de solución que aceptó el cliente. */
+const RC_SUBETAPAS = {
+  trae_fabrica_cliente: ['Esperando que lo traiga','Recibido','En reparación','Listo','Coordinar devolución','Entregado'],
+  trae_fabrica_nosotros:['Retiro pedido','Recibido','En reparación','Listo','Coordinar devolución','Entregado'],
+  flete_domicilio:      ['Viaje pedido','Entregado'],
+  carpintero:           ['Carpintero avisado','Visita coordinada','Hecho'],
+  devolucion:           ['Monto acordado','Retiro coordinado','Pagado'],
+  descuento:            ['Monto acordado','Pagado'],
+  asesoramiento:        [],
+  cambio_fabrica:       ['Esperando que lo traiga','Recibido','Reemplazo listo','Retiro coordinado','Entregado'],
+  cambio_domic:         ['Solicitud del mueble nuevo','Recepción del mueble','Listo, coordinar cambio','Entregado con recepción del anterior'],
+  otros:                ['Pedido','En curso','Listo']
+};
+const RC_QUIEN_TRAE = [['cliente','Lo trae el cliente'],['nosotros','Lo vamos a buscar']];
+const RC_PAGA = ['Belgrano Home','El cliente','Compartido','El proveedor'];
+const RC_DIAS_PROVEEDOR = 6;   // recordatorio para exigirle la devolución
+const RC_SUBETAPA_REPARA = 'En reparación';
+
+var rcFichaId = null;   // var, para que cintiaIrSeccion pueda leerlo desde otro bloque
+
+function rcClaveSub(r){
+  if(r.solucion==='trae_fabrica') return 'trae_fabrica_' + (r.quienTrae||'cliente');
+  return r.solucion || '';
+}
+function rcSubEtapasDe(r){ return RC_SUBETAPAS[rcClaveSub(r)] || []; }
+function rcSolucionLbl(id){ const s=RC_SOLUCIONES.find(x=>x.id===id); return s?s.lbl:''; }
+/* Los reclamos migrados traen choferes y proveedores que ya no están en la lista
+   (Marcos, Lalo, Mauro…). Se agregan al desplegable solo para ese registro, así el
+   dato viejo se ve y no se pierde al guardar. */
+function rcConHistorico(lista, valor){
+  return (valor && lista.indexOf(valor)===-1) ? lista.concat([valor]) : lista;
+}
+function rcIcoEtapa(id){
+  return {nuevo:'📥', analisis:'💡', propuesta:'💬', gestion:'🔧', cierre:'🏁'}[id] || '•';
+}
+
+function rcAbrirFicha(id){ rcFichaId = id; if(typeof renderCintiaMain==='function') renderCintiaMain(); try{window.scrollTo(0,0);}catch(e){} }
+function rcVolverLista(){ rcFichaId = null; if(typeof renderCintiaMain==='function') renderCintiaMain(); }
+function rcActual(){ return reclamos.find(r=>r.id===rcFichaId) || null; }
+
+/* Todo pasa por acá: se guarda el cambio, se sella cuándo y quién, y se repinta. */
+function rcCampo(campo, valor, repintar){
+  const r = rcActual(); if(!r) return;
+  r[campo] = valor;
+  guardarReclamos();
+  if(repintar !== false) renderCintiaMain();
+}
+
+function rcSetEtapa(id){
+  const r = rcActual(); if(!r) return;
+  if(r.etapa === id) return;
+  r.historial = r.historial || [];
+  r.historial.push({etapa:id, ts:new Date().toISOString(), por:(typeof YO!=='undefined'?YO:null)});
+  r.etapa = id;
+  // La próxima acción sale del plazo de la etapa; en gestión, del tipo de solución.
+  let dias = (RC_ETAPAS.find(e=>e.id===id)||{}).dias;
+  if(id === 'gestion'){ const s = RC_SOLUCIONES.find(x=>x.id===r.solucion); dias = s ? s.dias : null; }
+  r.proximaAccionTs = (dias===null || dias===undefined) ? null : rcFechaPorPlazo(dias);
+  if(id === 'cierre' && !r.cerradoTs) r.cerradoTs = new Date().toISOString();
+  if(id !== 'cierre'){ r.cerradoTs = null; r.cierre = ''; }
+  guardarReclamos(); renderCintiaMain();
+}
+
+function rcSetSolucion(id){
+  const r = rcActual(); if(!r) return;
+  r.solucion = id; r.subEtapa = '';
+  const s = RC_SOLUCIONES.find(x=>x.id===id);
+  if(s && s.dias!==null && r.etapa==='gestion') r.proximaAccionTs = rcFechaPorPlazo(s.dias);
+  guardarReclamos(); renderCintiaMain();
+}
+function rcSetSubEtapa(v){
+  const r = rcActual(); if(!r) return;
+  r.subEtapa = (r.subEtapa===v ? '' : v);
+  r.subEtapasTs = r.subEtapasTs || {};
+  if(r.subEtapa && !r.subEtapasTs[r.subEtapa]) r.subEtapasTs[r.subEtapa] = new Date().toISOString();
+  guardarReclamos(); renderCintiaMain();
+}
+function rcSetProveedor(v){
+  const r = rcActual(); if(!r) return;
+  r.proveedor = v;
+  if(v && !r.proveedorDesde){ r.proveedorDesde = new Date().toISOString(); }
+  guardarReclamos(); renderCintiaMain();
+}
+function rcAgregarNota(){
+  const r = rcActual(); if(!r) return;
+  const txt = ($('rcNota').value||'').trim();
+  if(!txt) return;
+  r.bitacora = r.bitacora || [];
+  r.bitacora.unshift({ts:new Date().toISOString(), por:(typeof YO!=='undefined'?YO:null), txt});
+  $('rcNota').value='';
+  guardarReclamos(); renderCintiaMain();
+}
+function rcSetCierre(v){
+  const r = rcActual(); if(!r) return;
+  r.cierre = v;
+  if(v){ r.etapa='cierre'; r.cerradoTs = r.cerradoTs || new Date().toISOString(); r.proximaAccionTs=null;
+         r.historial=r.historial||[]; r.historial.push({etapa:'cierre', ts:r.cerradoTs, por:(typeof YO!=='undefined'?YO:null)}); }
+  guardarReclamos(); renderCintiaMain();
+}
+/* Fecha límite para que el proveedor devuelva el mueble. */
+function rcVenceProveedor(r){
+  if(!r.proveedorDesde) return null;
+  const d = new Date(r.proveedorDesde); d.setDate(d.getDate()+RC_DIAS_PROVEEDOR);
+  return d.toISOString();
+}
+
+function htmlFichaReclamo(){
+  const r = rcActual();
+  if(!r) return '<div class="rc-vacio">Ese reclamo ya no existe. <a href="#" onclick="rcVolverLista();return false;">Volver</a></div>';
+  const subs = rcSubEtapasDe(r);
+  const idxAct = subs.indexOf(r.subEtapa||'');
+  const enReparacion = r.subEtapa === RC_SUBETAPA_REPARA;
+  const venceProv = rcVenceProveedor(r);
+  const puedeSaldo = (typeof esAdmin==='function' && esAdmin());
+
+  const stepper = RC_ETAPAS.map((e,i)=>{
+    const iAct = RC_ETAPAS.findIndex(x=>x.id===r.etapa);
+    const cls = i<iAct ? 'hecha' : (i===iAct ? 'activa' : '');
+    return `<div class="rc-paso ${cls}" onclick="rcSetEtapa('${e.id}')">
+              <div class="rc-bola">${rcIcoEtapa(e.id)}</div>
+              <div class="rc-paso-lbl">${e.lbl}</div>
+            </div>`;
+  }).join('');
+
+  const chipsSub = subs.length ? `
+    <div class="rc-subetapas">
+      <div class="rc-mini-lbl">Sub-etapas de esta solución</div>
+      <div class="rc-chips">${subs.map((x,i)=>`
+        <span class="rc-chip ${i<idxAct?'hecha':''} ${x===r.subEtapa?'activa':''}" onclick="rcSetSubEtapa('${rcEsc(x).replace(/'/g,"\\'")}')">${rcEsc(x)}</span>`).join('')}
+      </div>
+    </div>` : (r.solucion ? '<div class="rc-mini-lbl">Esta solución se cierra directo, sin sub-etapas.</div>' : '');
+
+  const bloqueProv = enReparacion ? `
+    <div class="rc-grid2" style="margin-top:10px">
+      <label class="rc-f">¿Quién lo tiene?
+        <select onchange="rcSetProveedor(this.value)"><option value="">—</option>
+          ${rcConHistorico(['Fábrica'].concat(RC_PROVEEDORES), r.proveedor).map(p=>`<option ${r.proveedor===p?'selected':''}>${p}</option>`).join('')}
+        </select></label>
+      <label class="rc-f">Se lo dimos el
+        <input value="${rcEsc(rcFechaADdMm(r.proveedorDesde))}" placeholder="dd/mm/aa"
+               onchange="rcCampo('proveedorDesde', rcDdMmAFecha(this.value))"></label>
+    </div>
+    ${venceProv ? `<div class="rc-alerta ${new Date(venceProv)<new Date()?'rc-alerta-roja':''}">
+        ${rcEsc(r.proveedor||'El proveedor')} tiene que devolverlo antes del ${rcFechaCorta(venceProv)} · recordatorio a los ${RC_DIAS_PROVEEDOR} días</div>` : ''}` : '';
+
+  const bitacora = (r.bitacora||[]).map(b=>`
+    <div class="rc-nota">
+      <div class="rc-nota-meta">${rcFechaCorta(b.ts)} · ${rcEsc((typeof nombreDe==='function'&&b.por)?nombreDe(b.por):(b.por||''))}</div>
+      <div class="rc-nota-txt">${rcEsc(b.txt)}</div>
+    </div>`).join('') || '<div class="rc-mini-lbl">Todavía no hay notas.</div>';
+
+  return `
+  <div class="rc-ficha">
+    <div class="rc-ficha-head">
+      <span class="rc-volver" onclick="rcVolverLista()">← Reclamos</span>
+      <b class="rc-ficha-tit">${rcEsc(rcEtiqueta(r))} · ${rcEsc(r.clienteNombre||'Sin nombre')}</b>
+      <span class="rc-chapa ${rcAtrasado(r)?'rc-warn':''}">${rcAbierto(r)?('Abierto hace '+rcDiasAbierto(r)+' días'):'Cerrado'}</span>
+    </div>
+
+    <div class="rc-stepper">${stepper}</div>
+    ${r.proximaAccionTs && rcAbierto(r)
+      ? `<div class="rc-alerta ${rcAtrasado(r)?'rc-alerta-roja':''}">Próxima acción: ${rcFechaCorta(r.proximaAccionTs)}</div>` : ''}
+
+    <div class="rc-ficha-cols">
+      <div>
+        <div class="rc-sec-tit">El caso</div>
+        <div class="rc-grid2">
+          <label class="rc-f">Nombre<input value="${rcEsc(r.clienteNombre||'')}" onchange="rcCampo('clienteNombre',this.value,false)"></label>
+          <label class="rc-f">Teléfono<input value="${rcEsc(r.clienteTelefono||'')}" onchange="rcCampo('clienteTelefono',this.value,false)"></label>
+          <label class="rc-f">N° de compra<input value="${rcEsc(r.orden||'')}" onchange="rcCampo('orden',this.value)"></label>
+          <label class="rc-f">Fecha de entrega<input value="${rcEsc(rcFechaADdMm(r.fechaEntrega))}" placeholder="dd/mm/aa" onchange="rcCampo('fechaEntrega', rcDdMmAFecha(this.value), false)"></label>
+          <label class="rc-f">Mueble<input value="${rcEsc(r.mueble||'')}" onchange="rcCampo('mueble',this.value,false)"></label>
+          <label class="rc-f">Chofer<select onchange="rcCampo('chofer',this.value,false)"><option value="">—</option>
+            ${rcConHistorico(RC_FLETES, r.chofer).map(f=>`<option ${r.chofer===f?'selected':''}>${f}</option>`).join('')}</select></label>
+          <label class="rc-f">Problema<select onchange="rcCampo('problema',this.value)"><option value="">—</option>
+            ${Object.keys(RC_PROBLEMAS).map(p=>`<option ${r.problema===p?'selected':''}>${p}</option>`).join('')}</select></label>
+          <label class="rc-f">Sub problema<select onchange="rcCampo('subProblema',this.value,false)"><option value="">—</option>
+            ${((RC_PROBLEMAS[r.problema]||[]).concat(r.problema&&r.problema!=='Otros'?['Otros']:[])).map(x=>`<option ${r.subProblema===x?'selected':''}>${x}</option>`).join('')}</select></label>
+        </div>
+        <label class="rc-f">Observaciones
+          <textarea rows="2" onchange="rcCampo('detalle',this.value,false)">${rcEsc(r.detalle||'')}</textarea></label>
+
+        <div class="rc-sec-tit" style="margin-top:20px">La solución</div>
+        <div class="rc-grid2">
+          <label class="rc-f">Tipo de solución<select onchange="rcSetSolucion(this.value)"><option value="">Elegir…</option>
+            ${RC_SOLUCIONES.map(x=>`<option value="${x.id}" ${r.solucion===x.id?'selected':''}>${x.lbl}${x.dias?' · '+x.dias+'d':''}</option>`).join('')}</select></label>
+          ${r.solucion==='trae_fabrica' ? `<label class="rc-f">¿Quién lo trae?<select onchange="rcCampo('quienTrae',this.value)">
+            ${RC_QUIEN_TRAE.map(([v,l])=>`<option value="${v}" ${r.quienTrae===v?'selected':''}>${l}</option>`).join('')}</select></label>` :
+            `<label class="rc-f">¿Quién paga el envío?<select onchange="rcCampo('paga',this.value,false)"><option value="">—</option>
+            ${RC_PAGA.map(p=>`<option ${r.paga===p?'selected':''}>${p}</option>`).join('')}</select></label>`}
+        </div>
+        ${r.solucion==='trae_fabrica' ? `<div class="rc-grid2"><label class="rc-f">¿Quién paga el envío?<select onchange="rcCampo('paga',this.value,false)"><option value="">—</option>
+            ${RC_PAGA.map(p=>`<option ${r.paga===p?'selected':''}>${p}</option>`).join('')}</select></label>
+            ${r.solucion==='otros'?'':'<span></span>'}</div>` : ''}
+        ${r.solucion==='otros' ? `<label class="rc-f">Plazo en días<input type="number" value="${rcEsc(r.plazoOtros||'')}" onchange="rcCampo('plazoOtros',this.value,false)"></label>` : ''}
+        ${chipsSub}
+        ${bloqueProv}
+
+        <div class="rc-sec-tit" style="margin-top:20px">Responsable y costo</div>
+        <div class="rc-grid2">
+          <label class="rc-f">Responsable<select onchange="rcCampo('responsable',this.value,false)"><option value="">—</option>
+            ${RC_RESPONSABLES.map(x=>`<option ${r.responsable===x?'selected':''}>${x}</option>`).join('')}</select></label>
+          <label class="rc-f">Categoría de costo<select onchange="rcCampo('costoCat',this.value,false)"><option value="">—</option>
+            ${RC_COSTOS.map(x=>`<option ${r.costoCat===x?'selected':''}>${x}</option>`).join('')}</select></label>
+          <label class="rc-f">Costo real<input type="number" value="${rcEsc(r.costoMonto||'')}" placeholder="0" onchange="rcCampo('costoMonto',this.value,false)"></label>
+          <label class="rc-f">Saldo a favor
+            <input type="number" value="${rcEsc(r.saldoFavor||'')}" ${puedeSaldo?'':'disabled'} placeholder="${puedeSaldo?'0':'lo carga dirección'}" onchange="rcCampo('saldoFavor',this.value,false)"></label>
+        </div>
+      </div>
+
+      <div>
+        <div class="rc-sec-tit">Bitácora</div>
+        <div class="rc-bitacora">${bitacora}</div>
+        <textarea id="rcNota" rows="2" placeholder="Anotar qué se habló…" class="rc-nota-input"></textarea>
+        <button class="btn btn-sm rc-btn-nota" onclick="rcAgregarNota()">Agregar a la bitácora</button>
+
+        <div class="rc-sec-tit" style="margin-top:22px">Cerrar el reclamo</div>
+        <select class="rc-cierre-sel" onchange="rcSetCierre(this.value)"><option value="">Elegir cómo terminó…</option>
+          ${RC_CIERRES.map(c=>`<option ${r.cierre===c?'selected':''}>${c}</option>`).join('')}</select>
+        ${r.cerradoTs?`<div class="rc-mini-lbl">Cerrado el ${rcFechaCorta(r.cerradoTs)}</div>`:''}
+      </div>
+    </div>
+
+    <div class="rc-ficha-pie">
+      <button class="btn btn-outline btn-sm" onclick="rcVolverLista()">Volver a la lista</button>
+      <span class="rc-mini-lbl">Se guarda solo, cada vez que cambiás algo.</span>
+    </div>
+  </div>`;
+}
+
 
 </script>
 </body>
