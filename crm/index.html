@@ -8082,9 +8082,12 @@ function cintiaEsAtrasada(a){
   const e=estadoDe(a);
   if(e==='Concretado' || e==='Rechazado') return false;   // las viejas sin estado ya son Rechazado
   if(a.nuncaRespondio) return false;
-  const prox=proximaAccionDe(a);
-  if(prox){ const h0=new Date(); h0.setHours(0,0,0,0); if(new Date(prox).getTime()>=h0.getTime()) return false; }
-  return (Date.now()-tsUltimoMovimiento(a))/86400000 > DIAS_ATRASO_CINTIA;
+  // PEDIDO DE BRIAN (3/8/2026): Cintia tiene que ver TODAS las atrasadas de todos los
+  // agentes, para saber a quién ir a buscar. Antes esta función pedía además 5 días sin
+  // movimiento (DIAS_ATRASO_CINTIA), así que una consulta con el plazo vencido ayer pero
+  // tocada hace poco no le figuraba: por eso ella veía 18 y Ale solo ya tenía 30.
+  // Ahora usa la MISMA definición que el balde del vendedor, que es zonaDe().
+  return zonaDe(a)==='atrasada';
 }
 
 /* Nada más viejo que DIAS_PARA_ARCHIVAR se evalúa. Evaluar una operación de hace más
@@ -9256,7 +9259,9 @@ function paginadorHtml(actual, total, fn){
   return `<div class="paginador">${out}</div>`;
 }
 function htmlCintiaAtrasadas(){
-  const todo=filtrosColumna(atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a) && dentroDePeriodoCintia(a.ts)))
+  // Sin filtro de período a propósito: esto es una cola de trabajo, no un reporte. Si se
+  // recortaba por período, el listado (12) no coincidía con el balde (18).
+  const todo=filtrosColumna(atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a)))
     .sort((a,b)=> new Date(fechaUltimoMovimiento(a)).getTime() - new Date(fechaUltimoMovimiento(b)).getTime());   // más vieja arriba, más nueva abajo
   if(!todo.length) return `<div class="cin-card"><p class="cin-empty">No hay nada atrasado ni sin clasificar con estos filtros.</p></div>`;
   const POR=50;
@@ -9267,7 +9272,15 @@ function htmlCintiaAtrasadas(){
   const l=todo.slice(desde, desde+POR);
   return `<div class="cin-card" style="padding:4px 18px">
     <h3 style="padding-top:10px">Atrasadas <span class="cnt-pill">${todo.length}</span></h3>
-    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma plazo vencido y consultas todavía sin oportunidad clasificada, de todos los vendedores. Podés filtrar y buscar desde los títulos. De a 50 por página, de la más vieja a la más reciente${totalPag>1?` · página ${_cintiaAtrPagina} de ${totalPag}`:''}.</p>
+    ${(()=>{
+      const porV={};
+      atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a))
+                .forEach(a=>{ const k=a.vendedorId||'—'; porV[k]=(porV[k]||0)+1; });
+      const ks=Object.keys(porV).sort((x,y)=>porV[y]-porV[x]);
+      return ks.length ? `<div class="atr-porv">${ks.map(k=>
+        `<span class="atr-v"><b>${escapeHtml(nombreDe(k)||'Sin vendedor')}</b> ${porV[k]}</span>`).join('')}</div>` : '';
+    })()}
+    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Todo lo que tiene el plazo vencido o lleva mucho sin moverse, de todos los vendedores — la misma cuenta que ve cada uno en su balde Pendientes. No se recorta por período. Podés filtrar y buscar desde los títulos. De a 50 por página, de la más vieja a la más reciente${totalPag>1?` · página ${_cintiaAtrPagina} de ${totalPag}`:''}.</p>
     ${cheadHtml()}
     ${l.map(logItemHtml).join('')}
     ${paginadorHtml(_cintiaAtrPagina, totalPag, 'irPaginaCintiaAtr')}
@@ -14042,7 +14055,16 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
     // está completa, se cierra el círculo. "En seguimiento" se fija directo; "Concretado" y
     // "Rechazado" necesitan además el modal de cierre (orden/monto o motivo), así que no se
     // fijan solos acá — se encadena ese modal apenas se guarda la ficha.
-    const cierrePendiente = (origenAutoEstado==='Concretado'||origenAutoEstado==='Rechazado') ? origenAutoEstado : null;
+    // BUG QUE REPORTÓ BRIAN (3/8/2026): marcar Concretado o Rechazado en el recorrido de
+    // etapas del modal no abría ninguna ficha de cierre. `cierrePendiente` solo se armaba
+    // desde `origenAutoEstado`, que se setea cuando el estado se marca DESDE LA FILA — no
+    // desde el stepper de adentro del modal. Ahora también se deduce de la etapa elegida.
+    const _estEtapaWiz = (typeof etapaWizSel==='number' && ETAPAS_CONSULTA[etapaWizSel])
+      ? ETAPAS_CONSULTA[etapaWizSel].estado : null;
+    const cierrePendiente =
+        (origenAutoEstado==='Concretado'||origenAutoEstado==='Rechazado') ? origenAutoEstado
+      : (_estEtapaWiz==='Concretado'||_estEtapaWiz==='Rechazado') ? _estEtapaWiz
+      : null;
     if(origenAutoEstado==='En seguimiento') rec.estadoManual=origenAutoEstado;
     rec.contactoId = await vincularContacto({nombre:rec.clienteNombre, telefono:rec.clienteTelefono, instagram:rec.clienteInstagram, email:rec.clienteEmail, noTomoTelefono:rec.noTomoTelefono, percepcion:rec.percepcion, resultado:rec.estadoManual||rec.resultado, canal:rec.canal});
     await aplicarProximaAccion(rec);
@@ -14116,11 +14138,18 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
 
   // Estado directo: si al registrar se marcó Concretado/Rechazado, se encadena la
   // ficha de cierre para pedir orden/monto o motivo, sin pasar por "En seguimiento".
-  if(nuevaEstadoSel==='Concretado' || nuevaEstadoSel==='Rechazado'){
+  // Sale de las píldoras viejas O de la etapa elegida en el recorrido del modal (3/8/2026).
+  const _estEtapaNueva = (typeof etapaWizSel==='number' && ETAPAS_CONSULTA[etapaWizSel])
+    ? ETAPAS_CONSULTA[etapaWizSel].estado : null;
+  const _cierreNueva =
+      (nuevaEstadoSel==='Concretado'||nuevaEstadoSel==='Rechazado') ? nuevaEstadoSel
+    : (_estEtapaNueva==='Concretado'||_estEtapaNueva==='Rechazado') ? _estEtapaNueva
+    : null;
+  if(_cierreNueva){
     if(esSuTurno) await avanzarPointerSiCorresponde(localId);
     cerrarModalReal();
     render();
-    abrirModalCierre(record.id, nuevaEstadoSel);
+    abrirModalCierre(record.id, _cierreNueva);
     return;
   }
 
@@ -15433,6 +15462,10 @@ function recParaTs(){
 
 .rc-tel-cop{cursor:pointer;display:inline-block}
 .rc-tel-cop:hover{color:var(--blue);text-decoration:underline}
+
+.atr-porv{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px}
+.atr-v{background:var(--line2);border-radius:20px;padding:4px 12px;font-size:12.5px;color:var(--sec)}
+.atr-v b{color:var(--ink)}
 </style>
 <div id="rcModal" class="hidden">
   <div class="rc-caja">
