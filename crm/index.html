@@ -5385,7 +5385,7 @@ async function guardarEtapaSeguimiento(){
 
   // La PRÓXIMA ACCIÓN la sugiere el tipo (hoy + plazo) pero ahora se ve y se edita en el
   // modal, así que se guarda lo que quedó elegido ahí. "Sin definir" la deja vacía.
-  { const dProx=etapaProxDate(); a.proximaAccionTs = dProx ? dProx.toISOString() : null; }
+  { const dProx=etapaProxDate(); a.proximaAccionTs = dProx ? sinDomingo(dProx).toISOString() : null; }
 
   // Reasignación: queda registrada para poder rastrear quién la tenía antes
   const nuevoVend=$('segVendedor')?.value;
@@ -6839,7 +6839,11 @@ function zonaDe(a){
   // 1. Todavía no tiene ningún movimiento cargado: el cliente sigue esperando el
   //    primer contacto, esté derivada o no. Es lo más urgente que existe.
   if(!fueTrabajada(a)) return 'hoy';
-  // 1b. El plazo vence hoy o ya venció.
+  // 1b. PEDIDO DE BRIAN (3/8/2026): "Para hoy" es SOLO lo que hay que hablar HOY.
+  //     Lo que se le tenía que hablar ayer o antes ya no es de hoy: es una deuda, y va
+  //     a Pendientes. Antes los dos casos caían juntos en 'hoy' y el balde mostraba 35
+  //     cuando de hoy había 9.
+  if(_p && _p < _h0)  return 'atrasada';
   if(_p && _p < _man) return 'hoy';
   // 2. Colgada. PEDIDO DE CINTIA (2/8/2026): una consulta se marca ATRASADA recién a los
   //    DIAS_SIN_MOVIMIENTO días sin ningún movimiento ni etapa. Antes bastaba con NO tener
@@ -12496,7 +12500,7 @@ async function guardarCargaRapida(){
     const pNota=$('crProxNota')?$('crProxNota').value.trim():'';
     if(record.contactoId && pFecha){
       const c=contactoPorId(record.contactoId);
-      if(c){ c.proximaAccionTs=new Date(pFecha+'T12:00:00').toISOString(); c.proximaAccionNota=pNota||''; await saveContactos(); }
+      if(c){ c.proximaAccionTs=sinDomingo(new Date(pFecha+'T12:00:00')).toISOString(); c.proximaAccionNota=pNota||''; await saveContactos(); }
     }
     // Reconocimiento: si el contacto ya existía con historia, avisarlo acá también.
     const cont=contactoPorId(record.contactoId);
@@ -13772,7 +13776,7 @@ async function guardarSeguimiento(){
       else if(proxSeguimientoSel==='manana') d.setDate(d.getDate()+1);
       else if(proxSeguimientoSel==='3dias') d.setDate(d.getDate()+3);
       else if(proxSeguimientoSel==='semana') d.setDate(d.getDate()+7);
-      c.proximaAccionTs = d.toISOString();
+      c.proximaAccionTs = sinDomingo(d).toISOString();
       c.ultimaActividad = new Date().toISOString();
       await saveContactos();
     }
@@ -13828,7 +13832,7 @@ async function guardarProximaAccion(){
   const c=contactoPorId(rec.contactoId);
   if(!c) return;
   const fecha=$('fichaProximaFecha').value;
-  c.proximaAccionTs = fecha ? new Date(fecha+'T09:00:00').toISOString() : null;
+  c.proximaAccionTs = fecha ? sinDomingo(new Date(fecha+'T09:00:00')).toISOString() : null;
   c.proximaAccionNota = $('fichaProximaNota').value.trim();
   await saveContactos();
   toast('Próxima acción guardada');
