@@ -15389,7 +15389,7 @@ function recParaTs(){
 .rc-th-emb:hover{border-color:var(--blue);color:var(--blue);background:#f5f8fe}
 .rc-th.filtrado .rc-th-emb{border-color:var(--blue);background:var(--blue);color:#fff}
 .rc-pop-col{position:absolute;top:100%;left:0;z-index:60;background:#fff;border:1px solid var(--line);
-  border-radius:10px;box-shadow:0 8px 26px rgba(15,26,42,.16);padding:8px;min-width:212px;max-height:320px;overflow:auto;
+  border-radius:10px;box-shadow:0 8px 26px rgba(15,26,42,.16);padding:8px;min-width:212px;max-height:none;overflow:visible;
   white-space:normal;font-weight:400;text-transform:none;letter-spacing:0}
 .rc-pop-it{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--ink)}
 .rc-pop-it:hover{background:var(--line2)}
@@ -15498,6 +15498,11 @@ function recParaTs(){
 .atr-v.on{background:var(--blue);color:#fff}
 .atr-v.on b{color:#fff}
 .atr-todos{background:transparent;border:1px solid var(--line);color:var(--sec)}
+
+/* El popover de la columna crece con su contenido: con 8 etapas aparecía una barra
+   de scroll interna y no se veían todas. Solo se limita si la pantalla es muy baja. */
+.rc-pop-col{max-height:none;overflow:visible;min-width:278px}
+@media(max-height:620px){.rc-pop-col{max-height:78vh;overflow:auto}}
 </style>
 <div id="rcModal" class="hidden">
   <div class="rc-caja">
