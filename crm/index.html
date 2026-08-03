@@ -5785,6 +5785,9 @@ function logItemHtml(a){
         ${canalIco}
         <div class="c-nom-inner">
         <span class="c-nom-txt">${(()=>{
+          const _rec = rcReclamoAbiertoDe(a);
+          const _ban = _rec ? `<span class="c-bandera" title="Este cliente tiene un reclamo abierto — atendelo con cuidado y consultá con Cintia">🚩</span>` : '';
+          return _ban; })()}${(()=>{
           if(!igSegundoPlano) return `<b class="nom-copy" onclick="event.stopPropagation();copiarNombreCons('${a.id}')" title="${escAttr(nombreMostrar)} — tocá para copiar">${escapeHtml(truncPalabras(nombreMostrar,2))}</b>`;
           // El nombre solo se muestra al lado si aporta algo: en IG suele ser el mismo handle.
           const _nom=(nombreMostrar||'').trim();
@@ -15069,8 +15072,8 @@ function recParaTs(){
 .rc-card-n{font-size:22px;font-weight:700;color:var(--ink)}
 .rc-card-n.rc-amb{color:var(--amber)} .rc-card-n.rc-rojo{color:var(--red)}
 .rc-tabla{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.rc-tabla th{text-align:left;font-size:11.5px;color:var(--sec);font-weight:600;padding:9px 12px;background:var(--line2);border-bottom:1px solid var(--line)}
-.rc-tabla td{padding:10px 12px;font-size:13px;border-bottom:1px solid var(--line2);vertical-align:top}
+.rc-tabla th{text-align:left;font-size:12.5px;color:var(--sec);font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:11px 12px;background:var(--line2);border-bottom:1px solid var(--line)}
+.rc-tabla td{padding:11px 12px;font-size:13.5px;border-bottom:1px solid var(--line2);vertical-align:top}
 .rc-fila{cursor:pointer} .rc-fila:hover{background:var(--line2)}
 .rc-num{font-variant-numeric:tabular-nums;color:var(--sec);white-space:nowrap}
 .rc-sub{font-size:11.5px;color:var(--muted)}
@@ -15180,7 +15183,7 @@ function recParaTs(){
 .rc-th-lbl{cursor:pointer}
 .rc-th-lbl:hover{color:var(--blue)}
 .rc-th.filtrado{color:var(--blue)}
-.rc-th-emb{cursor:pointer;font-size:9px;margin-left:5px;opacity:.45}
+.rc-th-emb{cursor:pointer;font-size:10px;margin-left:6px;opacity:.45}
 .rc-th-emb:hover{opacity:1;color:var(--blue)}
 .rc-th.filtrado .rc-th-emb{opacity:1;color:var(--blue)}
 .rc-pop-col{position:absolute;top:100%;left:0;z-index:60;background:#fff;border:1px solid var(--line);
@@ -15207,6 +15210,23 @@ function recParaTs(){
 .rc-ed-it:last-child{border-bottom:none}
 .rc-ed-cambio{color:var(--muted)}
 .rc-ed-fecha{margin-left:auto;font-size:11px;color:var(--muted)}
+
+/* Vista previa del remito: pop-up con la hoja A4 escalada para que entre en pantalla. */
+.rc-prev{position:fixed;inset:0;background:rgba(15,26,42,.55);z-index:9600;display:flex;align-items:center;justify-content:center;padding:22px}
+.rc-prev-caja{background:#fff;border-radius:14px;width:100%;max-width:760px;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(15,26,42,.28)}
+.rc-prev-head{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid var(--line)}
+.rc-prev-head b{font-size:15px;color:var(--ink)}
+.rc-prev-a4{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:2px 9px}
+.rc-prev-x{margin-left:auto;cursor:pointer;font-size:22px;line-height:1;color:var(--muted)}
+.rc-prev-x:hover{color:var(--ink)}
+.rc-prev-hoja{flex:1;overflow:auto;background:#eef1f6;padding:16px;display:flex;justify-content:center}
+.rc-prev-hoja iframe{width:794px;height:1123px;border:none;background:#fff;box-shadow:0 3px 14px rgba(15,26,42,.18);
+  transform:scale(.86);transform-origin:top center;flex:0 0 auto}
+@media(max-width:820px){.rc-prev-hoja iframe{transform:scale(.52)}}
+.rc-prev-pie{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:12px 18px;border-top:1px solid var(--line)}
+.rc-prev-pie .btn{width:auto;flex:0 0 auto}
+
+.c-bandera{font-size:12px;margin-right:4px;cursor:help}
 </style>
 <div id="rcModal" class="hidden">
   <div class="rc-caja">
@@ -15328,6 +15348,19 @@ async function guardarReclamos(){
 
 /* --- Helpers de lectura -------------------------------------------------- */
 function rcAbierto(r){ return r.etapa !== 'cierre'; }
+/* Si el cliente de una consulta tiene un reclamo abierto, al vendedor le sale una 🚩.
+   No ve el reclamo (el módulo es de Cintia y dirección), solo el aviso de que existe. */
+function rcTelClave(t){ const d=String(t||'').replace(/\D/g,''); return d.length>=8 ? d.slice(-8) : ''; }
+function rcReclamoAbiertoDe(a){
+  if(typeof reclamos==='undefined' || !reclamos.length || !a) return null;
+  const k = rcTelClave(a.clienteTelefono);
+  const ord = String(a.nroOrden||'').trim();
+  if(!k && !ord) return null;
+  return reclamos.find(r=> rcAbierto(r) && (
+      (k && rcTelClave(r.clienteTelefono)===k) ||
+      (ord && String(r.orden||'').trim()===ord)
+  )) || null;
+}
 function rcDiasAbierto(r){
   const fin = r.etapa==='cierre' && r.cerradoTs ? new Date(r.cerradoTs) : new Date();
   return Math.max(0, Math.round((fin - new Date(r.ts)) / 86400000));
@@ -15557,7 +15590,7 @@ function htmlReclamos(){
     </table>
     <div class="rc-pie">Doble clic en una fila para abrir el reclamo · el período de arriba también filtra esta lista.</div>
   </div>` + (rcFichaId ? `<div class="rc-modal-ficha" onclick="if(event.target===this) rcVolverLista()">
-      <div class="rc-caja-ficha">${htmlFichaReclamo()}</div></div>` : '');
+      <div class="rc-caja-ficha">${htmlFichaReclamo()}</div></div>` : '') + htmlRcPrevia();
 }
 
 /* --- Alta ---------------------------------------------------------------- */
@@ -15965,7 +15998,7 @@ function rcEdicionDe(r, etapaId){
   return l.length ? l[l.length-1] : null;
 }
 var rcVerEdiciones = false;
-function rcTogVerEdiciones(ev){ if(ev) ev.stopPropagation(); rcVerEdiciones=!rcVerEdiciones; renderCintiaMain(); }
+function rcTogVerEdiciones(ev){ if(ev) ev.stopPropagation(); rcVerEdiciones=!rcVerEdiciones; renderCintiaMain(); if(rcPrevId) setTimeout(rcPrevPintar,30); }
 
 function rcTogEditRec(ev){ if(ev) ev.stopPropagation(); rcEditRec = !rcEditRec; renderCintiaMain(); }
 
@@ -16048,16 +16081,16 @@ function rcSubirFotos(input){
 }
 /* Remito del reclamo para mandar a fábrica. Se abre en una ventana aparte y se
    imprime; no toca los estilos del CRM. */
-function rcImprimir(id, ev){
-  if(ev) ev.stopPropagation();
-  const r = reclamos.find(x=>x.id===id); if(!r) return;
+function rcRemitoHtml(r){
   const mbs = (Array.isArray(r.muebles) && r.muebles.length) ? r.muebles
             : (r.mueble ? [{mueble:r.mueble, detalle:''}] : []);
   const fila = (a,b,c,d)=>`<div class="p-fila"><div><span>${a}</span><b>${rcEsc(c||'—')}</b></div><div><span>${b}</span><b>${rcEsc(d||'—')}</b></div></div>`;
   const prob = [r.problema, r.subProblema].filter(Boolean).join(' · ');
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <title>Reclamo ${rcEsc(rcEtiqueta(r))}</title><style>
-*{box-sizing:border-box} body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#1a2438;margin:0;padding:34px 40px;font-size:13px}
+*{box-sizing:border-box} html,body{background:#fff}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#1a2438;margin:0;padding:13mm;font-size:12.5px;
+  width:210mm;min-height:297mm}
 .p-top{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:2px solid #2563eb;padding-bottom:14px;margin-bottom:22px}
 .p-logo{display:flex;align-items:center;gap:11px}
 .p-cua{width:38px;height:38px;border-radius:9px;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
@@ -16080,6 +16113,7 @@ h1{text-align:center;font-size:22px;letter-spacing:.32em;margin:0 0 4px}
 .p-mueble i{font-style:normal;color:#5b6577}
 .p-firmas{display:flex;gap:60px;margin-top:52px}
 .p-firma{flex:1;border-top:1px solid #b9c1cf;padding-top:6px;text-align:center;font-size:10.5px;color:#8a94a6}
+@page{size:A4;margin:13mm}
 @media print{body{padding:0}}
 </style></head><body>
 <div class="p-top">
@@ -16104,11 +16138,53 @@ h1{text-align:center;font-size:22px;letter-spacing:.32em;margin:0 0 4px}
 ${r.obsSolucion?`<div class="p-tit">Observaciones de la solución</div><div class="p-texto">${rcEsc(r.obsSolucion)}</div>`:''}
 <div class="p-firmas"><div class="p-firma">Firma cliente</div><div class="p-firma">Firma responsable</div></div>
 </body></html>`;
-  const w = window.open('', '_blank');
-  if(!w){ toast('El navegador bloqueó la ventana de impresión'); return; }
-  w.document.write(html); w.document.close();
-  w.onload = ()=>{ w.focus(); w.print(); };
-  setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} }, 400);
+  return html;
+}
+
+/* Vista previa en un pop-up, con el remito armado en hoja A4. Se imprime o se
+   guarda como PDF desde el mismo diálogo del navegador (destino "Guardar como PDF"). */
+var rcPrevId = null, _rcPrevHtml = '';
+function rcImprimir(id, ev){
+  if(ev) ev.stopPropagation();
+  const r = reclamos.find(x=>x.id===id); if(!r) return;
+  rcPrevId = id; _rcPrevHtml = rcRemitoHtml(r);
+  renderCintiaMain();
+  setTimeout(rcPrevPintar, 30);
+}
+function rcPrevPintar(){
+  const f = document.getElementById('rcPrevFrame');
+  if(!f || !_rcPrevHtml) return;
+  const d = f.contentDocument || (f.contentWindow && f.contentWindow.document);
+  if(!d) return;
+  d.open(); d.write(_rcPrevHtml); d.close();
+}
+function rcPrevCerrar(ev){ if(ev) ev.stopPropagation(); rcPrevId=null; _rcPrevHtml=''; renderCintiaMain(); }
+function rcPrevImprimir(ev){
+  if(ev) ev.stopPropagation();
+  const f = document.getElementById('rcPrevFrame');
+  if(!f) return;
+  try{ f.contentWindow.focus(); f.contentWindow.print(); }
+  catch(e){ toast('No se pudo abrir la impresión'); }
+}
+function htmlRcPrevia(){
+  if(!rcPrevId) return '';
+  const r = reclamos.find(x=>x.id===rcPrevId);
+  return `<div class="rc-prev" onclick="if(event.target===this) rcPrevCerrar()">
+    <div class="rc-prev-caja">
+      <div class="rc-prev-head">
+        <b>Remito del reclamo ${r?rcEsc(rcEtiqueta(r)):''}</b>
+        <span class="rc-prev-a4">hoja A4</span>
+        <span class="rc-prev-x" onclick="rcPrevCerrar(event)">&times;</span>
+      </div>
+      <div class="rc-prev-hoja"><iframe id="rcPrevFrame" title="Vista previa del remito"></iframe></div>
+      <div class="rc-prev-pie">
+        <button class="btn btn-sm rc-btn-nota" onclick="rcPrevImprimir(event)">🖨️ Imprimir</button>
+        <button class="btn btn-outline btn-sm" onclick="rcPrevImprimir(event)">📄 Guardar como documento</button>
+        <span class="rc-mini-lbl">Para guardarlo en PDF, elegí "Guardar como PDF" en el destino de la impresión.</span>
+        <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="rcPrevCerrar(event)">Cerrar</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function rcVerFoto(i){ rcFotoVer = i; renderCintiaMain(); }
