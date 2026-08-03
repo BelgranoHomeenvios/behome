@@ -6870,7 +6870,11 @@ function zonaDe(a){
     if(!estadoDe(a) || !a.percepcion) return 'sinclas';
     return 'lejos';
   }
-  if(diasSinContacto(a) > DIAS_SIN_MOVIMIENTO) return 'atrasada';
+  // Acá el plazo YA es de hoy en adelante: la consulta está agendada y el vendedor tiene
+  // un plan. Antes igual caía en 'atrasada' si llevaba más de DIAS_SIN_MOVIMIENTO días sin
+  // hablarle al cliente, y por eso aparecían en la lista de Cintia consultas que decían
+  // "acción: mañana · le mandé presupuesto" (3/8/2026, lo detectó Brian). Mandar un
+  // presupuesto y esperar una semana no es estar atrasado. EL PLAZO FUTURO MANDA.
   // 3. Se está trabajando pero falta el dato que permite priorizarla.
   if(!estadoDe(a) || !a.percepcion) return 'sinclas';
   // 4. Agendada y con el dato completo.
