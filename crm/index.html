@@ -8351,14 +8351,14 @@ function renderCintiaBotones(){
   // "Resumen del día" sacado de la vista de Cintia (3/8/2026): repetía la info de
   // Atrasadas y le comía un balde. Dirección lo conserva.
   const items=[
+        {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a)).length},
     {id:'consultas', label:'Consultas', ic:'consultas'},
-    {id:'evaluar', label:'Para evaluar', ic:'evaluar', cnt:colaEvaluarCintia().length},
     {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && consultaAbiertaCintia(a)).length + estadosPedido.filter(e=>!e.respondido).length + consultasInvalidas.length},
-    {id:'atrasadas', label:'Atrasadas', ic:'invalidas', cnt:atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a)).length},
-    {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
     {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente').length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin())).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length + asistenciasParaMi().length},
-    {id:'clientes', label:'Clientes', ic:'pulso'},
     {id:'reclamos', label:'Reclamos', ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(rcAbierto).length:0)},
+    {id:'evaluar', label:'Para evaluar', ic:'evaluar', cnt:colaEvaluarCintia().length},
+    {id:'clientes', label:'Clientes', ic:'pulso'},
+    {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
     ...(esAdmin() ? [{id:'ejemplos', label:'Ejemplo del mes', ic:'evaluar', cnt:atenciones.filter(a=>a.ejemploDelMes && !a.ejemploDelMes.leido).length}] : []),
   ];
   $('cintiaBotones').className='gridbtn gb'+items.length;
@@ -15232,10 +15232,12 @@ function recParaTs(){
   #cintiaBotones.gb9 > .gb:nth-child(n+5){grid-column:span 4}
   /* 8 baldes: dos filas parejas de 4. */
   #cintiaBotones.gb8 > .gb{grid-column:span 5}
-  #cintiaBotones > .gb{min-height:0!important;padding:10px 12px!important}
-  #cintiaBotones > .gb .lbl{font-size:11.5px!important}
-  #cintiaBotones > .gb .cnt{font-size:21px!important;margin-top:2px!important}
+  /* Etiquetas mucho más grandes (3/8): a 11.5px no se leían. Los números quedan igual. */
+  #cintiaBotones > .gb{min-height:0!important;padding:13px 14px!important}
+  #cintiaBotones > .gb .lbl{font-size:20px!important;font-weight:700!important;line-height:1.15!important;color:var(--ink)!important}
+  #cintiaBotones > .gb .cnt{font-size:21px!important;margin-top:4px!important}
   #cintiaBotones > .gb .ic{transform:scale(.85);transform-origin:right center}
+  #cintiaBotones > .gb .top{align-items:flex-start}
 }
 .rc-btn-alta:hover{background:#96190f}
 .rc-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
@@ -15898,7 +15900,9 @@ function htmlReclamos(){
       ${hayFiltro?`<span class="rc-limpiar" onclick="rcLimpiarFiltros()">✕ Limpiar filtros</span>`:''}
       ${(!rcColF.estado.length && !rcVerCerrados && base.some(r=>!rcAbierto(r)))
         ? `<span class="rc-oculto" onclick="rcColEstados('')">${base.filter(r=>!rcAbierto(r)).length} cerrados ocultos · ver todos</span>` : ''}
-      <span class="rc-cuenta">${lista.length} de ${base.length}</span>
+      ${reclamos.length > base.length
+        ? `<span class="rc-oculto" onclick="pbSet('todas')">${reclamos.length-base.length} fuera del período · ver todo</span>` : ''}
+      <span class="rc-cuenta">${lista.length} de ${base.length}${reclamos.length!==base.length?` · ${reclamos.length} en total`:''}</span>
     </div>
     <table class="rc-tabla">
       <thead><tr>
