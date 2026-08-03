@@ -2322,6 +2322,17 @@ let filtroBusqueda='';
 let filtroVendedorCintia='todos';
 function vendFiltrados(){ return Array.isArray(filtroVendedorCintia) ? filtroVendedorCintia : (filtroVendedorCintia==='todos'?[]:[filtroVendedorCintia]); }
 function vendActivoFiltro(){ return vendFiltrados().length>0; }
+/* Los chips de vendedor de la lista Atrasadas filtran la tabla. Usan el MISMO estado que
+   el filtro de la columna Vendedor, para que no queden dos filtros peleándose. */
+function togAtrVendedor(uid){
+  if(!uid){ filtroVendedorCintia='todos'; _cintiaAtrPagina=1; renderCintiaMain(); return; }
+  const act=vendFiltrados().slice();
+  const i=act.indexOf(uid);
+  if(i>=0) act.splice(i,1); else act.push(uid);
+  filtroVendedorCintia = act.length ? act : 'todos';
+  _cintiaAtrPagina=1;
+  renderCintiaMain();
+}
 /* Toca un vendedor: lo suma o lo saca de la selección, sin cerrar el desplegable. */
 function toggleFiltroVendedor(uid){
   if(uid==='todos'){ filtroVendedorCintia='todos'; }
@@ -8056,6 +8067,8 @@ function estadoVivoVendedor(uid){
   return {estado:'Sin conectar', local:null};
 }
 /* ================= Tablero de Cintia ================= */
+// Dirección arranca en el resumen; Cintia ya no tiene ese balde, así que entra en
+// Consultas. Se resuelve al primer render, cuando ya se sabe el rol.
 let cintiaSeccion='resumen';
 function diasDesdeISO(iso){ if(!iso) return 9999; return Math.floor((Date.now()-new Date(iso).getTime())/86400000); }
 function fechaUltimoMovimiento(a){ return a.completadoTs || a.ts; }
@@ -8303,6 +8316,7 @@ function renderCintiaFecha(){
 }
 
 function renderCintiaBotones(){
+  if(!esAdmin() && cintiaSeccion==='resumen') cintiaSeccion='consultas';
   if(esAdmin()){
     const mios=atenciones.filter(a=>a.vendedorId===YO);
     const abiertasMias=mios.filter(a=>{const e=estadoDe(a);return e!=='Concretado'&&e!=='Rechazado';}).length;
@@ -8326,6 +8340,7 @@ function renderCintiaBotones(){
       {id:'direccion',     label:'Panel de dirección', ic:'ventas'},
       {id:'configuracion', label:'Configuración',      ic:'evaluar'},
     ];
+    $('cintiaBotones').className='gridbtn gb'+itemsA.length;
     $('cintiaBotones').innerHTML=itemsA.map(it=>`
       <div class="gb ${cintiaSeccion===it.id?'on':''}" onclick="cintiaIrSeccion('${it.id}')">
         <div class="top"><span class="lbl">${it.label}</span><span class="ic">${CIN_ICONS[it.ic]}</span></div>
@@ -8333,8 +8348,9 @@ function renderCintiaBotones(){
       </div>`).join('');
     return;
   }
+  // "Resumen del día" sacado de la vista de Cintia (3/8/2026): repetía la info de
+  // Atrasadas y le comía un balde. Dirección lo conserva.
   const items=[
-    {id:'resumen', label:'Resumen del día', ic:'resumen'},
     {id:'consultas', label:'Consultas', ic:'consultas'},
     {id:'evaluar', label:'Para evaluar', ic:'evaluar', cnt:colaEvaluarCintia().length},
     {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && consultaAbiertaCintia(a)).length + estadosPedido.filter(e=>!e.respondido).length + consultasInvalidas.length},
@@ -8345,6 +8361,7 @@ function renderCintiaBotones(){
     {id:'reclamos', label:'Reclamos', ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(rcAbierto).length:0)},
     ...(esAdmin() ? [{id:'ejemplos', label:'Ejemplo del mes', ic:'evaluar', cnt:atenciones.filter(a=>a.ejemploDelMes && !a.ejemploDelMes.leido).length}] : []),
   ];
+  $('cintiaBotones').className='gridbtn gb'+items.length;
   $('cintiaBotones').innerHTML=items.map(it=>`
     <div class="gb ${cintiaSeccion===it.id?'on':''}" onclick="cintiaIrSeccion('${it.id}')">
       <div class="top"><span class="lbl">${it.label}</span><span class="ic">${CIN_ICONS[it.ic]}</span></div>
@@ -9277,8 +9294,12 @@ function htmlCintiaAtrasadas(){
       atenciones.filter(a=>cuentaParaVendedor(a) && cintiaEsAtrasada(a))
                 .forEach(a=>{ const k=a.vendedorId||'—'; porV[k]=(porV[k]||0)+1; });
       const ks=Object.keys(porV).sort((x,y)=>porV[y]-porV[x]);
-      return ks.length ? `<div class="atr-porv">${ks.map(k=>
-        `<span class="atr-v"><b>${escapeHtml(nombreDe(k)||'Sin vendedor')}</b> ${porV[k]}</span>`).join('')}</div>` : '';
+      const sel=vendFiltrados();
+      return ks.length ? `<div class="atr-porv">
+        ${ks.map(k=>`<span class="atr-v ${sel.includes(k)?'on':''}" onclick="togAtrVendedor('${k}')"
+            title="${sel.includes(k)?'Sacar el filtro':'Ver solo las de este vendedor'}"><b>${escapeHtml(nombreDe(k)||'Sin vendedor')}</b> ${porV[k]}</span>`).join('')}
+        ${sel.length?`<span class="atr-v atr-todos" onclick="togAtrVendedor('')">✕ Todos</span>`:''}
+      </div>` : '';
     })()}
     <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Todo lo que tiene el plazo vencido o lleva mucho sin moverse, de todos los vendedores — la misma cuenta que ve cada uno en su balde Pendientes. No se recorta por período. Podés filtrar y buscar desde los títulos. De a 50 por página, de la más vieja a la más reciente${totalPag>1?` · página ${_cintiaAtrPagina} de ${totalPag}`:''}.</p>
     ${cheadHtml()}
@@ -15206,8 +15227,11 @@ function recParaTs(){
    misma clase .gridbtn y no se toca. */
 @media(min-width:901px){
   #cintiaBotones{grid-template-columns:repeat(20,1fr)!important;gap:10px!important}
-  #cintiaBotones > .gb:nth-child(-n+4){grid-column:span 5}
-  #cintiaBotones > .gb:nth-child(n+5){grid-column:span 4}
+  /* 9 baldes: 4 arriba (span 5) y 5 abajo (span 4). */
+  #cintiaBotones.gb9 > .gb:nth-child(-n+4){grid-column:span 5}
+  #cintiaBotones.gb9 > .gb:nth-child(n+5){grid-column:span 4}
+  /* 8 baldes: dos filas parejas de 4. */
+  #cintiaBotones.gb8 > .gb{grid-column:span 5}
   #cintiaBotones > .gb{min-height:0!important;padding:10px 12px!important}
   #cintiaBotones > .gb .lbl{font-size:11.5px!important}
   #cintiaBotones > .gb .cnt{font-size:21px!important;margin-top:2px!important}
@@ -15466,6 +15490,12 @@ function recParaTs(){
 .atr-porv{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px}
 .atr-v{background:var(--line2);border-radius:20px;padding:4px 12px;font-size:12.5px;color:var(--sec)}
 .atr-v b{color:var(--ink)}
+
+.atr-v{cursor:pointer;transition:background .12s,color .12s}
+.atr-v:hover{background:var(--blue-l);color:var(--blue)}
+.atr-v.on{background:var(--blue);color:#fff}
+.atr-v.on b{color:#fff}
+.atr-todos{background:transparent;border:1px solid var(--line);color:var(--sec)}
 </style>
 <div id="rcModal" class="hidden">
   <div class="rc-caja">
