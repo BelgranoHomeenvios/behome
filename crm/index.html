@@ -8012,6 +8012,12 @@ function htmlArchivadas(){
     </div>`;
   }).join('');
 }
+var _archAbierto = false;   // arranca cerrado: el listado tapaba toda la configuración
+function togArchivadas(){
+  _archAbierto = !_archAbierto;
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+  setTimeout(renderArchivadas, 20);
+}
 function renderArchivadas(){
   const box=$('archivadasBox'); if(box) box.innerHTML=htmlArchivadas();
 }
@@ -8370,9 +8376,15 @@ function renderCintiaMain(){
 function htmlAdminConfig(){
   return `
     <div class="card">
-      <h3>🗄️ Cotizaciones archivadas</h3>
-      <p class="tiny" style="margin-top:0;margin-bottom:12px">Las consultas que se sacaron del circuito. No se borran nunca: quedan acá y se pueden restaurar. La venta (N° de orden y monto) no se pierde.</p>
-      <div id="archivadasBox"></div>
+      <!-- Archivadas plegadas: son muchas y tapaban el resto de la configuración. -->
+      <div class="arch-head" onclick="togArchivadas()">
+        <span class="arch-fl">${_archAbierto?'▾':'▸'}</span>
+        <h3 style="margin:0">🗄️ Cotizaciones archivadas</h3>
+        <span class="arch-n">${(typeof atencionesArchivadas!=='undefined'?atencionesArchivadas.length:0)}</span>
+        <span class="arch-ver">${_archAbierto?'ocultar':'ver'}</span>
+      </div>
+      ${_archAbierto?`<p class="tiny" style="margin:10px 0 12px">Las consultas que se sacaron del circuito. No se borran nunca: quedan acá y se pueden restaurar. La venta (N° de orden y monto) no se pierde.</p>
+      <div id="archivadasBox"></div>`:''}
     </div>
     <div class="card">
       <h3>Locales</h3>
@@ -9754,7 +9766,135 @@ function estCardCanales(rango){
   </div>`;
 }
 
+var estQue = 'consultas';
+function setEstQue(v){ estQue=v; renderCintiaMain(); }
+function htmlEstSelector(){
+  return `<div class="est-que">
+    <button class="${estQue==='consultas'?'on':''}" onclick="setEstQue('consultas')">Consultas</button>
+    <button class="${estQue==='reclamos'?'on':''}" onclick="setEstQue('reclamos')">Reclamos</button>
+  </div>`;
+}
+/* Promedio y peor caso de días por etapa, sobre los reclamos del período. */
+function rcTiemposPorTramo(base){
+  const acc = {};
+  base.forEach(r=>{ const tr=rcTramos(r);
+    Object.keys(tr).forEach(k=>{ (acc[k]=acc[k]||[]).push(tr[k].dias); }); });
+  return RC_ETAPAS.map(e=>{
+    const v = acc[e.id]||[];
+    return {id:e.id, lbl:e.lbl, n:v.length,
+            prom: v.length ? Math.round(v.reduce((a,b)=>a+b,0)/v.length) : null,
+            peor: v.length ? Math.max.apply(null,v) : null};
+  }).filter(x=>x.n);
+}
+var estCorte = 'problema';
+function setEstCorte(v){ estCorte=v; renderCintiaMain(); }
+function rcPrimeraPalabra(t){ return String(t||'').trim().split(/[\s,]+/)[0] || '—'; }
+
+function htmlEstReclamos(){
+  const base = reclamos.filter(rcEnPeriodo);
+  if(!reclamos.length) return `<div class="cin-card"><h3>Reclamos</h3><p class="cin-empty">Todavía no hay reclamos cargados.</p></div>`;
+
+  /* 1 · Salud: contra el período anterior y contra las ventas del mismo período. */
+  let prevN = null;
+  if(typeof cintiaFechaDesde!=='undefined' && cintiaFechaDesde && cintiaFechaHasta){
+    const d1=new Date(cintiaFechaDesde+'T00:00:00'), d2=new Date(cintiaFechaHasta+'T00:00:00');
+    const dias = Math.round((d2-d1)/86400000)+1;
+    const pHasta=new Date(d1.getTime()-86400000), pDesde=new Date(pHasta.getTime()-(dias-1)*86400000);
+    const a=pDesde.toISOString().slice(0,10), b=pHasta.toISOString().slice(0,10);
+    prevN = reclamos.filter(r=>{ const f=String(r.fechaInicio||r.ts).slice(0,10); return f>=a && f<=b; }).length;
+  }
+  const ventas = (typeof atenciones!=='undefined' ? atenciones : [])
+      .filter(a=> typeof estadoDe==='function' && estadoDe(a)==='Concretado' && dentroDePeriodoCintia(a.ts)).length;
+  const ratio = ventas ? (base.length/ventas*100) : null;
+  const dif = (prevN===null) ? null : base.length - prevN;
+  const flecha = dif===null ? '' : (dif>0 ? `<span class="est-peor">▲ ${dif}</span>` : dif<0 ? `<span class="est-mejor">▼ ${-dif}</span>` : '');
+
+  /* 2 · Dónde se traba. */
+  const tramos = rcTiemposPorTramo(base);
+  const maxProm = Math.max.apply(null,[1].concat(tramos.map(t=>t.prom||0)));
+  const intervenidos = base.filter(r=>(r.edicionesRec||[]).length).length;
+
+  /* 3 · Por qué pasan. */
+  const clave = r => estCorte==='problema' ? (r.problema||'Sin clasificar')
+               : estCorte==='sub'         ? (r.subProblema||'Sin detalle')
+               : estCorte==='responsable' ? (r.responsable||'Sin responsable')
+               : estCorte==='mueble'      ? rcPrimeraPalabra(r.mueble)
+               : (rcSolucionLbl(r.solucion)||'Sin solución');
+  const cuenta = {};
+  base.forEach(r=>{ const k=clave(r); cuenta[k]=(cuenta[k]||0)+1; });
+  const orden = Object.keys(cuenta).sort((a,b)=>cuenta[b]-cuenta[a]);
+  const maxC = Math.max.apply(null,[1].concat(Object.keys(cuenta).map(k=>cuenta[k])));
+
+  /* 4 · Cuánto cuestan. */
+  const num = v => { const x=parseFloat(v); return isNaN(x)?0:x; };
+  const costoTotal = base.reduce((a,r)=>a+num(r.costoMonto),0);
+  const ahorro = base.reduce((a,r)=>a+num(r.saldoFavor),0);
+  const porSol = {};
+  base.forEach(r=>{ const k=rcSolucionLbl(r.solucion)||'Sin solución'; porSol[k]=(porSol[k]||0)+num(r.costoMonto); });
+  const solOrden = Object.keys(porSol).filter(k=>porSol[k]>0).sort((a,b)=>porSol[b]-porSol[a]);
+  const maxSol = solOrden.length ? Math.max.apply(null,solOrden.map(k=>porSol[k])) : 1;
+  const sinCosto = base.filter(r=>!num(r.costoMonto)).length;
+
+  return `
+  <div class="cin-card">
+    <h3>Salud <span class="cnt-pill">${base.length} reclamos</span></h3>
+    <div class="fic-kpis">
+      <div class="fic-kpi"><div class="v">${base.length} ${flecha}</div><div class="k">En el período</div></div>
+      <div class="fic-kpi"><div class="v">${ventas||'—'}</div><div class="k">Ventas del período</div></div>
+      <div class="fic-kpi"><div class="v ${ratio!==null&&ratio>10?'eneg':''}">${ratio!==null?ratio.toFixed(1)+'%':'—'}</div><div class="k">Reclamos sobre ventas</div></div>
+      <div class="fic-kpi"><div class="v">${base.filter(rcAbierto).length}</div><div class="k">Abiertos hoy</div></div>
+    </div>
+    <p class="tiny">El número que manda es el porcentaje: la cantidad sola sube con el volumen.${prevN===null?' Elegí un período de la barra de arriba para comparar contra el anterior.':''}</p>
+  </div>
+
+  <div class="cin-card">
+    <h3>Dónde se traba</h3>
+    <p class="tiny" style="margin-top:-8px;margin-bottom:12px">Días promedio en cada etapa y el peor caso. De acá sale qué tramo hay que apurar.</p>
+    ${tramos.length ? tramos.map(t=>`
+      <div class="est-tramo">
+        <span class="est-tramo-l">${t.lbl}</span>
+        <span class="est-tramo-b"><span style="width:${Math.round((t.prom/maxProm)*100)}%;background:${rcColorEtapa(t.id)}"></span></span>
+        <span class="est-tramo-n ${t.prom>=RC_DIAS_VIEJO?'alerta':''}">${t.prom} d</span>
+        <span class="est-tramo-p">peor ${t.peor} d · ${t.n} casos</span>
+      </div>`).join('') : '<p class="cin-empty">Sin recorridos registrados todavía.</p>'}
+    ${intervenidos?`<p class="tiny" style="color:var(--amber)">✎ ${intervenidos} de ${base.length} tienen el recorrido intervenido a mano: esos tiempos fueron corregidos.</p>`:''}
+  </div>
+
+  <div class="cin-card">
+    <h3>Por qué pasan</h3>
+    <div class="est-que" style="margin-bottom:12px">
+      ${[['problema','Problema'],['sub','Sub problema'],['responsable','Responsable'],['mueble','Mueble'],['solucion','Solución']]
+        .map(([v,l])=>`<button class="${estCorte===v?'on':''}" onclick="setEstCorte('${v}')">${l}</button>`).join('')}
+    </div>
+    ${orden.map(k=>`
+      <div class="est-tramo">
+        <span class="est-tramo-l">${rcEsc(k)}</span>
+        <span class="est-tramo-b"><span style="width:${Math.round((cuenta[k]/maxC)*100)}%;background:var(--blue)"></span></span>
+        <span class="est-tramo-n">${cuenta[k]}</span>
+        <span class="est-tramo-p">${Math.round(cuenta[k]/base.length*100)}%</span>
+      </div>`).join('')}
+  </div>
+
+  <div class="cin-card">
+    <h3>Cuánto cuestan</h3>
+    <div class="fic-kpis">
+      <div class="fic-kpi"><div class="v eneg">${costoTotal?'$ '+miles(Math.round(costoTotal)):'—'}</div><div class="k">Costo del período</div></div>
+      <div class="fic-kpi"><div class="v epos">${ahorro?'$ '+miles(Math.round(ahorro)):'—'}</div><div class="k">Ahorrado por asesoramiento</div></div>
+      <div class="fic-kpi"><div class="v">${base.length&&costoTotal?'$ '+miles(Math.round(costoTotal/base.length)):'—'}</div><div class="k">Promedio por reclamo</div></div>
+      <div class="fic-kpi"><div class="v">${sinCosto}</div><div class="k">Sin costo cargado</div></div>
+    </div>
+    ${solOrden.length?`<p class="tiny">Por tipo de solución</p>
+      ${solOrden.map(k=>`<div class="est-tramo">
+        <span class="est-tramo-l">${rcEsc(k)}</span>
+        <span class="est-tramo-b"><span style="width:${Math.round(porSol[k]/maxSol*100)}%;background:#b42318"></span></span>
+        <span class="est-tramo-n">$ ${miles(Math.round(porSol[k]))}</span>
+      </div>`).join('')}`:''}
+    ${sinCosto?`<p class="tiny">Hay ${sinCosto} reclamos sin monto cargado: el costo real es mayor que el que se ve acá.</p>`:''}
+  </div>`;
+}
+
 function htmlCintiaEstadisticas(){
+  if(estQue==='reclamos') return htmlEstSelector() + htmlEstReclamos();
   // El detalle por vendedor y los dos gráficos de contactos vinieron acá desde Resumen:
   // son análisis de un período, y este es el lugar donde el filtro de período aplica.
   const _traidos = htmlDetalleVendedorEst();   // trae la tabla por vendedor + los 2 gráficos
@@ -9789,7 +9929,7 @@ function htmlCintiaEstadisticas(){
 
   const notaCmp = conCmp ? `<div class="est-note alerta" style="margin:0 0 12px"><b>Comparando contra ${estFmtRango(estRangoCmp())}, medido a la misma altura:</b> del período de referencia solo cuento las evaluaciones que ya existían a esta misma distancia del cierre. Sin esta corrección, todo período en curso parece un desastre contra uno ya cerrado.</div>` : '';
 
-  return controles + notaCmp + _traidos +
+  return htmlEstSelector() + controles + notaCmp + _traidos +
     estCardResultado(baseConFantasmas, baseCmpConFantasmas) +
     estCardCobertura(base, baseCmp) +
     estCardPlata(base) +
@@ -10538,6 +10678,7 @@ function htmlFichaCliente(id){
       <div class="fic-kpi"><div class="v">${r.activas}</div><div class="k">Activas</div></div>
       <div class="fic-kpi"><div class="v">${c.calificacion||'—'}</div><div class="k">Oportunidad</div></div>
     </div>
+    ${htmlReclamosFichaCliente(c)}
     ${(nVenta&&nEstado)?`<div class="fic-consfiltro">
       <button class="${_fichaConsFiltro==='todas'?'on':''}" onclick="setFichaConsFiltro('todas')">Consultas (${r.cs.length})</button>
       <button class="${_fichaConsFiltro==='venta'?'on':''}" onclick="setFichaConsFiltro('venta')">De venta (${nVenta})</button>
@@ -15072,7 +15213,7 @@ function recParaTs(){
 .rc-card-n{font-size:22px;font-weight:700;color:var(--ink)}
 .rc-card-n.rc-amb{color:var(--amber)} .rc-card-n.rc-rojo{color:var(--red)}
 .rc-tabla{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.rc-tabla th{text-align:left;font-size:12.5px;color:var(--sec);font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:11px 12px;background:var(--line2);border-bottom:1px solid var(--line)}
+.rc-tabla th{text-align:left;font-size:13px;color:var(--sec);font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:15px 12px;background:var(--line2);border-bottom:2px solid var(--line)}
 .rc-tabla td{padding:11px 12px;font-size:13.5px;border-bottom:1px solid var(--line2);vertical-align:top}
 .rc-fila{cursor:pointer} .rc-fila:hover{background:var(--line2)}
 .rc-num{font-variant-numeric:tabular-nums;color:var(--sec);white-space:nowrap}
@@ -15183,9 +15324,11 @@ function recParaTs(){
 .rc-th-lbl{cursor:pointer}
 .rc-th-lbl:hover{color:var(--blue)}
 .rc-th.filtrado{color:var(--blue)}
-.rc-th-emb{cursor:pointer;font-size:10px;margin-left:6px;opacity:.45}
-.rc-th-emb:hover{opacity:1;color:var(--blue)}
-.rc-th.filtrado .rc-th-emb{opacity:1;color:var(--blue)}
+/* El ▾ es un botón de verdad: antes era una flechita de 9px que nadie encontraba. */
+.rc-th-emb{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin-left:7px;
+  border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--sec);font-size:11px;cursor:pointer;vertical-align:middle}
+.rc-th-emb:hover{border-color:var(--blue);color:var(--blue);background:#f5f8fe}
+.rc-th.filtrado .rc-th-emb{border-color:var(--blue);background:var(--blue);color:#fff}
 .rc-pop-col{position:absolute;top:100%;left:0;z-index:60;background:#fff;border:1px solid var(--line);
   border-radius:10px;box-shadow:0 8px 26px rgba(15,26,42,.16);padding:8px;min-width:212px;max-height:320px;overflow:auto;
   white-space:normal;font-weight:400;text-transform:none;letter-spacing:0}
@@ -15227,6 +15370,44 @@ function recParaTs(){
 .rc-prev-pie .btn{width:auto;flex:0 0 auto}
 
 .c-bandera{font-size:12px;margin-right:4px;cursor:help}
+
+/* Reclamos dentro de la ficha del cliente */
+.fic-rec{border:1px solid #f0d9a8;background:#fffaf0;border-radius:10px;padding:10px 12px;margin:0 0 14px}
+.fic-rec-hd{font-size:12px;font-weight:700;color:#8a5a09;margin-bottom:7px}
+.fic-rec-n{font-weight:600;color:#b45309}
+.fic-rec-it{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #f4e6c8;font-size:12.5px}
+.fic-rec-it:first-of-type{border-top:none}
+.fic-rec-f{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.fic-rec-tx{color:var(--sec);flex:1;min-width:180px}
+.fic-rec-co{font-weight:700;white-space:nowrap}
+/* Estadísticas de reclamos */
+.est-que{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.est-que button{padding:7px 15px;border:1px solid var(--line);background:#fff;border-radius:20px;font-size:13px;
+  font-family:inherit;cursor:pointer;color:var(--sec);width:auto}
+.est-que button:hover{border-color:var(--blue);color:var(--blue)}
+.est-que button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+.est-tramo{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:12.5px}
+.est-tramo-l{flex:0 0 170px;color:var(--sec)}
+.est-tramo-b{flex:1;height:9px;background:var(--line2);border-radius:5px;overflow:hidden;min-width:60px}
+.est-tramo-b span{display:block;height:100%;border-radius:5px}
+.est-tramo-n{flex:0 0 62px;text-align:right;font-weight:700;color:var(--ink)}
+.est-tramo-n.alerta{color:var(--red)}
+.est-tramo-p{flex:0 0 130px;font-size:11.5px;color:var(--muted)}
+.est-peor{color:var(--red);font-size:13px}
+.est-mejor{color:#15803d;font-size:13px}
+@media(max-width:640px){.est-tramo-l{flex:0 0 110px}.est-tramo-p{display:none}}
+
+.arch-head{display:flex;align-items:center;gap:9px;cursor:pointer}
+.arch-head:hover h3{color:var(--blue)}
+.arch-fl{font-size:12px;color:var(--muted)}
+.arch-n{background:var(--line2);color:var(--sec);font-size:12px;font-weight:700;padding:2px 9px;border-radius:20px}
+.arch-ver{margin-left:auto;font-size:12px;color:var(--blue)}
+
+.rc-pop-tit{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:8px 4px 4px}
+.rc-pop-rap span.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+.rc-pop-it{font-size:13.5px;padding:7px 8px}
+.rc-pop-col{min-width:236px;padding:10px}
+.rc-oculto{font-size:12px;color:var(--blue);cursor:pointer;text-decoration:underline}
 </style>
 <div id="rcModal" class="hidden">
   <div class="rc-caja">
@@ -15351,6 +15532,33 @@ function rcAbierto(r){ return r.etapa !== 'cierre'; }
 /* Si el cliente de una consulta tiene un reclamo abierto, al vendedor le sale una 🚩.
    No ve el reclamo (el módulo es de Cintia y dirección), solo el aviso de que existe. */
 function rcTelClave(t){ const d=String(t||'').replace(/\D/g,''); return d.length>=8 ? d.slice(-8) : ''; }
+function rcReclamosDeCliente(c){
+  if(typeof reclamos==='undefined' || !reclamos.length || !c) return [];
+  const ks = [c.telefono].concat(c.telefonosAlt||[]).map(rcTelClave).filter(Boolean);
+  if(!ks.length) return [];
+  return reclamos.filter(r=> ks.includes(rcTelClave(r.clienteTelefono)))
+                 .sort((a,b)=> new Date(b.fechaInicio||b.ts)-new Date(a.fechaInicio||a.ts));
+}
+/* Renglón corto por reclamo: problema, solución y costo, que es lo que se lee rápido. */
+function htmlReclamosFichaCliente(c){
+  const l = rcReclamosDeCliente(c);
+  if(!l.length) return '';
+  const abiertos = l.filter(rcAbierto).length;
+  const puede = (typeof puedeVerReclamos==='function' && puedeVerReclamos());
+  return `<div class="fic-rec">
+    <div class="fic-rec-hd">🚩 Reclamos <span class="fic-rec-n">${l.length}${abiertos?' · '+abiertos+' abierto'+(abiertos>1?'s':''):''}</span></div>
+    ${l.map(r=>{
+      const co = rcCosto(r);
+      const sol = rcSolucionLbl(r.solucion) || 'sin solución definida';
+      return `<div class="fic-rec-it" ${puede?`onclick="cintiaIrSeccion('reclamos');setTimeout(()=>rcAbrirFicha('${r.id}'),40)" style="cursor:pointer"`:''}>
+        <span class="fic-rec-f">${rcFechaCorta(r.fechaInicio||r.ts)}</span>
+        <span class="rc-chapa rc-e-${r.etapa}">${rcEsc(rcEtapaLbl(r.etapa))}</span>
+        <span class="fic-rec-tx"><b>${rcEsc([r.problema,r.subProblema].filter(Boolean).join(' · ')||'Sin clasificar')}</b>${r.mueble?' · '+rcEsc(r.mueble):''} — ${rcEsc(sol)}</span>
+        <span class="fic-rec-co ${co.cls}">${co.txt}</span>
+      </div>`;}).join('')}
+  </div>`;
+}
+
 function rcReclamoAbiertoDe(a){
   if(typeof reclamos==='undefined' || !reclamos.length || !a) return null;
   const k = rcTelClave(a.clienteTelefono);
@@ -15387,24 +15595,30 @@ var rcBusca = '';
 var rcFiltroEtapa = '';
 var rcFiltroProblema = '';
 /* Filtros por columna: cada encabezado tiene su propio ▾. */
-var rcColF = {estado:[], responsable:[], cliente:'', num:'', fDesde:'', fHasta:'', diasMin:'', diasMax:''};
+var rcColF = {estado:[], responsable:[], cliente:'', num:'', fDesde:'', fHasta:'', diasMin:'', diasMax:'', costo:''};
+var rcVerCerrados = false;   // por defecto los reclamos cerrados NO se muestran
 var rcPopCol = null;
 function rcTogPop(col, ev){ if(ev) ev.stopPropagation(); rcPopCol = (rcPopCol===col ? null : col); renderCintiaMain(); }
 function rcColSet(campo, val){ rcColF[campo]=val; renderCintiaMain(); }
 function rcColTog(campo, val){
   const a=rcColF[campo]; const i=a.indexOf(val);
   if(i>=0) a.splice(i,1); else a.push(val);
+  if(campo==='estado' && !a.length) rcVerCerrados=false;   // sin selección vuelve al default
   renderCintiaMain();
 }
 function rcColEstados(k){
-  if(k==='abiertas') rcColF.estado = RC_ETAPAS.filter(e=>e.id!=='cierre').map(e=>e.id);
-  else if(k==='cerradas') rcColF.estado = ['cierre'];
-  else rcColF.estado = [];
+  if(k==='abiertas'){ rcColF.estado = []; rcVerCerrados = false; }
+  else if(k==='cerradas'){ rcColF.estado = ['cierre']; rcVerCerrados = true; }
+  else { rcColF.estado = []; rcVerCerrados = true; }
   renderCintiaMain();
+}
+function rcEstadoRapidoActivo(){
+  if(rcColF.estado.length) return (rcColF.estado.length===1 && rcColF.estado[0]==='cierre') ? 'cerradas' : '';
+  return rcVerCerrados ? 'todas' : 'abiertas';
 }
 function rcHayColF(){
   return rcColF.estado.length || rcColF.responsable.length || rcColF.cliente.trim() ||
-         rcColF.num.trim() || rcColF.fDesde || rcColF.fHasta || rcColF.diasMin!=='' || rcColF.diasMax!=='';
+         rcColF.num.trim() || rcColF.fDesde || rcColF.fHasta || rcColF.diasMin!=='' || rcColF.diasMax!=='' || rcColF.costo;
 }
 var rcOrdenCampo = 'dias';
 var rcOrdenDir = 'desc';
@@ -15420,7 +15634,8 @@ function rcOrdenar(campo){
 }
 function rcLimpiarFiltros(){
   rcFiltro=''; rcBusca=''; rcFiltroEtapa=''; rcFiltroProblema=''; rcPopCol=null;
-  rcColF = {estado:[], responsable:[], cliente:'', num:'', fDesde:'', fHasta:'', diasMin:'', diasMax:''};
+  rcColF = {estado:[], responsable:[], cliente:'', num:'', fDesde:'', fHasta:'', diasMin:'', diasMax:'', costo:''};
+  rcVerCerrados = false;
   renderCintiaMain();
 }
 
@@ -15440,6 +15655,7 @@ function rcListaFiltrada(base){
   if(rcFiltro==='viejos')    l = l.filter(r=>rcAbierto(r) && rcDiasAbierto(r)>=RC_DIAS_VIEJO);
   if(rcFiltroProblema) l = l.filter(r=>r.problema===rcFiltroProblema);
   if(rcColF.estado.length)      l = l.filter(r=>rcColF.estado.includes(r.etapa));
+  else if(!rcVerCerrados)       l = l.filter(r=>r.etapa!=='cierre');
   if(rcColF.responsable.length) l = l.filter(r=>rcColF.responsable.includes(r.responsable||'—'));
   if(rcColF.cliente.trim())     { const q=rcColF.cliente.trim().toLowerCase();
                                   l = l.filter(r=>[r.clienteNombre,r.clienteTelefono].some(x=>String(x||'').toLowerCase().includes(q))); }
@@ -15449,6 +15665,12 @@ function rcListaFiltrada(base){
   if(rcColF.fHasta) l = l.filter(r=>String(r.fechaInicio||r.ts).slice(0,10) <= rcColF.fHasta);
   if(rcColF.diasMin!=='') l = l.filter(r=>rcDiasAbierto(r) >= +rcColF.diasMin);
   if(rcColF.diasMax!=='') l = l.filter(r=>rcDiasAbierto(r) <= +rcColF.diasMax);
+  if(rcColF.costo){
+    const cn = v => { const x=parseFloat(v); return isNaN(x)?0:x; };
+    if(rcColF.costo==='con')   l = l.filter(r=>cn(r.costoMonto)>0);
+    if(rcColF.costo==='sin')   l = l.filter(r=>!cn(r.costoMonto));
+    if(rcColF.costo==='saldo') l = l.filter(r=>cn(r.saldoFavor)>0);
+  }
   const q = rcBusca.trim().toLowerCase();
   if(q) l = l.filter(r=>[r.clienteNombre,r.clienteTelefono,r.mueble,r.orden,rcEtiqueta(r),r.problema,r.subProblema]
                         .some(x=>String(x||'').toLowerCase().includes(q)));
@@ -15511,11 +15733,13 @@ function htmlReclamos(){
       <span class="rc-pop-box">${rcColF[campo].includes(v)?'✓':''}</span><span>${rcEsc(txt)}</span>${cnt!==undefined?`<span class="rc-pop-n">${cnt}</span>`:''}</div>`;
   const respPresentes = [...new Set(base.map(r=>r.responsable||'—'))].sort((a,b)=>a.localeCompare(b,'es'));
   const cuerpoPop = c => {
-    if(c==='etapa') return `<div class="rc-pop-rap">
-        <span onclick="event.stopPropagation();rcColEstados('abiertas')">Sin cerrar</span>
-        <span onclick="event.stopPropagation();rcColEstados('cerradas')">Cerradas</span>
-        <span onclick="event.stopPropagation();rcColEstados('')">Todas</span></div>
-      ${RC_ETAPAS.map(e=>chk('estado',e.id,e.lbl,base.filter(r=>r.etapa===e.id).length)).join('')}`;
+    if(c==='etapa'){ const ra=rcEstadoRapidoActivo();
+      return `<div class="rc-pop-rap">
+        <span class="${ra==='abiertas'?'on':''}" onclick="event.stopPropagation();rcColEstados('abiertas')">Sin cerrar</span>
+        <span class="${ra==='cerradas'?'on':''}" onclick="event.stopPropagation();rcColEstados('cerradas')">Cerradas</span>
+        <span class="${ra==='todas'?'on':''}" onclick="event.stopPropagation();rcColEstados('')">Todas</span></div>
+      <div class="rc-pop-tit">o elegí las etapas una por una</div>
+      ${RC_ETAPAS.map(e=>chk('estado',e.id,e.lbl,base.filter(r=>r.etapa===e.id).length)).join('')}`;}
     if(c==='responsable') return respPresentes.map(x=>chk('responsable',x,x==='—'?'Sin responsable':x,base.filter(r=>(r.responsable||'—')===x).length)).join('');
     if(c==='cliente') return `<input class="rc-pop-inp" placeholder="Nombre o teléfono" value="${rcEsc(rcColF.cliente)}" onclick="event.stopPropagation()" oninput="rcColSet('cliente',this.value)">`;
     if(c==='reclamo') return `<input class="rc-pop-inp" placeholder="N° de reclamo u orden" value="${rcEsc(rcColF.num)}" onclick="event.stopPropagation()" oninput="rcColSet('num',this.value)">`;
@@ -15527,11 +15751,15 @@ function htmlReclamos(){
         <span onclick="event.stopPropagation();rcColSet('diasMin','')">Todos</span></div>
       <div class="rc-pop-lbl">Mínimo</div><input class="rc-pop-inp" type="number" value="${rcColF.diasMin}" onclick="event.stopPropagation()" oninput="rcColSet('diasMin',this.value)">
       <div class="rc-pop-lbl">Máximo</div><input class="rc-pop-inp" type="number" value="${rcColF.diasMax}" onclick="event.stopPropagation()" oninput="rcColSet('diasMax',this.value)">`;
+    if(c==='costo') return `<div class="rc-pop-rap">
+        ${[['','Todos'],['con','Con costo'],['sin','Sin costo cargado'],['saldo','Con saldo a favor']]
+          .map(([v,l])=>`<span class="${rcColF.costo===v?'on':''}" onclick="event.stopPropagation();rcColSet('costo','${v}')">${l}</span>`).join('')}</div>`;
     return '';
   };
-  const activo = c => (c==='etapa'&&rcColF.estado.length) || (c==='responsable'&&rcColF.responsable.length) ||
+  const activo = c => (c==='etapa'&&(rcColF.estado.length||rcVerCerrados)) || (c==='responsable'&&rcColF.responsable.length) ||
                       (c==='cliente'&&rcColF.cliente.trim()) || (c==='reclamo'&&rcColF.num.trim()) ||
-                      (c==='fecha'&&(rcColF.fDesde||rcColF.fHasta)) || (c==='dias'&&(rcColF.diasMin!==''||rcColF.diasMax!==''));
+                      (c==='fecha'&&(rcColF.fDesde||rcColF.fHasta)) || (c==='dias'&&(rcColF.diasMin!==''||rcColF.diasMax!=='')) ||
+                      (c==='costo'&&rcColF.costo);
   const th = (c,lbl)=>`<th class="rc-th ${activo(c)?'filtrado':''}">
       <span class="rc-th-lbl" onclick="rcOrdenar('${c}')">${lbl}<span class="rc-fl">${fl(c)}</span></span>
       <span class="rc-th-emb" onclick="rcTogPop('${c}',event)" title="Filtrar">▾</span>
@@ -15577,6 +15805,8 @@ function htmlReclamos(){
       <select onchange="rcSetFiltroProblema(this.value)"><option value="">Todos los problemas</option>
         ${Object.keys(RC_PROBLEMAS).map(p=>`<option ${rcFiltroProblema===p?'selected':''}>${p}</option>`).join('')}</select>
       ${hayFiltro?`<span class="rc-limpiar" onclick="rcLimpiarFiltros()">✕ Limpiar filtros</span>`:''}
+      ${(!rcColF.estado.length && !rcVerCerrados && base.some(r=>!rcAbierto(r)))
+        ? `<span class="rc-oculto" onclick="rcColEstados('')">${base.filter(r=>!rcAbierto(r)).length} cerrados ocultos · ver todos</span>` : ''}
       <span class="rc-cuenta">${lista.length} de ${base.length}</span>
     </div>
     <table class="rc-tabla">
