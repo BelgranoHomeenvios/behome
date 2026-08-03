@@ -2324,6 +2324,35 @@ function vendFiltrados(){ return Array.isArray(filtroVendedorCintia) ? filtroVen
 function vendActivoFiltro(){ return vendFiltrados().length>0; }
 /* Los chips de vendedor de la lista Atrasadas filtran la tabla. Usan el MISMO estado que
    el filtro de la columna Vendedor, para que no queden dos filtros peleándose. */
+/* Cuántas consultas tiene que atender HOY cada vendedor. Es lo primero que Cintia
+   necesita para repartir el soporte del día: a quién ayudar antes de que se le vuelva
+   deuda. Mismo criterio que el balde "Para hoy" del vendedor: zonaDe(a)==='hoy'. */
+function htmlHoyPorVendedor(){
+  const base = atenciones.filter(a=>cuentaParaVendedor(a) && rolDe(a.vendedorId)==='vendedor');
+  const hoy={}, sinAt={};
+  base.forEach(a=>{
+    const k=a.vendedorId||'—'; const z=zonaDe(a);
+    if(z==='hoy')     hoy[k]=(hoy[k]||0)+1;
+    if(z==='sinclas') sinAt[k]=(sinAt[k]||0)+1;
+  });
+  const ks=[...new Set([...Object.keys(hoy),...Object.keys(sinAt)])]
+    .sort((x,y)=>((hoy[y]||0)+(sinAt[y]||0))-((hoy[x]||0)+(sinAt[x]||0)));
+  if(!ks.length) return '';
+  const tot = ks.reduce((n,k)=>n+(hoy[k]||0),0);
+  const totSA = ks.reduce((n,k)=>n+(sinAt[k]||0),0);
+  const sel = vendFiltrados();
+  return `<div class="cin-card">
+    <h3 style="padding-top:6px">Para atender hoy <span class="cnt-pill">${tot}</span></h3>
+    <p class="tiny" style="margin-top:-8px;margin-bottom:10px">Cuántas consultas tiene cada vendedor con plazo de hoy, y cuántas le entraron y todavía no atendió. Tocá un nombre para filtrar la tabla.</p>
+    <div class="atr-porv">
+      ${ks.map(k=>`<span class="atr-v ${sel.includes(k)?'on':''}" onclick="togAtrVendedor('${k}')"
+          title="${hoy[k]||0} para hoy · ${sinAt[k]||0} sin atender"><b>${escapeHtml(nombreDe(k)||'Sin vendedor')}</b> ${hoy[k]||0}${sinAt[k]?` <i class="hv-sa">+${sinAt[k]}</i>`:''}</span>`).join('')}
+      ${sel.length?`<span class="atr-v atr-todos" onclick="togAtrVendedor('')">✕ Todos</span>`:''}
+    </div>
+    ${totSA?`<p class="tiny" style="margin:8px 0 0">El <b>+N</b> son las que entraron y nadie atendió todavía: ${totSA} en total.</p>`:''}
+  </div>`;
+}
+
 function togAtrVendedor(uid){
   if(!uid){ filtroVendedorCintia='todos'; _cintiaAtrPagina=1; renderCintiaMain(); return; }
   const act=vendFiltrados().slice();
@@ -8383,7 +8412,7 @@ function renderCintiaMain(){
   const box=$('cintiaMain');
   if(esAdmin()){
     if(cintiaSeccion==='resumen') box.innerHTML=htmlCintiaResumen();
-    else if(cintiaSeccion==='consultas' || cintiaSeccion==='misconsultas') box.innerHTML=''; // tabla abajo (colaOperativa)
+    else if(cintiaSeccion==='consultas' || cintiaSeccion==='misconsultas') box.innerHTML=htmlHoyPorVendedor(); // + tabla abajo (colaOperativa)
     else if(cintiaSeccion==='mispendientes') box.innerHTML=htmlCintiaMisPendientes();
     else if(cintiaSeccion==='estadisticas') box.innerHTML=htmlCintiaEstadisticas();
     else if(cintiaSeccion==='clientes') box.innerHTML=htmlCintiaClientes();
@@ -15576,6 +15605,9 @@ function recParaTs(){
 .clas-n{color:var(--sec)}
 .clas-n.mal{color:var(--red);font-weight:700}
 .clas-n small{color:var(--muted);font-size:11px}
+
+.hv-sa{font-style:normal;color:var(--amber);font-weight:700}
+.atr-v.on .hv-sa{color:#ffd9a0}
 </style>
 <div id="rcModal" class="hidden">
   <div class="rc-caja">
@@ -16292,6 +16324,12 @@ function rcModCompleto(r, k){
 /* Al abrir: lo que ya está cargado se pliega y queda a la vista la etapa, que es
    lo único que se sigue tocando todos los días. */
 function rcAbrirFicha(id){
+  // El alta se puede abrir desde el hero estando en cualquier sección. Si la ficha
+  // se pinta mientras Cintia está en Consultas, queda en una pantalla que no se ve
+  // y parece que el modal se cerró sin hacer nada (lo reportó Brian el 3/8).
+  // cintiaIrSeccion limpia rcFichaId, así que va ANTES de asignarlo.
+  if(typeof cintiaSeccion!=='undefined' && cintiaSeccion!=='reclamos'
+     && typeof cintiaIrSeccion==='function') cintiaIrSeccion('reclamos');
   rcFichaId = id;
   const r = rcActual();
   if(r){
