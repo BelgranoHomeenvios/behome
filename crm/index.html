@@ -1941,7 +1941,7 @@ textarea{resize:vertical;min-height:60px}
             <div class="field" id="campoProx">
               <label>Próxima acción</label>
               <div class="pills" id="proxPills"></div>
-              <input type="date" id="proxFechaCustom" onchange="pintarProxPills()" style="margin-top:8px;max-width:190px">
+              <input type="date" id="proxFechaCustom" onchange="proxFechaSinDomingo(this);pintarProxPills()" style="margin-top:8px;max-width:190px">
               <div id="proxAutoBox" class="prox-auto hidden"></div>
             </div>
             <div class="field" id="campoTiempoTurno">
@@ -5219,7 +5219,8 @@ function etapaSugerirProx(){
   const et = ETAPAS_CONSULTA[etapaBarSel];
   if(!et || et.plazo===null){ etapaProxAuto=false; return; }
   const dias = et.plazo;
-  const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+dias);
+  let d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+dias);
+  d=sinDomingo(d);   // el plazo sugerido nunca cae domingo
   etapaProxFecha=d.toISOString().slice(0,10);
   etapaProxSel='custom'; etapaProxAuto=true; etapaProxDias=dias;
 }
@@ -5233,7 +5234,10 @@ function etapaSetProx(v){
   etapaProxSel='custom'; etapaProxAuto=false;
   pintarEtapa();
 }
-function etapaSetProxFecha(v){ etapaProxFecha=v; etapaProxSel='custom'; etapaProxAuto=false; pintarEtapa(); }
+function etapaSetProxFecha(v){
+  if(v && esDomingo(v)){ v = sinDomingoISOfecha(v); toast('Los domingos no se agendan: pasó al lunes'); }
+  etapaProxFecha=v; etapaProxSel='custom'; etapaProxAuto=false; pintarEtapa();
+}
 /* Fecha efectiva elegida, como Date. */
 function etapaProxDate(){
   return etapaProxFecha ? new Date(etapaProxFecha+'T10:00:00') : null;
@@ -5863,6 +5867,18 @@ const RAPIDO_CUANDO=[['hoy','Hoy'],['manana','Mañana'],['3dias','En 3 días'],
    quería — a veces tapado o fuera de pantalla. Ahora la grilla es nuestra: se dibuja
    ya abierta y, si la fila está en la mitad de abajo de la pantalla, se pone ARRIBA de
    los tres botones en vez de abajo. */
+/* PEDIDO DE CINTIA (2/8/2026): el domingo no se puede agendar como próxima acción
+   del vendedor. Un único helper para que TODOS los caminos que setean la fecha
+   (calendario, atajos, plazo automático, input nativo) se comporten igual. */
+function esDomingo(x){ const d=(x instanceof Date)?x:new Date(String(x).length===10?x+'T00:00:00':x); return !isNaN(d) && d.getDay()===0; }
+/* Corre al lunes cualquier fecha que caiga domingo. */
+function sinDomingo(x){
+  const d=(x instanceof Date)?new Date(x):new Date(String(x).length===10?x+'T00:00:00':x);
+  if(!isNaN(d) && d.getDay()===0) d.setDate(d.getDate()+1);
+  return d;
+}
+function sinDomingoISOfecha(iso){ const d=sinDomingo(iso); return d.toISOString().slice(0,10); }
+
 const CAL_DIAS=['DO','LU','MA','MI','JU','VI','SA'];
 const CAL_MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const _calMes={};   // id de consulta -> mes que se está mirando
@@ -5879,14 +5895,17 @@ function calHtml(id){
     const iso=`${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const esHoy = f.getTime()===hoy.getTime();
     const pasado = f<hoy;
-    celdas+=`<span class="cal-d${esHoy?' hoy':''}${pasado?' pasado':''}" onclick="event.stopPropagation();rapidoCuandoFecha('${id}','${iso}')">${d}</span>`;
+    const dom = f.getDay()===0;   // domingo: no se agenda
+    celdas+= dom
+      ? `<span class="cal-d domingo" title="Los domingos no se agendan">${d}</span>`
+      : `<span class="cal-d${esHoy?' hoy':''}${pasado?' pasado':''}" onclick="event.stopPropagation();rapidoCuandoFecha('${id}','${iso}')">${d}</span>`;
   }
   return `<div class="cal-head">
       <span class="cal-nav" onclick="event.stopPropagation();calMover('${id}',-1)">‹</span>
       <b>${CAL_MESES[mes]} ${anio}</b>
       <span class="cal-nav" onclick="event.stopPropagation();calMover('${id}',1)">›</span>
     </div>
-    <div class="cal-grid">${CAL_DIAS.map(d=>`<span class="cal-dw">${d}</span>`).join('')}${celdas}</div>`;
+    <div class="cal-grid">${CAL_DIAS.map((d,i)=>`<span class="cal-dw${i===0?' domingo':''}">${d}</span>`).join('')}${celdas}</div>`;
 }
 function calMover(id,n){
   const base=_calMes[id] ? new Date(_calMes[id]) : new Date();
@@ -5911,6 +5930,7 @@ async function rapidoCuandoFecha(id, val){
   cerrarPops();
   const d=new Date(val+'T00:00:00');
   if(isNaN(d)){ toast('Fecha inválida'); return; }
+  if(d.getDay()===0){ toast('Los domingos no se agendan'); return; }
   const ts=d.toISOString();
   a.proximaAccionTs=ts;
   if(a.contactoId){ const c=contactoPorId(a.contactoId); if(c){ c.proximaAccionTs=ts; await saveContactos(); } }
@@ -5924,10 +5944,11 @@ async function rapidoCuando(id, v){
   cerrarPops();
   let ts=null;
   if(v!=='sin'){
-    const d=new Date(); d.setHours(0,0,0,0);
+    let d=new Date(); d.setHours(0,0,0,0);
     if(v==='manana') d.setDate(d.getDate()+1);
     else if(v==='3dias') d.setDate(d.getDate()+3);
     else if(v==='semana') d.setDate(d.getDate()+7);
+    d=sinDomingo(d);   // si cae domingo, pasa al lunes
     ts=d.toISOString();
   }
   a.proximaAccionTs=ts;
@@ -6351,7 +6372,7 @@ function setFiltroHeader(campo,valor){
 /* Días sin movimiento para que una consulta se considere colgada. Es el número que
    define el balde "Pendientes". Ojo: DIAS_PARA_ARCHIVAR (25) la saca del tablero, así
    que este balde solo puede cubrir la franja entre los dos. */
-const DIAS_SIN_MOVIMIENTO=10;
+const DIAS_SIN_MOVIMIENTO=6;
 const ZONA_LABEL={hoy:'Para hoy',atrasada:'Pendientes',sinclas:'Sin clasificar',semana:'Esta semana',sinplazo:'Sin plazo',cerrada:'Cerradas'};
 function etiquetaOpcion(opciones,valor){ const o=opciones.find(x=>x[0]===valor); return o?o[1]:valor; }
 
@@ -6817,9 +6838,17 @@ function zonaDe(a){
   if(!fueTrabajada(a)) return 'hoy';
   // 1b. El plazo vence hoy o ya venció.
   if(_p && _p < _man) return 'hoy';
-  // 2. Colgada: nadie le puso próxima acción, o hace más de DIAS_SIN_MOVIMIENTO que
-  //    no se mueve. Nadie la va a hacer si no aparece en algún lado.
-  if(!_p || diasSinContacto(a) > DIAS_SIN_MOVIMIENTO) return 'atrasada';
+  // 2. Colgada. PEDIDO DE CINTIA (2/8/2026): una consulta se marca ATRASADA recién a los
+  //    DIAS_SIN_MOVIMIENTO días sin ningún movimiento ni etapa. Antes bastaba con NO tener
+  //    próxima acción puesta, así que una consulta de ayer sin etapa ya salía en rojo y el
+  //    balde de atrasadas quedaba inflado con cosas de 1, 2 y 3 días.
+  if(!_p){
+    if(diasSinContacto(a) >= DIAS_SIN_MOVIMIENTO) return 'atrasada';
+    // Todavía dentro de la ventana: le falta el dato, no está atrasada.
+    if(!estadoDe(a) || !a.percepcion) return 'sinclas';
+    return 'lejos';
+  }
+  if(diasSinContacto(a) > DIAS_SIN_MOVIMIENTO) return 'atrasada';
   // 3. Se está trabajando pero falta el dato que permite priorizarla.
   if(!estadoDe(a) || !a.percepcion) return 'sinclas';
   // 4. Agendada y con el dato completo.
@@ -13133,13 +13162,19 @@ function setTipoConsulta(t){
 /* Fecha automática de "¿cuándo volvemos?": hoy + los días del plazo del tipo elegido.
    Solo el día (sin hora). Es una SUGERENCIA: se puede pisar con los botones o el
    calendario. La temperatura NO la toca (decisión de Brian: solo el tipo manda). */
+/* Los input[type=date] nativos no permiten deshabilitar un día: se corrige al elegir. */
+function proxFechaSinDomingo(inp){
+  if(!inp || !inp.value) return;
+  if(esDomingo(inp.value)){ inp.value = sinDomingoISOfecha(inp.value); toast('Los domingos no se agendan: pasó al lunes'); }
+}
 function aplicarFechaAutomatica(){
   const box=$('proxAutoBox');
   // El plazo lo manda la ETAPA (antes lo mandaba el tipo, que ya no existe en la vista).
   const et = ETAPAS_CONSULTA[etapaWizSel];
   if(!et || et.plazo===null){ if(box){ box.classList.add('hidden'); box.innerHTML=''; } return; }
   const dias = et.plazo;
-  const d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+dias);
+  let d=new Date(); d.setHours(10,0,0,0); d.setDate(d.getDate()+dias);
+  d=sinDomingo(d);   // el plazo nunca cae domingo
   // dejar la fecha cargada en el calendario y marcar "Personalizado" como elegido
   const f=$('proxFechaCustom');
   if(f){ f.value=d.toISOString().slice(0,10); f.classList.remove('hidden'); }
@@ -15002,6 +15037,8 @@ function recParaTs(){
 .rc-globo{cursor:help;filter:none;opacity:.85}
 .rc-globo.vacio{filter:grayscale(1);opacity:.25;cursor:default}
 .rc-print{cursor:pointer;font-size:14px;filter:grayscale(1);opacity:.35}
+.cal-d.domingo{color:#c3cad6;cursor:not-allowed;text-decoration:line-through;background:transparent}
+.cal-dw.domingo{color:#c3cad6}
 .rc-print:hover{filter:none;opacity:1}
 .rc-fila.urg{background:#fff8f5}
 .rc-fila.urg:hover{background:#fff1ea}
