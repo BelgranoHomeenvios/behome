@@ -15175,6 +15175,38 @@ function recParaTs(){
 .rc-bar-dias{font-size:10px;color:var(--muted);margin-top:2px}
 .rc-bar-dias.lento{color:var(--red);font-weight:700}
 @media(max-width:640px){.rc-barra{grid-template-columns:repeat(4,1fr);gap:6px}}
+
+.rc-th{position:relative;white-space:nowrap}
+.rc-th-lbl{cursor:pointer}
+.rc-th-lbl:hover{color:var(--blue)}
+.rc-th.filtrado{color:var(--blue)}
+.rc-th-emb{cursor:pointer;font-size:9px;margin-left:5px;opacity:.45}
+.rc-th-emb:hover{opacity:1;color:var(--blue)}
+.rc-th.filtrado .rc-th-emb{opacity:1;color:var(--blue)}
+.rc-pop-col{position:absolute;top:100%;left:0;z-index:60;background:#fff;border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 8px 26px rgba(15,26,42,.16);padding:8px;min-width:212px;max-height:320px;overflow:auto;
+  white-space:normal;font-weight:400;text-transform:none;letter-spacing:0}
+.rc-pop-it{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--ink)}
+.rc-pop-it:hover{background:var(--line2)}
+.rc-pop-box{width:15px;height:15px;flex:0 0 15px;border:1px solid var(--line);border-radius:4px;display:flex;
+  align-items:center;justify-content:center;font-size:10px;color:var(--blue)}
+.rc-pop-n{margin-left:auto;font-size:11px;color:var(--muted)}
+.rc-pop-inp{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;font-family:inherit;margin-bottom:6px}
+.rc-pop-lbl{font-size:10.5px;color:var(--muted);margin-bottom:3px}
+.rc-pop-rap{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px}
+.rc-pop-rap span{font-size:11.5px;padding:4px 9px;border:1px solid var(--line);border-radius:20px;cursor:pointer;color:var(--sec)}
+.rc-pop-rap span:hover{border-color:var(--blue);color:var(--blue)}
+.rc-pop-pie{border-top:1px solid var(--line2);margin-top:6px;padding-top:6px;text-align:right}
+.rc-pop-pie span{font-size:12px;color:var(--blue);cursor:pointer}
+
+.rc-ed-marca{color:#b45309;font-size:10px;margin-left:3px}
+.rc-ed-resumen{margin-top:8px;background:#fff7e6;color:#8a5a09;border-radius:8px;padding:7px 11px;font-size:11.5px;cursor:pointer}
+.rc-ed-ver{color:#b45309;text-decoration:underline;margin-left:6px}
+.rc-ed-lista{border:1px solid var(--line2);border-radius:8px;margin-top:6px;overflow:hidden}
+.rc-ed-it{display:flex;flex-wrap:wrap;gap:5px;align-items:baseline;padding:6px 11px;border-bottom:1px solid var(--line2);font-size:12px;color:var(--sec)}
+.rc-ed-it:last-child{border-bottom:none}
+.rc-ed-cambio{color:var(--muted)}
+.rc-ed-fecha{margin-left:auto;font-size:11px;color:var(--muted)}
 </style>
 <div id="rcModal" class="hidden">
   <div class="rc-caja">
@@ -15321,6 +15353,26 @@ var rcFiltro = '';          // balde activo: abiertos | sinsol | atrasados | vie
 var rcBusca = '';
 var rcFiltroEtapa = '';
 var rcFiltroProblema = '';
+/* Filtros por columna: cada encabezado tiene su propio ▾. */
+var rcColF = {estado:[], responsable:[], cliente:'', num:'', fDesde:'', fHasta:'', diasMin:'', diasMax:''};
+var rcPopCol = null;
+function rcTogPop(col, ev){ if(ev) ev.stopPropagation(); rcPopCol = (rcPopCol===col ? null : col); renderCintiaMain(); }
+function rcColSet(campo, val){ rcColF[campo]=val; renderCintiaMain(); }
+function rcColTog(campo, val){
+  const a=rcColF[campo]; const i=a.indexOf(val);
+  if(i>=0) a.splice(i,1); else a.push(val);
+  renderCintiaMain();
+}
+function rcColEstados(k){
+  if(k==='abiertas') rcColF.estado = RC_ETAPAS.filter(e=>e.id!=='cierre').map(e=>e.id);
+  else if(k==='cerradas') rcColF.estado = ['cierre'];
+  else rcColF.estado = [];
+  renderCintiaMain();
+}
+function rcHayColF(){
+  return rcColF.estado.length || rcColF.responsable.length || rcColF.cliente.trim() ||
+         rcColF.num.trim() || rcColF.fDesde || rcColF.fHasta || rcColF.diasMin!=='' || rcColF.diasMax!=='';
+}
 var rcOrdenCampo = 'dias';
 var rcOrdenDir = 'desc';
 
@@ -15333,7 +15385,11 @@ function rcOrdenar(campo){
   else { rcOrdenCampo = campo; rcOrdenDir = (campo==='cliente'||campo==='mueble') ? 'asc' : 'desc'; }
   renderCintiaMain();
 }
-function rcLimpiarFiltros(){ rcFiltro=''; rcBusca=''; rcFiltroEtapa=''; rcFiltroProblema=''; renderCintiaMain(); }
+function rcLimpiarFiltros(){
+  rcFiltro=''; rcBusca=''; rcFiltroEtapa=''; rcFiltroProblema=''; rcPopCol=null;
+  rcColF = {estado:[], responsable:[], cliente:'', num:'', fDesde:'', fHasta:'', diasMin:'', diasMax:''};
+  renderCintiaMain();
+}
 
 /* El período de la barra de arriba también recorta los reclamos. */
 function rcEnPeriodo(r){
@@ -15349,8 +15405,17 @@ function rcListaFiltrada(base){
   if(rcFiltro==='sinsol')    l = l.filter(r=>rcAbierto(r) && !r.solucion);
   if(rcFiltro==='atrasados') l = l.filter(rcAtrasado);
   if(rcFiltro==='viejos')    l = l.filter(r=>rcAbierto(r) && rcDiasAbierto(r)>=RC_DIAS_VIEJO);
-  if(rcFiltroEtapa)    l = l.filter(r=>r.etapa===rcFiltroEtapa);
   if(rcFiltroProblema) l = l.filter(r=>r.problema===rcFiltroProblema);
+  if(rcColF.estado.length)      l = l.filter(r=>rcColF.estado.includes(r.etapa));
+  if(rcColF.responsable.length) l = l.filter(r=>rcColF.responsable.includes(r.responsable||'—'));
+  if(rcColF.cliente.trim())     { const q=rcColF.cliente.trim().toLowerCase();
+                                  l = l.filter(r=>[r.clienteNombre,r.clienteTelefono].some(x=>String(x||'').toLowerCase().includes(q))); }
+  if(rcColF.num.trim())         { const q=rcColF.num.trim().toLowerCase();
+                                  l = l.filter(r=>String(rcEtiqueta(r)).toLowerCase().includes(q) || String(r.orden||'').includes(q)); }
+  if(rcColF.fDesde) l = l.filter(r=>String(r.fechaInicio||r.ts).slice(0,10) >= rcColF.fDesde);
+  if(rcColF.fHasta) l = l.filter(r=>String(r.fechaInicio||r.ts).slice(0,10) <= rcColF.fHasta);
+  if(rcColF.diasMin!=='') l = l.filter(r=>rcDiasAbierto(r) >= +rcColF.diasMin);
+  if(rcColF.diasMax!=='') l = l.filter(r=>rcDiasAbierto(r) <= +rcColF.diasMax);
   const q = rcBusca.trim().toLowerCase();
   if(q) l = l.filter(r=>[r.clienteNombre,r.clienteTelefono,r.mueble,r.orden,rcEtiqueta(r),r.problema,r.subProblema]
                         .some(x=>String(x||'').toLowerCase().includes(q)));
@@ -15403,13 +15468,45 @@ function htmlReclamos(){
   const viejos    = abiertos.filter(r=>rcDiasAbierto(r) >= RC_DIAS_VIEJO);
   const atrasados = abiertos.filter(rcAtrasado);
   const lista = rcListaFiltrada(base);
-  const hayFiltro = rcFiltro || rcBusca.trim() || rcFiltroEtapa || rcFiltroProblema;
+  const hayFiltro = rcFiltro || rcBusca.trim() || rcFiltroEtapa || rcFiltroProblema || rcHayColF();
 
   const card = (k,lbl,n,cls)=>`<div class="rc-card ${rcFiltro===k?'on':''}" onclick="rcSetFiltro('${k}')">
       <div class="rc-card-lbl">${lbl}</div><div class="rc-card-n ${cls||''}">${n}</div></div>`;
 
   const fl = c => rcOrdenCampo===c ? (rcOrdenDir==='asc'?' ▲':' ▼') : '';
-  const th = (c,lbl)=>`<th class="rc-th" onclick="rcOrdenar('${c}')">${lbl}<span class="rc-fl">${fl(c)}</span></th>`;
+  const chk = (campo,v,txt,cnt)=>`<div class="rc-pop-it" onclick="event.stopPropagation();rcColTog('${campo}','${rcEsc(v).replace(/'/g,"\\'")}')">
+      <span class="rc-pop-box">${rcColF[campo].includes(v)?'✓':''}</span><span>${rcEsc(txt)}</span>${cnt!==undefined?`<span class="rc-pop-n">${cnt}</span>`:''}</div>`;
+  const respPresentes = [...new Set(base.map(r=>r.responsable||'—'))].sort((a,b)=>a.localeCompare(b,'es'));
+  const cuerpoPop = c => {
+    if(c==='etapa') return `<div class="rc-pop-rap">
+        <span onclick="event.stopPropagation();rcColEstados('abiertas')">Sin cerrar</span>
+        <span onclick="event.stopPropagation();rcColEstados('cerradas')">Cerradas</span>
+        <span onclick="event.stopPropagation();rcColEstados('')">Todas</span></div>
+      ${RC_ETAPAS.map(e=>chk('estado',e.id,e.lbl,base.filter(r=>r.etapa===e.id).length)).join('')}`;
+    if(c==='responsable') return respPresentes.map(x=>chk('responsable',x,x==='—'?'Sin responsable':x,base.filter(r=>(r.responsable||'—')===x).length)).join('');
+    if(c==='cliente') return `<input class="rc-pop-inp" placeholder="Nombre o teléfono" value="${rcEsc(rcColF.cliente)}" onclick="event.stopPropagation()" oninput="rcColSet('cliente',this.value)">`;
+    if(c==='reclamo') return `<input class="rc-pop-inp" placeholder="N° de reclamo u orden" value="${rcEsc(rcColF.num)}" onclick="event.stopPropagation()" oninput="rcColSet('num',this.value)">`;
+    if(c==='fecha') return `<div class="rc-pop-lbl">Desde</div><input class="rc-pop-inp" type="date" value="${rcColF.fDesde}" onclick="event.stopPropagation()" onchange="rcColSet('fDesde',this.value)">
+      <div class="rc-pop-lbl">Hasta</div><input class="rc-pop-inp" type="date" value="${rcColF.fHasta}" onclick="event.stopPropagation()" onchange="rcColSet('fHasta',this.value)">`;
+    if(c==='dias') return `<div class="rc-pop-rap">
+        <span onclick="event.stopPropagation();rcColSet('diasMin',15)">15+ días</span>
+        <span onclick="event.stopPropagation();rcColSet('diasMin',30)">30+ días</span>
+        <span onclick="event.stopPropagation();rcColSet('diasMin','')">Todos</span></div>
+      <div class="rc-pop-lbl">Mínimo</div><input class="rc-pop-inp" type="number" value="${rcColF.diasMin}" onclick="event.stopPropagation()" oninput="rcColSet('diasMin',this.value)">
+      <div class="rc-pop-lbl">Máximo</div><input class="rc-pop-inp" type="number" value="${rcColF.diasMax}" onclick="event.stopPropagation()" oninput="rcColSet('diasMax',this.value)">`;
+    return '';
+  };
+  const activo = c => (c==='etapa'&&rcColF.estado.length) || (c==='responsable'&&rcColF.responsable.length) ||
+                      (c==='cliente'&&rcColF.cliente.trim()) || (c==='reclamo'&&rcColF.num.trim()) ||
+                      (c==='fecha'&&(rcColF.fDesde||rcColF.fHasta)) || (c==='dias'&&(rcColF.diasMin!==''||rcColF.diasMax!==''));
+  const th = (c,lbl)=>`<th class="rc-th ${activo(c)?'filtrado':''}">
+      <span class="rc-th-lbl" onclick="rcOrdenar('${c}')">${lbl}<span class="rc-fl">${fl(c)}</span></span>
+      <span class="rc-th-emb" onclick="rcTogPop('${c}',event)" title="Filtrar">▾</span>
+      ${rcPopCol===c?`<div class="rc-pop-col" onclick="event.stopPropagation()">
+          ${cuerpoPop(c)}
+          <div class="rc-pop-pie"><span onclick="rcTogPop('${c}',event)">Listo</span></div>
+        </div>`:''}
+    </th>`;
 
   const filas = lista.length ? lista.map(r=>{
     const co = rcCosto(r);
@@ -15444,8 +15541,6 @@ function htmlReclamos(){
     <div class="rc-filtros">
       <input id="rcBuscaLista" class="rc-busca" placeholder="Buscar por cliente, teléfono, mueble o N° de reclamo…"
              value="${rcEsc(rcBusca)}" oninput="rcSetBusca(this.value)">
-      <select onchange="rcSetFiltroEtapa(this.value)"><option value="">Todos los estados</option>
-        ${RC_ETAPAS.map(e=>`<option value="${e.id}" ${rcFiltroEtapa===e.id?'selected':''}>${e.lbl}</option>`).join('')}</select>
       <select onchange="rcSetFiltroProblema(this.value)"><option value="">Todos los problemas</option>
         ${Object.keys(RC_PROBLEMAS).map(p=>`<option ${rcFiltroProblema===p?'selected':''}>${p}</option>`).join('')}</select>
       ${hayFiltro?`<span class="rc-limpiar" onclick="rcLimpiarFiltros()">✕ Limpiar filtros</span>`:''}
@@ -15784,6 +15879,10 @@ function rcCampo(campo, valor, repintar){
 function rcSetEtapa(id){
   const r = rcActual(); if(!r) return;
   if(r.etapa === id) return;
+  if(typeof rcEditRec!=='undefined' && rcEditRec){
+    const iAnt = RC_ETAPAS.findIndex(e=>e.id===r.etapa), iNue = RC_ETAPAS.findIndex(e=>e.id===id);
+    rcLogEdicion(r, iNue<iAnt ? 'volvió atrás a' : 'movió a mano a', id, rcEtapaLbl(r.etapa), rcEtapaLbl(id));
+  }
   r.historial = r.historial || [];
   r.historial.push({etapa:id, ts:new Date().toISOString(), por:(typeof YO!=='undefined'?YO:null)});
   r.etapa = id;
@@ -15852,6 +15951,22 @@ var rcModCerrados = new Set(['m5']);   // la bitácora arranca cerrada
 var rcFotoVer = null;
 var rcEditRec = false;   // ✏️ del recorrido: Cintia interviene la cadena a mano
 
+/* Toda intervención a mano sobre el recorrido queda registrada y VISIBLE: los días
+   de cada tramo son la base de la medición, así que no se pueden tocar sin rastro. */
+function rcLogEdicion(r, accion, etapaId, antes, despues){
+  r.edicionesRec = r.edicionesRec || [];
+  r.edicionesRec.push({ts:new Date().toISOString(), por:(typeof YO!=='undefined'?YO:null),
+                       accion, etapa:etapaId, antes:antes||'', despues:despues||''});
+}
+function rcQuienEdito(v){ return (typeof nombreDe==='function' && v) ? nombreDe(v) : (v||'alguien'); }
+/* Marca por etapa: quién y cuándo la tocó por última vez. */
+function rcEdicionDe(r, etapaId){
+  const l = (r.edicionesRec||[]).filter(e=>e.etapa===etapaId);
+  return l.length ? l[l.length-1] : null;
+}
+var rcVerEdiciones = false;
+function rcTogVerEdiciones(ev){ if(ev) ev.stopPropagation(); rcVerEdiciones=!rcVerEdiciones; renderCintiaMain(); }
+
 function rcTogEditRec(ev){ if(ev) ev.stopPropagation(); rcEditRec = !rcEditRec; renderCintiaMain(); }
 
 /* Corrige la fecha en que el reclamo entró en una etapa. Recalcula los tramos solo. */
@@ -15863,8 +15978,9 @@ function rcFechaEtapa(id, val, ev){
   r.historial = r.historial || [];
   const e = r.historial.find(x=>x.etapa===id);
   const ts = new Date(iso+'T12:00:00').toISOString();
-  if(e) e.ts = ts;
-  else r.historial.push({etapa:id, ts, por:(typeof YO!=='undefined'?YO:null), editado:true});
+  if(e){ rcLogEdicion(r,'corrigió la fecha',id, rcFechaADdMm(e.ts), rcFechaADdMm(ts)); e.ts = ts; e.editado = true; }
+  else { rcLogEdicion(r,'agregó la etapa',id,'', rcFechaADdMm(ts));
+         r.historial.push({etapa:id, ts, por:(typeof YO!=='undefined'?YO:null), editado:true}); }
   guardarReclamos(); renderCintiaMain();
 }
 /* "Por acá no pasó": saca la etapa del recorrido. Si era la actual, el reclamo
@@ -15872,6 +15988,8 @@ function rcFechaEtapa(id, val, ev){
 function rcQuitarEtapa(id, ev){
   if(ev) ev.stopPropagation();
   const r = rcActual(); if(!r) return;
+  const habia = (r.historial||[]).find(x=>x.etapa===id);
+  rcLogEdicion(r,'sacó la etapa',id, habia?rcFechaADdMm(habia.ts):'', '');
   r.historial = (r.historial||[]).filter(x=>x.etapa!==id);
   if(r.etapa===id){
     const ult = r.historial.slice().sort((a,b)=> new Date(a.ts)-new Date(b.ts)).pop();
@@ -16110,9 +16228,10 @@ function htmlFichaReclamo(){
     const col = pasada ? rcColorEtapa(e.id) : '#e8ecf2';
     const dias = t ? (t.dias===1?'1 día':t.dias+' días') : '';
     const lento = t && t.dias>=RC_DIAS_VIEJO;
-    return `<div class="rc-bar-p ${act?'act':''}" onclick="rcSetEtapa('${e.id}')" title="${rcEsc(e.lbl)}">
+    const ed = rcEdicionDe(r, e.id);
+    return `<div class="rc-bar-p ${act?'act':''}" onclick="rcSetEtapa('${e.id}')" title="${rcEsc(e.lbl)}${ed?(' · '+rcEsc(rcQuienEdito(ed.por))+' '+rcEsc(ed.accion)+' el '+rcFechaCorta(ed.ts)):''}">
         <div class="rc-bar-seg" style="background:${col}"></div>
-        <div class="rc-bar-lbl" ${act?`style="color:${rcColorEtapa(e.id)}"`:''}>${e.lbl}</div>
+        <div class="rc-bar-lbl" ${act?`style="color:${rcColorEtapa(e.id)}"`:''}>${e.lbl}${ed?'<span class="rc-ed-marca">✎</span>':''}</div>
         <div class="rc-bar-dias ${lento?'lento':''}">${act?(dias||'hoy'):(dias||'')}</div>
       </div>`;
   }).join('');
@@ -16134,7 +16253,7 @@ function htmlFichaReclamo(){
       : `<div class="rc-tl-dias ${alerta?'alerta':''}">${dias||'—'}</div>`;
     return `<div class="rc-tl-p ${estado}" onclick="rcSetEtapa('${e.id}')">
         <div class="rc-tl-eje"><span class="rc-tl-bola"></span>${ultimo?'':'<span class="rc-tl-linea"></span>'}</div>
-        <div class="rc-tl-txt"><div class="rc-tl-lbl">${e.lbl}</div>${sub?`<div class="rc-tl-sub">${sub}</div>`:''}</div>
+        <div class="rc-tl-txt"><div class="rc-tl-lbl">${e.lbl}${rcEdicionDe(r,e.id)?'<span class="rc-ed-marca">✎</span>':''}</div>${sub?`<div class="rc-tl-sub">${sub}</div>`:''}</div>
         ${der}
       </div>`;
   }).join('');
@@ -16158,6 +16277,16 @@ function htmlFichaReclamo(){
     </div>
     ${rcEditRec ? '<div class="rc-sub-aviso">Tocá una etapa para volver a ella, corregí la fecha de entrada, o sacala con la ✕ si por ahí no pasó. Los días se recalculan solos.</div>' : ''}
     ${rcEditRec ? `<div class="rc-tl">${linea}</div>` : `<div class="rc-barra">${barra}</div>`}
+    ${(r.edicionesRec||[]).length ? `
+      <div class="rc-ed-resumen" onclick="rcTogVerEdiciones(event)">
+        ✎ Recorrido intervenido ${r.edicionesRec.length} ${r.edicionesRec.length===1?'vez':'veces'} ·
+        última por ${rcEsc(rcQuienEdito(r.edicionesRec[r.edicionesRec.length-1].por))} el ${rcFechaCorta(r.edicionesRec[r.edicionesRec.length-1].ts)}
+        <span class="rc-ed-ver">${rcVerEdiciones?'ocultar':'ver detalle'}</span>
+      </div>
+      ${rcVerEdiciones ? `<div class="rc-ed-lista">${r.edicionesRec.slice().reverse().map(e=>`
+          <div class="rc-ed-it"><b>${rcEsc(rcQuienEdito(e.por))}</b> ${rcEsc(e.accion)} <b>${rcEsc(rcEtapaLbl(e.etapa))}</b>${
+            e.antes||e.despues ? ` <span class="rc-ed-cambio">${e.antes?rcEsc(e.antes):'—'} → ${e.despues?rcEsc(e.despues):'—'}</span>`:''}
+            <span class="rc-ed-fecha">${rcFechaCorta(e.ts)}</span></div>`).join('')}</div>`:''}` : ''}
     ${rcAtrasado(r) ? `<div class="rc-alerta rc-alerta-roja">Próxima acción vencida el ${rcFechaCorta(r.proximaAccionTs)}</div>` : ''}
     <div class="rc-grid2">
       <label class="rc-f">Responsable de la solución<select onchange="rcCampo('responsable',this.value,false)"><option value="">—</option>
