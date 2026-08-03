@@ -14916,7 +14916,7 @@ function recParaTs(){
 .rc-volver{font-size:12.5px;color:var(--muted);cursor:pointer}
 .rc-volver:hover{color:var(--blue)}
 .rc-ficha-tit{font-size:17px;color:var(--ink)}
-.rc-stepper{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+.rc-stepper{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
 .rc-paso{text-align:center;cursor:pointer;padding:6px 2px;border-radius:9px}
 .rc-paso:hover{background:var(--line2)}
 .rc-bola{width:34px;height:34px;margin:0 auto 6px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;background:#fff}
@@ -14928,7 +14928,22 @@ function recParaTs(){
 .rc-paso.activa .rc-paso-lbl{color:#1a51b0;font-weight:700}
 .rc-alerta{background:#fff7e6;color:#b45309;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:16px}
 .rc-alerta-roja{background:#fdecea;color:#b42318}
-.rc-ficha-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.rc-ficha-cols{display:grid;grid-template-columns:1fr 1.28fr;gap:18px;align-items:start}
+.rc-mueble-fila{display:grid;grid-template-columns:1.1fr 1fr 18px;gap:8px;margin-bottom:7px;align-items:center}
+.rc-mueble-fila input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;width:100%}
+.rc-quitar{cursor:pointer;color:var(--muted);font-size:13px;text-align:center}
+.rc-quitar:hover{color:var(--red)}
+.rc-quitar.vacio{cursor:default}
+.rc-add{display:inline-block;font-size:12.5px;color:var(--blue);cursor:pointer;margin:2px 0 4px}
+.rc-fotos{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:260px}
+.rc-foto{aspect-ratio:1;border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;background:var(--line2)}
+.rc-foto img{width:100%;height:100%;object-fit:cover;display:block}
+.rc-foto-add{display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--muted);border-style:dashed}
+.rc-foto-add:hover{color:var(--blue);border-color:var(--blue)}
+.rc-lightbox{position:fixed;inset:0;background:rgba(10,15,25,.85);z-index:9500;display:flex;align-items:center;justify-content:center;padding:36px}
+.rc-lightbox img{max-width:92%;max-height:88%;border-radius:10px}
+.rc-lb-x{position:absolute;top:16px;right:22px;color:#fff;font-size:32px;cursor:pointer;line-height:1}
+.rc-lb-del{position:absolute;bottom:18px;color:#fff;font-size:13px;cursor:pointer;opacity:.8;text-decoration:underline}
 .rc-mod{border:1px solid var(--line);border-radius:11px;margin-bottom:14px;background:#fff;overflow:hidden}
 .rc-mod-head{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;background:var(--line2)}
 .rc-mod-head:hover{background:#eef2f7}
@@ -14937,7 +14952,7 @@ function recParaTs(){
 .rc-mod-extra{margin-left:auto;font-size:11.5px;color:var(--muted);max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rc-mod-body{padding:14px 14px 4px}
 .rc-mod.cerrado{background:var(--line2)}
-@media(max-width:900px){.rc-ficha-cols{grid-template-columns:1fr}.rc-stepper{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){.rc-ficha-cols{grid-template-columns:1fr}.rc-stepper{grid-template-columns:repeat(2,1fr)}}
 .rc-mini-lbl{font-size:11.5px;color:var(--muted);margin:4px 0 8px}
 .rc-subetapas{margin-top:12px}
 .rc-chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -15087,12 +15102,17 @@ const RC_SOLUCIONES = [
   {id:'cambio_domic',   lbl:'Cambio del mueble en domicilio',dias:21},
   {id:'otros',          lbl:'Otros',                         dias:null}
 ];
+/* 8 etapas en 2 filas. Los 5 ids viejos (nuevo/analisis/propuesta/gestion/cierre)
+   se conservan tal cual para no dejar huérfanos a los 203 migrados. */
 const RC_ETAPAS = [
-  {id:'nuevo',    lbl:'Recepción',            dias:0},
-  {id:'analisis', lbl:'Análisis',             dias:2},
-  {id:'propuesta',lbl:'Negociación',          dias:2},
-  {id:'gestion',  lbl:'Gestión de solución',  dias:null},
-  {id:'cierre',   lbl:'Cerrado',              dias:null}
+  {id:'nuevo',      lbl:'Recepción del reclamo', dias:0},
+  {id:'analisis',   lbl:'Análisis del reclamo',  dias:2},
+  {id:'propuesta',  lbl:'Negociación',           dias:2},
+  {id:'acuerdo',    lbl:'Acuerdo',               dias:1},
+  {id:'gestion',    lbl:'Gestión de arreglo',    dias:null},
+  {id:'listo',      lbl:'Lista la solución',     dias:3},
+  {id:'coordinado', lbl:'Coordinado el arreglo', dias:3},
+  {id:'cierre',     lbl:'Cerrado',               dias:null}
 ];
 const RC_CIERRES  = ['Resuelto','Resuelto con asesoramiento','Sin solución','Cliente desistió'];
 const RC_COSTOS   = ['Sin costo','Costo bajo','Costo medio','Costo alto','Devolución'];
@@ -15561,7 +15581,8 @@ function rcConHistorico(lista, valor){
   return (valor && lista.indexOf(valor)===-1) ? lista.concat([valor]) : lista;
 }
 function rcIcoEtapa(id){
-  return {nuevo:'📥', analisis:'💡', propuesta:'💬', gestion:'🔧', cierre:'🏁'}[id] || '•';
+  return {nuevo:'📥', analisis:'💡', propuesta:'💬', acuerdo:'🤝', gestion:'🔧',
+          listo:'✅', coordinado:'🚚', cierre:'🏁'}[id] || '•';
 }
 
 function rcAbrirFicha(id){ rcFichaId = id; if(typeof renderCintiaMain==='function') renderCintiaMain(); try{window.scrollTo(0,0);}catch(e){} }
@@ -15635,7 +15656,63 @@ function rcVenceProveedor(r){
 }
 
 /* Estado de los módulos plegables: fuera del render para que no se cierren solos. */
-var rcModCerrados = new Set();
+var rcModCerrados = new Set(['m5']);   // la bitácora arranca cerrada
+var rcFotoVer = null;
+
+/* Los reclamos viejos traen un solo `mueble` de texto. Se convierte a lista la
+   primera vez que se toca, sin tocar nada en la base hasta que haya un cambio. */
+function rcMuebles(r){
+  if(!Array.isArray(r.muebles)){
+    r.muebles = r.mueble ? [{mueble:r.mueble, detalle:''}] : [{mueble:'', detalle:''}];
+  }
+  if(!r.muebles.length) r.muebles.push({mueble:'', detalle:''});
+  return r.muebles;
+}
+function rcSetMueble(i, campo, val){
+  const r = rcActual(); if(!r) return;
+  rcMuebles(r)[i][campo] = val;
+  r.mueble = r.muebles.map(m=>m.mueble).filter(Boolean).join(', ');  // para la lista y el buscador
+  guardarReclamos();
+}
+function rcAgregarMueble(){ const r=rcActual(); if(!r) return; rcMuebles(r).push({mueble:'',detalle:''}); guardarReclamos(); renderCintiaMain(); }
+function rcQuitarMueble(i){
+  const r=rcActual(); if(!r) return;
+  rcMuebles(r).splice(i,1);
+  r.mueble = (r.muebles||[]).map(m=>m.mueble).filter(Boolean).join(', ');
+  guardarReclamos(); renderCintiaMain();
+}
+
+/* Las fotos se guardan achicadas dentro del registro, igual que en las consultas. */
+function rcSubirFotos(input){
+  const r = rcActual(); if(!r || !input.files) return;
+  const files = [...input.files]; input.value='';
+  let pendientes = files.length;
+  files.forEach(f=>{
+    const fr = new FileReader();
+    fr.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const max = 1100, esc = Math.min(1, max/Math.max(img.width,img.height));
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width*esc); cv.height = Math.round(img.height*esc);
+        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+        r.fotos = r.fotos || [];
+        r.fotos.push(cv.toDataURL('image/jpeg', 0.7));
+        if(--pendientes===0){ guardarReclamos(); renderCintiaMain(); }
+      };
+      img.onerror = ()=>{ if(--pendientes===0){ guardarReclamos(); renderCintiaMain(); } };
+      img.src = e.target.result;
+    };
+    fr.readAsDataURL(f);
+  });
+}
+function rcVerFoto(i){ rcFotoVer = i; renderCintiaMain(); }
+function rcCerrarFoto(ev){ if(ev) ev.stopPropagation(); rcFotoVer = null; renderCintiaMain(); }
+function rcQuitarFoto(i, ev){
+  if(ev) ev.stopPropagation();
+  const r = rcActual(); if(!r || !r.fotos) return;
+  r.fotos.splice(i,1); rcFotoVer=null; guardarReclamos(); renderCintiaMain();
+}
 function rcTogMod(k){ rcModCerrados.has(k) ? rcModCerrados.delete(k) : rcModCerrados.add(k); renderCintiaMain(); }
 function rcMod(k, titulo, cuerpo, extra){
   const abierto = !rcModCerrados.has(k);
@@ -15674,32 +15751,53 @@ function htmlFichaReclamo(){
     </div>`;
 
   /* ---------- 2 · Información del problema ---------- */
+  const mbs = rcMuebles(r);
+  const fotos = r.fotos || [];
   const mod2 = `
-    <label class="rc-f">Mueble<input value="${rcEsc(r.mueble||'')}" onchange="rcCampo('mueble',this.value,false)"></label>
     <div class="rc-grid2">
       <label class="rc-f">Problema<select onchange="rcCampo('problema',this.value)"><option value="">—</option>
         ${Object.keys(RC_PROBLEMAS).map(p=>`<option ${r.problema===p?'selected':''}>${p}</option>`).join('')}</select></label>
       <label class="rc-f">Sub problema<select onchange="rcCampo('subProblema',this.value,false)"><option value="">—</option>
         ${((RC_PROBLEMAS[r.problema]||[]).concat(r.problema&&r.problema!=='Otros'?['Otros']:[])).map(x=>`<option ${r.subProblema===x?'selected':''}>${x}</option>`).join('')}</select></label>
     </div>
-    <label class="rc-f">Observaciones<textarea rows="3" onchange="rcCampo('detalle',this.value,false)">${rcEsc(r.detalle||'')}</textarea></label>`;
+    <div class="rc-mini-lbl">Muebles reclamados</div>
+    ${mbs.map((m,i)=>`<div class="rc-mueble-fila">
+        <input list="rcMueblesList" placeholder="Mueble" value="${rcEsc(m.mueble||'')}" onchange="rcSetMueble(${i},'mueble',this.value)">
+        <input placeholder="Detalle" value="${rcEsc(m.detalle||'')}" onchange="rcSetMueble(${i},'detalle',this.value)">
+        ${mbs.length>1?`<span class="rc-quitar" onclick="rcQuitarMueble(${i})" title="Quitar">✕</span>`:'<span class="rc-quitar vacio"></span>'}
+      </div>`).join('')}
+    <datalist id="rcMueblesList">${RC_MUEBLES.map(m=>`<option value="${m}">`).join('')}</datalist>
+    <span class="rc-add" onclick="rcAgregarMueble()">+ agregar otro mueble</span>
+
+    <div class="rc-mini-lbl" style="margin-top:14px">Imágenes</div>
+    <div class="rc-fotos">
+      ${fotos.map((f,i)=>`<div class="rc-foto" onclick="rcVerFoto(${i})"><img src="${f}" alt="Foto ${i+1} del reclamo"></div>`).join('')}
+      <label class="rc-foto rc-foto-add">+<input type="file" accept="image/*" multiple onchange="rcSubirFotos(this)" style="display:none"></label>
+    </div>`;
 
   /* ---------- 3 · Etapa del reclamo ---------- */
-  const stepper = RC_ETAPAS.map((e,i)=>{
+  const paso = (e,i)=>{
     const cls = i<iAct ? 'hecha' : (i===iAct ? 'activa' : '');
     return `<div class="rc-paso ${cls}" onclick="rcSetEtapa('${e.id}')">
               <div class="rc-bola">${rcIcoEtapa(e.id)}</div>
               <div class="rc-paso-lbl">${e.lbl}</div>
             </div>`;
-  }).join('');
+  };
+  const fila1 = RC_ETAPAS.slice(0,4).map((e,i)=>paso(e,i)).join('');
+  const fila2 = RC_ETAPAS.slice(4).map((e,i)=>paso(e,i+4)).join('');
   const mod3 = `
-    <div class="rc-stepper">${stepper}</div>
+    <div class="rc-stepper">${fila1}</div>
+    <div class="rc-stepper">${fila2}</div>
     ${r.proximaAccionTs && rcAbierto(r)
       ? `<div class="rc-alerta ${rcAtrasado(r)?'rc-alerta-roja':''}">Próxima acción: ${rcFechaCorta(r.proximaAccionTs)}</div>` : ''}
     <label class="rc-f">¿Cómo se cerró el reclamo?
       <select onchange="rcSetCierre(this.value)"><option value="">Todavía abierto…</option>
         ${RC_CIERRES.map(c=>`<option ${r.cierre===c?'selected':''}>${c}</option>`).join('')}</select></label>
-    ${r.cerradoTs?`<div class="rc-mini-lbl">Cerrado el ${rcFechaCorta(r.cerradoTs)}</div>`:''}`;
+    ${r.cerradoTs?`<div class="rc-mini-lbl">Cerrado el ${rcFechaCorta(r.cerradoTs)}</div>`:''}
+    <div class="rc-grid2" style="margin-top:6px">
+      <label class="rc-f">Observaciones del reclamo<textarea rows="3" onchange="rcCampo('detalle',this.value,false)">${rcEsc(r.detalle||'')}</textarea></label>
+      <label class="rc-f">Observaciones de la solución<textarea rows="3" onchange="rcCampo('obsSolucion',this.value,false)">${rcEsc(r.obsSolucion||'')}</textarea></label>
+    </div>`;
 
   /* ---------- 4 · La solución ---------- */
   const chipsSub = subs.length ? `
@@ -15743,7 +15841,7 @@ function htmlFichaReclamo(){
       <label class="rc-f">Costo real<input type="number" placeholder="0" value="${rcEsc(r.costoMonto||'')}" onchange="rcCampo('costoMonto',this.value,false)"></label>
       <label class="rc-f">Saldo a favor<input type="number" ${puedeSaldo?'':'disabled'} placeholder="${puedeSaldo?'0':'lo carga dirección'}" value="${rcEsc(r.saldoFavor||'')}" onchange="rcCampo('saldoFavor',this.value,false)"></label>
     </div>
-    <label class="rc-f">Observaciones de la solución<textarea rows="2" onchange="rcCampo('obsSolucion',this.value,false)">${rcEsc(r.obsSolucion||'')}</textarea></label>`;
+`;
 
   /* ---------- 5 · Bitácora ---------- */
   const bitacora = (r.bitacora||[]).map(b=>`
@@ -15769,11 +15867,16 @@ function htmlFichaReclamo(){
         ${rcMod('m2','Información del problema', mod2, rcEsc([r.problema,r.subProblema].filter(Boolean).join(' · ')) || 'sin cargar')}
       </div>
       <div>
-        ${rcMod('m3','Etapa del reclamo', mod3, rcEsc(rcEtapaLbl(r.etapa)))}
         ${rcMod('m4','La solución y el costo', mod4, rcEsc(rcSolucionLbl(r.solucion)) || 'sin definir')}
+        ${rcMod('m3','Etapa del reclamo', mod3, rcEsc(rcEtapaLbl(r.etapa)))}
         ${rcMod('m5','Bitácora', mod5, (r.bitacora||[]).length ? (r.bitacora.length+' notas') : '')}
       </div>
     </div>
+    ${rcFotoVer!==null && fotos[rcFotoVer] ? `<div class="rc-lightbox" onclick="rcCerrarFoto(event)">
+        <img src="${fotos[rcFotoVer]}" alt="Imagen del reclamo ampliada" onclick="event.stopPropagation()">
+        <span class="rc-lb-x" onclick="rcCerrarFoto(event)">&times;</span>
+        <span class="rc-lb-del" onclick="rcQuitarFoto(${rcFotoVer}, event)">Eliminar imagen</span>
+      </div>`:''}
     <div class="rc-ficha-pie">
       <button class="btn btn-outline btn-sm" onclick="rcVolverLista()">Cerrar</button>
       <span class="rc-mini-lbl">Se guarda solo, cada vez que cambiás algo.</span>
