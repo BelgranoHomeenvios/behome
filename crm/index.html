@@ -14952,6 +14952,28 @@ function recParaTs(){
 .rc-volver:hover{color:var(--blue)}
 .rc-ficha-tit{font-size:17px;color:var(--ink)}
 .rc-stepper{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.rc-tl{margin-bottom:4px}
+.rc-tl-p{display:grid;grid-template-columns:16px 1fr auto;gap:0 12px;cursor:pointer;align-items:stretch}
+.rc-tl-p:hover .rc-tl-lbl{color:var(--blue)}
+.rc-tl-eje{display:flex;flex-direction:column;align-items:center;padding-top:4px}
+.rc-tl-bola{width:11px;height:11px;border-radius:50%;background:#fff;border:2px solid #d3d9e3;flex:0 0 auto}
+.rc-tl-linea{width:2px;flex:1;min-height:16px;background:#e8ecf2}
+.rc-tl-txt{padding-bottom:12px}
+.rc-tl-lbl{font-size:13px;color:var(--muted)}
+.rc-tl-sub{font-size:11.5px;color:var(--muted)}
+.rc-tl-dias{font-size:12px;color:var(--muted);padding-top:3px;white-space:nowrap}
+.rc-tl-dias.alerta{color:var(--red);font-weight:700}
+.rc-tl-p.hecha .rc-tl-bola{background:#1f7a46;border-color:#1f7a46}
+.rc-tl-p.hecha .rc-tl-linea{background:#1f7a46}
+.rc-tl-p.hecha .rc-tl-lbl{color:var(--ink);font-weight:600}
+.rc-tl-p.hecha .rc-tl-dias{color:var(--sec)}
+.rc-tl-p.activa .rc-tl-bola{width:15px;height:15px;background:#fff;border:3px solid #e0a52e;margin-left:-2px}
+.rc-tl-p.activa .rc-tl-linea{background:#e8ecf2}
+.rc-tl-p.activa .rc-tl-lbl{color:#8a5a09;font-weight:700;font-size:13.5px}
+.rc-tl-p.activa .rc-tl-sub{color:#b45309}
+.rc-mod-head-etapa{background:#0f2f5c}
+.rc-mod-head-etapa .rc-mod-tit,.rc-mod-head-etapa .rc-mod-fl{color:#fff}
+.rc-mod-head-etapa .rc-mod-extra{color:#9db6dd}
 .rc-paso{text-align:center;cursor:pointer;padding:6px 2px;border-radius:9px}
 .rc-paso:hover{background:var(--line2)}
 .rc-bola{width:34px;height:34px;margin:0 auto 6px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;background:#fff}
@@ -15620,12 +15642,44 @@ function rcSolucionLbl(id){ const s=RC_SOLUCIONES.find(x=>x.id===id); return s?s
 function rcConHistorico(lista, valor){
   return (valor && lista.indexOf(valor)===-1) ? lista.concat([valor]) : lista;
 }
+/* Reconstruye el recorrido desde el historial: cuándo entró en cada etapa y
+   cuántos días acumuló ahí. Si volvió atrás, los días se SUMAN. */
+function rcTramos(r){
+  const h = (r.historial||[]).slice().sort((a,b)=> new Date(a.ts)-new Date(b.ts));
+  const out = {};
+  h.forEach((e,i)=>{
+    const desde = new Date(e.ts);
+    const hasta = h[i+1] ? new Date(h[i+1].ts) : new Date();
+    const dias = Math.max(0, Math.round((hasta-desde)/86400000));
+    if(!out[e.etapa]) out[e.etapa] = {fecha:e.ts, dias:0};
+    out[e.etapa].dias += dias;
+  });
+  return out;
+}
 function rcIcoEtapa(id){
   return {nuevo:'📥', analisis:'💡', propuesta:'💬', acuerdo:'🤝', gestion:'🔧',
           listo:'✅', coordinado:'🚚', cierre:'🏁'}[id] || '•';
 }
 
-function rcAbrirFicha(id){ rcFichaId = id; if(typeof renderCintiaMain==='function') renderCintiaMain(); try{window.scrollTo(0,0);}catch(e){} }
+/* Un módulo está "cargado" cuando tiene lo que hace falta para no volver a abrirlo. */
+function rcModCompleto(r, k){
+  if(k==='m1') return !!((r.clienteNombre||r.clienteTelefono) && r.orden && r.fechaEntrega);
+  if(k==='m2') return !!(r.problema && (rcMuebles(r)[0]||{}).mueble);
+  if(k==='m4') return !!(r.solucion && r.responsable);
+  return false;
+}
+/* Al abrir: lo que ya está cargado se pliega y queda a la vista la etapa, que es
+   lo único que se sigue tocando todos los días. */
+function rcAbrirFicha(id){
+  rcFichaId = id;
+  const r = rcActual();
+  if(r){
+    rcModCerrados = new Set(['m5']);
+    ['m1','m2','m4'].forEach(k=>{ if(rcModCompleto(r,k)) rcModCerrados.add(k); });
+  }
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+  try{window.scrollTo(0,0);}catch(e){}
+}
 function rcVolverLista(){ rcFichaId = null; if(typeof renderCintiaMain==='function') renderCintiaMain(); }
 function rcActual(){ return reclamos.find(r=>r.id===rcFichaId) || null; }
 
@@ -15822,7 +15876,7 @@ function rcTogMod(k){ rcModCerrados.has(k) ? rcModCerrados.delete(k) : rcModCerr
 function rcMod(k, titulo, cuerpo, extra){
   const abierto = !rcModCerrados.has(k);
   return `<div class="rc-mod ${abierto?'':'cerrado'}">
-    <div class="rc-mod-head" onclick="rcTogMod('${k}')">
+    <div class="rc-mod-head ${k==='m3'?'rc-mod-head-etapa':''}" onclick="rcTogMod('${k}')">
       <span class="rc-mod-fl">${abierto?'▾':'▸'}</span>
       <span class="rc-mod-tit">${titulo}</span>
       ${extra?`<span class="rc-mod-extra">${extra}</span>`:''}
@@ -15904,20 +15958,25 @@ function htmlFichaReclamo(){
         ${rcEsc(r.proveedor||'El proveedor')} tiene que devolverlo antes del ${rcFechaCorta(venceProv)} · recordatorio a los ${RC_DIAS_PROVEEDOR} días</div>` : ''}` : '';
 
   /* ---------- 3 · Etapa del reclamo ---------- */
-  const paso = (e,i)=>{
-    const cls = i<iAct ? 'hecha' : (i===iAct ? 'activa' : '');
-    return `<div class="rc-paso ${cls}" onclick="rcSetEtapa('${e.id}')">
-              <div class="rc-bola">${rcIcoEtapa(e.id)}</div>
-              <div class="rc-paso-lbl">${e.lbl}</div>
-            </div>`;
-  };
-  const fila1 = RC_ETAPAS.slice(0,4).map((e,i)=>paso(e,i)).join('');
-  const fila2 = RC_ETAPAS.slice(4).map((e,i)=>paso(e,i+4)).join('');
+  const tr = rcTramos(r);
+  const linea = RC_ETAPAS.map((e,i)=>{
+    const t = tr[e.id];
+    const estado = i<iAct ? 'hecha' : (i===iAct ? 'activa' : 'futura');
+    const ultimo = i===RC_ETAPAS.length-1;
+    const sub = estado==='activa'
+      ? `acá está ahora${r.proximaAccionTs && rcAbierto(r) ? ' · vence '+rcFechaCorta(r.proximaAccionTs) : ''}`
+      : (t ? rcFechaCorta(t.fecha) : '');
+    const dias = t && estado!=='activa' ? (t.dias===1 ? '1 día' : t.dias+' días') : (estado==='activa' && t ? (t.dias===1?'1 día':t.dias+' días') : '');
+    const alerta = t && t.dias>=RC_DIAS_VIEJO;
+    return `<div class="rc-tl-p ${estado}" onclick="rcSetEtapa('${e.id}')">
+        <div class="rc-tl-eje"><span class="rc-tl-bola"></span>${ultimo?'':'<span class="rc-tl-linea"></span>'}</div>
+        <div class="rc-tl-txt"><div class="rc-tl-lbl">${e.lbl}</div>${sub?`<div class="rc-tl-sub">${sub}</div>`:''}</div>
+        <div class="rc-tl-dias ${alerta?'alerta':''}">${dias||'—'}</div>
+      </div>`;
+  }).join('');
   const mod3 = `
-    <div class="rc-stepper">${fila1}</div>
-    <div class="rc-stepper">${fila2}</div>
-    ${r.proximaAccionTs && rcAbierto(r)
-      ? `<div class="rc-alerta ${rcAtrasado(r)?'rc-alerta-roja':''}">Próxima acción: ${rcFechaCorta(r.proximaAccionTs)}</div>` : ''}
+    <div class="rc-tl">${linea}</div>
+    ${rcAtrasado(r) ? `<div class="rc-alerta rc-alerta-roja">Próxima acción vencida el ${rcFechaCorta(r.proximaAccionTs)}</div>` : ''}
     ${chipsSub}
     ${bloqueProv}
     <div class="rc-grid3" style="margin-top:14px">
@@ -15968,7 +16027,7 @@ function htmlFichaReclamo(){
     <div class="rc-ficha-cols">
       <div>
         ${rcMod('m4','La solución', mod4, rcEsc(rcSolucionLbl(r.solucion)) || 'sin definir')}
-        ${rcMod('m3','Etapa del reclamo y el costo', mod3, rcEsc(rcEtapaLbl(r.etapa)))}
+        ${rcMod('m3','Etapa del reclamo y el costo', mod3, (rcAbierto(r)?rcDiasAbierto(r)+' días abierto':'cerrado'))}
       </div>
       <div>
         ${rcMod('m1','Datos del cliente y entrega', mod1, rcEsc(r.clienteNombre||'') || 'sin nombre')}
