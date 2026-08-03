@@ -14928,7 +14928,15 @@ function recParaTs(){
 .rc-paso.activa .rc-paso-lbl{color:#1a51b0;font-weight:700}
 .rc-alerta{background:#fff7e6;color:#b45309;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:16px}
 .rc-alerta-roja{background:#fdecea;color:#b42318}
-.rc-ficha-cols{display:grid;grid-template-columns:1.35fr 1fr;gap:22px}
+.rc-ficha-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.rc-mod{border:1px solid var(--line);border-radius:11px;margin-bottom:14px;background:#fff;overflow:hidden}
+.rc-mod-head{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;background:var(--line2)}
+.rc-mod-head:hover{background:#eef2f7}
+.rc-mod-fl{font-size:12px;color:var(--muted);width:11px}
+.rc-mod-tit{font-size:13.5px;font-weight:700;color:var(--ink)}
+.rc-mod-extra{margin-left:auto;font-size:11.5px;color:var(--muted);max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-mod-body{padding:14px 14px 4px}
+.rc-mod.cerrado{background:var(--line2)}
 @media(max-width:900px){.rc-ficha-cols{grid-template-columns:1fr}.rc-stepper{grid-template-columns:repeat(3,1fr)}}
 .rc-mini-lbl{font-size:11.5px;color:var(--muted);margin:4px 0 8px}
 .rc-subetapas{margin-top:12px}
@@ -14960,7 +14968,29 @@ function recParaTs(){
 }
 .rc-btn-alta:hover{background:#96190f}
 .rc-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
-.rc-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.rc-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.rc-card:hover{border-color:var(--blue)}
+.rc-card.on{border-color:var(--blue);box-shadow:0 0 0 2px rgba(30,95,206,.15);background:#f5f8fe}
+.rc-filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.rc-filtros select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:#fff}
+.rc-busca{flex:1;min-width:220px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-family:inherit}
+.rc-limpiar{font-size:12px;color:var(--blue);cursor:pointer}
+.rc-cuenta{margin-left:auto;font-size:12px;color:var(--muted)}
+.rc-th{cursor:pointer;user-select:none;white-space:nowrap}
+.rc-th:hover{color:var(--blue)}
+.rc-fl{font-size:9px;color:var(--blue)}
+.rc-th-ico{width:34px;text-align:center;font-size:13px}
+.rc-ico{width:34px;text-align:center}
+.rc-fuego,.rc-camp,.rc-globo{cursor:pointer;font-size:14px;filter:grayscale(1);opacity:.3}
+.rc-fuego:hover,.rc-camp:hover{filter:none;opacity:.8}
+.rc-fuego.on,.rc-camp.on{filter:none;opacity:1}
+.rc-globo{cursor:help;filter:none;opacity:.85}
+.rc-globo.vacio{filter:grayscale(1);opacity:.25;cursor:default}
+.rc-fila.urg{background:#fff8f5}
+.rc-fila.urg:hover{background:#fff1ea}
+.rc-sub2{font-size:12px;color:var(--sec)}
+.rc-verde{color:#15803d;font-weight:600}
+.rc-gris{color:var(--muted)}
 .rc-card-lbl{font-size:11.5px;color:var(--sec);margin-bottom:4px}
 .rc-card-n{font-size:22px;font-weight:700;color:var(--ink)}
 .rc-card-n.rc-amb{color:var(--amber)} .rc-card-n.rc-rojo{color:var(--red)}
@@ -15058,10 +15088,10 @@ const RC_SOLUCIONES = [
   {id:'otros',          lbl:'Otros',                         dias:null}
 ];
 const RC_ETAPAS = [
-  {id:'nuevo',    lbl:'Reclamo nuevo',        dias:0},
+  {id:'nuevo',    lbl:'Recepción',            dias:0},
   {id:'analisis', lbl:'Análisis',             dias:2},
-  {id:'propuesta',lbl:'Propuesta al cliente', dias:2},
-  {id:'gestion',  lbl:'Gestión de la solución',dias:null},
+  {id:'propuesta',lbl:'Negociación',          dias:2},
+  {id:'gestion',  lbl:'Gestión de solución',  dias:null},
   {id:'cierre',   lbl:'Cerrado',              dias:null}
 ];
 const RC_CIERRES  = ['Resuelto','Resuelto con asesoramiento','Sin solución','Cliente desistió'];
@@ -15145,45 +15175,150 @@ function rcFechaCorta(iso){
 function rcEsc(t){ return String(t==null?'':t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* --- Pantalla: lista ----------------------------------------------------- */
+/* --- Filtros y orden de la lista ------------------------------------------ */
+var rcFiltro = '';          // balde activo: abiertos | sinsol | atrasados | viejos
+var rcBusca = '';
+var rcFiltroEtapa = '';
+var rcFiltroProblema = '';
+var rcOrdenCampo = 'dias';
+var rcOrdenDir = 'desc';
+
+function rcSetFiltro(k){ rcFiltro = (rcFiltro===k ? '' : k); renderCintiaMain(); }
+function rcSetBusca(v){ rcBusca = v; renderCintiaMain(); setTimeout(()=>{const b=$('rcBuscaLista'); if(b){b.focus(); b.setSelectionRange(b.value.length,b.value.length);}},10); }
+function rcSetFiltroEtapa(v){ rcFiltroEtapa = v; renderCintiaMain(); }
+function rcSetFiltroProblema(v){ rcFiltroProblema = v; renderCintiaMain(); }
+function rcOrdenar(campo){
+  if(rcOrdenCampo===campo) rcOrdenDir = (rcOrdenDir==='asc' ? 'desc' : 'asc');
+  else { rcOrdenCampo = campo; rcOrdenDir = (campo==='cliente'||campo==='mueble') ? 'asc' : 'desc'; }
+  renderCintiaMain();
+}
+function rcLimpiarFiltros(){ rcFiltro=''; rcBusca=''; rcFiltroEtapa=''; rcFiltroProblema=''; renderCintiaMain(); }
+
+/* El período de la barra de arriba también recorta los reclamos. */
+function rcEnPeriodo(r){
+  const d = String(r.ts||'').slice(0,10);
+  if(typeof cintiaFechaDesde!=='undefined' && cintiaFechaDesde && d < cintiaFechaDesde) return false;
+  if(typeof cintiaFechaHasta!=='undefined' && cintiaFechaHasta && d > cintiaFechaHasta) return false;
+  return true;
+}
+
+function rcListaFiltrada(base){
+  let l = base.slice();
+  if(rcFiltro==='abiertos')  l = l.filter(rcAbierto);
+  if(rcFiltro==='sinsol')    l = l.filter(r=>rcAbierto(r) && !r.solucion);
+  if(rcFiltro==='atrasados') l = l.filter(rcAtrasado);
+  if(rcFiltro==='viejos')    l = l.filter(r=>rcAbierto(r) && rcDiasAbierto(r)>=RC_DIAS_VIEJO);
+  if(rcFiltroEtapa)    l = l.filter(r=>r.etapa===rcFiltroEtapa);
+  if(rcFiltroProblema) l = l.filter(r=>r.problema===rcFiltroProblema);
+  const q = rcBusca.trim().toLowerCase();
+  if(q) l = l.filter(r=>[r.clienteNombre,r.clienteTelefono,r.mueble,r.orden,rcEtiqueta(r),r.problema,r.subProblema]
+                        .some(x=>String(x||'').toLowerCase().includes(q)));
+  const dir = rcOrdenDir==='asc' ? 1 : -1;
+  const val = r => ({
+    reclamo:     +r.num||0,
+    fecha:       String(r.fechaInicio || r.ts || ''),
+    cliente:     String(r.clienteNombre||'').toLowerCase(),
+    mueble:      String(r.mueble||'').toLowerCase(),
+    responsable: String(r.responsable||'').toLowerCase(),
+    costo:       (parseFloat(r.costoMonto)||0) + (parseFloat(r.saldoFavor)||0),
+    etapa:       RC_ETAPAS.findIndex(e=>e.id===r.etapa),
+    dias:        rcDiasAbierto(r)
+  })[rcOrdenCampo];
+  // Los 🔥 van SIEMPRE arriba, cualquiera sea el orden elegido.
+  l.sort((a,b)=>{
+    if(!!a.urgente !== !!b.urgente) return a.urgente ? -1 : 1;
+    const x=val(a), y=val(b);
+    // localeCompare para que los acentos ordenen como corresponde en castellano
+    if(typeof x==='string') return x.localeCompare(y,'es') * dir;
+    return x<y ? -dir : (x>y ? dir : 0);
+  });
+  return l;
+}
+
+function rcCosto(r){
+  const c = parseFloat(r.costoMonto), sf = parseFloat(r.saldoFavor);
+  if(!isNaN(c) && c) return {txt:'$'+Math.round(c).toLocaleString('es-AR'), cls:''};
+  if(!isNaN(sf) && sf) return {txt:'+$'+Math.round(sf).toLocaleString('es-AR'), cls:'rc-verde'};
+  return {txt:'—', cls:'rc-gris'};
+}
+/* 🔥 lo pone Cintia a mano y manda: los urgentes van siempre arriba de todo. */
+function rcTogUrgente(id, ev){
+  if(ev) ev.stopPropagation();
+  const r = reclamos.find(x=>x.id===id); if(!r) return;
+  r.urgente = !r.urgente; guardarReclamos(); renderCintiaMain();
+}
+function rcTogCampana(id, ev){
+  if(ev) ev.stopPropagation();
+  const r = reclamos.find(x=>x.id===id); if(!r) return;
+  if(r.recordatorio) r.recordatorio = null;
+  else r.recordatorio = {ts:new Date().toISOString(), por:(typeof YO!=='undefined'?YO:null)};
+  guardarReclamos(); renderCintiaMain();
+}
+
 function htmlReclamos(){
-  const abiertos  = reclamos.filter(rcAbierto);
+  const base = reclamos.filter(rcEnPeriodo);
+  const abiertos  = base.filter(rcAbierto);
   const sinSol    = abiertos.filter(r=>!r.solucion);
   const viejos    = abiertos.filter(r=>rcDiasAbierto(r) >= RC_DIAS_VIEJO);
   const atrasados = abiertos.filter(rcAtrasado);
+  const lista = rcListaFiltrada(base);
+  const hayFiltro = rcFiltro || rcBusca.trim() || rcFiltroEtapa || rcFiltroProblema;
 
-  const card = (lbl,n,cls)=>`<div class="rc-card"><div class="rc-card-lbl">${lbl}</div><div class="rc-card-n ${cls||''}">${n}</div></div>`;
+  const card = (k,lbl,n,cls)=>`<div class="rc-card ${rcFiltro===k?'on':''}" onclick="rcSetFiltro('${k}')">
+      <div class="rc-card-lbl">${lbl}</div><div class="rc-card-n ${cls||''}">${n}</div></div>`;
 
-  const orden = [...reclamos].sort((a,b)=>{
-    if(rcAbierto(a)!==rcAbierto(b)) return rcAbierto(a)?-1:1;
-    return rcDiasAbierto(b)-rcDiasAbierto(a);
-  });
+  const fl = c => rcOrdenCampo===c ? (rcOrdenDir==='asc'?' ▲':' ▼') : '';
+  const th = (c,lbl)=>`<th class="rc-th" onclick="rcOrdenar('${c}')">${lbl}<span class="rc-fl">${fl(c)}</span></th>`;
 
-  const filas = orden.length ? orden.map(r=>`
-    <tr class="rc-fila" ondblclick="rcAbrirFicha('${r.id}')">
+  const filas = lista.length ? lista.map(r=>{
+    const co = rcCosto(r);
+    const obs = [r.detalle, r.obsSolucion].filter(Boolean).join(' — ');
+    return `
+    <tr class="rc-fila ${r.urgente?'urg':''}" ondblclick="rcAbrirFicha('${r.id}')">
+      <td class="rc-ico"><span class="rc-fuego ${r.urgente?'on':''}" onclick="rcTogUrgente('${r.id}',event)"
+            title="${r.urgente?'Urgente — clic para sacarlo de arriba':'Marcar como urgente'}">🔥</span></td>
+      <td class="rc-ico"><span class="rc-camp ${r.recordatorio?'on':''}" onclick="rcTogCampana('${r.id}',event)"
+            title="${r.recordatorio?('Recordatorio puesto el '+rcFechaCorta(r.recordatorio.ts)):'Dejarme un recordatorio'}">🔔</span></td>
       <td class="rc-num">${rcEsc(rcEtiqueta(r))}</td>
-      <td><b>${rcEsc(r.clienteNombre||'—')}</b><div class="rc-sub">${rcEsc(r.clienteTelefono||'')}</div></td>
-      <td>${rcEsc(r.mueble||'—')}<div class="rc-sub">${rcEsc(r.problema||'')}${r.subProblema?' · '+rcEsc(r.subProblema):''}</div></td>
+      <td class="rc-sub2">${rcFechaCorta(r.fechaInicio || r.ts)}</td>
       <td><span class="rc-chapa rc-e-${r.etapa}">${rcEsc(rcEtapaLbl(r.etapa))}</span>${r.aConfirmar?'<span class="rc-chapa rc-warn">a confirmar</span>':''}</td>
       <td class="${rcAtrasado(r)?'rc-rojo':''}">${rcAbierto(r)?rcDiasAbierto(r):'—'}</td>
-    </tr>`).join('')
-    : `<tr><td colspan="5" class="rc-vacio">Todavía no hay reclamos cargados.</td></tr>`;
+      <td><b>${rcEsc(r.clienteNombre||'—')}</b><div class="rc-sub">${rcEsc(r.clienteTelefono||'')}</div></td>
+      <td class="rc-sub2">${rcEsc(r.responsable||'—')}</td>
+      <td class="${co.cls}">${co.txt}</td>
+      <td class="rc-ico">${obs?`<span class="rc-globo" title="${rcEsc(obs)}">💬</span>`:'<span class="rc-globo vacio">💬</span>'}</td>
+    </tr>`;}).join('')
+    : `<tr><td colspan="10" class="rc-vacio">${hayFiltro?'Ningún reclamo entra en este filtro.':'Todavía no hay reclamos cargados.'}</td></tr>`;
 
   return `
   <div class="rc-wrap">
-    <div class="rc-head">
-      <h3 class="rc-tit">Reclamos</h3>
-    </div>
+    <div class="rc-head"><h3 class="rc-tit">Reclamos</h3></div>
     <div class="rc-cards">
-      ${card('Abiertos', abiertos.length)}
-      ${card('Sin solución definida', sinSol.length, 'rc-amb')}
-      ${card('Atrasados', atrasados.length, 'rc-rojo')}
-      ${card('Hace '+RC_DIAS_VIEJO+' días o más', viejos.length, 'rc-rojo')}
+      ${card('abiertos','Abiertos', abiertos.length)}
+      ${card('sinsol','Sin solución definida', sinSol.length, 'rc-amb')}
+      ${card('atrasados','Atrasados', atrasados.length, 'rc-rojo')}
+      ${card('viejos','Hace '+RC_DIAS_VIEJO+' días o más', viejos.length, 'rc-rojo')}
+    </div>
+    <div class="rc-filtros">
+      <input id="rcBuscaLista" class="rc-busca" placeholder="Buscar por cliente, teléfono, mueble o N° de reclamo…"
+             value="${rcEsc(rcBusca)}" oninput="rcSetBusca(this.value)">
+      <select onchange="rcSetFiltroEtapa(this.value)"><option value="">Todos los estados</option>
+        ${RC_ETAPAS.map(e=>`<option value="${e.id}" ${rcFiltroEtapa===e.id?'selected':''}>${e.lbl}</option>`).join('')}</select>
+      <select onchange="rcSetFiltroProblema(this.value)"><option value="">Todos los problemas</option>
+        ${Object.keys(RC_PROBLEMAS).map(p=>`<option ${rcFiltroProblema===p?'selected':''}>${p}</option>`).join('')}</select>
+      ${hayFiltro?`<span class="rc-limpiar" onclick="rcLimpiarFiltros()">✕ Limpiar filtros</span>`:''}
+      <span class="rc-cuenta">${lista.length} de ${base.length}</span>
     </div>
     <table class="rc-tabla">
-      <thead><tr><th>Reclamo</th><th>Cliente</th><th>Mueble y problema</th><th>Etapa</th><th>Días</th></tr></thead>
+      <thead><tr>
+        <th class="rc-th-ico">🔥</th><th class="rc-th-ico">🔔</th>
+        ${th('reclamo','N° de reclamo')}${th('fecha','Fecha')}${th('etapa','Estado')}${th('dias','Días')}
+        ${th('cliente','Cliente')}${th('responsable','Responsable')}${th('costo','Costo / saldo')}
+        <th class="rc-th-ico">💬</th>
+      </tr></thead>
       <tbody>${filas}</tbody>
     </table>
-    <div class="rc-pie">Doble clic en una fila para abrir el reclamo.</div>
+    <div class="rc-pie">Doble clic en una fila para abrir el reclamo · el período de arriba también filtra esta lista.</div>
   </div>` + (rcFichaId ? `<div class="rc-modal-ficha" onclick="if(event.target===this) rcVolverLista()">
       <div class="rc-caja-ficha">${htmlFichaReclamo()}</div></div>` : '');
 }
@@ -15499,6 +15634,21 @@ function rcVenceProveedor(r){
   return d.toISOString();
 }
 
+/* Estado de los módulos plegables: fuera del render para que no se cierren solos. */
+var rcModCerrados = new Set();
+function rcTogMod(k){ rcModCerrados.has(k) ? rcModCerrados.delete(k) : rcModCerrados.add(k); renderCintiaMain(); }
+function rcMod(k, titulo, cuerpo, extra){
+  const abierto = !rcModCerrados.has(k);
+  return `<div class="rc-mod ${abierto?'':'cerrado'}">
+    <div class="rc-mod-head" onclick="rcTogMod('${k}')">
+      <span class="rc-mod-fl">${abierto?'▾':'▸'}</span>
+      <span class="rc-mod-tit">${titulo}</span>
+      ${extra?`<span class="rc-mod-extra">${extra}</span>`:''}
+    </div>
+    ${abierto?`<div class="rc-mod-body">${cuerpo}</div>`:''}
+  </div>`;
+}
+
 function htmlFichaReclamo(){
   const r = rcActual();
   if(!r) return '<div class="rc-vacio">Ese reclamo ya no existe. <a href="#" onclick="rcVolverLista();return false;">Volver</a></div>';
@@ -15507,16 +15657,51 @@ function htmlFichaReclamo(){
   const enReparacion = r.subEtapa === RC_SUBETAPA_REPARA;
   const venceProv = rcVenceProveedor(r);
   const puedeSaldo = (typeof esAdmin==='function' && esAdmin());
+  const iAct = RC_ETAPAS.findIndex(x=>x.id===r.etapa);
 
+  /* ---------- 1 · Datos del cliente y entrega ---------- */
+  const mod1 = `
+    <div class="rc-grid3">
+      <label class="rc-f">Nombre<input value="${rcEsc(r.clienteNombre||'')}" onchange="rcCampo('clienteNombre',this.value)"></label>
+      <label class="rc-f">Teléfono<input value="${rcEsc(r.clienteTelefono||'')}" onchange="rcCampo('clienteTelefono',this.value,false)"></label>
+      <label class="rc-f">N° de compra<input value="${rcEsc(r.orden||'')}" onchange="rcCampo('orden',this.value)"></label>
+    </div>
+    <div class="rc-grid3">
+      <label class="rc-f">Fecha de entrega<input placeholder="dd/mm/aa" value="${rcEsc(rcFechaADdMm(r.fechaEntrega))}" onchange="rcCampo('fechaEntrega', rcDdMmAFecha(this.value), false)"></label>
+      <label class="rc-f">Chofer<select onchange="rcCampo('chofer',this.value,false)"><option value="">—</option>
+        ${rcConHistorico(RC_FLETES, r.chofer).map(f=>`<option ${r.chofer===f?'selected':''}>${f}</option>`).join('')}</select></label>
+      <label class="rc-f">Inicio del reclamo<input placeholder="dd/mm/aa" value="${rcEsc(rcFechaADdMm(r.fechaInicio || r.ts))}" onchange="rcCampo('fechaInicio', rcDdMmAFecha(this.value), false)"></label>
+    </div>`;
+
+  /* ---------- 2 · Información del problema ---------- */
+  const mod2 = `
+    <label class="rc-f">Mueble<input value="${rcEsc(r.mueble||'')}" onchange="rcCampo('mueble',this.value,false)"></label>
+    <div class="rc-grid2">
+      <label class="rc-f">Problema<select onchange="rcCampo('problema',this.value)"><option value="">—</option>
+        ${Object.keys(RC_PROBLEMAS).map(p=>`<option ${r.problema===p?'selected':''}>${p}</option>`).join('')}</select></label>
+      <label class="rc-f">Sub problema<select onchange="rcCampo('subProblema',this.value,false)"><option value="">—</option>
+        ${((RC_PROBLEMAS[r.problema]||[]).concat(r.problema&&r.problema!=='Otros'?['Otros']:[])).map(x=>`<option ${r.subProblema===x?'selected':''}>${x}</option>`).join('')}</select></label>
+    </div>
+    <label class="rc-f">Observaciones<textarea rows="3" onchange="rcCampo('detalle',this.value,false)">${rcEsc(r.detalle||'')}</textarea></label>`;
+
+  /* ---------- 3 · Etapa del reclamo ---------- */
   const stepper = RC_ETAPAS.map((e,i)=>{
-    const iAct = RC_ETAPAS.findIndex(x=>x.id===r.etapa);
     const cls = i<iAct ? 'hecha' : (i===iAct ? 'activa' : '');
     return `<div class="rc-paso ${cls}" onclick="rcSetEtapa('${e.id}')">
               <div class="rc-bola">${rcIcoEtapa(e.id)}</div>
               <div class="rc-paso-lbl">${e.lbl}</div>
             </div>`;
   }).join('');
+  const mod3 = `
+    <div class="rc-stepper">${stepper}</div>
+    ${r.proximaAccionTs && rcAbierto(r)
+      ? `<div class="rc-alerta ${rcAtrasado(r)?'rc-alerta-roja':''}">Próxima acción: ${rcFechaCorta(r.proximaAccionTs)}</div>` : ''}
+    <label class="rc-f">¿Cómo se cerró el reclamo?
+      <select onchange="rcSetCierre(this.value)"><option value="">Todavía abierto…</option>
+        ${RC_CIERRES.map(c=>`<option ${r.cierre===c?'selected':''}>${c}</option>`).join('')}</select></label>
+    ${r.cerradoTs?`<div class="rc-mini-lbl">Cerrado el ${rcFechaCorta(r.cerradoTs)}</div>`:''}`;
 
+  /* ---------- 4 · La solución ---------- */
   const chipsSub = subs.length ? `
     <div class="rc-subetapas">
       <div class="rc-mini-lbl">Sub-etapas de esta solución</div>
@@ -15538,11 +15723,38 @@ function htmlFichaReclamo(){
     ${venceProv ? `<div class="rc-alerta ${new Date(venceProv)<new Date()?'rc-alerta-roja':''}">
         ${rcEsc(r.proveedor||'El proveedor')} tiene que devolverlo antes del ${rcFechaCorta(venceProv)} · recordatorio a los ${RC_DIAS_PROVEEDOR} días</div>` : ''}` : '';
 
+  const mod4 = `
+    <div class="rc-grid3">
+      <label class="rc-f">Tipo de solución<select onchange="rcSetSolucion(this.value)"><option value="">Elegir…</option>
+        ${RC_SOLUCIONES.map(x=>`<option value="${x.id}" ${r.solucion===x.id?'selected':''}>${x.lbl}${x.dias?' · '+x.dias+'d':''}</option>`).join('')}</select></label>
+      <label class="rc-f">Responsable de la solución<select onchange="rcCampo('responsable',this.value,false)"><option value="">—</option>
+        ${RC_RESPONSABLES.map(x=>`<option ${r.responsable===x?'selected':''}>${x}</option>`).join('')}</select></label>
+      <label class="rc-f">¿Quién abona el envío?<select onchange="rcCampo('paga',this.value,false)"><option value="">—</option>
+        ${RC_PAGA.map(p=>`<option ${r.paga===p?'selected':''}>${p}</option>`).join('')}</select></label>
+    </div>
+    ${r.solucion==='trae_fabrica' ? `<label class="rc-f">¿Quién lo trae?<select onchange="rcCampo('quienTrae',this.value)">
+        ${RC_QUIEN_TRAE.map(([v,l])=>`<option value="${v}" ${r.quienTrae===v?'selected':''}>${l}</option>`).join('')}</select></label>` : ''}
+    ${r.solucion==='otros' ? `<label class="rc-f">Plazo en días<input type="number" value="${rcEsc(r.plazoOtros||'')}" onchange="rcCampo('plazoOtros',this.value,false)"></label>` : ''}
+    ${chipsSub}
+    ${bloqueProv}
+    <div class="rc-grid3" style="margin-top:14px">
+      <label class="rc-f">Categoría del costo<select onchange="rcCampo('costoCat',this.value,false)"><option value="">—</option>
+        ${RC_COSTOS.map(x=>`<option ${r.costoCat===x?'selected':''}>${x}</option>`).join('')}</select></label>
+      <label class="rc-f">Costo real<input type="number" placeholder="0" value="${rcEsc(r.costoMonto||'')}" onchange="rcCampo('costoMonto',this.value,false)"></label>
+      <label class="rc-f">Saldo a favor<input type="number" ${puedeSaldo?'':'disabled'} placeholder="${puedeSaldo?'0':'lo carga dirección'}" value="${rcEsc(r.saldoFavor||'')}" onchange="rcCampo('saldoFavor',this.value,false)"></label>
+    </div>
+    <label class="rc-f">Observaciones de la solución<textarea rows="2" onchange="rcCampo('obsSolucion',this.value,false)">${rcEsc(r.obsSolucion||'')}</textarea></label>`;
+
+  /* ---------- 5 · Bitácora ---------- */
   const bitacora = (r.bitacora||[]).map(b=>`
     <div class="rc-nota">
       <div class="rc-nota-meta">${rcFechaCorta(b.ts)} · ${rcEsc((typeof nombreDe==='function'&&b.por)?nombreDe(b.por):(b.por||''))}</div>
       <div class="rc-nota-txt">${rcEsc(b.txt)}</div>
     </div>`).join('') || '<div class="rc-mini-lbl">Todavía no hay notas.</div>';
+  const mod5 = `
+    <div class="rc-bitacora">${bitacora}</div>
+    <textarea id="rcNota" rows="2" placeholder="Anotar qué se habló…" class="rc-nota-input"></textarea>
+    <button class="btn btn-sm rc-btn-nota" onclick="rcAgregarNota()">Agregar a la bitácora</button>`;
 
   return `
   <div class="rc-ficha">
@@ -15551,78 +15763,23 @@ function htmlFichaReclamo(){
       <span class="rc-chapa ${rcAtrasado(r)?'rc-warn':''}">${rcAbierto(r)?('Abierto hace '+rcDiasAbierto(r)+' días'):'Cerrado'}</span>
       <span class="rc-x-ficha" onclick="rcVolverLista()">&times;</span>
     </div>
-
-    <div class="rc-stepper">${stepper}</div>
-    ${r.proximaAccionTs && rcAbierto(r)
-      ? `<div class="rc-alerta ${rcAtrasado(r)?'rc-alerta-roja':''}">Próxima acción: ${rcFechaCorta(r.proximaAccionTs)}</div>` : ''}
-
     <div class="rc-ficha-cols">
       <div>
-        <div class="rc-sec-tit">El caso</div>
-        <div class="rc-grid2">
-          <label class="rc-f">Nombre<input value="${rcEsc(r.clienteNombre||'')}" onchange="rcCampo('clienteNombre',this.value,false)"></label>
-          <label class="rc-f">Teléfono<input value="${rcEsc(r.clienteTelefono||'')}" onchange="rcCampo('clienteTelefono',this.value,false)"></label>
-          <label class="rc-f">N° de compra<input value="${rcEsc(r.orden||'')}" onchange="rcCampo('orden',this.value)"></label>
-          <label class="rc-f">Fecha de entrega<input value="${rcEsc(rcFechaADdMm(r.fechaEntrega))}" placeholder="dd/mm/aa" onchange="rcCampo('fechaEntrega', rcDdMmAFecha(this.value), false)"></label>
-          <label class="rc-f">Mueble<input value="${rcEsc(r.mueble||'')}" onchange="rcCampo('mueble',this.value,false)"></label>
-          <label class="rc-f">Chofer<select onchange="rcCampo('chofer',this.value,false)"><option value="">—</option>
-            ${rcConHistorico(RC_FLETES, r.chofer).map(f=>`<option ${r.chofer===f?'selected':''}>${f}</option>`).join('')}</select></label>
-          <label class="rc-f">Problema<select onchange="rcCampo('problema',this.value)"><option value="">—</option>
-            ${Object.keys(RC_PROBLEMAS).map(p=>`<option ${r.problema===p?'selected':''}>${p}</option>`).join('')}</select></label>
-          <label class="rc-f">Sub problema<select onchange="rcCampo('subProblema',this.value,false)"><option value="">—</option>
-            ${((RC_PROBLEMAS[r.problema]||[]).concat(r.problema&&r.problema!=='Otros'?['Otros']:[])).map(x=>`<option ${r.subProblema===x?'selected':''}>${x}</option>`).join('')}</select></label>
-        </div>
-        <label class="rc-f">Observaciones
-          <textarea rows="2" onchange="rcCampo('detalle',this.value,false)">${rcEsc(r.detalle||'')}</textarea></label>
-
-        <div class="rc-sec-tit" style="margin-top:20px">La solución</div>
-        <div class="rc-grid2">
-          <label class="rc-f">Tipo de solución<select onchange="rcSetSolucion(this.value)"><option value="">Elegir…</option>
-            ${RC_SOLUCIONES.map(x=>`<option value="${x.id}" ${r.solucion===x.id?'selected':''}>${x.lbl}${x.dias?' · '+x.dias+'d':''}</option>`).join('')}</select></label>
-          ${r.solucion==='trae_fabrica' ? `<label class="rc-f">¿Quién lo trae?<select onchange="rcCampo('quienTrae',this.value)">
-            ${RC_QUIEN_TRAE.map(([v,l])=>`<option value="${v}" ${r.quienTrae===v?'selected':''}>${l}</option>`).join('')}</select></label>` :
-            `<label class="rc-f">¿Quién paga el envío?<select onchange="rcCampo('paga',this.value,false)"><option value="">—</option>
-            ${RC_PAGA.map(p=>`<option ${r.paga===p?'selected':''}>${p}</option>`).join('')}</select></label>`}
-        </div>
-        ${r.solucion==='trae_fabrica' ? `<div class="rc-grid2"><label class="rc-f">¿Quién paga el envío?<select onchange="rcCampo('paga',this.value,false)"><option value="">—</option>
-            ${RC_PAGA.map(p=>`<option ${r.paga===p?'selected':''}>${p}</option>`).join('')}</select></label>
-            ${r.solucion==='otros'?'':'<span></span>'}</div>` : ''}
-        ${r.solucion==='otros' ? `<label class="rc-f">Plazo en días<input type="number" value="${rcEsc(r.plazoOtros||'')}" onchange="rcCampo('plazoOtros',this.value,false)"></label>` : ''}
-        ${chipsSub}
-        ${bloqueProv}
-
-        <div class="rc-sec-tit" style="margin-top:20px">Responsable y costo</div>
-        <div class="rc-grid2">
-          <label class="rc-f">Responsable<select onchange="rcCampo('responsable',this.value,false)"><option value="">—</option>
-            ${RC_RESPONSABLES.map(x=>`<option ${r.responsable===x?'selected':''}>${x}</option>`).join('')}</select></label>
-          <label class="rc-f">Categoría de costo<select onchange="rcCampo('costoCat',this.value,false)"><option value="">—</option>
-            ${RC_COSTOS.map(x=>`<option ${r.costoCat===x?'selected':''}>${x}</option>`).join('')}</select></label>
-          <label class="rc-f">Costo real<input type="number" value="${rcEsc(r.costoMonto||'')}" placeholder="0" onchange="rcCampo('costoMonto',this.value,false)"></label>
-          <label class="rc-f">Saldo a favor
-            <input type="number" value="${rcEsc(r.saldoFavor||'')}" ${puedeSaldo?'':'disabled'} placeholder="${puedeSaldo?'0':'lo carga dirección'}" onchange="rcCampo('saldoFavor',this.value,false)"></label>
-        </div>
+        ${rcMod('m1','Datos del cliente y entrega', mod1, rcEsc(r.clienteNombre||'') || 'sin nombre')}
+        ${rcMod('m2','Información del problema', mod2, rcEsc([r.problema,r.subProblema].filter(Boolean).join(' · ')) || 'sin cargar')}
       </div>
-
       <div>
-        <div class="rc-sec-tit">Bitácora</div>
-        <div class="rc-bitacora">${bitacora}</div>
-        <textarea id="rcNota" rows="2" placeholder="Anotar qué se habló…" class="rc-nota-input"></textarea>
-        <button class="btn btn-sm rc-btn-nota" onclick="rcAgregarNota()">Agregar a la bitácora</button>
-
-        <div class="rc-sec-tit" style="margin-top:22px">Cerrar el reclamo</div>
-        <select class="rc-cierre-sel" onchange="rcSetCierre(this.value)"><option value="">Elegir cómo terminó…</option>
-          ${RC_CIERRES.map(c=>`<option ${r.cierre===c?'selected':''}>${c}</option>`).join('')}</select>
-        ${r.cerradoTs?`<div class="rc-mini-lbl">Cerrado el ${rcFechaCorta(r.cerradoTs)}</div>`:''}
+        ${rcMod('m3','Etapa del reclamo', mod3, rcEsc(rcEtapaLbl(r.etapa)))}
+        ${rcMod('m4','La solución y el costo', mod4, rcEsc(rcSolucionLbl(r.solucion)) || 'sin definir')}
+        ${rcMod('m5','Bitácora', mod5, (r.bitacora||[]).length ? (r.bitacora.length+' notas') : '')}
       </div>
     </div>
-
     <div class="rc-ficha-pie">
       <button class="btn btn-outline btn-sm" onclick="rcVolverLista()">Cerrar</button>
       <span class="rc-mini-lbl">Se guarda solo, cada vez que cambiás algo.</span>
     </div>
   </div>`;
 }
-
 
 </script>
 </body>
