@@ -14971,9 +14971,7 @@ function recParaTs(){
 .rc-tl-p.activa .rc-tl-linea{background:#e8ecf2}
 .rc-tl-p.activa .rc-tl-lbl{color:#8a5a09;font-weight:700;font-size:13.5px}
 .rc-tl-p.activa .rc-tl-sub{color:#b45309}
-.rc-mod-head-etapa{background:#0f2f5c}
-.rc-mod-head-etapa .rc-mod-tit,.rc-mod-head-etapa .rc-mod-fl{color:#fff}
-.rc-mod-head-etapa .rc-mod-extra{color:#9db6dd}
+
 .rc-paso{text-align:center;cursor:pointer;padding:6px 2px;border-radius:9px}
 .rc-paso:hover{background:var(--line2)}
 .rc-bola{width:34px;height:34px;margin:0 auto 6px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;background:#fff}
@@ -15081,9 +15079,12 @@ function recParaTs(){
 .rc-pie{font-size:11.5px;color:var(--muted);margin-top:8px}
 .rc-chapa{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;background:var(--line2);color:var(--sec);margin-right:5px}
 .rc-e-nuevo{background:#fdecea;color:#b42318}
-.rc-e-analisis{background:#fff7e6;color:#b45309}
-.rc-e-propuesta{background:#e7effc;color:#1e5fce}
-.rc-e-gestion{background:#e7effc;color:#1a51b0}
+.rc-e-analisis{background:#fdecea;color:#b42318}
+.rc-e-propuesta{background:#fdeee6;color:#d1531f}
+.rc-e-acuerdo{background:#fdf1e3;color:#c46a12}
+.rc-e-gestion{background:#fdf4e3;color:#a9700f}
+.rc-e-listo{background:#fbf6dd;color:#8a7208}
+.rc-e-coordinado{background:#f0f7e2;color:#5f8a1f}
 .rc-e-cierre{background:#e7f5ec;color:#15803d}
 .rc-warn{background:#fff7e6;color:#b45309}
 /* Modal de alta: UNA columna y cabecera roja, para que no se confunda con
@@ -15175,6 +15176,13 @@ const RC_ETAPAS = [
   {id:'coordinado', lbl:'Coordinado el arreglo', dias:3},
   {id:'cierre',     lbl:'Cerrado',               dias:null}
 ];
+/* El color dice QUÉ TAN AVANZADO está el reclamo: rojo recién entrado, verde cerrado. */
+const RC_COLOR_ETAPA = {
+  nuevo:'#b42318', analisis:'#b42318', propuesta:'#d1531f', acuerdo:'#e07b1f',
+  gestion:'#e0952e', listo:'#e5c22e', coordinado:'#8fbf3f', cierre:'#1f7a46'
+};
+function rcColorEtapa(id){ return RC_COLOR_ETAPA[id] || '#c3cad6'; }
+
 const RC_CIERRES  = ['Resuelto','Resuelto con asesoramiento','Sin solución','Cliente desistió'];
 const RC_COSTOS   = ['Sin costo','Costo bajo','Costo medio','Costo alto','Devolución'];
 const RC_FLETES   = ['Ivan','Fabian Ramirez','Juan Fredes','Juan Berrina','Expreso','Retiro','Pedro'];
@@ -15623,6 +15631,23 @@ const RC_SUBETAPAS = {
   cambio_domic:         ['Solicitud del mueble nuevo','Recepción del mueble','Listo, coordinar cambio','Entregado con recepción del anterior'],
   otros:                ['Pedido','En curso','Listo']
 };
+/* Cada sub-etapa empuja la etapa del reclamo. Así Cintia marca UNA sola cosa y el
+   recorrido (y por lo tanto los plazos y los tiempos por tramo) se actualiza solo. */
+const RC_SUB_A_ETAPA = {
+  'Esperando que lo traiga':'gestion', 'Retiro pedido':'gestion', 'Recibido':'gestion',
+  'En reparación':'gestion', 'Listo':'listo', 'Coordinar devolución':'coordinado',
+  'Entregado':'cierre',
+  'Viaje pedido':'coordinado',
+  'Carpintero avisado':'gestion', 'Visita coordinada':'coordinado', 'Hecho':'cierre',
+  'Monto acordado':'gestion', 'Retiro coordinado':'coordinado', 'Pagado':'cierre',
+  'Reemplazo listo':'listo',
+  'Solicitud del mueble nuevo':'gestion', 'Recepción del mueble':'gestion',
+  'Listo, coordinar cambio':'listo', 'Entregado con recepción del anterior':'cierre',
+  'Pedido':'gestion', 'En curso':'gestion'
+};
+/* Las sub-etapas recién se habilitan cuando el cliente aceptó la propuesta. */
+function rcSubHabilitadas(r){ return RC_ETAPAS.findIndex(e=>e.id===r.etapa) >= RC_ETAPAS.findIndex(e=>e.id==='acuerdo'); }
+
 const RC_QUIEN_TRAE = [['cliente','Lo trae el cliente'],['nosotros','Lo vamos a buscar']];
 const RC_PAGA = ['Belgrano Home','El cliente','Compartido','El proveedor'];
 const RC_DIAS_PROVEEDOR = 6;   // recordatorio para exigirle la devolución
@@ -15635,6 +15660,20 @@ function rcClaveSub(r){
   return r.solucion || '';
 }
 function rcSubEtapasDe(r){ return RC_SUBETAPAS[rcClaveSub(r)] || []; }
+/* Cuándo se marcó cada sub-etapa y cuántos días pasaron hasta la siguiente.
+   El dato ya se venía guardando en subEtapasTs; acá recién se muestra. */
+function rcSubTramos(r, subs){
+  const ts = r.subEtapasTs || {};
+  const marcadas = subs.filter(x=>ts[x]).sort((a,b)=> new Date(ts[a])-new Date(ts[b]));
+  const out = {};
+  marcadas.forEach((x,i)=>{
+    const desde = new Date(ts[x]);
+    const sig = marcadas[i+1] ? new Date(ts[marcadas[i+1]]) : null;
+    const hasta = sig || new Date();
+    out[x] = {ts:ts[x], dias:Math.max(0,Math.round((hasta-desde)/86400000)), enCurso:!sig};
+  });
+  return out;
+}
 function rcSolucionLbl(id){ const s=RC_SOLUCIONES.find(x=>x.id===id); return s?s.lbl:''; }
 /* Los reclamos migrados traen choferes y proveedores que ya no están en la lista
    (Marcos, Lalo, Mauro…). Se agregan al desplegable solo para ese registro, así el
@@ -15665,7 +15704,6 @@ function rcIcoEtapa(id){
 function rcModCompleto(r, k){
   if(k==='m1') return !!((r.clienteNombre||r.clienteTelefono) && r.orden && r.fechaEntrega);
   if(k==='m2') return !!(r.problema && (rcMuebles(r)[0]||{}).mueble);
-  if(k==='m4') return !!(r.solucion && r.responsable);
   return false;
 }
 /* Al abrir: lo que ya está cargado se pliega y queda a la vista la etapa, que es
@@ -15675,7 +15713,7 @@ function rcAbrirFicha(id){
   const r = rcActual();
   if(r){
     rcModCerrados = new Set(['m5']);
-    ['m1','m2','m4'].forEach(k=>{ if(rcModCompleto(r,k)) rcModCerrados.add(k); });
+    ['m1','m2'].forEach(k=>{ if(rcModCompleto(r,k)) rcModCerrados.add(k); });
   }
   if(typeof renderCintiaMain==='function') renderCintiaMain();
   try{window.scrollTo(0,0);}catch(e){}
@@ -15718,6 +15756,14 @@ function rcSetSubEtapa(v){
   r.subEtapa = (r.subEtapa===v ? '' : v);
   r.subEtapasTs = r.subEtapasTs || {};
   if(r.subEtapa && !r.subEtapasTs[r.subEtapa]) r.subEtapasTs[r.subEtapa] = new Date().toISOString();
+  // La sub-etapa empuja la etapa del reclamo, solo hacia ADELANTE: desmarcar no
+  // retrocede el caso, y una etapa avanzada a mano no se pisa.
+  const destino = r.subEtapa && RC_SUB_A_ETAPA[r.subEtapa];
+  if(destino){
+    const iAhora = RC_ETAPAS.findIndex(e=>e.id===r.etapa);
+    const iDest  = RC_ETAPAS.findIndex(e=>e.id===destino);
+    if(iDest > iAhora){ rcSetEtapa(destino); return; }   // rcSetEtapa ya guarda y repinta
+  }
   guardarReclamos(); renderCintiaMain();
 }
 function rcSetProveedor(v){
@@ -15752,6 +15798,36 @@ function rcVenceProveedor(r){
 /* Estado de los módulos plegables: fuera del render para que no se cierren solos. */
 var rcModCerrados = new Set(['m5']);   // la bitácora arranca cerrada
 var rcFotoVer = null;
+var rcEditRec = false;   // ✏️ del recorrido: Cintia interviene la cadena a mano
+
+function rcTogEditRec(ev){ if(ev) ev.stopPropagation(); rcEditRec = !rcEditRec; renderCintiaMain(); }
+
+/* Corrige la fecha en que el reclamo entró en una etapa. Recalcula los tramos solo. */
+function rcFechaEtapa(id, val, ev){
+  if(ev) ev.stopPropagation();
+  const r = rcActual(); if(!r) return;
+  const iso = rcDdMmAFecha(val);
+  if(!iso){ toast('Fecha inválida'); return; }
+  r.historial = r.historial || [];
+  const e = r.historial.find(x=>x.etapa===id);
+  const ts = new Date(iso+'T12:00:00').toISOString();
+  if(e) e.ts = ts;
+  else r.historial.push({etapa:id, ts, por:(typeof YO!=='undefined'?YO:null), editado:true});
+  guardarReclamos(); renderCintiaMain();
+}
+/* "Por acá no pasó": saca la etapa del recorrido. Si era la actual, el reclamo
+   vuelve a la última etapa que sí quedó registrada. */
+function rcQuitarEtapa(id, ev){
+  if(ev) ev.stopPropagation();
+  const r = rcActual(); if(!r) return;
+  r.historial = (r.historial||[]).filter(x=>x.etapa!==id);
+  if(r.etapa===id){
+    const ult = r.historial.slice().sort((a,b)=> new Date(a.ts)-new Date(b.ts)).pop();
+    r.etapa = ult ? ult.etapa : 'nuevo';
+    if(r.etapa!=='cierre'){ r.cerradoTs=null; r.cierre=''; }
+  }
+  guardarReclamos(); renderCintiaMain();
+}
 
 /* Los reclamos viejos traen un solo `mueble` de texto. Se convierte a lista la
    primera vez que se toca, sin tocar nada en la base hasta que haya un cambio. */
@@ -15835,6 +15911,56 @@ h1{text-align:center;font-size:22px;letter-spacing:.32em;margin:0 0 4px}
 .p-firmas{display:flex;gap:60px;margin-top:52px}
 .p-firma{flex:1;border-top:1px solid #b9c1cf;padding-top:6px;text-align:center;font-size:10.5px;color:#8a94a6}
 @media print{body{padding:0}}
+
+/* Cabecera del módulo de etapas: va al final para ganar por orden de cascada. */
+.rc-mod-head.rc-mod-head-etapa{background:#0f2f5c}
+.rc-mod-head.rc-mod-head-etapa .rc-mod-tit{color:#fff}
+.rc-mod-head.rc-mod-head-etapa .rc-mod-fl{color:#9db6dd}
+.rc-mod-head.rc-mod-head-etapa .rc-mod-extra{color:#9db6dd}
+.rc-mod-head.rc-mod-head-etapa:hover{background:#143a6f}
+.rc-sub-bloq{opacity:.45;pointer-events:none}
+.rc-sub-aviso{font-size:11.5px;color:var(--muted);margin:4px 0 8px}
+
+/* Sub-etapas como checklist vertical, con la fecha y los días de cada paso. */
+.rc-sub-head{display:flex;align-items:baseline;gap:8px;margin:14px 0 8px}
+.rc-sub-head>span:first-child{font-size:11.5px;font-weight:700;color:var(--sec);text-transform:uppercase;letter-spacing:.05em}
+.rc-sub-cuenta{margin-left:auto;font-size:12px;color:var(--muted)}
+.rc-sub-lista{border:1px solid var(--line2);border-radius:9px;overflow:hidden}
+.rc-sub-fila{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line2);cursor:pointer}
+.rc-sub-fila:last-child{border-bottom:none}
+.rc-sub-fila:hover{background:var(--line2)}
+.rc-sub-bola{width:18px;height:18px;flex:0 0 18px;border-radius:50%;background:#fff;border:2px solid #dfe4ec;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff}
+.rc-sub-lbl{font-size:13px;color:var(--muted)}
+.rc-sub-fecha{margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.rc-sub-fecha.lento{color:var(--red);font-weight:700}
+.rc-sub-fila.hecha .rc-sub-bola{background:#1f7a46;border-color:#1f7a46}
+.rc-sub-fila.hecha .rc-sub-lbl{color:var(--ink)}
+.rc-sub-fila.activa{background:#fffaf0}
+.rc-sub-fila.activa .rc-sub-bola{background:#fff;border:3px solid #e0a52e}
+.rc-sub-fila.activa .rc-sub-lbl{color:#8a5a09;font-weight:700}
+
+.rc-edit-lapiz{margin-left:auto;cursor:pointer;font-size:13px;filter:grayscale(1);opacity:.4}
+.rc-edit-lapiz:hover{filter:none;opacity:1}
+.rc-edit-lapiz.on{filter:none;opacity:1}
+.rc-tl-edit{margin-left:auto;display:flex;align-items:center;gap:6px;padding-top:1px}
+.rc-tl-edit input{width:88px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-family:inherit}
+.rc-tl-x{cursor:pointer;color:var(--muted);font-size:12px;width:12px;text-align:center}
+.rc-tl-x:hover{color:var(--red)}
+.rc-tl-x.vacia{cursor:default}
+
+/* Ficha en UNA columna y más angosta: a 1120px los campos quedaban larguísimos. */
+.rc-caja-ficha{max-width:820px}
+.rc-ficha-cols{display:block}
+/* Recorrido como barra horizontal de colores: rojo al entrar, verde al cerrar. */
+.rc-barra{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-bottom:6px}
+.rc-bar-p{cursor:pointer;text-align:center;padding-bottom:2px;border-radius:6px}
+.rc-bar-p:hover{background:var(--line2)}
+.rc-bar-seg{height:6px;border-radius:3px;margin-bottom:6px}
+.rc-bar-lbl{font-size:10.5px;color:var(--muted);line-height:1.25}
+.rc-bar-p.act .rc-bar-lbl{font-weight:700}
+.rc-bar-dias{font-size:10px;color:var(--muted);margin-top:2px}
+.rc-bar-dias.lento{color:var(--red);font-weight:700}
+@media(max-width:640px){.rc-barra{grid-template-columns:repeat(4,1fr);gap:6px}}
 </style></head><body>
 <div class="p-top">
   <div class="p-logo"><div class="p-cua">BH</div><div class="p-marca">Belgrano Home<small>ENVÍOS</small></div></div>
@@ -15933,14 +16059,28 @@ function htmlFichaReclamo(){
       ${fotos.map((f,i)=>`<div class="rc-foto" onclick="rcVerFoto(${i})"><img src="${f}" alt="Foto ${i+1} del reclamo"></div>`).join('')}
       <label class="rc-foto rc-foto-add">+<input type="file" accept="image/*" multiple onchange="rcSubirFotos(this)" style="display:none"></label>
     </div>
-    <label class="rc-f" style="margin-top:14px">Observaciones del reclamo
-      <textarea rows="4" onchange="rcCampo('detalle',this.value,false)">${rcEsc(r.detalle||'')}</textarea></label>`;
+`;
 
+  const subOk = rcSubHabilitadas(r);
+  const subTr = rcSubTramos(r, subs);
+  const hechas = subs.filter((x,i)=> i<idxAct).length + (r.subEtapa?1:0);
   const chipsSub = subs.length ? `
     <div class="rc-subetapas">
-      <div class="rc-mini-lbl">Sub-etapas de esta solución</div>
-      <div class="rc-chips">${subs.map((x,i)=>`
-        <span class="rc-chip ${i<idxAct?'hecha':''} ${x===r.subEtapa?'activa':''}" onclick="rcSetSubEtapa('${rcEsc(x).replace(/'/g,"\\'")}')">${rcEsc(x)}</span>`).join('')}
+      <div class="rc-sub-head">
+        <span>Sub-etapas de esta solución</span>
+        <span class="rc-sub-cuenta">${hechas} de ${subs.length}</span>
+      </div>
+      ${subOk ? '' : '<div class="rc-sub-aviso">Se habilitan cuando el cliente acepta la propuesta (etapa Acuerdo).</div>'}
+      <div class="rc-sub-lista ${subOk?'':'rc-sub-bloq'}">${subs.map((x,i)=>{
+        const t = subTr[x];
+        const est = (x===r.subEtapa) ? 'activa' : (i<idxAct ? 'hecha' : '');
+        const der = t ? (rcFechaCorta(t.ts) + ' · ' + (t.enCurso ? ('hace '+t.dias+(t.dias===1?' día':' días')) : (t.dias===1?'1 día':t.dias+' días'))) : '';
+        const lento = t && t.dias >= RC_DIAS_VIEJO;
+        return `<div class="rc-sub-fila ${est}" onclick="rcSetSubEtapa('${rcEsc(x).replace(/'/g,"\\'")}')">
+            <span class="rc-sub-bola">${est==='hecha'?'✓':''}</span>
+            <span class="rc-sub-lbl">${rcEsc(x)}</span>
+            <span class="rc-sub-fecha ${lento?'lento':''}">${der}</span>
+          </div>`;}).join('')}
       </div>
     </div>` : (r.solucion ? '<div class="rc-mini-lbl">Esta solución se cierra directo, sin sub-etapas.</div>' : '');
 
@@ -15959,6 +16099,21 @@ function htmlFichaReclamo(){
 
   /* ---------- 3 · Etapa del reclamo ---------- */
   const tr = rcTramos(r);
+  /* Barra horizontal: cada etapa con su color. Las que ya pasaron van pintadas,
+     las que faltan en gris. El color del tramo actual es el semáforo del caso. */
+  const barra = RC_ETAPAS.map((e,i)=>{
+    const t = tr[e.id];
+    const pasada = i<=iAct;
+    const act = i===iAct;
+    const col = pasada ? rcColorEtapa(e.id) : '#e8ecf2';
+    const dias = t ? (t.dias===1?'1 día':t.dias+' días') : '';
+    const lento = t && t.dias>=RC_DIAS_VIEJO;
+    return `<div class="rc-bar-p ${act?'act':''}" onclick="rcSetEtapa('${e.id}')" title="${rcEsc(e.lbl)}">
+        <div class="rc-bar-seg" style="background:${col}"></div>
+        <div class="rc-bar-lbl" ${act?`style="color:${rcColorEtapa(e.id)}"`:''}>${e.lbl}</div>
+        <div class="rc-bar-dias ${lento?'lento':''}">${act?(dias||'hoy'):(dias||'')}</div>
+      </div>`;
+  }).join('');
   const linea = RC_ETAPAS.map((e,i)=>{
     const t = tr[e.id];
     const estado = i<iAct ? 'hecha' : (i===iAct ? 'activa' : 'futura');
@@ -15968,18 +16123,47 @@ function htmlFichaReclamo(){
       : (t ? rcFechaCorta(t.fecha) : '');
     const dias = t && estado!=='activa' ? (t.dias===1 ? '1 día' : t.dias+' días') : (estado==='activa' && t ? (t.dias===1?'1 día':t.dias+' días') : '');
     const alerta = t && t.dias>=RC_DIAS_VIEJO;
+    const der = rcEditRec
+      ? `<div class="rc-tl-edit">
+           <input value="${rcEsc(t?rcFechaADdMm(t.fecha):'')}" placeholder="dd/mm/aa"
+                  onclick="event.stopPropagation()" onchange="rcFechaEtapa('${e.id}',this.value,event)">
+           ${t?`<span class="rc-tl-x" onclick="rcQuitarEtapa('${e.id}',event)" title="Por acá no pasó">✕</span>`:'<span class="rc-tl-x vacia"></span>'}
+         </div>`
+      : `<div class="rc-tl-dias ${alerta?'alerta':''}">${dias||'—'}</div>`;
     return `<div class="rc-tl-p ${estado}" onclick="rcSetEtapa('${e.id}')">
         <div class="rc-tl-eje"><span class="rc-tl-bola"></span>${ultimo?'':'<span class="rc-tl-linea"></span>'}</div>
         <div class="rc-tl-txt"><div class="rc-tl-lbl">${e.lbl}</div>${sub?`<div class="rc-tl-sub">${sub}</div>`:''}</div>
-        <div class="rc-tl-dias ${alerta?'alerta':''}">${dias||'—'}</div>
+        ${der}
       </div>`;
   }).join('');
   const mod3 = `
-    <div class="rc-tl">${linea}</div>
-    ${rcAtrasado(r) ? `<div class="rc-alerta rc-alerta-roja">Próxima acción vencida el ${rcFechaCorta(r.proximaAccionTs)}</div>` : ''}
+    <div class="rc-grid2">
+      <label class="rc-f">Tipo de solución<select onchange="rcSetSolucion(this.value)"><option value="">Elegir…</option>
+        ${RC_SOLUCIONES.map(x=>`<option value="${x.id}" ${r.solucion===x.id?'selected':''}>${x.lbl}${x.dias?' · '+x.dias+'d':''}</option>`).join('')}</select></label>
+      ${r.solucion==='trae_fabrica'
+        ? `<label class="rc-f">¿Quién lo trae?<select onchange="rcCampo('quienTrae',this.value)">
+            ${RC_QUIEN_TRAE.map(([v,l])=>`<option value="${v}" ${r.quienTrae===v?'selected':''}>${l}</option>`).join('')}</select></label>`
+        : (r.solucion==='otros'
+            ? `<label class="rc-f">Plazo en días<input type="number" value="${rcEsc(r.plazoOtros||'')}" onchange="rcCampo('plazoOtros',this.value,false)"></label>`
+            : '<span></span>')}
+    </div>
     ${chipsSub}
     ${bloqueProv}
-    <div class="rc-grid3" style="margin-top:14px">
+    <div class="rc-sub-head" style="margin-top:16px">
+      <span>Recorrido del reclamo</span>
+      <span class="rc-edit-lapiz ${rcEditRec?'on':''}" onclick="rcTogEditRec(event)"
+            title="${rcEditRec?'Terminar de editar':'Editar el recorrido a mano'}">✏️</span>
+    </div>
+    ${rcEditRec ? '<div class="rc-sub-aviso">Tocá una etapa para volver a ella, corregí la fecha de entrada, o sacala con la ✕ si por ahí no pasó. Los días se recalculan solos.</div>' : ''}
+    ${rcEditRec ? `<div class="rc-tl">${linea}</div>` : `<div class="rc-barra">${barra}</div>`}
+    ${rcAtrasado(r) ? `<div class="rc-alerta rc-alerta-roja">Próxima acción vencida el ${rcFechaCorta(r.proximaAccionTs)}</div>` : ''}
+    <div class="rc-grid2">
+      <label class="rc-f">Responsable de la solución<select onchange="rcCampo('responsable',this.value,false)"><option value="">—</option>
+        ${RC_RESPONSABLES.map(x=>`<option ${r.responsable===x?'selected':''}>${x}</option>`).join('')}</select></label>
+      <label class="rc-f">¿Quién abona el envío?<select onchange="rcCampo('paga',this.value,false)"><option value="">—</option>
+        ${RC_PAGA.map(p=>`<option ${r.paga===p?'selected':''}>${p}</option>`).join('')}</select></label>
+    </div>
+    <div class="rc-grid3">
       <label class="rc-f">Categoría del costo<select onchange="rcCampo('costoCat',this.value,false)"><option value="">—</option>
         ${RC_COSTOS.map(x=>`<option ${r.costoCat===x?'selected':''}>${x}</option>`).join('')}</select></label>
       <label class="rc-f">Costo real<input type="number" placeholder="0" value="${rcEsc(r.costoMonto||'')}" onchange="rcCampo('costoMonto',this.value,false)"></label>
@@ -15989,22 +16173,9 @@ function htmlFichaReclamo(){
       <select onchange="rcSetCierre(this.value)"><option value="">Todavía abierto…</option>
         ${RC_CIERRES.map(c=>`<option ${r.cierre===c?'selected':''}>${c}</option>`).join('')}</select></label>
     ${r.cerradoTs?`<div class="rc-mini-lbl">Cerrado el ${rcFechaCorta(r.cerradoTs)}</div>`:''}
-    <label class="rc-f">Observaciones de la solución
-      <textarea rows="3" onchange="rcCampo('obsSolucion',this.value,false)">${rcEsc(r.obsSolucion||'')}</textarea></label>`;
+`;
 
   /* ---------- 4 · La solución ---------- */
-  const mod4 = `
-    <div class="rc-grid3">
-      <label class="rc-f">Tipo de solución<select onchange="rcSetSolucion(this.value)"><option value="">Elegir…</option>
-        ${RC_SOLUCIONES.map(x=>`<option value="${x.id}" ${r.solucion===x.id?'selected':''}>${x.lbl}${x.dias?' · '+x.dias+'d':''}</option>`).join('')}</select></label>
-      <label class="rc-f">Responsable de la solución<select onchange="rcCampo('responsable',this.value,false)"><option value="">—</option>
-        ${RC_RESPONSABLES.map(x=>`<option ${r.responsable===x?'selected':''}>${x}</option>`).join('')}</select></label>
-      <label class="rc-f">¿Quién abona el envío?<select onchange="rcCampo('paga',this.value,false)"><option value="">—</option>
-        ${RC_PAGA.map(p=>`<option ${r.paga===p?'selected':''}>${p}</option>`).join('')}</select></label>
-    </div>
-    ${r.solucion==='trae_fabrica' ? `<label class="rc-f">¿Quién lo trae?<select onchange="rcCampo('quienTrae',this.value)">
-        ${RC_QUIEN_TRAE.map(([v,l])=>`<option value="${v}" ${r.quienTrae===v?'selected':''}>${l}</option>`).join('')}</select></label>` : ''}
-    ${r.solucion==='otros' ? `<label class="rc-f">Plazo en días<input type="number" value="${rcEsc(r.plazoOtros||'')}" onchange="rcCampo('plazoOtros',this.value,false)"></label>` : ''}`;
 
   /* ---------- 5 · Bitácora ---------- */
   const bitacora = (r.bitacora||[]).map(b=>`
@@ -16013,6 +16184,13 @@ function htmlFichaReclamo(){
       <div class="rc-nota-txt">${rcEsc(b.txt)}</div>
     </div>`).join('') || '<div class="rc-mini-lbl">Todavía no hay notas.</div>';
   const mod5 = `
+    <div class="rc-grid2">
+      <label class="rc-f">Observaciones del reclamo
+        <textarea rows="3" onchange="rcCampo('detalle',this.value,false)">${rcEsc(r.detalle||'')}</textarea></label>
+      <label class="rc-f">Observaciones de la solución
+        <textarea rows="3" onchange="rcCampo('obsSolucion',this.value,false)">${rcEsc(r.obsSolucion||'')}</textarea></label>
+    </div>
+    <div class="rc-mini-lbl">Bitácora</div>
     <div class="rc-bitacora">${bitacora}</div>
     <textarea id="rcNota" rows="2" placeholder="Anotar qué se habló…" class="rc-nota-input"></textarea>
     <button class="btn btn-sm rc-btn-nota" onclick="rcAgregarNota()">Agregar a la bitácora</button>`;
@@ -16025,15 +16203,14 @@ function htmlFichaReclamo(){
       <span class="rc-x-ficha" onclick="rcVolverLista()">&times;</span>
     </div>
     <div class="rc-ficha-cols">
-      <div>
-        ${rcMod('m4','La solución', mod4, rcEsc(rcSolucionLbl(r.solucion)) || 'sin definir')}
-        ${rcMod('m3','Etapa del reclamo y el costo', mod3, (rcAbierto(r)?rcDiasAbierto(r)+' días abierto':'cerrado'))}
-      </div>
-      <div>
-        ${rcMod('m1','Datos del cliente y entrega', mod1, rcEsc(r.clienteNombre||'') || 'sin nombre')}
-        ${rcMod('m2','Información del problema', mod2, rcEsc([r.problema,r.subProblema].filter(Boolean).join(' · ')) || 'sin cargar')}
-        ${rcMod('m5','Bitácora', mod5, (r.bitacora||[]).length ? (r.bitacora.length+' notas') : '')}
-      </div>
+      ${rcMod('m1','1 · Datos del cliente y entrega', mod1,
+          [r.clienteNombre, r.clienteTelefono, r.orden?('orden '+r.orden):''].filter(Boolean).map(rcEsc).join(' · ') || 'sin cargar')}
+      ${rcMod('m2','2 · Información del problema', mod2,
+          [r.mueble, r.problema, r.subProblema].filter(Boolean).map(rcEsc).join(' · ') || 'sin cargar')}
+      ${rcMod('m3','3 · La solución y el recorrido', mod3,
+          (rcSolucionLbl(r.solucion)||'sin solución') + ' · ' + (rcAbierto(r)?rcDiasAbierto(r)+'d':'cerrado'))}
+      ${rcMod('m5','4 · Observaciones y bitácora', mod5,
+          (r.bitacora||[]).length ? (r.bitacora.length+' notas') : ((r.detalle||r.obsSolucion)?'con observaciones':''))}
     </div>
     ${rcFotoVer!==null && fotos[rcFotoVer] ? `<div class="rc-lightbox" onclick="rcCerrarFoto(event)">
         <img src="${fotos[rcFotoVer]}" alt="Imagen del reclamo ampliada" onclick="event.stopPropagation()">
