@@ -15426,6 +15426,9 @@ function recParaTs(){
 .rc-tl-dias{color:#5b6577}
 .rc-mini-lbl{color:#5b6577}
 .rc-sub-cuenta{color:#5b6577}
+
+.rc-tel-cop{cursor:pointer;display:inline-block}
+.rc-tel-cop:hover{color:var(--blue);text-decoration:underline}
 </style>
 <div id="rcModal" class="hidden">
   <div class="rc-caja">
@@ -15800,7 +15803,10 @@ function htmlReclamos(){
       <td class="rc-sub2">${rcFechaCorta(r.fechaInicio || r.ts)}</td>
       <td><span class="rc-chapa rc-e-${r.etapa}">${rcEsc(rcEtapaLbl(r.etapa))}</span>${r.aConfirmar?'<span class="rc-chapa rc-warn">a confirmar</span>':''}</td>
       <td class="${rcAtrasado(r)?'rc-rojo':''}">${rcAbierto(r)?rcDiasAbierto(r):'—'}</td>
-      <td><b>${rcEsc(r.clienteNombre||'—')}</b><div class="rc-sub">${rcEsc(r.clienteTelefono||'')}</div></td>
+      <td><b>${rcEsc(r.clienteNombre||'—')}</b>${r.clienteTelefono
+          ? `<div class="rc-sub rc-tel-cop" title="Tocá para copiar"
+               onclick="event.stopPropagation();copiarTexto('${rcEsc(r.clienteTelefono).replace(/'/g,"\\'")}','Teléfono')">${rcEsc(r.clienteTelefono)}</div>`
+          : '<div class="rc-sub">—</div>'}</td>
       <td class="rc-sub2">${rcEsc(r.responsable||'—')}</td>
       <td class="${co.cls}">${co.txt}</td>
       <td class="rc-ico">${obs?`<span class="rc-globo" title="${rcEsc(obs)}">💬</span>`:'<span class="rc-globo vacio">💬</span>'}</td>
