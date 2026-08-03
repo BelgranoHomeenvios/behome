@@ -15408,6 +15408,24 @@ function recParaTs(){
 .rc-pop-it{font-size:13.5px;padding:7px 8px}
 .rc-pop-col{min-width:236px;padding:10px}
 .rc-oculto{font-size:12px;color:var(--blue);cursor:pointer;text-decoration:underline}
+
+/* Los tres atajos de Estado entran siempre en UNA fila. */
+.rc-pop-rap3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;flex-wrap:nowrap}
+.rc-pop-rap3 span{text-align:center;padding:6px 4px;font-size:11px;white-space:nowrap}
+.rc-pop-col{min-width:272px}
+
+/* Contraste: el gris claro no se leía en el recorrido ni en las sub-etapas. */
+.rc-bar-lbl{color:#4b5565}
+.rc-bar-dias{color:#5b6577}
+.rc-bar-p .rc-bar-lbl{font-weight:600}
+.rc-sub-lbl{color:#3d4756;font-size:13.5px}
+.rc-sub-fecha{color:#5b6577}
+.rc-sub-head>span:first-child{color:#3d4756}
+.rc-tl-lbl{color:#4b5565}
+.rc-tl-sub{color:#5b6577}
+.rc-tl-dias{color:#5b6577}
+.rc-mini-lbl{color:#5b6577}
+.rc-sub-cuenta{color:#5b6577}
 </style>
 <div id="rcModal" class="hidden">
   <div class="rc-caja">
@@ -15734,7 +15752,7 @@ function htmlReclamos(){
   const respPresentes = [...new Set(base.map(r=>r.responsable||'—'))].sort((a,b)=>a.localeCompare(b,'es'));
   const cuerpoPop = c => {
     if(c==='etapa'){ const ra=rcEstadoRapidoActivo();
-      return `<div class="rc-pop-rap">
+      return `<div class="rc-pop-rap rc-pop-rap3">
         <span class="${ra==='abiertas'?'on':''}" onclick="event.stopPropagation();rcColEstados('abiertas')">Sin cerrar</span>
         <span class="${ra==='cerradas'?'on':''}" onclick="event.stopPropagation();rcColEstados('cerradas')">Cerradas</span>
         <span class="${ra==='todas'?'on':''}" onclick="event.stopPropagation();rcColEstados('')">Todas</span></div>
@@ -16574,8 +16592,6 @@ function htmlFichaReclamo(){
             ? `<label class="rc-f">Plazo en días<input type="number" value="${rcEsc(r.plazoOtros||'')}" onchange="rcCampo('plazoOtros',this.value,false)"></label>`
             : '<span></span>')}
     </div>
-    ${chipsSub}
-    ${bloqueProv}
     <div class="rc-sub-head" style="margin-top:16px">
       <span>Recorrido del reclamo</span>
       <span class="rc-edit-lapiz ${rcEditRec?'on':''}" onclick="rcTogEditRec(event)"
@@ -16593,6 +16609,8 @@ function htmlFichaReclamo(){
           <div class="rc-ed-it"><b>${rcEsc(rcQuienEdito(e.por))}</b> ${rcEsc(e.accion)} <b>${rcEsc(rcEtapaLbl(e.etapa))}</b>${
             e.antes||e.despues ? ` <span class="rc-ed-cambio">${e.antes?rcEsc(e.antes):'—'} → ${e.despues?rcEsc(e.despues):'—'}</span>`:''}
             <span class="rc-ed-fecha">${rcFechaCorta(e.ts)}</span></div>`).join('')}</div>`:''}` : ''}
+    ${chipsSub}
+    ${bloqueProv}
     ${rcAtrasado(r) ? `<div class="rc-alerta rc-alerta-roja">Próxima acción vencida el ${rcFechaCorta(r.proximaAccionTs)}</div>` : ''}
     <div class="rc-grid2">
       <label class="rc-f">Responsable de la solución<select onchange="rcCampo('responsable',this.value,false)"><option value="">—</option>
