@@ -2627,12 +2627,13 @@ function entrarApp(){
   $('screen-login').classList.add('hidden');
   $('screen-app').classList.remove('hidden');
   $('tabConfig').classList.toggle('hidden', !esAdmin());
-  // Default de período por rol: el vendedor arranca viendo los últimos 30 días
-  // (Cintia y dirección siguen con la ventana más amplia de 120).
+  // Default de período por rol: el vendedor arranca viendo los últimos 15 días
+  // (3/8/2026, Brian: 30 le mostraba demasiado y diluía la agenda del día).
+  // Cintia y dirección siguen con la ventana más amplia.
   if(!esAdmin() && !esAuditora()){
-    pbActivo='30';
+    pbActivo='15';
     const hoy=new Date(); hoy.setHours(0,0,0,0);
-    const d=new Date(hoy); d.setDate(d.getDate()-29);
+    const d=new Date(hoy); d.setDate(d.getDate()-14);
     cintiaFechaDesde=formatDateInput(d); cintiaFechaHasta=formatDateInput(hoy);
   }
   pintarAdminViewBar();
@@ -5051,6 +5052,7 @@ async function guardarCierre(){if(esSoloLectura())return avisoLectura();
   // Si el cierre se disparó desde la barra de etapas, se deja registrado el paso.
   if(cerrandoTipo==='Concretado') a.etapaConsulta=8;
   else if(cerrandoTipo==='Rechazado') a.etapaConsulta=9;
+  sellarClasificacion(a);
   const cotizado=montoRepresentativo(a.muebles||[]);
 
   if(cerrandoTipo==='Concretado'){
@@ -5352,7 +5354,7 @@ function etapaSetBarra(i){
   const est=ETAPAS_CONSULTA[i].estado;
   if(est==='Concretado' || est==='Rechazado'){
     const a=atenciones.find(x=>x.id===cerrandoId);
-    if(a){ a.percepcion=etapaPercep||null; a.familiaConsulta=etapaFam||a.familiaConsulta||null; a.etapaConsulta=i; }
+    if(a){ a.percepcion=etapaPercep||null; a.familiaConsulta=etapaFam||a.familiaConsulta||null; a.etapaConsulta=i; sellarClasificacion(a); }
     const id=cerrandoId;
     cerrarEtapa();
     abrirModalCierre(id, est);
@@ -5392,7 +5394,7 @@ async function guardarEtapaSeguimiento(){
   a.percepcion = etapaPercep || null;
   a.familiaConsulta = etapaFam || null;
   a.tipoConsulta = etapaTipo || null;
-  a.etapaConsulta = etapaBarSel;
+  a.etapaConsulta = etapaBarSel; sellarClasificacion(a);
 
   // La PRÓXIMA ACCIÓN la sugiere el tipo (hoy + plazo) pero ahora se ve y se edita en el
   // modal, así que se guarda lo que quedó elegido ahí. "Sin definir" la deja vacía.
@@ -6697,10 +6699,12 @@ function renderHistorial(){
   // pero no los números del tablero — si no, al filtrar quedarían todos en cero menos uno.
   const baseTablero = [...l];
   if(zonaActiva) l=l.filter(a=>zonaDe(a)===zonaActiva);
-  // El período elegido en la barra de abajo filtra la LISTA (para Cintia ya se aplica
-  // dentro de construirListaFiltrada; acá se suma para el vendedor). El tablero de
-  // arriba no se toca: sus contadores son el trabajo actual, sin importar la fecha.
-  if(!esAuditora() && !filtroBusqueda) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
+  // El período elegido en la barra filtra la LISTA general. PERO si el vendedor entró a un
+  // balde (Para hoy, Pendientes, Sin clasificar, Esta semana) el período NO se aplica:
+  // esos baldes son la cola de trabajo, no un reporte — una consulta que se le venció ayer
+  // tiene que aparecer aunque haya entrado hace tres meses. Además así la lista coincide
+  // con el número del balde, que ya se calculaba sin período (3/8/2026, pedido de Brian).
+  if(!esAuditora() && !filtroBusqueda && !zonaActiva) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
   l=ordenarLista(l);
 
   renderChead();
@@ -6913,8 +6917,10 @@ function renderPanelGestion(listaVisible){
              recordatorio:'bajas',estadisticas:'ventas',evaluacion:'evaluar',oportunidad:'pulso'};
   const items=[
     {label:'Para hoy',       ico:'hoy',         cnt:n('hoy'),    activo:(!seccionVendedor && zonaActiva==='hoy'),      act:`setZona('hoy')`},
+    // "Sin atender" (antes "Sin clasificar") va SEGUNDO a propósito: son consultas nuevas
+    // con un cliente esperando, no una tarea administrativa que se deja para mañana.
+    {label:'Sin atender',    ico:'sinclas',     cnt:n('sinclas'),activo:(!seccionVendedor && zonaActiva==='sinclas'),  act:`setZona('sinclas')`},
     {label:'Pendientes',     ico:'pendientes',  cnt:n('atrasada'),activo:(!seccionVendedor && zonaActiva==='atrasada'), act:`setZona('atrasada')`},
-    {label:'Sin clasificar', ico:'sinclas',     cnt:n('sinclas'),activo:(!seccionVendedor && zonaActiva==='sinclas'),  act:`setZona('sinclas')`},
     {label:'Esta semana',    ico:'semana',      cnt:n('semana'), activo:(!seccionVendedor && zonaActiva==='semana'),   act:`setZona('semana')`},
     {label:'Recordatorio',   ico:'recordatorio',cnt:recCount,    activo:(!seccionVendedor && filtroRecordatorio==='pend'), act:`verRecordatorios()`},
     {label:'Estadísticas',   ico:'estadisticas',cnt:undefined,   activo:(seccionVendedor==='estadisticas'),            act:`abrirSeccionVendedor('estadisticas')`},
@@ -9806,6 +9812,30 @@ function estCardCanales(rango){
 
 var estQue = 'consultas';
 function setEstQue(v){ estQue=v; renderCintiaMain(); }
+/* Cuánto tarda cada vendedor en ATENDER lo que entra: horas hasta ponerle la primera
+   etapa. Es la conducta que se quiere corregir — la consulta nueva que nadie clasifica. */
+function estCardClasificacion(){
+  const base = atenciones.filter(a=>rolDe(a.vendedorId)==='vendedor' && dentroDePeriodoCintia(a.ts));
+  if(!base.length) return '';
+  const porV={};
+  base.forEach(a=>{ (porV[a.vendedorId]=porV[a.vendedorId]||[]).push(a); });
+  const filas = Object.keys(porV).map(uid=>({uid, m:metricaClasificacion(porV[uid])}))
+    .sort((x,y)=> (y.m.sinAtender-x.m.sinAtender) || ((y.m.prom||0)-(x.m.prom||0)));
+  const tot = metricaClasificacion(base);
+  return `<div class="cin-card">
+    <h3>Cuánto tardan en atender <span class="cnt-pill">${fmtHoras(tot.prom)} promedio</span></h3>
+    <p class="tiny" style="margin-top:-8px;margin-bottom:12px">Horas entre que entra la consulta y alguien le pone etapa.
+      Mientras no tiene etapa no tiene plazo, y sin plazo no aparece en ningún balde.
+      Solo cuenta lo clasificado desde que se empezó a medir.</p>
+    <div class="clas-hd"><span>Vendedor</span><span>Sin atender</span><span>Tarda</span><span>Mismo día</span></div>
+    ${filas.map(f=>`<div class="clas-fila">
+      <span class="clas-v">${escapeHtml(nombreDe(f.uid)||'—')}</span>
+      <span class="clas-n ${f.m.sinAtender>=5?'mal':''}">${f.m.sinAtender}</span>
+      <span class="clas-n ${f.m.prom!==null&&f.m.prom>24?'mal':''}">${fmtHoras(f.m.prom)}</span>
+      <span class="clas-n">${f.m.pctMismoDia!==null?f.m.pctMismoDia+'%':'—'}<small> (${f.m.n})</small></span>
+    </div>`).join('')}
+  </div>`;
+}
 function htmlEstSelector(){
   return `<div class="est-que">
     <button class="${estQue==='consultas'?'on':''}" onclick="setEstQue('consultas')">Consultas</button>
@@ -9967,7 +9997,7 @@ function htmlCintiaEstadisticas(){
 
   const notaCmp = conCmp ? `<div class="est-note alerta" style="margin:0 0 12px"><b>Comparando contra ${estFmtRango(estRangoCmp())}, medido a la misma altura:</b> del período de referencia solo cuento las evaluaciones que ya existían a esta misma distancia del cierre. Sin esta corrección, todo período en curso parece un desastre contra uno ya cerrado.</div>` : '';
 
-  return htmlEstSelector() + controles + notaCmp + _traidos +
+  return htmlEstSelector() + estCardClasificacion() + controles + notaCmp + _traidos +
     estCardResultado(baseConFantasmas, baseCmpConFantasmas) +
     estCardCobertura(base, baseCmp) +
     estCardPlata(base) +
@@ -13301,6 +13331,35 @@ function elegirEtapaWiz(i){
 }
 /* Al reabrir una consulta: si ya tiene etapa guardada se usa; si es vieja, se deduce
    del estado que tenga hoy para no arrancar todas en "Consulta nueva". */
+/* Sella la primera vez que alguien le pone etapa a la consulta. De acá sale el tiempo
+   que tarda el equipo en atender lo que entra — la conducta que Brian quiere corregir. */
+function sellarClasificacion(a){
+  if(!a) return;
+  if(a.primeraClasifTs) return;
+  if(!Number.isInteger(a.etapaConsulta) || a.etapaConsulta===0) return;
+  a.primeraClasifTs = new Date().toISOString();
+}
+/* Horas entre que entró la consulta y la primera vez que se le puso etapa. */
+function horasHastaClasificar(a){
+  if(!a || !a.primeraClasifTs || !a.ts) return null;
+  const h=(new Date(a.primeraClasifTs)-new Date(a.ts))/3600000;
+  return h>=0 ? h : null;
+}
+/* Resumen por vendedor: promedio, cuántas clasificó el mismo día, y cuántas tiene
+   entradas y todavía sin atender. */
+function metricaClasificacion(lista){
+  const con=lista.map(horasHastaClasificar).filter(h=>h!==null);
+  const prom = con.length ? con.reduce((x,y)=>x+y,0)/con.length : null;
+  const mismoDia = con.filter(h=>h<=24).length;
+  const sinAtender = lista.filter(a=>zonaDe(a)==='sinclas').length;
+  return {n:con.length, prom, mismoDia, pctMismoDia: con.length?Math.round(mismoDia/con.length*100):null, sinAtender};
+}
+function fmtHoras(h){
+  if(h===null||h===undefined) return '—';
+  if(h<24) return Math.round(h)+' h';
+  return (h/24).toFixed(1).replace('.0','')+' d';
+}
+
 function etapaDesdeRegistro(a){
   if(a && Number.isInteger(a.etapaConsulta) && ETAPAS_CONSULTA[a.etapaConsulta]) return a.etapaConsulta;
   const est = a ? estadoDe(a) : null;
@@ -14059,7 +14118,7 @@ async function guardarAtencion(){if(esSoloLectura())return avisoLectura();
     rec.tipoConsulta=tipoSeleccionado||rec.tipoConsulta||null;
     rec.familiaConsulta=famSeleccionada||rec.familiaConsulta||null;
     // La ETAPA manda: guarda el paso elegido y deriva de ahí el estado de siempre.
-    rec.etapaConsulta=etapaWizSel;
+    rec.etapaConsulta=etapaWizSel; sellarClasificacion(rec);
     rec.estadoManual = ETAPAS_CONSULTA[etapaWizSel].estado || null;
     rec.motivoSinMueble=null;
     rec.motivoSinTiempo=null;
@@ -15234,7 +15293,7 @@ function recParaTs(){
   #cintiaBotones.gb8 > .gb{grid-column:span 5}
   /* Etiquetas mucho más grandes (3/8): a 11.5px no se leían. Los números quedan igual. */
   #cintiaBotones > .gb{min-height:0!important;padding:13px 14px!important}
-  #cintiaBotones > .gb .lbl{font-size:16px!important;font-weight:700!important;line-height:1.15!important;color:var(--ink)!important}
+  #cintiaBotones > .gb .lbl{font-size:16px!important;font-weight:500!important;line-height:1.15!important;color:var(--ink)!important}
   #cintiaBotones > .gb .cnt{font-size:22px!important;margin-top:4px!important}
   #cintiaBotones > .gb .ic{transform:scale(.85);transform-origin:right center}
   #cintiaBotones > .gb .top{align-items:flex-start}
@@ -15503,6 +15562,16 @@ function recParaTs(){
    de scroll interna y no se veían todas. Solo se limita si la pantalla es muy baja. */
 .rc-pop-col{max-height:none;overflow:visible;min-width:278px}
 @media(max-height:620px){.rc-pop-col{max-height:78vh;overflow:auto}}
+
+
+.clas-hd,.clas-fila{display:grid;grid-template-columns:1.4fr .8fr .8fr 1fr;gap:8px;align-items:center}
+.clas-hd{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:0 4px 6px;border-bottom:1px solid var(--line2)}
+.clas-fila{padding:8px 4px;border-bottom:1px solid var(--line2);font-size:13px}
+.clas-fila:last-child{border-bottom:none}
+.clas-v{color:var(--ink);font-weight:600}
+.clas-n{color:var(--sec)}
+.clas-n.mal{color:var(--red);font-weight:700}
+.clas-n small{color:var(--muted);font-size:11px}
 </style>
 <div id="rcModal" class="hidden">
   <div class="rc-caja">
