@@ -8371,7 +8371,8 @@ function renderCintiaBotones(){
              + pendientesVincularCliente().length
              + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin())).length
              + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length
-             + asistenciasParaMi().length;   // las bajas YA aprobadas no cuentan: no hay nada que decidir
+             + asistenciasParaMi().length
+             + (typeof rcBajasPedidas==='function'?rcBajasPedidas().length:0);   // las bajas YA aprobadas no cuentan: no hay nada que decidir
     const itemsA=[
       {id:'resumen',       label:'Resumen del día',    ic:'resumen'},
       {id:'consultas',     label:'Consultas',          ic:'consultas'},
@@ -8379,7 +8380,8 @@ function renderCintiaBotones(){
       {id:'mispendientes', label:'Mis pendientes',     ic:'bajas',   cnt:pend},
       {id:'estadisticas',  label:'Estadísticas',       ic:'ventas'},
       {id:'clientes',      label:'Clientes',           ic:'pulso'},
-      {id:'reclamos',       label:'Reclamos',          ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(rcAbierto).length:0)},
+      {id:'reclamos',       label:'Reclamos',          ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(r=>rcAbierto(r)&&rcVigente(r)).length:0)},
+      {id:'evaluacion',    label:'Evaluación',         ic:'evaluar', cnt:evDirSinLeer()},
       {id:'direccion',     label:'Panel de dirección', ic:'ventas'},
       {id:'configuracion', label:'Configuración',      ic:'evaluar'},
     ];
@@ -8398,8 +8400,8 @@ function renderCintiaBotones(){
     {id:'consultas', label:'Consultas', ic:'consultas'},
     {id:'misconsultas', label:'Mis consultas', ic:'estados', cnt:atenciones.filter(a=>a.vendedorId===YO && consultaAbiertaCintia(a)).length + estadosPedido.filter(e=>!e.respondido).length + consultasInvalidas.length},
     {id:'mispendientes', label:'Mis pendientes', ic:'bajas', cnt:solicitudesEliminacion.filter(s=>s.estado==='pendiente').length + pendientesVincularCliente().length + atenciones.filter(a=>a.revisionEval && a.revisionEval.estado==='pendiente' && (a.revisionEval.paraId===YO || esAdmin())).length + notasSinAccion.filter(n=>(n.tipo==='fusion'||n.tipo==='conflicto_vendedor') && !n.visto).length + asistenciasParaMi().length},
-    {id:'reclamos', label:'Reclamos', ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(rcAbierto).length:0)},
-    {id:'evaluar', label:'Para evaluar', ic:'evaluar', cnt:colaEvaluarCintia().length},
+    {id:'reclamos', label:'Reclamos', ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(r=>rcAbierto(r)&&rcVigente(r)).length:0)},
+    {id:'evaluar', label:'Evaluación', ic:'evaluar', cnt:colaEvaluarCintia().length},
     {id:'clientes', label:'Clientes', ic:'pulso'},
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
     ...(esAdmin() ? [{id:'ejemplos', label:'Ejemplo del mes', ic:'evaluar', cnt:atenciones.filter(a=>a.ejemploDelMes && !a.ejemploDelMes.leido).length}] : []),
@@ -8421,6 +8423,7 @@ function renderCintiaMain(){
     else if(cintiaSeccion==='estadisticas') box.innerHTML=htmlCintiaEstadisticas();
     else if(cintiaSeccion==='clientes') box.innerHTML=htmlCintiaClientes();
     else if(cintiaSeccion==='reclamos') box.innerHTML=htmlReclamos();
+    else if(cintiaSeccion==='evaluacion') box.innerHTML=htmlEvaluacionDireccion();
     else if(cintiaSeccion==='direccion'){ box.innerHTML='<div id="direccionBox"></div>'; renderDireccion(); }
     else if(cintiaSeccion==='configuracion'){ box.innerHTML=htmlAdminConfig(); pintarConfigLocales(); renderEliminacionesAdmin(); renderConfigCanalesDestinos(); }
     else box.innerHTML='';
@@ -9259,7 +9262,50 @@ function filtrarEval(txt){
     const inp=document.querySelector('.eval-buscar'); if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   },180);
 }
+/* La sección de Cintia deja de ser solo la cola: arriba lo que falta evaluar,
+   y al lado lo ya evaluado y sus ejemplos, filtrables por destinatario. */
+let evCinTab='cola';
+let evCinDestino='todos';
+function evCinSetTab(t){ evCinTab=t; evDirMesAbierto=null; renderPanelCintia(); }
+function evCinSetDestino(v){ evCinDestino=v; renderPanelCintia(); }
+
 function htmlCintiaEvaluar(){
+  const totalCola = colaEvaluarCintia().filter(a=>dentroDePeriodoCintia(fechaUltimoMovimiento(a))).length;
+  const evaluadas = atenciones.filter(a=>a.evaluada && a.evaluadoPorId===YO && dentroDePeriodoCintia(a.ts))
+    .sort((x,y)=>new Date(y.evaluadoTs||y.ts)-new Date(x.evaluadoTs||x.ts));
+  let ejemplos = atenciones.filter(a=>a.ejemploDelMes)
+    .sort((x,y)=>new Date(y.ejemploDelMes.ts||y.ts)-new Date(x.ejemploDelMes.ts||x.ts));
+  if(evCinDestino==='vendedor')  ejemplos=ejemplos.filter(a=>a.ejemploDelMes.target==='vendedor'||a.ejemploDelMes.target==='ambos');
+  if(evCinDestino==='direccion') ejemplos=ejemplos.filter(a=>a.ejemploDelMes.target==='direccion'||a.ejemploDelMes.target==='ambos');
+  const totalEj = atenciones.filter(a=>a.ejemploDelMes).length;
+
+  const tab=(k,l,c)=>'<button class="btn btn-sm '+(evCinTab===k?'btn-navy':'btn-outline')+'" onclick="evCinSetTab(\''+k+'\')">'+l+' ('+c+')</button>';
+  const solapas='<div class="row" style="gap:8px;margin:6px 0 14px;flex-wrap:wrap">'
+    + tab('cola','En cola', totalCola)
+    + tab('hechas','Evaluadas', evaluadas.length)
+    + tab('ejemplos','★ Ejemplos', totalEj)
+    + '</div>';
+
+  if(evCinTab==='ejemplos'){
+    const opt=(v,l)=>'<option value="'+v+'"'+(evCinDestino===v?' selected':'')+'>'+l+'</option>';
+    return '<div class="cin-card"><h3>Evaluación</h3>'
+      + '<p class="tiny" style="margin-top:-8px">Los casos que marcaste como ejemplo, agrupados por mes.</p>'
+      + solapas
+      + '<div class="filtro-bar"><label>Para quién</label><select onchange="evCinSetDestino(this.value)">'
+      +   opt('todos','Todos los ejemplos') + opt('vendedor','Para el vendedor') + opt('direccion','Para dirección')
+      + '</select></div>'
+      + htmlEjemplosPorMes(ejemplos, {})
+      + '</div>';
+  }
+  if(evCinTab==='hechas'){
+    _ctxLista='evaluar';
+    const filas = evaluadas.length ? cheadHtml()+evaluadas.map(logItemHtml).join('') : '<p class="cin-empty">Todavía no evaluaste nada en este período.</p>';
+    _ctxLista='';
+    return '<div class="cin-card" style="padding:4px 18px"><h3 style="padding-top:10px">Evaluación</h3>'
+      + '<p class="tiny" style="margin-top:-8px">Lo que ya evaluaste. Tocá el ✓ de una fila para corregirla.</p>'
+      + solapas + filas + '</div>';
+  }
+
   let cola=filtrosColumna(colaEvaluarCintia().filter(a=>dentroDePeriodoCintia(fechaUltimoMovimiento(a))))
     .sort((a,b)=>diasDesdeISO(fechaUltimoMovimiento(b))-diasDesdeISO(fechaUltimoMovimiento(a)));
   const total=cola.length;
@@ -9267,13 +9313,14 @@ function htmlCintiaEvaluar(){
     const q=evalBusqueda, qTel=q.replace(/\D/g,'');
     cola=cola.filter(a=>(nombreCliente(a)||'').toLowerCase().includes(q) || (a.clienteTelefono||'').includes(qTel||q) || (a.clienteInstagram||'').toLowerCase().includes(q));
   }
-  if(!total) return `<div class="cin-card"><p class="cin-empty">No hay nada para evaluar en este período.</p></div>`;
+  if(!total) return `<div class="cin-card"><h3>Evaluación</h3>${solapas}<p class="cin-empty">No hay nada para evaluar en este período.</p></div>`;
   _ctxLista='evaluar';
   const filas = cola.length?cola.map(logItemHtml).join(''):`<p class="cin-empty">Ningún contacto coincide con "${escapeHtml(evalBusqueda)}".</p>`;
   _ctxLista='';
   return `<div class="cin-card" style="padding:4px 18px">
-    <h3 style="padding-top:10px">Para evaluar <span class="cnt-pill">${evalBusqueda?`${cola.length} de ${total}`:`${total} en cola`}</span></h3>
+    <h3 style="padding-top:10px">Evaluación <span class="cnt-pill">${evalBusqueda?`${cola.length} de ${total}`:`${total} en cola`}</span></h3>
     <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma cerradas (Concretado/Rechazado) sin evaluar, y en seguimiento estancadas +7 días sin movimiento. Podés filtrar/ordenar por los títulos (ej: evaluar solo las de un vendedor).</p>
+    ${solapas}
     <input type="text" class="cli-buscar eval-buscar" placeholder="Buscar contacto por nombre o teléfono…" value="${escAttr(evalBusqueda)}" oninput="filtrarEval(this.value)">
     ${cheadHtml()}
     ${filas}
@@ -9928,7 +9975,7 @@ function htmlEstReclamos(){
     const dias = Math.round((d2-d1)/86400000)+1;
     const pHasta=new Date(d1.getTime()-86400000), pDesde=new Date(pHasta.getTime()-(dias-1)*86400000);
     const a=pDesde.toISOString().slice(0,10), b=pHasta.toISOString().slice(0,10);
-    prevN = reclamos.filter(r=>{ const f=String(r.fechaInicio||r.ts).slice(0,10); return f>=a && f<=b; }).length;
+    prevN = reclamos.filter(r=>{ if(!rcVigente(r)) return false; const f=String(r.fechaInicio||r.ts).slice(0,10); return f>=a && f<=b; }).length;
   }
   const ventas = (typeof atenciones!=='undefined' ? atenciones : [])
       .filter(a=> typeof estadoDe==='function' && estadoDe(a)==='Concretado' && dentroDePeriodoCintia(a.ts)).length;
@@ -10813,6 +10860,144 @@ function htmlFichaCliente(id){
     </div>`:''}
     <div class="fic-timeline">${items||'<p class="cin-empty">Sin consultas de este tipo.</p>'}</div>
   </div>`;
+}
+
+
+/* ================= MÓDULO EVALUACIÓN =================
+   Un solo lugar donde vive todo lo que Cintia evaluó, comentó o marcó como
+   ejemplo. Regla de división con Estadísticas: acá van los CASOS (con nombre y
+   apellido, accionables); allá los GRÁFICOS. Los números de arriba son para
+   decidir si hace falta entrar, no para reemplazar el análisis. */
+
+const EV_MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function evMesClave(ts){ try{ const d=new Date(ts); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }catch(e){ return '—'; } }
+function evMesLindo(k){ const [y,m]=String(k).split('-'); const i=(+m)-1; return (EV_MESES[i]||'?')+' '+y; }
+function evMesActual(){ return evMesClave(new Date()); }
+
+/* Un ejemplo le llega a dirección si Cintia lo mandó para dirección o para ambos. */
+function evEsParaDireccion(a){ const e=a.ejemploDelMes; return !!e && (e.target==='direccion' || e.target==='ambos'); }
+function evDirSinLeer(){ return atenciones.filter(a=>evEsParaDireccion(a) && !a.ejemploDelMes.leidoDir).length; }
+
+let evDirTab='ejemplos';
+let evDirMesAbierto=null;
+function evDirSetTab(t){ evDirTab=t; evDirMesAbierto=null; renderPanelCintia(); }
+function evDirMes(k){ evDirMesAbierto = (evDirMesAbierto===k)?null:k; renderPanelCintia(); }
+async function evDirMarcarLeido(id){
+  const a=atenciones.find(x=>x.id===id);
+  if(a&&a.ejemploDelMes){ a.ejemploDelMes.leidoDir=true; await saveAtenciones(); renderPanelCintia(); }
+}
+
+/* Ficha de un ejemplo. Se usa igual en la vista de dirección y en la de Cintia,
+   así no hay dos maquetas que se despeguen con el tiempo. */
+function htmlEjemploItem(a, opts){
+  opts=opts||{};
+  const e=a.ejemploDelMes; if(!e) return '';
+  const c=contactoPorId(a.contactoId);
+  const nomCli=escapeHtml(a.clienteNombre||(c&&c.nombre)||'Sin nombre');
+  const est=estadoDe(a);
+  const sinLeer = opts.paraDireccion ? !e.leidoDir : !e.leido;
+  const evChip=(campo,val)=>{
+    if(!val) return '';
+    const cls = campo==='atencion' ? (val<=2?'g':val===3?'a':'r')
+              : campo==='consulta' ? (val===1?'g':val===2?'a':'r')
+              : (val<=2?'g':val===3?'a':'r');
+    return '<span class="ev-chip '+cls+'" style="font-size:10px;padding:2px 6px">'+EV_TXT[campo][val]+'</span>';
+  };
+  const destino = e.target==='ambos' ? 'Vendedor y dirección'
+                : e.target==='direccion' ? '🔒 Solo dirección' : 'Para el vendedor';
+  const texto = opts.paraDireccion ? (e.motivoDir||e.motivo) : e.motivo;
+  return '<div class="solic-item" style="'+(sinLeer?'background:var(--amber-l);border-left:4px solid var(--amber);':'')+'flex-direction:column;align-items:stretch;gap:8px">'
+    + '<div>'
+    +   '<div class="pend-name">'+((c&&c.nombre)?'⭐ '+nomCli:nomCli)+' · '+nombreDe(a.vendedorId)+'</div>'
+    +   '<div class="pend-sub">'+est+' · '+estCanalDe(a)+' · '+new Date(a.ts).toLocaleDateString('es-AR')+(sinLeer?' · <b style="color:var(--amber)">Sin leer</b>':'')+'</div>'
+    +   ((a.evalAtencion||a.evalConsulta||a.evalCliente)
+        ? '<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">'+evChip('atencion',a.evalAtencion)+evChip('consulta',a.evalConsulta)+evChip('cliente',a.evalCliente)+'</div>' : '')
+    +   '<div class="tiny" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'
+    +     '<span class="ev-chip '+(e.tipo==='malo'?'r':'g')+'" style="font-size:10px;padding:2px 7px">'+(e.tipo==='malo'?'👎 Así no':'👍 Así sí')+'</span>'
+    +     '<span class="ev-chip a" style="font-size:10px;padding:2px 7px">'+destino+'</span>'
+    +   '</div>'
+    +   (texto?'<div class="tiny" style="margin-top:6px;padding:8px 10px;background:var(--line2);border-radius:7px">'+escapeHtml(texto)+'</div>':'')
+    +   (e.captura?'<div class="ev-caps"><div class="ev-cap"><img src="'+e.captura+'" onclick="verImagen(\''+e.captura+'\')" title="Tocá para verla en grande"></div></div>':'')
+    + '</div>'
+    + '<div class="row" style="gap:8px">'
+    +   '<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorial(\''+a.id+'\',0)">Ver la consulta</button>'
+    +   (sinLeer ? '<button class="btn btn-navy btn-sm" onclick="'+(opts.paraDireccion?'evDirMarcarLeido':'marcarEjemploLeido')+'(\''+a.id+'\')">Leído</button>' : '')
+    + '</div>'
+  + '</div>';
+}
+
+/* Ejemplos agrupados por MES, con su conteo. Los meses viejos quedan cerrados y
+   consultables: es el archivo con el que se entrena, no una lista que se pierde. */
+function htmlEjemplosPorMes(lista, opts){
+  if(!lista.length) return '<p class="cin-empty">No hay ejemplos marcados todavía.</p>';
+  const meses={};
+  lista.forEach(a=>{ const k=evMesClave(a.ejemploDelMes.ts||a.ts); (meses[k]=meses[k]||[]).push(a); });
+  const claves=Object.keys(meses).sort().reverse();
+  const actual=evMesActual();
+  if(evDirMesAbierto===null && claves.length) evDirMesAbierto=claves[0];
+  return claves.map(k=>{
+    const l=meses[k];
+    const buenos=l.filter(a=>a.ejemploDelMes.tipo!=='malo').length;
+    const malos=l.length-buenos;
+    const abierto=evDirMesAbierto===k;
+    const cerrado=k!==actual;
+    return '<div class="rd-vend">'
+      + '<div class="rd-vend-hd mv-hd" role="button" tabindex="0" onclick="evDirMes(\''+k+'\')">'
+      +   '<b><span class="mv-flecha">'+(abierto?'▾':'▸')+'</span> '+evMesLindo(k)
+      +     '<span class="mv-tot">'+l.length+'</span></b>'
+      +   '<span class="rd-cnt">'
+      +     (buenos?'<i class="rd-z rd-hoy">'+buenos+' 👍</i>':'')
+      +     (malos?'<i class="rd-z rd-atrasada">'+malos+' 👎</i>':'')
+      +     (cerrado?'<i class="rd-z rd-sinclas">mes cerrado</i>':'')
+      +   '</span></div>'
+      + (abierto? l.map(a=>htmlEjemploItem(a,opts)).join('') : '')
+    + '</div>';
+  }).join('');
+}
+
+function htmlEvaluacionDireccion(){
+  const enPeriodo = atenciones.filter(a=>dentroDePeriodoCintia(a.ts));
+  const evaluables = enPeriodo.filter(a=>a.evaluable!==false);
+  const evaluadas  = enPeriodo.filter(a=>a.evaluada);
+  const cobertura  = evaluables.length ? Math.round(evaluadas.length*100/evaluables.length) : 0;
+  const ejemplosTodos = atenciones.filter(a=>a.ejemploDelMes)
+    .sort((x,y)=>new Date(y.ejemploDelMes.ts||y.ts)-new Date(x.ejemploDelMes.ts||x.ts));
+  const paraMi = ejemplosTodos.filter(evEsParaDireccion);
+  const sinLeer = paraMi.filter(a=>!a.ejemploDelMes.leidoDir).length;
+
+  const kpi=(v,l,cls)=>'<div class="fic-kpi"><div class="v '+(cls||'')+'">'+v+'</div><div class="k">'+l+'</div></div>';
+  const tab=(k,l,n)=>'<button class="btn btn-sm '+(evDirTab===k?'btn-navy':'btn-outline')+'" onclick="evDirSetTab(\''+k+'\')">'+l+(n!==undefined?' ('+n+')':'')+'</button>';
+
+  let cuerpo='';
+  if(evDirTab==='ejemplos'){
+    cuerpo = htmlEjemplosPorMes(ejemplosTodos, {});
+  }else if(evDirTab==='parami'){
+    cuerpo = paraMi.length
+      ? htmlEjemplosPorMes(paraMi, {paraDireccion:true})
+      : '<p class="cin-empty">Cintia todavía no te dejó ningún comentario acá.</p>';
+  }else{
+    const l=evaluadas.slice().sort((x,y)=>new Date(y.evaluadoTs||y.ts)-new Date(x.evaluadoTs||x.ts));
+    _ctxLista='evaluar';
+    cuerpo = l.length ? cheadHtml()+l.map(logItemHtml).join('') : '<p class="cin-empty">No hay evaluaciones en este período.</p>';
+    _ctxLista='';
+  }
+
+  return '<div class="cin-card">'
+    + '<h3>Evaluación'+(sinLeer?' <span class="cnt-pill">'+sinLeer+' sin leer</span>':'')+'</h3>'
+    + '<p class="tiny" style="margin-top:-8px">Todo lo que Cintia evaluó, comentó o marcó como ejemplo. Los gráficos siguen estando en Estadísticas.</p>'
+    + '<div class="fic-kpis">'
+    +   kpi(evaluadas.length,'Evaluadas en el período')
+    +   kpi(cobertura+'%','Cobertura', cobertura>=80?'epos':'')
+    +   kpi(ejemplosTodos.length,'Ejemplos marcados')
+    +   kpi(sinLeer,'Para mí sin leer', sinLeer?'':'epos')
+    + '</div>'
+    + '<div class="row" style="gap:8px;margin:14px 0 12px;flex-wrap:wrap">'
+    +   tab('ejemplos','★ Ejemplos', ejemplosTodos.length)
+    +   tab('parami','💬 Para mí', paraMi.length)
+    +   tab('todo','Todo lo evaluado', evaluadas.length)
+    + '</div>'
+    + cuerpo
+  + '</div>';
 }
 
 function htmlEjemplosDelMes(){
@@ -15798,6 +15983,94 @@ async function guardarReclamos(){
 
 /* --- Helpers de lectura -------------------------------------------------- */
 function rcAbierto(r){ return r.etapa !== 'cierre'; }
+
+/* ---- Baja de un reclamo: Cintia la PIDE, dirección la CONFIRMA ----
+   Un reclamo anulado no se borra: queda con su motivo y quién lo pidió, y sale
+   del circuito por un solo lugar (rcVigente dentro de rcEnPeriodo), así
+   desaparece de la lista Y de todos los conteos sin tocar cada métrica.
+   Mismo criterio que las consultas archivadas: nada se destruye. */
+function rcVigente(r){ return !r || !r.anulado; }
+function rcBajasPedidas(){ return (typeof reclamos!=='undefined'?reclamos:[]).filter(r=>r.bajaPedida && !r.anulado); }
+function rcPuedePedirBaja(){ return esAuditora() || esAdmin(); }
+
+/* Overlay chiquito para pedir el motivo: se arma solo, no toca el HTML de la página. */
+function rcPedirMotivo(titulo, sub, textoBoton, cb){
+  let ov=document.getElementById('rcMotivoOv');
+  if(ov) ov.remove();
+  ov=document.createElement('div');
+  ov.id='rcMotivoOv';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:440px;width:100%;padding:20px;box-shadow:0 18px 50px rgba(0,0,0,.25)">'
+    + '<h3 style="margin:0 0 4px">'+titulo+'</h3>'
+    + '<p class="tiny" style="margin:0 0 12px;color:var(--muted)">'+sub+'</p>'
+    + '<textarea id="rcMotivoTxt" rows="3" style="width:100%" placeholder="¿Por qué? (ej: cargado dos veces, no era un reclamo)"></textarea>'
+    + '<div class="row" style="gap:8px;margin-top:12px">'
+    +   '<button class="btn btn-navy" style="flex:1" id="rcMotivoOk">'+textoBoton+'</button>'
+    +   '<button class="btn btn-secondary" id="rcMotivoNo">Cancelar</button>'
+    + '</div></div>';
+  document.body.appendChild(ov);
+  const cerrar=()=>ov.remove();
+  ov.addEventListener('click',e=>{ if(e.target===ov) cerrar(); });
+  document.getElementById('rcMotivoNo').onclick=cerrar;
+  document.getElementById('rcMotivoOk').onclick=()=>{
+    const t=(document.getElementById('rcMotivoTxt').value||'').trim();
+    if(!t){ toast('Escribí el motivo'); return; }
+    cerrar(); cb(t);
+  };
+  setTimeout(()=>{ const i=document.getElementById('rcMotivoTxt'); if(i) i.focus(); },30);
+}
+
+function rcSolicitarBaja(id, ev){
+  if(ev) ev.stopPropagation();
+  if(esSoloLectura()) return avisoLectura();
+  const r=(reclamos||[]).find(x=>x.id===id); if(!r) return;
+  if(r.bajaPedida && !esAdmin()){ toast('Ya pediste la baja de este reclamo'); return; }
+  const soyDireccion=esAdmin();
+  rcPedirMotivo(
+    soyDireccion?'Dar de baja el reclamo':'Pedir la baja del reclamo',
+    soyDireccion?'Deja de contar en todos los números. Queda guardado con el motivo.'
+                :'Se lo mando a dirección para que lo confirme. No se borra nada.',
+    soyDireccion?'Dar de baja':'Pedir la baja',
+    async motivo=>{
+      if(soyDireccion){
+        r.anulado={por:YO, ts:new Date().toISOString(), motivo, pedidoPor:YO};
+        r.bajaPedida=null;
+        toast('Reclamo dado de baja — ya no se contabiliza');
+      }else{
+        r.bajaPedida={por:YO, ts:new Date().toISOString(), motivo};
+        toast('Baja pedida — falta que la confirme dirección');
+      }
+      await guardarReclamos();
+      renderPanelCintia();
+    });
+}
+
+async function rcConfirmarBaja(id){
+  if(!esAdmin()) return;
+  const r=(reclamos||[]).find(x=>x.id===id); if(!r||!r.bajaPedida) return;
+  r.anulado={por:YO, ts:new Date().toISOString(), motivo:r.bajaPedida.motivo, pedidoPor:r.bajaPedida.por};
+  r.bajaPedida=null;
+  await guardarReclamos();
+  toast('Reclamo dado de baja — ya no se contabiliza');
+  renderPanelCintia();
+}
+async function rcRechazarBaja(id){
+  if(!esAdmin()) return;
+  const r=(reclamos||[]).find(x=>x.id===id); if(!r||!r.bajaPedida) return;
+  r.bajaRechazada={por:YO, ts:new Date().toISOString(), motivoPedido:r.bajaPedida.motivo};
+  r.bajaPedida=null;
+  await guardarReclamos();
+  toast('Baja rechazada — el reclamo sigue contando');
+  renderPanelCintia();
+}
+async function rcRestaurarBaja(id){
+  if(!esAdmin()) return;
+  const r=(reclamos||[]).find(x=>x.id===id); if(!r||!r.anulado) return;
+  r.anulado=null;
+  await guardarReclamos();
+  toast('Reclamo restaurado');
+  renderPanelCintia();
+}
 /* Si el cliente de una consulta tiene un reclamo abierto, al vendedor le sale una 🚩.
    No ve el reclamo (el módulo es de Cintia y dirección), solo el aviso de que existe. */
 function rcTelClave(t){ const d=String(t||'').replace(/\D/g,''); return d.length>=8 ? d.slice(-8) : ''; }
@@ -15910,6 +16183,8 @@ function rcLimpiarFiltros(){
 
 /* El período de la barra de arriba también recorta los reclamos. */
 function rcEnPeriodo(r){
+  // Choke point: un reclamo dado de baja no entra a NINGUNA lista ni conteo.
+  if(r && r.anulado) return false;
   const d = String(r.ts||'').slice(0,10);
   if(typeof cintiaFechaDesde!=='undefined' && cintiaFechaDesde && d < cintiaFechaDesde) return false;
   if(typeof cintiaFechaHasta!=='undefined' && cintiaFechaHasta && d > cintiaFechaHasta) return false;
@@ -16049,7 +16324,7 @@ function htmlReclamos(){
             title="${r.recordatorio?('Recordatorio puesto el '+rcFechaCorta(r.recordatorio.ts)):'Dejarme un recordatorio'}">🔔</span></td>
       <td class="rc-num">${rcEsc(rcEtiqueta(r))}</td>
       <td class="rc-sub2">${rcFechaCorta(r.fechaInicio || r.ts)}</td>
-      <td><span class="rc-chapa rc-e-${r.etapa}">${rcEsc(rcEtapaLbl(r.etapa))}</span>${r.aConfirmar?'<span class="rc-chapa rc-warn">a confirmar</span>':''}</td>
+      <td><span class="rc-chapa rc-e-${r.etapa}">${rcEsc(rcEtapaLbl(r.etapa))}</span>${r.aConfirmar?'<span class="rc-chapa rc-warn">a confirmar</span>':''}${r.bajaPedida?'<span class="rc-chapa rc-warn">baja pedida</span>':''}</td>
       <td class="${rcAtrasado(r)?'rc-rojo':''}">${rcAbierto(r)?rcDiasAbierto(r):'—'}</td>
       <td><b>${rcEsc(r.clienteNombre||'—')}</b>${r.clienteTelefono
           ? `<div class="rc-sub rc-tel-cop" title="Tocá para copiar"
@@ -16059,12 +16334,31 @@ function htmlReclamos(){
       <td class="${co.cls}">${co.txt}</td>
       <td class="rc-ico">${obs?`<span class="rc-globo" title="${rcEsc(obs)}">💬</span>`:'<span class="rc-globo vacio">💬</span>'}</td>
       <td class="rc-ico"><span class="rc-print" onclick="rcImprimir('${r.id}',event)" title="Imprimir remito para fábrica">🖨️</span></td>
+      <td class="rc-ico">${rcPuedePedirBaja()
+        ? `<span class="rc-print" onclick="rcSolicitarBaja('${r.id}',event)" title="${r.bajaPedida?('Baja pedida por '+nombreDe(r.bajaPedida.por)):(esAdmin()?'Dar de baja este reclamo':'Pedir la baja de este reclamo')}">${r.bajaPedida?'⏳':'🗑️'}</span>`
+        : ''}</td>
     </tr>`;}).join('')
-    : `<tr><td colspan="11" class="rc-vacio">${hayFiltro?'Ningún reclamo entra en este filtro.':'Todavía no hay reclamos cargados.'}</td></tr>`;
+    : `<tr><td colspan="12" class="rc-vacio">${hayFiltro?'Ningún reclamo entra en este filtro.':'Todavía no hay reclamos cargados.'}</td></tr>`;
 
   return `
   <div class="rc-wrap">
     <div class="rc-head"><h3 class="rc-tit">Reclamos</h3></div>
+    ${(esAdmin() && rcBajasPedidas().length) ? `<div class="cin-card" style="border-left:4px solid var(--amber);background:var(--amber-l)">
+      <h3 style="margin:0 0 2px">Bajas pedidas <span class="cnt-pill">${rcBajasPedidas().length}</span></h3>
+      <p class="tiny" style="margin-top:0">Cintia pide dar de baja estos reclamos. Si confirmás, dejan de contar en todos los números.</p>
+      ${rcBajasPedidas().map(r=>`<div class="solic-item" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div>
+          <div class="pend-name">${rcEsc(rcEtiqueta(r))} · ${rcEsc(r.clienteNombre||'Sin nombre')}</div>
+          <div class="pend-sub">Pedida por ${nombreDe(r.bajaPedida.por)} · ${rcFechaCorta(r.bajaPedida.ts)}</div>
+          <div class="tiny" style="margin-top:6px;padding:8px 10px;background:#fff;border-radius:7px">${rcEsc(r.bajaPedida.motivo)}</div>
+        </div>
+        <div class="row" style="gap:8px">
+          <button class="btn btn-navy btn-sm" onclick="rcConfirmarBaja('${r.id}')">Confirmar la baja</button>
+          <button class="btn btn-outline btn-sm" onclick="rcRechazarBaja('${r.id}')">No darla de baja</button>
+          <button class="btn btn-secondary btn-sm" onclick="rcAbrirFicha('${r.id}')">Ver el reclamo</button>
+        </div>
+      </div>`).join('')}
+    </div>` : ''}
     <div class="rc-cards">
       ${card('abiertos','Abiertos', abiertos.length)}
       ${card('sinsol','Sin solución definida', sinSol.length, 'rc-amb')}
@@ -16088,7 +16382,7 @@ function htmlReclamos(){
         <th class="rc-th-ico">🔥</th><th class="rc-th-ico">🔔</th>
         ${th('reclamo','N° de reclamo')}${th('fecha','Fecha')}${th('etapa','Estado')}${th('dias','Días')}
         ${th('cliente','Cliente')}${th('responsable','Responsable')}${th('costo','Costo / saldo')}
-        <th class="rc-th-ico">💬</th><th class="rc-th-ico">🖨️</th>
+        <th class="rc-th-ico">💬</th><th class="rc-th-ico">🖨️</th>${rcPuedePedirBaja()?'<th class="rc-th-ico">🗑️</th>':'<th class="rc-th-ico"></th>'}
       </tr></thead>
       <tbody>${filas}</tbody>
     </table>
