@@ -155,7 +155,15 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-emo,.chead .h-emo{flex:1;display:flex;gap:6px;justify-content:flex-end}
 .c-coment,.chead .h-coment{flex:1;display:flex;align-items:center;gap:9px;min-width:112px;justify-content:flex-end}
 .c-estado,.chead .h-estado{flex:1.2;display:flex;align-items:center;gap:4px}
-.c-fecha,.chead .h-fecha{flex:.7;color:var(--sec);font-weight:600;font-size:12.5px}
+.c-fecha,.chead .h-fecha{flex:1;color:var(--sec);font-weight:600;font-size:12.5px}
+/* Segunda línea de la columna Fecha: el reloj del lead. Ámbar cuando ya pasó a
+   seguimiento activo, para que se vea de un vistazo qué se está estirando. */
+.c-lead{font-size:10.5px;font-weight:700;color:var(--muted);white-space:nowrap;margin-top:1px}
+.c-lead.lead-inicial{color:var(--sky)}
+.c-lead.lead-activo{color:var(--amber)}
+.etapa-seg{font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.etapa-seg.ini{background:var(--sky-l);color:var(--sky)}
+.etapa-seg.act{background:var(--amber-l);color:var(--amber)}
 .c-vendedor,.chead .h-vendedor{flex:1;color:var(--sec);font-weight:600}
 .c-canal,.chead .h-canal{flex:1.1;min-width:0;color:var(--sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .c-vendedor,.chead .h-vendedor{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -4789,12 +4797,57 @@ function estrellasHtml(p,cls){
    consulta quedó SIN estado y ya es vieja (más de 60 días sin ningún movimiento), se da
    por Rechazada — no se evalúa, queda registrada como rechazada. Si es reciente, sigue
    sin clasificar (se trabaja). Los '-' / '#REF!' de la planilla se tratan como sin estado. */
-const DIAS_VIEJA_RECHAZA = 60;
+/* AUTO-RECHAZO ELIMINADO (4/8/2026, decisión de Brian). Antes, una consulta sin
+   estado y con más de 60 días sin movimiento se daba por Rechazada sola. Ahora el
+   equipo tiene las consultas al día: se les muestra el tiempo transcurrido y el
+   vendedor decide. Eran 12 consultas de 8.078 — vuelven a figurar sin clasificar. */
 function estadoDe(a){
   const em=a.estadoManual;
   if(em && em!=='-' && em!=='#REF!') return em;
-  if(diasDesdeISO(fechaUltimoMovimiento(a)) > DIAS_VIEJA_RECHAZA) return 'Rechazado';
   return null;
+}
+
+/* ===== ETAPAS DEL SEGUIMIENTO =====
+   "En seguimiento" mezclaba lo que entró hoy con lo que está hace un mes. Se divide
+   en dos etapas OPERATIVAS derivadas de la edad del lead. Clave: NO se toca el estado
+   guardado — hay 80 lugares que comparan contra 'En seguimiento' y 95 llamadas a
+   estadoDe. La etapa se calcula encima, así la vista se parte sin romper métricas.
+   El contador corre SIEMPRE desde la fecha original de la consulta: aunque Cintia la
+   levante a 2da oportunidad, el reloj del lead no se reinicia. */
+const DIAS_CONSULTA_INICIAL = 5;      // 0-5 = respuesta inmediata · 6+ = seguimiento real
+const DIAS_EVALUAR_SEGUIMIENTO = 10;  // recién a los 10 días vale la pena evaluarla
+
+function diasDesdeConsulta(a){ return diasDesdeISO(a && a.ts); }
+function etapaSeguimiento(a){
+  if(estadoDe(a)!=='En seguimiento') return null;
+  return diasDesdeConsulta(a) <= DIAS_CONSULTA_INICIAL ? 'inicial' : 'activo';
+}
+const ETAPA_SEG_LBL={inicial:'Consulta inicial', activo:'Seguimiento activo'};
+
+/* Última actividad REAL. Va aparte de fechaUltimoMovimiento a propósito: ese mira solo
+   completadoTs||ts (y completadoTs casi no se escribe), pero además alimenta evaluable()
+   y no se toca en esta entrega para no mover la cola de Cintia sin avisar. */
+function _ts(x){ const n=new Date(x).getTime(); return isFinite(n)?n:0; }
+function ultimaActividad(a){
+  if(!a) return 0;
+  let m=_ts(a.ts);
+  const h=a.historialContacto;
+  if(Array.isArray(h)&&h.length) m=Math.max(m,_ts(h[h.length-1].ts));
+  ['completadoTs','estadoTs','cerradoTs','evaluadoTs','evalEditadoTs','recordatorioTs'].forEach(k=>{ if(a[k]) m=Math.max(m,_ts(a[k])); });
+  if(a.segundaOportunidad&&a.segundaOportunidad.ts) m=Math.max(m,_ts(a.segundaOportunidad.ts));
+  if(a.comentarioVendedor&&a.comentarioVendedor.ts)  m=Math.max(m,_ts(a.comentarioVendedor.ts));
+  return m;
+}
+function diasSinActividad(a){ const m=ultimaActividad(a); return m?Math.floor((Date.now()-m)/86400000):9999; }
+
+/* La sospechosa: rechazada mientras todavía era consulta inicial. Es donde el vendedor
+   puede estar cerrando apurado, y donde la 2da opinión rinde. */
+function rechazadaEnInicial(a){
+  if(estadoDe(a)!=='Rechazado') return false;
+  const ini=_ts(a.ts); if(!ini) return false;
+  const cierre=a.cerradoTs?_ts(a.cerradoTs):0;
+  const dias = cierre ? Math.floor((cierre-ini)/86400000) : diasDesdeConsulta(a);
+  return dias <= DIAS_CONSULTA_INICIAL;
 }
 /* El nombre del mueble puede venir en 'mueble' (cargado en el CRM) o en 'nombre'
    (importado de las planillas viejas). Leer solo el primero mostraba "undefined". */
@@ -5781,7 +5834,18 @@ function logItemHtml(a){
   return `
     <div class="crow zn-${zona}" ondblclick="dblFila(event,'${a.id}')">
       ${bellCol}
-      <div class="c-fecha" ondblclick="editarDesdeHistorial('${a.id}',0)">${fechaConsultaCorta(a.ts)}</div>
+      <div class="c-fecha" ondblclick="editarDesdeHistorial('${a.id}',0)" title="Entró el ${new Date(a.ts).toLocaleDateString('es-AR')} · última actividad ${ultimaActividad(a)?new Date(ultimaActividad(a)).toLocaleDateString('es-AR'):'—'}">
+        <div>${fechaConsultaCorta(a.ts)}</div>
+        ${(()=>{
+          // Reloj del lead: cuántos días lleva desde que entró, y cuándo se lo tocó por
+          // última vez. Sin esto, "En seguimiento" no dice nada sobre cuán vieja está.
+          const et=etapaSeguimiento(a);
+          const d=diasDesdeConsulta(a);
+          const ua=ultimaActividad(a);
+          const cls = et==='activo' ? 'lead-activo' : (et==='inicial' ? 'lead-inicial' : '');
+          return `<div class="c-lead ${cls}">${d}d${ua?` · últ. ${fechaConsultaCorta(new Date(ua).toISOString())}`:''}</div>`;
+        })()}
+      </div>
       <div class="c-plazo">
         ${cerrada
           ? `<span class="pl pl-cerrada" title="Consulta ${est.toLowerCase()} — sin próxima acción">Cerrada</span>`
@@ -5835,7 +5899,7 @@ function logItemHtml(a){
           const _nom=(nombreMostrar||'').trim();
           const _mismo = !_nom || _nom==='Sin definir' || normContacto('@'+_nom.replace(/\s+/g,'').toLowerCase())===normContacto(_igRow);
           return `<b class="nom-copy" onclick="event.stopPropagation();copiarIG('${a.id}')" title="Instagram: ${escAttr(_igRow)}${_mismo?'':' · '+escAttr(_nom)} — tocá para copiar el usuario">${escapeHtml(truncPalabras(_igRow,2))}</b>${_mismo?'':`<span class="c-nom-alt" title="${escAttr(_nom)}">${escapeHtml(truncPalabras(_nom,1))}</span>`}`;
-        })()}${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        })()}${(()=>{ const et=etapaSeguimiento(a); return et?`<span class="etapa-seg ${et==='inicial'?'ini':'act'}" title="${et==='inicial'?('Entró hace '+diasDesdeConsulta(a)+' días — todavía es respuesta inmediata'):('Hace '+diasDesdeConsulta(a)+' días que entró — es seguimiento real')}">${ETAPA_SEG_LBL[et]}</span>`:''; })()}${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
@@ -6254,7 +6318,9 @@ function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
 function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 const FILTRO_ESTADO_OPCIONES=[
-  ['activas','Activas (sin cerrar)'],['sin','Sin clasificar'],['En seguimiento','En seguimiento'],
+  ['activas','Activas (sin cerrar)'],['sin','Sin clasificar'],
+  ['seg:inicial','Consulta inicial (0-'+DIAS_CONSULTA_INICIAL+' días)'],['seg:activo','Seguimiento activo ('+(DIAS_CONSULTA_INICIAL+1)+'+ días)'],
+  ['En seguimiento','En seguimiento (las dos)'],
   ['Concretado','Concretado'],['Rechazado','Rechazado'],['todos','Todas, incluidas cerradas']
 ];
 const FILTRO_PLAZO_OPCIONES=[
@@ -6536,6 +6602,8 @@ function construirListaFiltrada(){
   if(!buscar){
     if(filtroEstado==='activas') l=l.filter(a=>esPostventa(a) || (()=>{const e=estadoDe(a); return e!=='Concretado' && e!=='Rechazado';})());
     else if(filtroEstado==='sin') l=l.filter(a=>!estadoDe(a));
+    // 'seg:inicial' / 'seg:activo' filtran por ETAPA, no por estado guardado.
+    else if(String(filtroEstado).startsWith('seg:')) l=l.filter(a=>etapaSeguimiento(a)===filtroEstado.slice(4));
     else if(filtroEstado!=='todos') l=l.filter(a=>estadoDe(a)===filtroEstado);
   }
 
@@ -6600,6 +6668,7 @@ function filtrosColumna(l){
   // de Cintia) ya traen su propio conjunto y no queremos esconder cerradas pendientes de
   // evaluar. Las opciones concretas (Sin clasificar / En seguimiento / Concretado / Rechazado) sí filtran.
   if(filtroEstado==='sin') l=l.filter(a=>!estadoDe(a));
+  else if(String(filtroEstado).startsWith('seg:')) l=l.filter(a=>etapaSeguimiento(a)===filtroEstado.slice(4));
   else if(filtroEstado!=='activas' && filtroEstado!=='todos') l=l.filter(a=>estadoDe(a)===filtroEstado);
   if(filtroOportunidad==='sin') l=l.filter(a=>!estrellasNum(a.percepcion));
   else if(filtroOportunidad!=='todos') l=l.filter(a=>estrellasNum(a.percepcion)===+filtroOportunidad);
@@ -6990,9 +7059,14 @@ function renderSituResumen(){
   // estado. Ahora son dos chips distintos: en seguimiento es una decisión que alguien
   // tomó, sin estado es que nadie la tomó todavía. Mezclarlas escondía las segundas.
   const cSeg = mias.filter(a=>estadoDe(a)==='En seguimiento').length;
+  const cIni = mias.filter(a=>etapaSeguimiento(a)==='inicial').length;
+  const cAct = cSeg - cIni;
   const cSin = tot - cConc - cRech - cSeg;
   const pct  = c => tot ? Math.round(c/tot*100) : 0;
-  const segAlto = pct(cSeg) > TOPE_SEGUIMIENTO;   // más de 30% en seguimiento => alerta roja
+  // La alerta roja se mide ahora sobre SEGUIMIENTO ACTIVO, no sobre la suma: que el
+  // 20% de las consultas hayan entrado esta semana no es un problema, es el trabajo
+  // normal. El problema es lo que se acumula pasados los 5 días.
+  const segAlto = pct(cAct) > TOPE_SEGUIMIENTO;
   /* Cada chip filtra la tabla. "En seguimiento" mapea a 'activas' y NO al estado
      'En seguimiento': el chip cuenta todo lo no cerrado, sin clasificar incluido, y
      'activas' es el único filtro que devuelve exactamente ese mismo conjunto. Con el
@@ -7009,7 +7083,8 @@ function renderSituResumen(){
     <span class="sb-lbl">Estado</span>
     <div class="sb-chips">
       ${chip('conc','Concretadas',cConc,false,'Concretado')}
-      ${chip('seg','En seguimiento',cSeg, segAlto,'En seguimiento')}
+      ${chip('seg ini','Consulta inicial',cIni,false,'seg:inicial')}
+      ${chip('seg','Seguimiento activo',cAct, segAlto,'seg:activo')}
       ${chip('rech','Rechazadas',cRech,false,'Rechazado')}
       ${chip('sin','Sin estado',cSin,false,'sin')}
       <span class="sb-total sb-todas${filtroEstado==='todos'?' on':''}" role="button" tabindex="0"
@@ -8164,13 +8239,22 @@ function cerradasSinEvaluar(){
     return (e==='Concretado'||e==='Rechazado') && !a.evaluada && evaluable(a);
   });
 }
+/* Regla nueva (4/8): una consulta de 0-5 días NO se evalúa — todavía es respuesta
+   inmediata y no hay nada que juzgar. Recién a los 10 días desde que ENTRÓ el lead
+   (no desde el último movimiento: el modelo entero mide desde la fecha de consulta)
+   vale la pena mirarla. */
 function estancadasSinEvaluar(){
   return atenciones.filter(a=>{
     const e=estadoDe(a);
-    return e==='En seguimiento' && !a.evaluada && evaluable(a) && diasDesdeISO(fechaUltimoMovimiento(a))>=7;
+    return e==='En seguimiento' && !a.evaluada && evaluable(a) && diasDesdeConsulta(a)>=DIAS_EVALUAR_SEGUIMIENTO;
   });
 }
-function colaEvaluarCintia(){ return [...cerradasSinEvaluar(), ...estancadasSinEvaluar()]; }
+/* Las rechazadas dentro de los primeros 5 días van PRIMERO: son las que el vendedor
+   puede haber cerrado apurado y las que más chance tienen de merecer una 2da opinión. */
+function colaEvaluarCintia(){
+  return [...cerradasSinEvaluar(), ...estancadasSinEvaluar()]
+    .sort((x,y)=>(rechazadaEnInicial(y)?1:0)-(rechazadaEnInicial(x)?1:0));
+}
 
 const CIN_ICONS={
   resumen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
@@ -9307,7 +9391,8 @@ function htmlCintiaEvaluar(){
   }
 
   let cola=filtrosColumna(colaEvaluarCintia().filter(a=>dentroDePeriodoCintia(fechaUltimoMovimiento(a))))
-    .sort((a,b)=>diasDesdeISO(fechaUltimoMovimiento(b))-diasDesdeISO(fechaUltimoMovimiento(a)));
+    .sort((a,b)=>(rechazadaEnInicial(b)?1:0)-(rechazadaEnInicial(a)?1:0)
+              || diasDesdeISO(fechaUltimoMovimiento(b))-diasDesdeISO(fechaUltimoMovimiento(a)));
   const total=cola.length;
   if(evalBusqueda){
     const q=evalBusqueda, qTel=q.replace(/\D/g,'');
@@ -9319,7 +9404,7 @@ function htmlCintiaEvaluar(){
   _ctxLista='';
   return `<div class="cin-card" style="padding:4px 18px">
     <h3 style="padding-top:10px">Evaluación <span class="cnt-pill">${evalBusqueda?`${cola.length} de ${total}`:`${total} en cola`}</span></h3>
-    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Suma cerradas (Concretado/Rechazado) sin evaluar, y en seguimiento estancadas +7 días sin movimiento. Podés filtrar/ordenar por los títulos (ej: evaluar solo las de un vendedor).</p>
+    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Cerradas sin evaluar, y en seguimiento a partir de los ${DIAS_EVALUAR_SEGUIMIENTO} días desde que entró el lead. Las de 0-${DIAS_CONSULTA_INICIAL} días no entran: todavía son respuesta inmediata. <b>Arriba van las rechazadas dentro de los primeros ${DIAS_CONSULTA_INICIAL} días</b> — son las que conviene mirar dos veces.</p>
     ${solapas}
     <input type="text" class="cli-buscar eval-buscar" placeholder="Buscar contacto por nombre o teléfono…" value="${escAttr(evalBusqueda)}" oninput="filtrarEval(this.value)">
     ${cheadHtml()}
