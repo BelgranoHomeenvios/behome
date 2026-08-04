@@ -5732,7 +5732,7 @@ function logItemHtml(a){
   const evalCol = esAuditora()
     ? `<div class="c-eval">
         ${a.evaluada 
-          ? `<span class="eval-ok" title="Evaluada">✓</span>`
+          ? `<span class="eval-ok" role="button" tabindex="0" style="cursor:pointer" title="Evaluada${a.evaluadoTs?' el '+new Date(a.evaluadoTs).toLocaleDateString('es-AR'):''}${a.evalEditadoTs?' · editada el '+new Date(a.evalEditadoTs).toLocaleDateString('es-AR'):''} — clic para editarla" onclick="event.stopPropagation();abrirEvaluar('${a.id}')">✓</span>`
           : (evaluable(a)
               ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();abrirEvaluar('${a.id}')">Evaluar</button>`
               : `<span class="eval-vieja" title="Pasaron más de ${DIAS_PARA_ARCHIVAR} días: ya no se evalúa">–</span>`)}
@@ -5867,13 +5867,17 @@ function logItemHtml(a){
           // El ⋮ agrupa acciones: ver la evaluación de Cintia, reasignar (cualquiera puede,
           // Cintia confirma), editar canal (dirección/Cintia) y atender recordatorio.
           const verEval = a.evaluada && (YO===a.vendedorId || esAdmin() || esAuditora());
+          // Editar la evaluación ya hecha: solo Cintia y dirección. La corrección no
+          // caduca (a diferencia de evaluar por primera vez, que corta a los 25 días).
+          const editEval = a.evaluada && (esAuditora() || esAdmin());
           const reasig  = _ctxLista!=='evaluar';
           const editCanal = puedeVerEquipo() && _ctxLista!=='evaluar';
           const recAt = a.recordatorioPendiente && (YO===a.vendedorId || esAdmin() || esAuditora());
-          if(!(verEval||reasig||editCanal||recAt)) return `<span class="ebtn cm-ico" style="visibility:hidden" aria-hidden="true">⋮</span>`;
+          if(!(verEval||editEval||reasig||editCanal||recAt)) return `<span class="ebtn cm-ico" style="visibility:hidden" aria-hidden="true">⋮</span>`;
           return `<span class="ebtn" onclick="event.stopPropagation();togPop(this)" title="Más opciones">⋮
               <span class="pop pop-menu">
                 ${verEval ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirVistaEvaluacion('${a.id}')">📊 Ver evaluación de Cintia</div>` : ''}
+                ${editEval ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirEvaluar('${a.id}')">✎ Editar evaluación</div>` : ''}
                 ${reasig ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">↪ Reasignar a otro vendedor</div>` : ''}
                 ${editCanal ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirEditarCanal('${a.id}')">✎ Editar canal</div>` : ''}
                 ${recAt ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">✓ Marcar recordatorio como atendido</div>` : ''}
@@ -8947,6 +8951,21 @@ async function movDiaSetFecha(v){
   if(typeof renderCintiaMain==='function') renderCintiaMain();
 }
 
+/* El Resumen del día son 162 filas de una: se pliega por agente, igual que
+   Movimientos. Arranca CERRADO — arriba se ve quién tiene cuánta deuda y se
+   abre solo al que se va a trabajar. */
+let rdAbiertos = new Set();
+function rdToggle(uid){
+  if(rdAbiertos.has(uid)) rdAbiertos.delete(uid); else rdAbiertos.add(uid);
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+}
+function rdTodos(abrir){
+  rdAbiertos = abrir
+    ? new Set(atenciones.filter(a=>cuentaParaVendedor(a) && ['atrasada','hoy','sinclas'].includes(zonaDe(a))).map(a=>a.vendedorId))
+    : new Set();
+  if(typeof renderCintiaMain==='function') renderCintiaMain();
+}
+
 function htmlResumenDelDia(){
   const abiertas = atenciones.filter(a=>cuentaParaVendedor(a));
   const zonas = {atrasada:'Atrasadas', hoy:'Para hoy', sinclas:'Sin clasificar'};
@@ -8984,14 +9003,18 @@ function htmlResumenDelDia(){
           <span class="rd-btn rd-rec" onclick="abrirRecordarConsulta('${a.id}')" title="Mandarle un recordatorio al vendedor">🔔 Recordar</span>
         </td></tr>`;
     }).join('');
+    const abierto = rdAbiertos.has(uid);
     return `<div class="rd-vend">
-      <div class="rd-vend-hd">
-        <b>${escapeHtml(nombreDe(uid))}</b>
+      <div class="rd-vend-hd mv-hd" role="button" tabindex="0" onclick="rdToggle('${uid}')"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();rdToggle('${uid}')}"
+           title="${abierto?'Ocultar':'Ver'} las consultas de ${escAttr(nombreDe(uid))}">
+        <b><span class="mv-flecha">${abierto?'▾':'▸'}</span> ${escapeHtml(nombreDe(uid))}
+          <span class="mv-tot">${l.length}</span></b>
         <span class="rd-cnt">${c('atrasada')?`<i class="rd-z rd-atrasada">${c('atrasada')} atrasadas</i>`:''}
           ${c('hoy')?`<i class="rd-z rd-hoy">${c('hoy')} para hoy</i>`:''}
           ${c('sinclas')?`<i class="rd-z rd-sinclas">${c('sinclas')} sin clasificar</i>`:''}</span>
       </div>
-      <table class="rd-tabla">${filas}</table>
+      ${abierto?`<table class="rd-tabla">${filas}</table>`:''}
     </div>`;
   }).join('');
 
@@ -9002,6 +9025,9 @@ function htmlResumenDelDia(){
       ${totAtr?`<span class="rd-z rd-atrasada">${totAtr} atrasadas</span>`:''}
       ${totHoy?`<span class="rd-z rd-hoy">${totHoy} para hoy</span>`:''}
       ${totSin?`<span class="rd-z rd-sinclas">${totSin} sin clasificar</span>`:''}
+      <span style="flex:1"></span>
+      <button class="btn btn-outline btn-sm" onclick="rdTodos(true)">Abrir todos</button>
+      <button class="btn btn-outline btn-sm" onclick="rdTodos(false)">Cerrar todos</button>
     </div>
     ${bloques}
   </div>`;
@@ -11169,7 +11195,7 @@ function renderEvaluar(){
     <div class="ev-hd">
       <div>
         <h3>${escapeHtml(a.clienteNombre||'Sin nombre')}</h3>
-        <div class="meta">${escapeHtml(vNom)} · ${e?e.toLowerCase():'estancada'}${a.ts?' hace '+diasDesdeISO(a.ts)+'d':''}</div>
+        <div class="meta">${escapeHtml(vNom)} · ${e?e.toLowerCase():'estancada'}${a.ts?' hace '+diasDesdeISO(a.ts)+'d':''}${a.evaluada?' · <b>editando una evaluación del '+new Date(a.evaluadoTs||a.ts).toLocaleDateString('es-AR')+'</b>':''}</div>
       </div>
       ${monto?`<div class="monto"><div class="n">$ ${miles(monto)}</div><div class="l">en juego</div></div>`:''}
       <button class="btn-close" onclick="cerrarEvaluar()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Cerrar">×</button>
@@ -11259,7 +11285,9 @@ function abrirVistaEvaluacion(id){
     : ''
   ) : '';
 
-  const puedePedir = a.evaluada && (!rev || rev.estado==='resuelta');
+  // Solo el vendedor evaluado pide revisión de SU evaluación. Antes no había chequeo de
+  // rol, así que Cintia abría esta vista y se podía pedir una revisión a sí misma.
+  const puedePedir = a.evaluada && YO===a.vendedorId && (!rev || rev.estado==='resuelta');
 
   $('evaluarCaja').innerHTML=`
     <div class="ev-hd"><div><h3>Tu evaluación</h3><div class="meta">${escapeHtml(a.clienteNombre||'Sin nombre')}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}${a.evaluadoTs?' · '+new Date(a.evaluadoTs).toLocaleDateString('es-AR'):''}</div></div></div>
@@ -11374,10 +11402,32 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
   const ev=evTmp;
   if(!ev.nuncaRespondio && !(ev.atencion&&ev.consulta&&ev.cliente)){ toast('Completá los tres ejes'); return; }
 
+  /* ¿Es una evaluación nueva o una corrección de una que ya estaba? Todo lo que sigue
+     depende de esto, así que se calcula ANTES de tocar nada. La regla: un acto que YA
+     se ejecutó no se vuelve a disparar; el juicio (los ejes, el comentario, las
+     observaciones) se puede corregir siempre. */
+  const reEval = !!a.evaluada;
+  const antesEval = {atencion:a.evalAtencion, consulta:a.evalConsulta, cliente:a.evalCliente,
+                     nuncaRespondio:!!a.nuncaRespondio, oportunidadPerdida:!!a.oportunidadPerdida};
+
   a.evaluada=true;
   a.nuncaRespondio=!!ev.nuncaRespondio;
-  a.evaluadoPorId=YO;
-  a.evaluadoTs=new Date().toISOString();
+  /* evaluadoTs es la FECHA EN QUE SE EVALUÓ y no se pisa nunca más: Estadísticas la usa
+     para la cobertura por período y para la corrección de madurez. Si una corrección de
+     hoy la reescribiera, una evaluación de julio se mudaría a agosto y los números del
+     mes cerrado cambiarían solos. Las correcciones llevan su propia marca. */
+  if(!reEval){
+    a.evaluadoPorId=YO;
+    a.evaluadoTs=new Date().toISOString();
+  }else{
+    a.evalEditadoTs=new Date().toISOString();
+    a.evalEditadoPorId=YO;
+    a.evalEdiciones=Array.isArray(a.evalEdiciones)?a.evalEdiciones:[];
+    a.evalEdiciones.push({por:YO, ts:a.evalEditadoTs, antes:antesEval});
+    if(a.evalEdiciones.length>20) a.evalEdiciones=a.evalEdiciones.slice(-20);
+    // Si la consulta se había editado después de evaluarla, la evaluación vuelve a estar al día.
+    a.evalDesactualizada=false;
+  }
   a.evaluacionComentario=(ev.obs||'').trim();
   a.evalDecision=ev.decision;
 
@@ -11416,8 +11466,19 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
   // Comentario de coaching: va al vendedor que la atendió.
   // Si ya lo cargó con el botón "Cargar", está guardado y con su fecha original — no se toca.
   // Si escribió algo pero nunca lo cargó, igual se guarda acá para no perderle el texto.
+  const _cvPrev=a.comentarioVendedor;
+  const _cvPrevCaps=_cvPrev ? ((_cvPrev.capturas&&_cvPrev.capturas.length)?_cvPrev.capturas:(_cvPrev.captura?[_cvPrev.captura]:[])) : [];
+  /* Reeditar la evaluación no tiene por qué volver a notificarle al vendedor un
+     comentario que ya leyó. Si el texto y la cantidad de capturas son los mismos,
+     el comentario queda tal cual estaba, con su fecha y su estado de leído. */
+  const _cvIgual = !!_cvPrev
+    && (_cvPrev.texto||'')===((ev.fbTexto||'').trim())
+    && _cvPrevCaps.length===((ev.capturas||[]).length);
+
   if(ev.fbCargado){
     // ya está en a.comentarioVendedor, se respeta tal cual
+  }else if(_cvIgual){
+    // mismo comentario de siempre: no se toca ni el ts ni el leído
   }else if(ev.fbAbierto && ((ev.fbTexto||'').trim() || (ev.capturas||[]).length)){
     a.comentarioVendedor={
       texto:(ev.fbTexto||'').trim(), captura:(ev.capturas||[])[0]||null, capturas:(ev.capturas||[]).slice(),
@@ -11445,6 +11506,11 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
   if(eraConcretada){
     a.evalDecision='ninguna';
     toast('Evaluación guardada');
+  }else if(ev.decision==='segunda' && a.segundaOportunidad){
+    /* Ya se levantó antes. Derivar de nuevo reasignaría el vendedor otra vez y sellaría
+       un SEGUNDO evento de recupero: la misma plata contada dos veces en la tabla de
+       2da oportunidad. La corrección de la evaluación se guarda igual; el acto no se repite. */
+    toast('Evaluación actualizada — la 2da oportunidad ya estaba derivada a '+nombreDe(a.segundaOportunidad.derivadaA));
   }else if(ev.decision==='segunda'){
     const destino = (ev.derivar && ev.derivar!=='__yo__') ? ev.derivar : YO;
     // El evento queda sellado: quién la levantó, cuándo, cuánto había en juego y a quién
@@ -11483,7 +11549,10 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
       a.historialContacto.push({ts:new Date().toISOString(), texto:'🚒 Intervino '+nombreDe(YO)+' (pidió marcar '+estPed+')', porId:YO, intervencion:true});
     }
     let extra='';
-    if(ev.decision==='pedirConcretadaNueva'){
+    if(ev.decision==='pedirConcretadaNueva' && a.generoConsultaNuevaId){
+      // Ya se le abrio una al pedirlo la primera vez: reeditar no crea otra vacia.
+      extra=' (la consulta nueva ya estaba abierta)';
+    }else if(ev.decision==='pedirConcretadaNueva'){
       // Caso real: el cliente compró la mesa de luz PERO también había preguntado por un
       // respaldo. Al concretarse, la consulta sale de seguimiento y el vendedor pierde el
       // hilo de lo que quedó abierto. Se le abre una consulta nueva del mismo cliente,
@@ -15059,7 +15128,7 @@ function recParaTs(){
 .pills-reasignar .pill{padding:9px 10px;font-size:12px;white-space:nowrap}
 
 /* ============ RESUMEN DEL DÍA ============ */
-.rd-tot{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 16px}
+.rd-tot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 16px}
 .rd-z{display:inline-flex;align-items:center;border-radius:999px;padding:3px 10px;font-size:11px;
   font-weight:800;white-space:nowrap;font-style:normal}
 .rd-atrasada{background:var(--red-l);color:var(--red)}
