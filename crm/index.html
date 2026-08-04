@@ -159,11 +159,18 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 /* Segunda línea de la columna Fecha: el reloj del lead. Ámbar cuando ya pasó a
    seguimiento activo, para que se vea de un vistazo qué se está estirando. */
 .c-lead{font-size:10.5px;font-weight:700;color:var(--muted);white-space:nowrap;margin-top:1px}
-.c-lead.lead-inicial{color:var(--sky)}
-.c-lead.lead-activo{color:var(--amber)}
+.c-lead.lead-inicial{color:var(--blue)}
+.c-lead.lead-activo{color:var(--amarillo)}
 /* Ficha de ejemplo: el caso ocupa el ancho real y las acciones van al costado,
    en la franja que antes quedaba vacía. Abajo de 700px vuelve a apilarse. */
-.ejem-item{flex-direction:row!important;align-items:flex-start!important;gap:16px!important}
+/* Ficha blanca y separada, como el resto de las pantallas. Lo "sin leer" se marca
+   con una línea fina al costado y el texto ámbar que ya estaba, no pintando la fila:
+   con doce casos seguidos, el fondo amarillo tapaba la información. */
+.ejem-item{flex-direction:row!important;align-items:flex-start!important;gap:16px!important;
+  background:#fff;border:1px solid var(--line);border-top:1px solid var(--line)!important;
+  border-radius:12px;padding:13px 15px!important;margin-bottom:10px}
+.ejem-item.sin-leer{border-left:3px solid var(--amber)}
+.ejem-item:last-child{margin-bottom:0}
 .ejem-cuerpo{flex:1;min-width:0}
 .ejem-acc{display:flex;flex-direction:column;gap:6px;width:150px;flex-shrink:0;align-self:center}
 .ejem-acc .btn{width:100%}
@@ -172,9 +179,13 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
   .ejem-item{flex-direction:column!important}
   .ejem-acc{width:100%;flex-direction:row}
 }
-.etapa-seg{font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;white-space:nowrap}
-.etapa-seg.ini{background:var(--sky-l);color:var(--sky)}
-.etapa-seg.act{background:var(--amber-l);color:var(--amber)}
+/* Consulta inicial AZUL · seguimiento activo ÁMBAR. Dos colores lejanos entre sí:
+   el punto es separar de un vistazo lo que recién entró de lo que se está estirando. */
+.etapa-seg{font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;white-space:nowrap;margin-top:2px;display:inline-block}
+.etapa-seg.ini{background:var(--blue-l);color:var(--blue)}
+.etapa-seg.act{background:var(--amarillo-l);color:var(--amarillo)}
+.c-situacion .sit-dot.seg-ini{background:var(--blue)!important}
+.c-situacion .sit-dot.seg-act{background:var(--amarillo)!important}
 .c-vendedor,.chead .h-vendedor{flex:1;color:var(--sec);font-weight:600}
 .c-canal,.chead .h-canal{flex:1.1;min-width:0;color:var(--sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .c-vendedor,.chead .h-vendedor{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1429,7 +1440,11 @@ textarea{resize:vertical;min-height:60px}
 
 
 /* ===== FUSIÓN ETAPAS 3-6 ===== */
-:root{--sky:#0369a1;--sky-l:#e4f1fb;--violet:#7c3aed;--violet-l:#efe9fd}
+:root{--sky:#0369a1;--sky-l:#e4f1fb;--violet:#7c3aed;--violet-l:#efe9fd;
+  /* Paleta de la barra de estado (4/8): el rechazo en bordó en vez de rojo puro —
+     el rojo grita y en una barra donde casi la mitad son rechazos, cansa. El
+     seguimiento activo en amarillo claro, para que no compita con el bordó. */
+  --bordo:#8e1f2f;--bordo-l:#f7e8ea;--amarillo:#c99700;--amarillo-l:#fdf5db}
 
 /* --- ETAPA 3 · Grilla de 8 botones -> KPI cards --- */
 .gridbtn{gap:14px!important}
@@ -4830,7 +4845,14 @@ const DIAS_EVALUAR_SEGUIMIENTO = 10;  // recién a los 10 días vale la pena eva
 
 function diasDesdeConsulta(a){ return diasDesdeISO(a && a.ts); }
 function etapaSeguimiento(a){
-  if(estadoDe(a)!=='En seguimiento') return null;
+  const e=estadoDe(a);
+  if(e==='Concretado'||e==='Rechazado') return null;
+  // Regla de Brian: "Consulta nueva" y "No respondió todavía" entran SÍ O SÍ como
+  // consulta inicial. Acaba de entrar o todavía no hubo conversación: no hay
+  // seguimiento que medir, y dejarlas en "sin estado" las escondía.
+  const et=etapaDesdeRegistro(a);
+  if(et===0 || et===1) return 'inicial';
+  if(e!=='En seguimiento') return null;
   return diasDesdeConsulta(a) <= DIAS_CONSULTA_INICIAL ? 'inicial' : 'activo';
 }
 const ETAPA_SEG_LBL={inicial:'Consulta inicial', activo:'Seguimiento activo'};
@@ -5885,12 +5907,14 @@ function logItemHtml(a){
             </span>
           </span>` : `
           <span class="ebtn est-btn" title="Cambiar etapa comercial" onclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
-            <span class="sit-dot ${est?ESTADO_CLS[est]:'es-sin'}" title="${est||'Sin clasificar'} — tocá para cambiar"></span>
+            <span class="sit-dot ${est?ESTADO_CLS[est]:'es-sin'}${(()=>{const et=etapaSeguimiento(a);return et?(et==='inicial'?' seg-ini':' seg-act'):'';})()}" title="${est||'Sin clasificar'} — tocá para cambiar"></span>
           </span>
           ${(()=>{const i=etapaDesdeRegistro(a), e=ETAPAS_CONSULTA[i];
             return `<span class="etapa-chip ${e.estado?CLASE_CHAPA[e.estado]:'es-sin'}" title="${escAttr(e.lbl+' — '+e.sub)} · doble clic para cambiarla" ondblclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
               <span class="ec-ic">${e.ic}</span><span class="ec-tx">${escapeHtml(e.corto)}</span></span>`;})()}`}
         </div>
+        ${(()=>{ const et=etapaSeguimiento(a); if(!et) return '';
+          return `<span class="etapa-seg ${et==='inicial'?'ini':'act'}" title="${et==='inicial'?('Entró hace '+diasDesdeConsulta(a)+' días — todavía es respuesta inmediata'):('Hace '+diasDesdeConsulta(a)+' días que entró — es seguimiento real')}">${ETAPA_SEG_LBL[et]}</span>`; })()}
         ${esPostventa(a) ? '' : (cerrada
           ? `<span class="sit-op sit-cerrada" title="Consulta ${est.toLowerCase()}">Cerrada</span>`
           : '')}
@@ -5910,7 +5934,7 @@ function logItemHtml(a){
           const _nom=(nombreMostrar||'').trim();
           const _mismo = !_nom || _nom==='Sin definir' || normContacto('@'+_nom.replace(/\s+/g,'').toLowerCase())===normContacto(_igRow);
           return `<b class="nom-copy" onclick="event.stopPropagation();copiarIG('${a.id}')" title="Instagram: ${escAttr(_igRow)}${_mismo?'':' · '+escAttr(_nom)} — tocá para copiar el usuario">${escapeHtml(truncPalabras(_igRow,2))}</b>${_mismo?'':`<span class="c-nom-alt" title="${escAttr(_nom)}">${escapeHtml(truncPalabras(_nom,1))}</span>`}`;
-        })()}${(()=>{ const et=etapaSeguimiento(a); return et?`<span class="etapa-seg ${et==='inicial'?'ini':'act'}" title="${et==='inicial'?('Entró hace '+diasDesdeConsulta(a)+' días — todavía es respuesta inmediata'):('Hace '+diasDesdeConsulta(a)+' días que entró — es seguimiento real')}">${ETAPA_SEG_LBL[et]}</span>`:''; })()}${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        })()}${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
@@ -7069,10 +7093,11 @@ function renderSituResumen(){
   // Antes "En seguimiento" era todo lo no cerrado e incluía las que no tienen ningún
   // estado. Ahora son dos chips distintos: en seguimiento es una decisión que alguien
   // tomó, sin estado es que nadie la tomó todavía. Mezclarlas escondía las segundas.
-  const cSeg = mias.filter(a=>estadoDe(a)==='En seguimiento').length;
+  // Cada balde se cuenta por sí mismo. Antes "activo" salía de restarle inicial a
+  // seguimiento, y al entrar consultas sin estado a "inicial" esa resta daba negativo.
   const cIni = mias.filter(a=>etapaSeguimiento(a)==='inicial').length;
-  const cAct = cSeg - cIni;
-  const cSin = tot - cConc - cRech - cSeg;
+  const cAct = mias.filter(a=>etapaSeguimiento(a)==='activo').length;
+  const cSin = tot - cConc - cRech - cIni - cAct;
   const pct  = c => tot ? Math.round(c/tot*100) : 0;
   // La alerta roja se mide ahora sobre SEGUIMIENTO ACTIVO, no sobre la suma: que el
   // 20% de las consultas hayan entrado esta semana no es un problema, es el trabajo
@@ -11002,7 +11027,7 @@ function htmlEjemploItem(a, opts){
   const destino = e.target==='ambos' ? 'Vendedor y dirección'
                 : e.target==='direccion' ? '🔒 Solo dirección' : 'Para el vendedor';
   const texto = opts.paraDireccion ? (e.motivoDir||e.motivo) : e.motivo;
-  return '<div class="solic-item ejem-item" style="'+(sinLeer?'background:var(--amber-l);border-left:4px solid var(--amber);':'')+'">'
+  return '<div class="solic-item ejem-item'+(sinLeer?' sin-leer':'')+'">'
     + '<div class="ejem-cuerpo">'
     +   '<div class="pend-name">'+((c&&c.nombre)?'⭐ '+nomCli:nomCli)+' · '+nombreDe(a.vendedorId)+'</div>'
     +   '<div class="pend-sub">'+est+' · '+estCanalDe(a)+' · '+new Date(a.ts).toLocaleDateString('es-AR')+(sinLeer?' · <b style="color:var(--amber)">Sin leer</b>':'')+'</div>'
@@ -15228,10 +15253,15 @@ function recParaTs(){
    concretado, rojo rechazado. Antes "En seguimiento" era ámbar y no coincidía con nada. */
 .situ-chip.seg .dot{background:var(--blue)}
 .situ-chip.seg.on{box-shadow:inset 0 0 0 1.5px var(--blue)}
-/* Consulta inicial en celeste, seguimiento activo en azul: se leen como dos etapas
-   del mismo camino, pero no se confunden entre sí de un vistazo. */
-.situ-chip.seg.ini .dot{background:var(--sky)}
-.situ-chip.seg.ini.on{box-shadow:inset 0 0 0 1.5px var(--sky)}
+/* Paleta de la barra, de izquierda a derecha: gris (sin estado) · azul (consulta
+   inicial) · amarillo claro (seguimiento activo) · verde (concretadas) · bordó
+   (rechazadas). Cada balde con su color propio, ninguno se parece al de al lado. */
+.situ-chip.seg .dot{background:var(--amarillo)}
+.situ-chip.seg.on{box-shadow:inset 0 0 0 1.5px var(--amarillo)}
+.situ-chip.seg.ini .dot{background:var(--blue)}
+.situ-chip.seg.ini.on{box-shadow:inset 0 0 0 1.5px var(--blue)}
+.situ-chip.rech .dot{background:var(--bordo)}
+.situ-chip.rech.on{box-shadow:inset 0 0 0 1.5px var(--bordo)}
 .situ-chip.conc.on{box-shadow:inset 0 0 0 1.5px var(--green)}
 .situ-chip.rech.on{box-shadow:inset 0 0 0 1.5px var(--red)}
 /* "Todas" tiene que verse como los otros tres para que se entienda que se puede tocar. */
