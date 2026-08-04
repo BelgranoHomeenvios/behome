@@ -161,6 +161,17 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-lead{font-size:10.5px;font-weight:700;color:var(--muted);white-space:nowrap;margin-top:1px}
 .c-lead.lead-inicial{color:var(--sky)}
 .c-lead.lead-activo{color:var(--amber)}
+/* Ficha de ejemplo: el caso ocupa el ancho real y las acciones van al costado,
+   en la franja que antes quedaba vacía. Abajo de 700px vuelve a apilarse. */
+.ejem-item{flex-direction:row!important;align-items:flex-start!important;gap:16px!important}
+.ejem-cuerpo{flex:1;min-width:0}
+.ejem-acc{display:flex;flex-direction:column;gap:6px;width:150px;flex-shrink:0;align-self:center}
+.ejem-acc .btn{width:100%}
+.ejem-leido{font-size:11.5px;font-weight:700;color:var(--green);text-align:center}
+@media(max-width:700px){
+  .ejem-item{flex-direction:column!important}
+  .ejem-acc{width:100%;flex-direction:row}
+}
 .etapa-seg{font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;white-space:nowrap}
 .etapa-seg.ini{background:var(--sky-l);color:var(--sky)}
 .etapa-seg.act{background:var(--amber-l);color:var(--amber)}
@@ -4120,8 +4131,8 @@ const PB_PRESETS=[
 /* Días de la ventana con la que arranca la app para todos los roles. Con "Todas"
    los gráficos mezclaban 12 meses y el pico de agosto 2025 aplastaba la escala:
    no se veía lo que pasó el último mes, que es lo que sirve para decidir. */
-const PB_DIAS_DEFECTO = 60;
-let pbActivo='60';   // arranca en los últimos 60 días, no en todo el histórico
+const PB_DIAS_DEFECTO = 30;
+let pbActivo='30';   // arranca en los últimos 30 días, no en todo el histórico
 
 /* La app abre con la ventana corta para que arranque rápido, y completa el resto
    por detrás. El vendedor ya puede trabajar mientras el histórico termina de bajar;
@@ -7082,11 +7093,11 @@ function renderSituResumen(){
   box.innerHTML = `<div class="situ-barra${segAlto?' seg-alto':''}">
     <span class="sb-lbl">Estado</span>
     <div class="sb-chips">
-      ${chip('conc','Concretadas',cConc,false,'Concretado')}
+      ${chip('sin','Sin estado',cSin,false,'sin')}
       ${chip('seg ini','Consulta inicial',cIni,false,'seg:inicial')}
       ${chip('seg','Seguimiento activo',cAct, segAlto,'seg:activo')}
+      ${chip('conc','Concretadas',cConc,false,'Concretado')}
       ${chip('rech','Rechazadas',cRech,false,'Rechazado')}
-      ${chip('sin','Sin estado',cSin,false,'sin')}
       <span class="sb-total sb-todas${filtroEstado==='todos'?' on':''}" role="button" tabindex="0"
         title="${filtroEstado==='todos'?'Volver a las activas':'Ver todas, cerradas incluidas'}"
         onclick="filtrarPorSituacion('todos')"
@@ -8338,7 +8349,7 @@ function _rangoDefectoPeriodo(){
 let [cintiaFechaDesde, cintiaFechaHasta] = _rangoDefectoPeriodo();
 /* Chip de período activo en la barra de arriba (única barra desde ahora). null = ventana
    por defecto sin resaltar; 'custom' abre los campos de fecha a elección. */
-let cintiaPresetActivo=null;
+let cintiaPresetActivo='d30';   // el chip "30 días" arranca marcado: la ventana por defecto se ve, no se adivina
 /* Filtro por los botones de Conteo (Cintia/dirección): un vendedor + si fue virtual o
    físico. Se aplica sobre la lista de Consultas. */
 let filtroConteoVendedor=null, filtroConteoTipo=null;
@@ -10991,8 +11002,8 @@ function htmlEjemploItem(a, opts){
   const destino = e.target==='ambos' ? 'Vendedor y dirección'
                 : e.target==='direccion' ? '🔒 Solo dirección' : 'Para el vendedor';
   const texto = opts.paraDireccion ? (e.motivoDir||e.motivo) : e.motivo;
-  return '<div class="solic-item" style="'+(sinLeer?'background:var(--amber-l);border-left:4px solid var(--amber);':'')+'flex-direction:column;align-items:stretch;gap:8px">'
-    + '<div>'
+  return '<div class="solic-item ejem-item" style="'+(sinLeer?'background:var(--amber-l);border-left:4px solid var(--amber);':'')+'">'
+    + '<div class="ejem-cuerpo">'
     +   '<div class="pend-name">'+((c&&c.nombre)?'⭐ '+nomCli:nomCli)+' · '+nombreDe(a.vendedorId)+'</div>'
     +   '<div class="pend-sub">'+est+' · '+estCanalDe(a)+' · '+new Date(a.ts).toLocaleDateString('es-AR')+(sinLeer?' · <b style="color:var(--amber)">Sin leer</b>':'')+'</div>'
     +   ((a.evalAtencion||a.evalConsulta||a.evalCliente)
@@ -11004,9 +11015,10 @@ function htmlEjemploItem(a, opts){
     +   (texto?'<div class="tiny" style="margin-top:6px;padding:8px 10px;background:var(--line2);border-radius:7px">'+escapeHtml(texto)+'</div>':'')
     +   (e.captura?'<div class="ev-caps"><div class="ev-cap"><img src="'+e.captura+'" onclick="verImagen(\''+e.captura+'\')" title="Tocá para verla en grande"></div></div>':'')
     + '</div>'
-    + '<div class="row" style="gap:8px">'
+    + '<div class="ejem-acc">'
     +   '<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorial(\''+a.id+'\',0)">Ver la consulta</button>'
-    +   (sinLeer ? '<button class="btn btn-navy btn-sm" onclick="'+(opts.paraDireccion?'evDirMarcarLeido':'marcarEjemploLeido')+'(\''+a.id+'\')">Leído</button>' : '')
+    +   (sinLeer ? '<button class="btn btn-navy btn-sm" onclick="'+(opts.paraDireccion?'evDirMarcarLeido':'marcarEjemploLeido')+'(\''+a.id+'\')">Leído</button>'
+               : '<span class="ejem-leido">✓ Leído</span>')
     + '</div>'
   + '</div>';
 }
@@ -15216,6 +15228,10 @@ function recParaTs(){
    concretado, rojo rechazado. Antes "En seguimiento" era ámbar y no coincidía con nada. */
 .situ-chip.seg .dot{background:var(--blue)}
 .situ-chip.seg.on{box-shadow:inset 0 0 0 1.5px var(--blue)}
+/* Consulta inicial en celeste, seguimiento activo en azul: se leen como dos etapas
+   del mismo camino, pero no se confunden entre sí de un vistazo. */
+.situ-chip.seg.ini .dot{background:var(--sky)}
+.situ-chip.seg.ini.on{box-shadow:inset 0 0 0 1.5px var(--sky)}
 .situ-chip.conc.on{box-shadow:inset 0 0 0 1.5px var(--green)}
 .situ-chip.rech.on{box-shadow:inset 0 0 0 1.5px var(--red)}
 /* "Todas" tiene que verse como los otros tres para que se entienda que se puede tocar. */
