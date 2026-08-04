@@ -155,7 +155,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .c-emo,.chead .h-emo{flex:1;display:flex;gap:6px;justify-content:flex-end}
 .c-coment,.chead .h-coment{flex:1;display:flex;align-items:center;gap:9px;min-width:112px;justify-content:flex-end}
 .c-estado,.chead .h-estado{flex:1.2;display:flex;align-items:center;gap:4px}
-.c-fecha,.chead .h-fecha{flex:1;color:var(--sec);font-weight:600;font-size:12.5px}
+.c-fecha,.chead .h-fecha{flex:.7;color:var(--sec);font-weight:600;font-size:12.5px}
 /* Segunda línea de la columna Fecha: el reloj del lead. Ámbar cuando ya pasó a
    seguimiento activo, para que se vea de un vistazo qué se está estirando. */
 .c-lead{font-size:10.5px;font-weight:700;color:var(--muted);white-space:nowrap;margin-top:1px}
@@ -5867,17 +5867,8 @@ function logItemHtml(a){
   return `
     <div class="crow zn-${zona}" ondblclick="dblFila(event,'${a.id}')">
       ${bellCol}
-      <div class="c-fecha" ondblclick="editarDesdeHistorial('${a.id}',0)" title="Entró el ${new Date(a.ts).toLocaleDateString('es-AR')} · última actividad ${ultimaActividad(a)?new Date(ultimaActividad(a)).toLocaleDateString('es-AR'):'—'}">
-        <div>${fechaConsultaCorta(a.ts)}</div>
-        ${(()=>{
-          // Reloj del lead: cuántos días lleva desde que entró, y cuándo se lo tocó por
-          // última vez. Sin esto, "En seguimiento" no dice nada sobre cuán vieja está.
-          const et=etapaSeguimiento(a);
-          const d=diasDesdeConsulta(a);
-          const ua=ultimaActividad(a);
-          const cls = et==='activo' ? 'lead-activo' : (et==='inicial' ? 'lead-inicial' : '');
-          return `<div class="c-lead ${cls}">${d}d${ua?` · últ. ${fechaConsultaCorta(new Date(ua).toISOString())}`:''}</div>`;
-        })()}
+      <div class="c-fecha" ondblclick="editarDesdeHistorial('${a.id}',0)" title="Entró hace ${diasDesdeConsulta(a)} días (${new Date(a.ts).toLocaleDateString('es-AR')}) · última actividad ${ultimaActividad(a)?new Date(ultimaActividad(a)).toLocaleDateString('es-AR'):'—'}">
+        ${fechaConsultaCorta(a.ts)}
       </div>
       <div class="c-plazo">
         ${cerrada
