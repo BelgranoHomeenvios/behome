@@ -15573,6 +15573,11 @@ function recParaTs(){
    misma clase .gridbtn y no se toca. */
 @media(min-width:901px){
   #cintiaBotones{grid-template-columns:repeat(20,1fr)!important;gap:10px!important}
+  /* BASE: sin esto, una cantidad de baldes sin regla propia cae a span 1 de 20
+     y quedan todos en un renglón, ilegibles. Con esto degrada a 4 por fila. */
+  #cintiaBotones > .gb{grid-column:span 5}
+  /* 10 baldes: dos filas parejas de 5. */
+  #cintiaBotones.gb10 > .gb{grid-column:span 4}
   /* 9 baldes: 4 arriba (span 5) y 5 abajo (span 4). */
   #cintiaBotones.gb9 > .gb:nth-child(-n+4){grid-column:span 5}
   #cintiaBotones.gb9 > .gb:nth-child(n+5){grid-column:span 4}
