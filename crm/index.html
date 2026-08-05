@@ -4832,6 +4832,14 @@ function estadoDe(a){
   if(em && em!=='-' && em!=='#REF!') return em;
   return null;
 }
+/* Segundo rechazo: la consulta ya se había rechazado, Cintia la levantó a 2da
+   oportunidad (pasó a "En seguimiento") y el vendedor la volvió a rechazar. El estado
+   GUARDADO sigue siendo "Rechazado" — no se toca estadoDe ni ninguna métrica —, pero en
+   pantalla se muestra como "2do rechazado" para no confundirla con un rechazo común: es
+   una consulta que ni recuperándola cerró, dato valioso para dirección. */
+function esSegundoRechazo(a){
+  return !!(a && estadoDe(a)==='Rechazado' && a.segundaOportunidad && a.segundaOportunidad.nota);
+}
 
 /* ===== ETAPAS DEL SEGUIMIENTO =====
    "En seguimiento" mezclaba lo que entró hoy con lo que está hace un mes. Se divide
@@ -5901,8 +5909,11 @@ function logItemHtml(a){
             <span class="sit-dot ${est?ESTADO_CLS[est]:'es-sin'}${(()=>{const et=etapaSeguimiento(a);return et?(et==='inicial'?' seg-ini':' seg-act'):'';})()}" title="${est||'Sin clasificar'} — tocá para cambiar"></span>
           </span>
           ${(()=>{const i=etapaDesdeRegistro(a), e=ETAPAS_CONSULTA[i];
-            return `<span class="etapa-chip ${e.estado?CLASE_CHAPA[e.estado]:'es-sin'}" title="${escAttr(e.lbl+' — '+e.sub)} · doble clic para cambiarla" ondblclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
-              <span class="ec-ic">${e.ic}</span><span class="ec-tx">${escapeHtml(e.corto)}</span></span>`;})()}`}
+            const seg2=esSegundoRechazo(a);
+            const tx=seg2?'2do rechazado':e.corto;
+            const tt=seg2?'Rechazada de nuevo tras una 2da oportunidad — ni recuperándola cerró':(e.lbl+' — '+e.sub);
+            return `<span class="etapa-chip ${e.estado?CLASE_CHAPA[e.estado]:'es-sin'}" title="${escAttr(tt)} · doble clic para cambiarla" ondblclick="event.stopPropagation();abrirEtapaComercial('${a.id}')">
+              <span class="ec-ic">${e.ic}</span><span class="ec-tx">${escapeHtml(tx)}</span></span>`;})()}`}
         </div>
         ${(()=>{ const et=etapaSeguimiento(a); if(!et) return '';
           return `<span class="etapa-seg ${et==='inicial'?'ini':'act'}" title="${et==='inicial'?('Entró hace '+diasDesdeConsulta(a)+' días — todavía es respuesta inmediata'):('Hace '+diasDesdeConsulta(a)+' días que entró — es seguimiento real')}">${ETAPA_SEG_LBL[et]}</span>`; })()}
@@ -5925,7 +5936,10 @@ function logItemHtml(a){
           const _nom=(nombreMostrar||'').trim();
           const _mismo = !_nom || _nom==='Sin definir' || normContacto('@'+_nom.replace(/\s+/g,'').toLowerCase())===normContacto(_igRow);
           return `<b class="nom-copy" onclick="event.stopPropagation();copiarIG('${a.id}')" title="Instagram: ${escAttr(_igRow)}${_mismo?'':' · '+escAttr(_nom)} — tocá para copiar el usuario">${escapeHtml(truncPalabras(_igRow,2))}</b>${_mismo?'':`<span class="c-nom-alt" title="${escAttr(_nom)}">${escapeHtml(truncPalabras(_nom,1))}</span>`}`;
-        })()}${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${(a.segundaOportunidad && a.segundaOportunidad.nota && (esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();verNotaSegunda('${a.id}')" title="Solo lo ven dirección y Cintia">2da oportunidad</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
+        })()}${a.ventaCompartida?`<span class="nueva-b badge-emoji" style="background:#0d9488" title="Venta compartida${a.compartidaConNombres?' con '+escAttr(a.compartidaConNombres):''} — cada uno anota su parte">🤝 Compartida</span>`:''}${dupMotivo?(puedeMarcarIntervencion()?`<span class="nueva-b" style="background:var(--red);cursor:pointer" title="${escAttr(dupMotivo)} — clic para marcar como venta compartida entre los vendedores" onclick="event.stopPropagation();marcarCompartidaDesdeRow('${a.id}')">⚠ Duplicado</span>`:`<span class="nueva-b" style="background:var(--red)" title="${escAttr(dupMotivo)} — puede estar cargada dos veces">⚠ Duplicado</span>`):''}${solPendiente?'<span class="nueva-b" style="background:var(--red)">Baja pendiente</span>':''}${(puedeMarcarIntervencion() && intervinoCintia(a))?'<span class="nueva-b badge-emoji" style="background:#0d9488" title="Intervino '+escAttr(nombreDe(a.cintiaIntervino.porId))+' en el seguimiento">🚒 Intervino</span>':''}${(a.reasignacionPedida && a.reasignacionPedida.paraId && (esAdmin()||esAuditora()||YO===a.reasignacionPedida.porId||YO===a.reasignacionPedida.paraId))?`<span class="nueva-b" style="background:#7c3aed" title="Reasignación pedida a ${escAttr(nombreDe(a.reasignacionPedida.paraId))} — falta que Cintia la confirme">↪ Reasignación pendiente</span>`:''}${a.recordatorioPendiente?'<span class="nueva-b badge-emoji" style="background:var(--amber)" title="Recordatorio: '+(a.recordatorioComentario||'').replace(/"/g,'&quot;')+'">⏰</span>':''}${(a.cambioEstadoPedido && (YO===a.vendedorId||esAdmin()||esAuditora())) ? `<span class="nueva-b" style="background:${a.cambioEstadoPedido.estado==='Concretado'?'var(--green)':'var(--red)'};cursor:pointer" onclick="event.stopPropagation();abrirCambioEstadoPedido('${a.id}')" title="Cintia te pide marcarla ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'} y cargar los datos">⚠ Marcá ${a.cambioEstadoPedido.estado==='Concretado'?'Concretada':'Rechazada'}</span>` : ''}${''/* Cartel "2da oportunidad" al lado del teléfono SACADO (decisión de Brian): en una
+      consulta re-rechazada era ruido y confundía con el estado. El dato no se pierde:
+      la 2da oportunidad se sigue viendo en "Mis pendientes", en el historial y ahora en
+      el propio chip de estado como "2do rechazado". */}${(a.revisionEval && a.revisionEval.estado==='pendiente' && (YO===a.vendedorId||esAdmin())) ? `<span class="nueva-b" style="background:var(--amber);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión pedida</span>` : ''}${(a.revisionEval && a.revisionEval.estado==='resuelta' && !a.revisionEval.vistoVendedor && (YO===a.vendedorId) && !esAuditora()) ? `<span class="nueva-b" style="background:var(--green);cursor:pointer" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Revisión respondida</span>` : ''}
         </span>
         <div class="c-tel">${telCopiable
           ? `<span class="tel-copy" onclick="event.stopPropagation();copiarContacto('${a.id}')" title="${escAttr(tel)} — tocá para copiar">${escapeHtml(truncPalabras(tel,2))}</span>`
@@ -9110,7 +9124,7 @@ function htmlResumenDelDia(){
         <td><span class="rd-z rd-${z}">${zonas[z]}</span></td>
         <td class="rd-cli">${escapeHtml(a.clienteNombre||'Sin nombre')}
           <span class="rd-tel">${escapeHtml(a.clienteTelefono||a.clienteTelefonoIG||'')}</span></td>
-        <td><span class="etapa-chip ${et.estado?CLASE_CHAPA[et.estado]:'es-sin'}"><span class="ec-ic">${et.ic}</span><span class="ec-tx">${escapeHtml(et.corto)}</span></span></td>
+        <td><span class="etapa-chip ${et.estado?CLASE_CHAPA[et.estado]:'es-sin'}"><span class="ec-ic">${et.ic}</span><span class="ec-tx">${escapeHtml(esSegundoRechazo(a)?'2do rechazado':et.corto)}</span></span></td>
         <td class="rd-dias">${diasSinContacto(a)}d sin contacto</td>
         <td class="rd-acc">
           <span class="rd-btn" onclick="editarDesdeHistorial('${a.id}',0)" title="Abrir la consulta">Abrir</span>
