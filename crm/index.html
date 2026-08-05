@@ -8902,7 +8902,7 @@ function metricasVendedor(cs){
   return {total,abiertas,seg,sinClas,hist,atras,conc,rech,cerradas,pendiente:abiertas,carga,topeAtrasadas};
 }
 const TOPE_ATRASADAS = 25;   // % de atrasadas sobre abiertas que se considera aceptable
-const TOPE_SEGUIMIENTO = 30; // % de "En seguimiento" sobre el total antes de saltar alerta (se irá bajando)
+const TOPE_SEGUIMIENTO = 40; // % de "En seguimiento" sobre el total antes de saltar alerta (subido de 30 a 40 por decisión de Brian, 5/8/2026)
 function deltaHtml(actual, anterior){
   if(anterior===null||anterior===undefined||!anterior) return '';
   const dif=Math.round((actual-anterior)/anterior*100);
