@@ -17447,6 +17447,11 @@ function htmlFichaReclamo(){
 .mkt-card.collapsed{padding-top:14px;padding-bottom:14px}
 .mkt-card.collapsed>h3{margin-bottom:0}
 .mkt-card.collapsed>*:not(h3){display:none}
+.mkt-pag{display:flex;align-items:center;gap:6px;margin-top:14px;flex-wrap:wrap}
+.mkt-pagbtn{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 11px;font-size:13px;font-weight:700;color:var(--sec)}
+.mkt-pagbtn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.mkt-pagbtn:disabled{opacity:.4;cursor:default}
+.mkt-pag-info{font-size:12px;color:var(--muted);margin-left:8px}
 .mkt-dchip.click{cursor:pointer;transition:all .1s;user-select:none}
 .mkt-dchip.click:hover{border-color:var(--navy)}
 .mkt-dchip.on{background:var(--navy);border-color:var(--navy);color:#fff}
@@ -17545,6 +17550,7 @@ let mktCalSel=[];               // filtro por calidad de consulta: 1 bien · 2 g
 let mktNoRespScope='todos';     // panel de no-responde: 'todos' | 'pub' | 'otros'
 let mktMesAbierto=null;         // drill del gráfico de volumen: 'YYYY-M' del mes abierto, o null
 let mktAbiertas=new Set();      // tarjetas ABIERTAS (acordeón). Default: todas cerradas → Ari ve los títulos y abre lo que necesita.
+let mktProdPag=1;               // página de la tabla de productos cotizados (20 por página)
 
 /* Canales que cuentan para marketing, EN ESTE ORDEN. Todo lo demás (proveedores,
    otros, consulta de estado, envíos web, email, CVs, etc.) queda afuera. Los dos
@@ -17721,6 +17727,7 @@ function mktAplicarColapso(el){
   });
 }
 function mktSetTab(t){ mktTab=t; renderMarketing(); }
+function mktSetProdPag(n){ mktProdPag=n; renderMarketing(); }
 function mktSetPreset(v){ mktPreset=v; mktMesAbierto=null; renderMarketing(); }
 function mktSetFecha(k,v){ if(k==='d')mktDesde=v||null; else mktHasta=v||null; mktPreset='pers'; mktMesAbierto=null; renderMarketing(); }
 function mktToggleVend(uid){
@@ -17974,11 +17981,20 @@ function mktBucketProd(base){
 
   // 2 · Productos cotizados (vendidos / seguimiento / rechazados / total)
   const rowsProd=Object.entries(prod).map(([k,o])=>({k,...o})).sort((a,b)=>b.tot-a.tot);
+  const PER=20;
+  const totPag=Math.max(1,Math.ceil(rowsProd.length/PER));
+  if(mktProdPag>totPag)mktProdPag=totPag; if(mktProdPag<1)mktProdPag=1;
+  const pageRows=rowsProd.slice((mktProdPag-1)*PER, mktProdPag*PER);
+  let nums=''; for(let i=1;i<=totPag;i++){ nums+=`<button class="mkt-pagbtn ${i===mktProdPag?'on':''}" onclick="mktSetProdPag(${i})">${i}</button>`; }
+  const pag=totPag>1?`<div class="mkt-pag">
+    <button class="mkt-pagbtn" ${mktProdPag<=1?'disabled':''} onclick="mktSetProdPag(${mktProdPag-1})">‹</button>${nums}<button class="mkt-pagbtn" ${mktProdPag>=totPag?'disabled':''} onclick="mktSetProdPag(${mktProdPag+1})">›</button>
+    <span class="mkt-pag-info">${(mktProdPag-1)*PER+1}–${Math.min(mktProdPag*PER,rowsProd.length)} de ${rowsProd.length} productos</span>
+  </div>`:'';
   const card6=`<div class="mkt-card wide"><h3>2 · Productos cotizados</h3>
     <p class="cap">Listado de muebles: cuántos se vendieron, quedaron en seguimiento o se rechazaron, según el estado de la consulta. El total es cuántas veces se cotizó cada uno.</p>
     ${rowsProd.length?`<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>Producto</th><th>Vendidos</th><th>Seguimiento</th><th>Rechazados</th><th>Total cotizado</th></tr></thead><tbody>
-      ${rowsProd.map(r=>`<tr><td>${escapeHtml(r.k)}</td>${cel(r.ven,r.tot,'mkt-cg')}${cel(r.seg,r.tot,'mkt-cy')}${cel(r.rech,r.tot,'mkt-cr')}<td><b>${r.tot}</b></td></tr>`).join('')}
-    </tbody></table>`:'<p class="mkt-note">Sin productos cargados en el período.</p>'}
+      ${pageRows.map(r=>`<tr><td>${escapeHtml(r.k)}</td>${cel(r.ven,r.tot,'mkt-cg')}${cel(r.seg,r.tot,'mkt-cy')}${cel(r.rech,r.tot,'mkt-cr')}<td><b>${r.tot}</b></td></tr>`).join('')}
+    </tbody></table>${pag}`:'<p class="mkt-note">Sin productos cargados en el período.</p>'}
     <div class="mkt-foot"><b>Qué medimos:</b> cada mueble elegido en una consulta, cruzado con el resultado de esa consulta. El % es sobre el total cotizado de ese producto.</div></div>`;
   const g={};
   atenciones.forEach(a=>{
