@@ -1709,8 +1709,9 @@ textarea{resize:vertical;min-height:60px}
     <button class="out" onclick="logout()">Salir</button>
   </div>
   <div class="tabs">
-    <a class="tab active" data-tab="cola" onclick="cambiarVista('cola')">Mis clientes</a>
+    <a class="tab active" data-tab="cola" id="tabCola" onclick="cambiarVista('cola')">Mis clientes</a>
     <a class="tab hidden" data-tab="direccion" id="tabDireccion" onclick="cambiarVista('direccion')">📊 Panel de dirección</a>
+    <a class="tab hidden" data-tab="marketing" id="tabMarketing" onclick="cambiarVista('marketing')">📈 Marketing</a>
     <a class="tab" data-tab="config" id="tabConfig" onclick="cambiarVista('config')">Config</a>
   </div>
 
@@ -2134,6 +2135,7 @@ textarea{resize:vertical;min-height:60px}
 
     <!-- ===== CONFIG (solo admin) — el contenido vive dentro de los módulos de Brian ===== -->
     <div class="view" id="view-direccion"></div>
+    <div class="view" id="view-marketing"></div>
     <div class="view" id="view-config"></div>
 
   </div>
@@ -2319,9 +2321,10 @@ const USUARIOS={
   cristian:{n:'Cristian',rol:'vendedor'},
   claudia:{n:'Claudia',rol:'vendedor'},
   cintia:{n:'Cintia',rol:'auditora'},
+  ariel:{n:'Ariel',rol:'marketing'},
   brian:{n:'Brian',rol:'admin'}
 };
-const ORDEN_LOGIN=['sergio','nati','ale','cristian','claudia','cintia','brian'];
+const ORDEN_LOGIN=['sergio','nati','ale','cristian','claudia','cintia','ariel','brian'];
 
 /* Confirmado: Sergio trabaja Belgrano 2020 de lunes a sábado, y Belgrano 2299 los domingos.
    Ale y Nati también pueden trabajar en cualquiera de los dos locales según el día — por eso
@@ -2480,6 +2483,7 @@ function rolDe(uid){return (USUARIOS[uid]||{rol:'vendedor'}).rol;}
 function esConsultaIG(a){ return !!(a && a.canal==='virtual' && /instagram/i.test(a.canalDetalle||'')); }
 function esAdmin(){return rolDe(YO)==='admin';}
 function esAuditora(){return rolDe(YO)==='auditora';}
+function esMarketing(){return rolDe(YO)==='marketing';}   // Ariel: rol de solo lectura, ve únicamente el módulo de estadísticas de Marketing
 function puedeVerEquipo(){return esAdmin()||esAuditora();}
 
 /* ===== DATOS DE CONTACTO BLOQUEADOS =====
@@ -2584,7 +2588,7 @@ function localesDeVendedor(uid){
 
 /* ---------------- login ---------------- */
 function pintarLogin(){
-  const rolTexto={admin:'Administrador', auditora:'Auditora / Coordinadora', vendedor:'Vendedor'};
+  const rolTexto={admin:'Administrador', auditora:'Auditora / Coordinadora', vendedor:'Vendedor', marketing:'Marketing'};
   $('login-list').innerHTML=ORDEN_LOGIN.map(uid=>
     `<div class="ucard" onclick="login('${uid}')"><div class="un">${USUARIOS[uid].n}</div><div class="ur">${rolTexto[USUARIOS[uid].rol]||'Vendedor'}</div></div>`
   ).join('');
@@ -2610,7 +2614,7 @@ function pintarAdminViewBar(){
   const esAdminReal = rolDe(VER_COMO_REAL)==='admin';
   const lbl=$('adminViewLbl'); if(lbl) lbl.textContent = esAdminReal ? 'Modo admin · ver la app como:' : 'Entrar a la planilla de:';
   const uids = esAdminReal
-    ? ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor'||rolDe(uid)==='auditora')
+    ? ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor'||rolDe(uid)==='auditora'||rolDe(uid)==='marketing')
     : ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor');
   $('adminViewSelect').innerHTML =
     `<option value="__real__">${nombreDe(VER_COMO_REAL)} (vos)</option>` +
@@ -2690,6 +2694,7 @@ function entrarApp(){
   $('screen-login').classList.add('hidden');
   $('screen-app').classList.remove('hidden');
   $('tabConfig').classList.toggle('hidden', !esAdmin());
+  $('tabMarketing').classList.toggle('hidden', !(esMarketing()||esAdmin()));  // módulo de Marketing: lo ven Ariel y dirección
   // Default de período por rol: el vendedor arranca viendo los últimos 15 días
   // (3/8/2026, Brian: 30 le mostraba demasiado y diluía la agenda del día).
   // Cintia y dirección siguen con la ventana más amplia.
@@ -2755,6 +2760,15 @@ function entrarApp(){
     $('filtroLocalAdmin').classList.add('hidden');
     FILTRO_LOCAL_ADMIN='todos';
     scopeActual='equipo';
+  }else if(esMarketing()){
+    // Ariel — rol de solo lectura. No tiene cola de clientes ni carga de consultas:
+    // entra directo a su módulo de estadísticas y no ve nada del circuito de ventas.
+    $('whoRol').textContent='Marketing';
+    $('localLineVendedor').classList.add('hidden');
+    $('filtroLocalAdmin').classList.add('hidden');
+    FILTRO_LOCAL_ADMIN='todos';
+    scopeActual='equipo';
+    $('tabCola').classList.add('hidden');
   }else{
     $('filtroLocalAdmin').classList.add('hidden');
     scopeActual='mias';
@@ -2775,6 +2789,8 @@ function entrarApp(){
     ? 'Puente manual al CRM hasta conectar la integración directa. Cada registro guarda el id de vendedor y de local para vincularlo sin fricción.'
     : '';
   render();
+  // Ariel arranca directamente en su módulo de Marketing (no tiene otra vista).
+  if(esMarketing()) cambiarVista('marketing');
 }
 
 function cambiarFiltroLocalAdmin(id){FILTRO_LOCAL_ADMIN=id;render();}
@@ -4314,6 +4330,19 @@ function render(){
     $('headerConfigBtn').classList.add('hidden');
     document.querySelector('.tabs').style.setProperty('display','none','important');
     renderPanelCintia();
+  }else if(esMarketing()){
+    // Ariel — solo lectura. Se le esconde TODO el circuito de ventas y se lo deja
+    // únicamente con su módulo de estadísticas de Marketing.
+    $('adminAccionesBox').classList.add('hidden');
+    $('conexionesHoyBox').classList.add('hidden');
+    $('pausasHoyBox').classList.add('hidden');
+    $('panelCintia').classList.add('hidden');
+    $('headerConfigBtn').classList.add('hidden');
+    $('localLineVendedor').classList.add('hidden');
+    document.querySelector('.tabs').style.setProperty('display','none','important');
+    mktBox='view-marketing';
+    cambiarVista('marketing');
+    return;
   }else{
     $('adminAccionesBox').classList.add('hidden');
     $('conexionesHoyBox').classList.add('hidden');
@@ -7990,6 +8019,7 @@ function cambiarVista(v){
   $('view-'+v).classList.add('active');
   document.querySelectorAll('.tabs .tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===v));
   if(v==='config' && esAdmin()){ renderEliminacionesAdmin(); renderConfigCanalesDestinos(); }
+  if(v==='marketing'){ renderMarketing('view-marketing'); }
 }
 function renderConfigCanalesDestinos(){
   const cBox=$('configCanalesLista'), dBox=$('configDestinosLista');
@@ -8508,6 +8538,7 @@ function renderCintiaBotones(){
       {id:'reclamos',       label:'Reclamos',          ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(r=>rcAbierto(r)&&rcVigente(r)).length:0)},
       {id:'evaluacion',    label:'Evaluación',         ic:'evaluar', cnt:evDirSinLeer()},
       {id:'direccion',     label:'Panel de dirección', ic:'ventas'},
+      {id:'marketing',     label:'Marketing',          ic:'pulso'},
       {id:'configuracion', label:'Configuración',      ic:'evaluar'},
     ];
     $('cintiaBotones').className='gridbtn gb'+itemsA.length;
@@ -8550,6 +8581,7 @@ function renderCintiaMain(){
     else if(cintiaSeccion==='reclamos') box.innerHTML=htmlReclamos();
     else if(cintiaSeccion==='evaluacion') box.innerHTML=htmlEvaluacionDireccion();
     else if(cintiaSeccion==='direccion'){ box.innerHTML='<div id="direccionBox"></div>'; renderDireccion(); }
+    else if(cintiaSeccion==='marketing'){ mktBox='cintiaMain'; box.innerHTML=htmlMarketing(); }
     else if(cintiaSeccion==='configuracion'){ box.innerHTML=htmlAdminConfig(); pintarConfigLocales(); renderEliminacionesAdmin(); renderConfigCanalesDestinos(); }
     else box.innerHTML='';
     return;
@@ -17377,6 +17409,348 @@ function htmlFichaReclamo(){
   </div>`;
 }
 
+</script>
+
+<!-- ===================== MÓDULO MARKETING (Ariel — solo lectura) ===================== -->
+<style>
+#view-marketing{padding:16px 18px 70px}
+.mkt-wrap{max-width:1180px;margin:0 auto}
+.mkt-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:2px}
+.mkt-head h2{margin:0;font-size:21px;color:var(--navy)}
+.mkt-head .badge{background:var(--navy);color:#fff;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.03em}
+.mkt-sub{color:var(--sec);font-size:13px;margin:4px 0 14px}
+.mkt-filtros{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:16px;box-shadow:var(--shadow)}
+.mkt-fgroup{display:flex;flex-direction:column;gap:6px}
+.mkt-fgroup>span.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+.mkt-chips{display:flex;gap:6px}
+.mkt-chip{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font-size:12.5px;font-weight:700;color:var(--sec)}
+.mkt-chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.mkt-filtros select{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;font-family:inherit;font-weight:600;background:#fff;color:var(--ink)}
+.mkt-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.mkt-navbtn{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:14px 12px;font-size:14px;font-weight:700;color:var(--sec);box-shadow:var(--shadow);transition:all .12s;text-align:left}
+.mkt-navbtn:hover{border-color:#b9d0f5;color:var(--navy)}
+.mkt-navbtn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+@media(max-width:820px){.mkt-nav{grid-template-columns:1fr 1fr}}
+.mkt-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.mkt-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+.mkt-card.wide{grid-column:1 / -1}
+.mkt-card h3{margin:0 0 2px;font-size:15px;color:var(--navy)}
+.mkt-card .cap{margin:0 0 14px;font-size:12px;color:var(--muted);line-height:1.45}
+.mkt-kpirow{display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 12px}
+.mkt-kpi .n{font-size:26px;font-weight:800;color:var(--ink);line-height:1}
+.mkt-kpi .n small{font-size:14px;font-weight:700;color:var(--sec)}
+.mkt-kpi .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-top:4px}
+.mkt-bar{display:flex;align-items:center;gap:10px;margin:7px 0}
+.mkt-bar .bl{width:158px;font-size:12.5px;color:var(--sec);font-weight:600;text-align:right;flex:0 0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mkt-bar .bt{flex:1;height:16px;background:var(--line2);border-radius:8px;overflow:hidden}
+.mkt-bar .bt>i{display:block;height:100%;border-radius:8px;min-width:2px}
+.mkt-bar .bv{width:96px;font-size:12.5px;font-weight:700;color:var(--ink);flex:0 0 auto}
+.mkt-bar .bv small{color:var(--muted);font-weight:600}
+.mkt-days{display:flex;align-items:flex-end;gap:3px;height:130px;padding-top:8px}
+.mkt-days .d{flex:1;background:var(--blue);border-radius:3px 3px 0 0;min-height:2px}
+.mkt-axis{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:6px}
+table.mkt-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.mkt-tbl th{text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line)}
+.mkt-tbl th:first-child,.mkt-tbl td:first-child{text-align:left}
+.mkt-tbl td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--line2)}
+.mkt-tbl tr:last-child td{border-bottom:none}
+.mkt-tbl .tot td{font-weight:800;border-top:2px solid var(--line)}
+.mkt-scroll{max-height:340px;overflow:auto}
+.mkt-pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:800}
+.mkt-pill.g{background:var(--green-l);color:var(--green)}
+.mkt-pill.a{background:var(--amber-l);color:var(--amber)}
+.mkt-pill.r{background:var(--red-l);color:var(--red)}
+.mkt-dist{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.mkt-dchip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12.5px}
+.mkt-dchip i{width:9px;height:9px;border-radius:50%}
+.mkt-dchip b{font-weight:800}
+.mkt-note{font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.5}
+.mkt-cg{color:var(--green)}.mkt-ca{color:var(--amber)}.mkt-cr{color:var(--red)}
+@media(max-width:820px){.mkt-grid{grid-template-columns:1fr}.mkt-bar .bl{width:110px}}
+</style>
+<script>
+/* ============================================================================
+   MÓDULO MARKETING — pantalla de solo lectura para Ariel (rol 'marketing').
+   Responde las 9 preguntas de marketing reusando los MISMOS datos del CRM.
+   No escribe nada: solo lee `atenciones` y agrega. Vive aislado del circuito
+   de ventas para no tocar la lógica de vendedores/Cintia.
+   ============================================================================ */
+let mktPreset='mes';      // 'mes' | '3m' | 'anio' | 'todo'
+let mktVend='todos';
+let mktCanal='todos';
+let mktBox='view-marketing';   // dónde se pinta (Ariel: view-marketing · Brian: cintiaMain)
+let mktTab='volumen';          // balde activo: 'volumen' | 'resultado' | 'prod' | 'calidad'
+
+function mktRango(){
+  const d2=new Date(); d2.setHours(23,59,59,999);
+  let d1=new Date(d2);
+  if(mktPreset==='mes')       d1.setDate(d1.getDate()-30);
+  else if(mktPreset==='3m')   d1.setMonth(d1.getMonth()-3);
+  else if(mktPreset==='anio') d1.setFullYear(d1.getFullYear()-1);
+  else                        d1=new Date(2000,0,1);
+  d1.setHours(0,0,0,0);
+  return {d1,d2};
+}
+function mktBaseAll(){
+  const {d1,d2}=mktRango();
+  return atenciones.filter(a=>{
+    if(!a||!a.ts) return false;
+    const t=new Date(a.ts).getTime();
+    if(isNaN(t)||t<d1.getTime()||t>d2.getTime()) return false;
+    if(mktVend!=='todos' && a.vendedorId!==mktVend) return false;
+    if(mktCanal!=='todos' && canalReal(a)!==mktCanal) return false;
+    return true;
+  });
+}
+function mktPct(c,t){ return t? Math.round(c/t*100):0; }
+function mktPesos(n){ return '$ '+Math.round(n||0).toLocaleString('es-AR'); }
+function mktColorCanal(c){
+  const M={'WhatsApp':'#15803d','Local':'#1e5fce','Instagram':'#7c3aed','Publicidad Instagram':'#a833d1','Publicidad Mensajería':'#ea580c','Facebook':'#0369a1','Tienda Nube':'#0d9488','Email':'#64748b','Consulta de estado':'#8a94a3','Google Shopping':'#b45309','Reclamo':'#b42318'};
+  return M[c]||'#5b6675';
+}
+const MKT_VCOL=['#1e5fce','#0d9488','#7c3aed','#db2777','#ea580c','#0369a1','#15803d'];
+function mktColorVend(uid){ const i=ORDEN_LOGIN.indexOf(uid); return MKT_VCOL[(i<0?0:i)%MKT_VCOL.length]; }
+function mktProdFam(m){
+  const w=(nombreMueble(m)||'').trim().split(/\s+/)[0]||'Sin nombre';
+  return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();
+}
+function mktValor(a){
+  return montoRepresentativo(a.muebles) || (+a.montoPerdido||0) || (a.segundaOportunidad&&+a.segundaOportunidad.montoEnJuego||0) || 0;
+}
+function mktVendedores(){ return ORDEN_LOGIN.filter(u=>rolDe(u)==='vendedor'); }
+
+/* barras horizontales genéricas: rows=[{k,v,extra}] */
+function mktBarras(rows, colorFn, fmt){
+  if(!rows.length) return '<p class="mkt-note">Sin datos en este período.</p>';
+  const max=Math.max(1,...rows.map(r=>r.v));
+  return rows.map(r=>`<div class="mkt-bar">
+    <span class="bl" title="${escAttr(r.k)}">${escapeHtml(r.k)}</span>
+    <span class="bt"><i style="width:${Math.round(r.v/max*100)}%;background:${colorFn?colorFn(r.k,r):'var(--blue)'}"></i></span>
+    <span class="bv">${fmt?fmt(r):r.v}</span></div>`).join('');
+}
+
+/* serie temporal con relleno de huecos */
+function mktSerie(base){
+  const {d1,d2}=mktRango();
+  const spanD=Math.round((d2.getTime()-d1.getTime())/86400000);
+  const unit=spanD<=45?'dia':(spanD<=220?'sem':'mes');
+  const norm=dt=>{const x=new Date(dt);x.setHours(0,0,0,0);
+    if(unit==='sem'){const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);}
+    else if(unit==='mes'){x.setDate(1);} return x;};
+  const step=x=>{const n=new Date(x);
+    if(unit==='dia')n.setDate(n.getDate()+1);
+    else if(unit==='sem')n.setDate(n.getDate()+7);
+    else n.setMonth(n.getMonth()+1); return n;};
+  const counts={};
+  base.forEach(a=>{const k=norm(a.ts).getTime();counts[k]=(counts[k]||0)+1;});
+  const out=[]; let cur=norm(d1); const end=norm(d2).getTime(); let guard=0;
+  while(cur.getTime()<=end && guard<732){ out.push({t:cur.getTime(),c:counts[cur.getTime()]||0}); cur=step(cur); guard++; }
+  return {out,unit};
+}
+function mktFechaCorta(t,unit){
+  const x=new Date(t); const MS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  if(unit==='mes') return MS[x.getMonth()]+' '+String(x.getFullYear()).slice(2);
+  return x.getDate()+'/'+(x.getMonth()+1);
+}
+
+function renderMarketing(boxId){
+  if(boxId) mktBox=boxId;
+  const el=document.getElementById(mktBox);
+  if(el) el.innerHTML=htmlMarketing();
+}
+function mktSet(k,v){
+  if(k==='preset') mktPreset=v;
+  else if(k==='vend') mktVend=v;
+  else if(k==='canal') mktCanal=v;
+  renderMarketing();
+}
+function mktSetTab(t){ mktTab=t; renderMarketing(); }
+
+function htmlMarketing(){
+  const base=mktBaseAll();
+  const tot=base.length;
+  const VEND=mktVendedores();
+  const canalesPresentes=[...new Set(atenciones.map(a=>canalReal(a)).filter(Boolean))].sort();
+  const PERIODOS=[['mes','Último mes'],['3m','3 meses'],['anio','Este año'],['todo','Todo']];
+
+  /* ---- Filtros ---- */
+  const filtros=`<div class="mkt-filtros">
+    <div class="mkt-fgroup"><span class="lbl">Período</span><div class="mkt-chips">
+      ${PERIODOS.map(([v,t])=>`<span class="mkt-chip ${mktPreset===v?'on':''}" onclick="mktSet('preset','${v}')">${t}</span>`).join('')}
+    </div></div>
+    <div class="mkt-fgroup"><span class="lbl">Vendedor</span>
+      <select onchange="mktSet('vend',this.value)">
+        <option value="todos"${mktVend==='todos'?' selected':''}>Todos</option>
+        ${VEND.map(u=>`<option value="${u}"${mktVend===u?' selected':''}>${escapeHtml(nombreDe(u))}</option>`).join('')}
+      </select></div>
+    <div class="mkt-fgroup"><span class="lbl">Canal</span>
+      <select onchange="mktSet('canal',this.value)">
+        <option value="todos"${mktCanal==='todos'?' selected':''}>Todos</option>
+        ${canalesPresentes.map(c=>`<option value="${escAttr(c)}"${mktCanal===c?' selected':''}>${escapeHtml(c)}</option>`).join('')}
+      </select></div>
+  </div>`;
+
+  /* ---- 1) Consultas por día ---- */
+  const serie=mktSerie(base);
+  const maxD=Math.max(1,...serie.out.map(p=>p.c));
+  const promDia = serie.out.length? (tot/serie.out.length):0;
+  const barras=serie.out.map(p=>`<div class="d" title="${mktFechaCorta(p.t,serie.unit)}: ${p.c}" style="height:${Math.round(p.c/maxD*100)}%"></div>`).join('');
+  const ejeUnit = serie.unit==='dia'?'por día':(serie.unit==='sem'?'por semana':'por mes');
+  const card1=`<div class="mkt-card wide"><h3>1 · Consultas que llegaron ${ejeUnit}</h3>
+    <p class="cap">Volumen de consultas en el tiempo. Usá los filtros de arriba para cruzar por vendedor y canal.</p>
+    <div class="mkt-kpirow">
+      <div class="mkt-kpi"><div class="n">${tot}</div><div class="l">Total en el período</div></div>
+      <div class="mkt-kpi"><div class="n">${promDia.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>
+      <div class="mkt-kpi"><div class="n">${maxD}</div><div class="l">Pico ${ejeUnit}</div></div>
+    </div>
+    <div class="mkt-days">${barras}</div>
+    <div class="mkt-axis"><span>${serie.out.length?mktFechaCorta(serie.out[0].t,serie.unit):''}</span><span>${serie.out.length?mktFechaCorta(serie.out[serie.out.length-1].t,serie.unit):''}</span></div>
+  </div>`;
+
+  /* ---- 2) Consultas por canal ---- */
+  const porCanal={}; base.forEach(a=>{const c=canalReal(a); porCanal[c]=(porCanal[c]||0)+1;});
+  const rowsCanal=Object.entries(porCanal).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);
+  const card2=`<div class="mkt-card"><h3>2 · Consultas por canal</h3>
+    <p class="cap">De dónde llegan. El % es sobre el total del período.</p>
+    ${mktBarras(rowsCanal, mktColorCanal, r=>`${r.v} <small>· ${mktPct(r.v,tot)}%</small>`)}</div>`;
+
+  /* ---- 3) Consultas por vendedor ---- */
+  const porVend={}; base.forEach(a=>{const u=a.vendedorId; if(!u)return; porVend[u]=(porVend[u]||0)+1;});
+  const rowsVend=VEND.filter(u=>porVend[u]).map(u=>({k:nombreDe(u),uid:u,v:porVend[u]})).sort((a,b)=>b.v-a.v);
+  const card3=`<div class="mkt-card"><h3>3 · Consultas por vendedor</h3>
+    <p class="cap">Cuántas consultas tomó cada uno en el período.</p>
+    ${mktBarras(rowsVend, (k,r)=>mktColorVend(r.uid), r=>`${r.v} <small>· ${mktPct(r.v,tot)}%</small>`)}</div>`;
+
+  /* ---- 4 y 5) Estado por canal / por vendedor ---- */
+  function estadoRows(keyFn, list){
+    const m={};
+    base.forEach(a=>{const k=keyFn(a); if(k==null||k==='')return; (m[k]=m[k]||{conc:0,seg:0,rech:0,tot:0}); const e=estadoDe(a); m[k].tot++; if(e==='Concretado')m[k].conc++; else if(e==='Rechazado')m[k].rech++; else if(e==='En seguimiento')m[k].seg++;});
+    return (list||Object.keys(m)).filter(k=>m[k]).map(k=>Object.assign({k},m[k])).sort((a,b)=>b.tot-a.tot);
+  }
+  function estadoTabla(rows, keyLbl){
+    if(!rows.length) return '<p class="mkt-note">Sin datos.</p>';
+    const T={conc:0,seg:0,rech:0,tot:0}; rows.forEach(r=>{T.conc+=r.conc;T.seg+=r.seg;T.rech+=r.rech;T.tot+=r.tot;});
+    const fila=r=>`<tr><td>${escapeHtml(r.k)}</td><td class="mkt-cg">${r.conc}</td><td class="mkt-ca">${r.seg}</td><td class="mkt-cr">${r.rech}</td><td>${r.tot}</td><td><span class="mkt-pill ${r.conc/r.tot>=0.3?'g':(r.conc/r.tot>=0.2?'a':'r')}">${mktPct(r.conc,r.tot)}%</span></td></tr>`;
+    return `<table class="mkt-tbl"><thead><tr><th>${keyLbl}</th><th>Concret.</th><th>Seguim.</th><th>Rechaz.</th><th>Total</th><th>Cierre</th></tr></thead><tbody>
+      ${rows.map(fila).join('')}
+      <tr class="tot"><td>Total</td><td class="mkt-cg">${T.conc}</td><td class="mkt-ca">${T.seg}</td><td class="mkt-cr">${T.rech}</td><td>${T.tot}</td><td><span class="mkt-pill ${T.conc/T.tot>=0.3?'g':(T.conc/T.tot>=0.2?'a':'r')}">${mktPct(T.conc,T.tot)}%</span></td></tr>
+    </tbody></table>`;
+  }
+  const card4=`<div class="mkt-card"><h3>4 · Estado por canal</h3>
+    <p class="cap">En qué termina lo que trae cada canal. "Cierre" = concretadas / total.</p>
+    ${estadoTabla(estadoRows(a=>canalReal(a)), 'Canal')}</div>`;
+  const card5=`<div class="mkt-card"><h3>5 · Estado por vendedor</h3>
+    <p class="cap">El mismo corte, por persona.</p>
+    ${estadoTabla(estadoRows(a=>a.vendedorId?nombreDe(a.vendedorId):'', VEND.map(nombreDe)), 'Vendedor')}</div>`;
+
+  /* ---- 6) Productos (cotizados vs vendidos, sin montos) ---- */
+  const prod={};
+  base.forEach(a=>{(a.muebles||[]).forEach(m=>{ if(!m||!m.elegido)return; const f=mktProdFam(m); (prod[f]=prod[f]||{cot:0,ven:0}); prod[f].cot++; if(m.vendido)prod[f].ven++; });});
+  const rowsProd=Object.entries(prod).map(([k,o])=>({k,cot:o.cot,ven:o.ven})).sort((a,b)=>b.cot-a.cot).slice(0,14);
+  const card6=`<div class="mkt-card wide"><h3>6 · Productos por los que llega la consulta</h3>
+    <p class="cap">Qué muebles seleccionaron los vendedores (sin montos). "Cotizado" = veces que apareció como producto elegido; "Vendido" = terminó en una compra. Ojo: refleja lo que el vendedor cargó, no siempre lo primero que preguntó el cliente.</p>
+    ${rowsProd.length?`<table class="mkt-tbl"><thead><tr><th>Producto</th><th>Cotizado</th><th>Vendido</th><th>Conversión</th></tr></thead><tbody>
+      ${rowsProd.map(r=>`<tr><td>${escapeHtml(r.k)}</td><td>${r.cot}</td><td class="mkt-cg">${r.ven}</td><td><span class="mkt-pill ${r.ven/r.cot>=0.3?'g':(r.ven/r.cot>=0.15?'a':'r')}">${mktPct(r.ven,r.cot)}%</span></td></tr>`).join('')}
+    </tbody></table>`:'<p class="mkt-note">Sin productos cargados en el período.</p>'}</div>`;
+
+  /* ---- 7) Reconsultas (histórico completo, no filtrado por período) ---- */
+  const g={};
+  atenciones.forEach(a=>{
+    const tel=(a.clienteTelefono||a.clienteTelefonoIG||'').replace(/\D/g,'');
+    const key=tel || (a.clienteInstagram?('ig:'+a.clienteInstagram.toLowerCase()):'');
+    if(!key) return;
+    (g[key]=g[key]||{n:0,nombre:'',tel:(a.clienteTelefono||a.clienteTelefonoIG||a.clienteInstagram||''),canales:new Set()});
+    g[key].n++; g[key].canales.add(canalReal(a));
+    if(!g[key].nombre && a.clienteNombre) g[key].nombre=a.clienteNombre;
+  });
+  const clientes=Object.values(g);
+  const reconsult=clientes.filter(c=>c.n>1).sort((a,b)=>b.n-a.n);
+  const totRecons=reconsult.reduce((s,c)=>s+c.n,0);
+  const card7=`<div class="mkt-card wide"><h3>7 · Reconsultas — clientes con más de una consulta</h3>
+    <p class="cap">Sobre todo el histórico (no depende del filtro de período). Un mismo cliente que vuelve a escribir es una señal de interés — o de que quedó sin resolver.</p>
+    <div class="mkt-kpirow">
+      <div class="mkt-kpi"><div class="n">${clientes.length}</div><div class="l">Clientes únicos</div></div>
+      <div class="mkt-kpi"><div class="n">${reconsult.length} <small>· ${mktPct(reconsult.length,clientes.length)}%</small></div><div class="l">Reconsultaron (2+)</div></div>
+      <div class="mkt-kpi"><div class="n">${totRecons}</div><div class="l">Consultas que generaron</div></div>
+    </div>
+    ${reconsult.length?`<div class="mkt-scroll"><table class="mkt-tbl"><thead><tr><th>Cliente</th><th>Contacto</th><th>Canales</th><th>Consultas</th></tr></thead><tbody>
+      ${reconsult.slice(0,40).map(c=>`<tr><td>${escapeHtml(c.nombre||'—')}</td><td>${escapeHtml(c.tel||'—')}</td><td style="text-align:left;color:var(--sec);font-size:12px">${escapeHtml([...c.canales].join(', '))}</td><td><b>${c.n}</b></td></tr>`).join('')}
+    </tbody></table></div>${reconsult.length>40?`<p class="mkt-note">Mostrando los 40 con más consultas de ${reconsult.length}.</p>`:''}`:'<p class="mkt-note">Todavía no hay clientes con más de una consulta.</p>'}</div>`;
+
+  /* ---- 8) Calidad de la consulta (evaluación de Cintia) ---- */
+  const evb=base.filter(a=>a.evaluada && a.evalConsulta);
+  const distC={1:0,2:0,3:0}; evb.forEach(a=>distC[a.evalConsulta]=(distC[a.evalConsulta]||0)+1);
+  const evN=evb.length;
+  const EVC_COL={1:'#15803d',2:'#b45309',3:'#b42318'};
+  const porCanalEv={};
+  base.forEach(a=>{ if(!(a.evaluada&&a.evalConsulta))return; const c=canalReal(a); (porCanalEv[c]=porCanalEv[c]||{n:0,bien:0}); porCanalEv[c].n++; if(a.evalConsulta===1)porCanalEv[c].bien++;});
+  const rowsCanalEv=Object.entries(porCanalEv).map(([k,o])=>({k,n:o.n,bien:o.bien})).filter(r=>r.n>=1).sort((a,b)=>b.n-a.n);
+  const card8=`<div class="mkt-card wide"><h3>8 · Calidad de la consulta — evaluación de Cintia</h3>
+    <p class="cap">Cintia clasifica cada consulta evaluada. Para marketing, el corte por canal es clave: dice qué canal trae gente bien orientada y cuál trae ruido.</p>
+    <div class="mkt-kpirow">
+      <div class="mkt-kpi"><div class="n">${evN}</div><div class="l">Consultas evaluadas</div></div>
+      <div class="mkt-kpi"><div class="n mkt-cg">${mktPct(distC[1],evN)}%</div><div class="l">Bien orientadas</div></div>
+    </div>
+    <div class="mkt-dist">
+      <span class="mkt-dchip"><i style="background:${EVC_COL[1]}"></i>Bien orientada <b>${distC[1]}</b> · ${mktPct(distC[1],evN)}%</span>
+      <span class="mkt-dchip"><i style="background:${EVC_COL[2]}"></i>Genérica <b>${distC[2]}</b> · ${mktPct(distC[2],evN)}%</span>
+      <span class="mkt-dchip"><i style="background:${EVC_COL[3]}"></i>Fuera de target <b>${distC[3]}</b> · ${mktPct(distC[3],evN)}%</span>
+    </div>
+    ${rowsCanalEv.length?`<table class="mkt-tbl" style="margin-top:14px"><thead><tr><th>Canal</th><th>Evaluadas</th><th>Bien orientadas</th><th>% Bien orient.</th></tr></thead><tbody>
+      ${rowsCanalEv.map(r=>`<tr><td>${escapeHtml(r.k)}</td><td>${r.n}</td><td class="mkt-cg">${r.bien}</td><td><span class="mkt-pill ${r.bien/r.n>=0.6?'g':(r.bien/r.n>=0.4?'a':'r')}">${mktPct(r.bien,r.n)}%</span></td></tr>`).join('')}
+    </tbody></table>`:''}</div>`;
+
+  /* ---- 9) Tiempo promedio a cierre por vendedor ---- */
+  function diasCierre(a){ if(!a.cerradoTs||!a.ts)return null; const d=(new Date(a.cerradoTs).getTime()-new Date(a.ts).getTime())/86400000; return d>=0?d:null; }
+  const tv={}; VEND.forEach(u=>tv[u]={cS:0,cN:0,rS:0,rN:0});
+  base.forEach(a=>{const u=a.vendedorId; if(!tv[u])return; const d=diasCierre(a); if(d==null)return; const e=estadoDe(a); if(e==='Concretado'){tv[u].cS+=d;tv[u].cN++;} else if(e==='Rechazado'){tv[u].rS+=d;tv[u].rN++;}});
+  const rowsT=VEND.filter(u=>tv[u].cN||tv[u].rN).map(u=>({u,...tv[u]}));
+  const card9=`<div class="mkt-card"><h3>9 · Tiempo promedio hasta el cierre</h3>
+    <p class="cap">Días desde que entra la consulta hasta que se concreta o se rechaza, por vendedor. Solo cuenta consultas ya cerradas.</p>
+    ${rowsT.length?`<table class="mkt-tbl"><thead><tr><th>Vendedor</th><th>A concretar</th><th>A rechazar</th></tr></thead><tbody>
+      ${rowsT.map(r=>`<tr><td>${escapeHtml(nombreDe(r.u))}</td><td>${r.cN?r.cS/r.cN>=0?(r.cS/r.cN).toFixed(1)+' d <small style="color:var(--muted)">('+r.cN+')</small>':'—':'—'}</td><td>${r.rN?(r.rS/r.rN).toFixed(1)+' d <small style="color:var(--muted)">('+r.rN+')</small>':'—'}</td></tr>`).join('')}
+    </tbody></table>`:'<p class="mkt-note">Sin consultas cerradas con fecha en el período.</p>'}</div>`;
+
+  /* ---- 10) Rechazos "no responde" + publicidad y su valor ---- */
+  const NORESP=['No responde','Dejó de responderme'];
+  const rech=base.filter(a=>estadoDe(a)==='Rechazado');
+  const noResp=rech.filter(a=>a.nuncaRespondio || NORESP.includes(a.resultadoMotivo));
+  const PUB=new Set(CANALES_PUBLICIDAD);
+  const noRespPub=noResp.filter(a=>PUB.has(canalReal(a)));
+  const valorNoRespPub=noRespPub.reduce((s,a)=>s+mktValor(a),0);
+  const pubBase=base.filter(a=>PUB.has(canalReal(a)));
+  const pubNoResp=pubBase.filter(a=>a.nuncaRespondio || (estadoDe(a)==='Rechazado' && NORESP.includes(a.resultadoMotivo)));
+  const card10=`<div class="mkt-card"><h3>10 · Rechazos por "no responde" y pauta</h3>
+    <p class="cap">El agujero clásico de la publicidad: leads que entran y nunca contestan. Acá sí se muestra el valor cotizado, para dimensionar la plata que se escapa.</p>
+    <div class="mkt-kpirow">
+      <div class="mkt-kpi"><div class="n">${rech.length}</div><div class="l">Rechazadas total</div></div>
+      <div class="mkt-kpi"><div class="n mkt-cr">${noResp.length} <small>· ${mktPct(noResp.length,rech.length)}%</small></div><div class="l">Por "no responde"</div></div>
+    </div>
+    <table class="mkt-tbl"><tbody>
+      <tr><td>Consultas de publicidad en el período</td><td>${pubBase.length}</td></tr>
+      <tr><td>De esas, que no respondieron</td><td class="mkt-cr">${pubNoResp.length} <small style="color:var(--muted)">(${mktPct(pubNoResp.length,pubBase.length)}%)</small></td></tr>
+      <tr><td>Rechazos "no responde" que vinieron de publicidad</td><td>${noRespPub.length}</td></tr>
+      <tr class="tot"><td>Valor cotizado que se escapó (publicidad + no responde)</td><td>${mktPesos(valorNoRespPub)}</td></tr>
+    </tbody></table>
+    <p class="mkt-note">"Publicidad" = canales de pauta (${[...PUB].join(', ')}). El valor toma lo cotizado en esas consultas; muchas ni llegan a cotizar, así que es un piso.</p></div>`;
+
+  /* ---- Baldes: se muestra uno por vez para no abrumar ---- */
+  const BUCKETS=[['volumen','📥 Volumen y origen'],['resultado','🎯 Resultados y cierre'],['prod','🛋️ Productos y clientes'],['calidad','⭐ Calidad y pauta']];
+  const nav=`<div class="mkt-nav">${BUCKETS.map(([v,t])=>`<button class="mkt-navbtn ${mktTab===v?'on':''}" onclick="mktSetTab('${v}')">${t}</button>`).join('')}</div>`;
+  let cuerpo='';
+  if(mktTab==='volumen')        cuerpo = card1 + `<div class="mkt-grid">${card2}${card3}</div>`;
+  else if(mktTab==='resultado') cuerpo = `<div class="mkt-grid">${card4}${card5}</div>` + card9;
+  else if(mktTab==='prod')      cuerpo = card6 + card7;
+  else                          cuerpo = card8 + card10;
+
+  return `<div class="mkt-wrap">
+    <div class="mkt-head"><h2>📈 Marketing — Estadísticas</h2><span class="badge">SOLO LECTURA</span></div>
+    <p class="mkt-sub">Elegí un balde para ver esa parte. Los filtros de abajo aplican a todos los paneles.</p>
+    ${filtros}
+    ${nav}
+    ${cuerpo}
+  </div>`;
+}
 </script>
 </body>
 </html>
