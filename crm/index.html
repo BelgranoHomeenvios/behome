@@ -17431,8 +17431,22 @@ function htmlFichaReclamo(){
 .pn{color:var(--ink);font-weight:800}
 .mkt-cy{color:#a16207}
 .mkt-cs{color:#8a94a3}
-.mkt-tbl-big th{font-size:11px}
-.mkt-tbl-big td{padding:11px 10px;font-size:14px}
+.mkt-tbl-big th{font-size:13px}
+.mkt-tbl-big td{padding:12px 10px;font-size:20px}
+.mkt-tbl-big td:first-child,.mkt-tbl-big th:first-child{font-size:16px}
+.mkt-tbl-big .pn{font-size:14px}
+.mkt-tbl-big td small{font-size:12px;font-weight:600}
+.mkt-drillhead{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:15px}
+.mkt-drillhead b{color:var(--navy)}
+.mkt-back{cursor:pointer;color:var(--blue);font-weight:700}
+.mkt-drillhint{font-size:12px;color:var(--muted);margin-bottom:6px}
+.mkt-days .dcol[onclick]:hover .seg.real{background:var(--blue-d)}
+.mkt-card.mkt-collapsible>h3{cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;user-select:none}
+.mkt-card.mkt-collapsible>h3::after{content:'▾';font-size:14px;color:var(--muted);font-weight:400;margin-left:8px}
+.mkt-card.collapsed>h3::after{content:'▸'}
+.mkt-card.collapsed{padding-top:14px;padding-bottom:14px}
+.mkt-card.collapsed>h3{margin-bottom:0}
+.mkt-card.collapsed>*:not(h3){display:none}
 .mkt-dchip.click{cursor:pointer;transition:all .1s;user-select:none}
 .mkt-dchip.click:hover{border-color:var(--navy)}
 .mkt-dchip.on{background:var(--navy);border-color:var(--navy);color:#fff}
@@ -17527,6 +17541,8 @@ let mktVendSel=[];              // [] = todos
 let mktCanalSel=[];             // [] = todos
 let mktCalSel=[];               // filtro por calidad de consulta: 1 bien · 2 genérica · 3 fuera de target ([]=todas)
 let mktNoRespScope='todos';     // panel de no-responde: 'todos' | 'pub' | 'otros'
+let mktMesAbierto=null;         // drill del gráfico de volumen: 'YYYY-M' del mes abierto, o null
+let mktAbiertas=new Set();      // tarjetas ABIERTAS (acordeón). Default: todas cerradas → Ari ve los títulos y abre lo que necesita.
 
 /* Canales que cuentan para marketing, EN ESTE ORDEN. Todo lo demás (proveedores,
    otros, consulta de estado, envíos web, email, CVs, etc.) queda afuera. Los dos
@@ -17574,7 +17590,8 @@ function mktBaseAll(){
 /* Clasificación calidad */
 function mktNoResp(a){ return a.nuncaRespondio===true || MKT_NORESP.includes(a.resultadoMotivo); }
 function mktFueraTarget(a){ return a.evalConsulta===3; }
-function mktDescartada(a){ return mktNoResp(a) || mktFueraTarget(a); }
+function mktFueraAlcance(a){ return a.evalCliente===4; }   // Cintia marcó al cliente "fuera de alcance": no es un cliente potencial
+function mktDescartada(a){ return mktNoResp(a) || mktFueraTarget(a) || mktFueraAlcance(a); }
 function mktReal(a){ return !mktDescartada(a); }
 
 function mktPct(c,t){ return t? Math.round(c/t*100):0; }
@@ -17586,6 +17603,18 @@ function mktColorCanal(c){
 function mktProdFam(m){
   const w=(nombreMueble(m)||'').trim().split(/\s+/)[0]||'Sin nombre';
   return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();
+}
+/* Ambiente al que pertenece cada mueble. El orden de los if importa (ej: "mesa ratona"
+   es living, no comedor; "mesa de luz" es dormitorio). Lo que no matchea va a "Otros". */
+const MKT_ESPACIOS=['Dormitorio','Living','Comedor','Oficina','Otros'];
+function mktEspacio(nombre){
+  const s=(nombre||'').toLowerCase();
+  if(/ratona/.test(s)) return 'Living';
+  if(/de luz|mesita|c[oó]moda|placard|\bcama|respaldo/.test(s)) return 'Dormitorio';
+  if(/escritorio|biblioteca/.test(s)) return 'Oficina';
+  if(/sill[oó]n|\brack|divisor|modular|home ?theater/.test(s)) return 'Living';
+  if(/\bmesa|silla|vajillero|comedor|banqueta|barra|desayunador/.test(s)) return 'Comedor';
+  return 'Otros';
 }
 function mktValor(a){
   return montoRepresentativo(a.muebles) || (+a.montoPerdido||0) || (a.segundaOportunidad&&+a.segundaOportunidad.montoEnJuego||0) || 0;
@@ -17622,15 +17651,59 @@ function mktFechaCorta(t,unit){
   return x.getDate()+'/'+(x.getMonth()+1);
 }
 function mktFechaFull(t){ const x=new Date(t); return x.getDate()+'/'+(x.getMonth()+1)+'/'+x.getFullYear(); }
+function mktMesKey(t){ const x=new Date(t); return x.getFullYear()+'-'+x.getMonth(); }
+function mktMesLabel(y,m){ const MS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']; return MS[m]+' '+y; }
+/* Serie apilada real/descartada con unidad y rango explícitos (para agrupar por mes y drill al día). */
+function mktSerieUnit(base, unit, d1, d2){
+  const norm=dt=>{const x=new Date(dt);x.setHours(0,0,0,0);
+    if(unit==='sem'){const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);}
+    else if(unit==='mes'){x.setDate(1);} return x;};
+  const step=x=>{const n=new Date(x);
+    if(unit==='dia')n.setDate(n.getDate()+1);
+    else if(unit==='sem')n.setDate(n.getDate()+7);
+    else n.setMonth(n.getMonth()+1); return n;};
+  const R={},D={};
+  base.forEach(a=>{const t=new Date(a.ts).getTime(); if(t<d1.getTime()||t>d2.getTime())return; const k=norm(a.ts).getTime(); if(mktReal(a))R[k]=(R[k]||0)+1; else D[k]=(D[k]||0)+1;});
+  const out=[]; let cur=norm(d1); const end=norm(d2).getTime(); let guard=0;
+  while(cur.getTime()<=end && guard<732){ const k=cur.getTime(); out.push({t:k,real:R[k]||0,desc:D[k]||0}); cur=step(cur); guard++; }
+  return {out,unit};
+}
+function mktBarrasVolumen(serie, clickable){
+  const maxD=Math.max(1,...serie.out.map(p=>p.real+p.desc));
+  const H=118;
+  return serie.out.map(p=>{
+    const tt=p.real+p.desc;
+    const rp=Math.round(p.real/maxD*H), dp=Math.round(p.desc/maxD*H);
+    const f=mktFechaCorta(p.t,serie.unit);
+    const click=clickable?` onclick="mktAbrirMes('${mktMesKey(p.t)}')" style="cursor:pointer"`:'';
+    return `<div class="dcol"${click}>
+      <div class="seg desc" style="height:${dp}px" title="${f} — Descartadas: ${p.desc} (${mktPct(p.desc,tt)}%)"></div>
+      <div class="seg real" style="height:${rp}px" title="${f} — Reales: ${p.real} (${mktPct(p.real,tt)}%)"></div></div>`;
+  }).join('');
+}
 
 function renderMarketing(boxId){
   if(boxId) mktBox=boxId;
   const el=document.getElementById(mktBox);
-  if(el) el.innerHTML=htmlMarketing();
+  if(el){ el.innerHTML=htmlMarketing(); mktAplicarColapso(el); }
+}
+/* Acordeón: cada tarjeta se pliega dejando solo el título. La clave es 'balde:índice',
+   estable aunque cambie el texto del título (ej. "por mes" ↔ "por día"). */
+function mktAplicarColapso(el){
+  el.querySelectorAll('.mkt-card').forEach((card,idx)=>{
+    const h=card.querySelector('h3'); if(!h) return;
+    const key=mktTab+':'+idx;
+    card.classList.add('mkt-collapsible');
+    if(!mktAbiertas.has(key)) card.classList.add('collapsed');
+    h.addEventListener('click',()=>{
+      if(mktAbiertas.has(key)) mktAbiertas.delete(key); else mktAbiertas.add(key);
+      card.classList.toggle('collapsed');
+    });
+  });
 }
 function mktSetTab(t){ mktTab=t; renderMarketing(); }
-function mktSetPreset(v){ mktPreset=v; renderMarketing(); }
-function mktSetFecha(k,v){ if(k==='d')mktDesde=v||null; else mktHasta=v||null; mktPreset='pers'; renderMarketing(); }
+function mktSetPreset(v){ mktPreset=v; mktMesAbierto=null; renderMarketing(); }
+function mktSetFecha(k,v){ if(k==='d')mktDesde=v||null; else mktHasta=v||null; mktPreset='pers'; mktMesAbierto=null; renderMarketing(); }
 function mktToggleVend(uid){
   if(uid==='__all__'){ mktVendSel=[]; }
   else { const i=mktVendSel.indexOf(uid); if(i>=0)mktVendSel.splice(i,1); else mktVendSel.push(uid); }
@@ -17643,6 +17716,8 @@ function mktToggleCanal(c){
 }
 function mktToggleCal(v){ const i=mktCalSel.indexOf(v); if(i>=0)mktCalSel.splice(i,1); else mktCalSel.push(v); renderMarketing(); }
 function mktSetNoRespScope(v){ mktNoRespScope=v; renderMarketing(); }
+function mktAbrirMes(k){ mktMesAbierto=k; renderMarketing(); }
+function mktVolverMeses(){ mktMesAbierto=null; renderMarketing(); }
 
 /* filtros: van ABAJO de los baldes; el período queda siempre visible */
 function mktFiltrosHtml(){
@@ -17668,41 +17743,52 @@ function mktFiltrosHtml(){
 /* ------- BALDE 1: Volumen y origen ------- */
 function mktBucketVolumen(base){
   const tot=base.length;
-  const reales=base.filter(mktReal).length;
   const noResp=base.filter(mktNoResp).length;
   const fuera=base.filter(a=>mktFueraTarget(a)&&!mktNoResp(a)).length;
-  const descart=tot-reales;
+  const otros=base.filter(a=>mktFueraAlcance(a)&&!mktNoResp(a)&&!mktFueraTarget(a)).length;
+  const descart=base.filter(mktDescartada).length;
+  const reales=tot-descart;
 
-  /* 1 · por día, apilado real vs descartada */
-  const serie=mktSerie2(base);
-  const maxD=Math.max(1,...serie.out.map(p=>p.real+p.desc));
-  const H=118;
-  const barras=serie.out.map(p=>{
-    const rp=Math.round(p.real/maxD*H), dp=Math.round(p.desc/maxD*H);
-    const f=mktFechaCorta(p.t,serie.unit);
-    return `<div class="dcol">
-      <div class="seg desc" style="height:${dp}px" title="${f} — Descartadas: ${p.desc}"></div>
-      <div class="seg real" style="height:${rp}px" title="${f} — Reales: ${p.real}"></div></div>`;
-  }).join('');
+  /* 1 · volumen en el tiempo, agrupado por mes con drill al día */
+  const {d1,d2}=mktRango();
+  const _mm1=new Date(d1); _mm1.setDate(1); _mm1.setHours(0,0,0,0);
+  const _mm2=new Date(d2); _mm2.setDate(1); _mm2.setHours(0,0,0,0);
+  const multiMes=_mm2.getTime()>_mm1.getTime();
+  let serie, clickable=false, drillHead='';
+  if(mktMesAbierto){
+    const pr=mktMesAbierto.split('-'); const yy=+pr[0], mm=+pr[1];
+    let ms=new Date(yy,mm,1); ms.setHours(0,0,0,0);
+    let me=new Date(yy,mm+1,0); me.setHours(23,59,59,999);
+    if(ms<d1)ms=new Date(d1); if(me>d2)me=new Date(d2);
+    serie=mktSerieUnit(base,'dia',ms,me);
+    drillHead=`<div class="mkt-drillhead"><span class="mkt-back" onclick="mktVolverMeses()">‹ Volver a meses</span><b>${mktMesLabel(yy,mm)}</b></div>`;
+  }else if(multiMes){
+    serie=mktSerieUnit(base,'mes',d1,d2); clickable=true;
+    drillHead=`<div class="mkt-drillhint">Está agrupado por mes — tocá un mes para abrirlo día por día.</div>`;
+  }else{
+    serie=mktSerieUnit(base,'dia',d1,d2);
+  }
+  const barras=mktBarrasVolumen(serie, clickable);
   const _n=serie.out.length, _K=Math.min(_n,8), _ticks=[];
   for(let i=0;i<_K;i++){ _ticks.push(serie.out[Math.round(i*(_n-1)/Math.max(1,_K-1))].t); }
   const ejeHtml=`<div class="mkt-axis">${_ticks.map(t=>`<span>${mktFechaCorta(t,serie.unit)}</span>`).join('')}</div>`;
   const rangoHtml=_n?`<div class="mkt-rango">Mostrando del ${mktFechaFull(serie.out[0].t)} al ${mktFechaFull(serie.out[_n-1].t)}</div>`:'';
   const ejeUnit=serie.unit==='dia'?'por día':(serie.unit==='sem'?'por semana':'por mes');
-  const prom=serie.out.length?(tot/serie.out.length):0;
+  const prom=_n?(serie.out.reduce((s,p)=>s+p.real+p.desc,0)/_n):0;
   const card1=`<div class="mkt-card wide"><h3>1 · Consultas que llegaron ${ejeUnit}</h3>
-    <p class="cap">Volumen en el tiempo, separando las que valen de las que no. Pasá el mouse por una barra para ver el detalle exacto de ese ${serie.unit==='dia'?'día':(serie.unit==='sem'?'semana':'mes')}.</p>
+    <p class="cap">Volumen en el tiempo, separando las que valen de las que no. ${multiMes&&!mktMesAbierto?'Tocá un mes para abrirlo día por día.':'Pasá el mouse por una barra para ver cantidad y %.'}</p>
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${tot}</div><div class="l">Total recibidas</div></div>
       <div class="mkt-kpi g"><div class="n">${reales} <small>· ${mktPct(reales,tot)}%</small></div><div class="l">Consultas reales</div></div>
-      <div class="mkt-kpi r"><div class="n">${descart} <small>· ${mktPct(descart,tot)}%</small></div><div class="l">Descartadas<small>no respondió ${noResp} · fuera de target ${fuera}</small></div></div>
+      <div class="mkt-kpi r"><div class="n">${descart} <small>· ${mktPct(descart,tot)}%</small></div><div class="l">Descartadas<small>no respondió ${noResp} · fuera de target ${fuera} · otros ${otros}</small></div></div>
       <div class="mkt-kpi"><div class="n">${prom.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>
     </div>
+    ${drillHead}
     <div class="mkt-days">${barras}</div>
     ${ejeHtml}
     ${rangoHtml}
-    <div class="mkt-leg"><span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (no respondió / fuera de target)</span></div>
-    <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Real</b> = respondió y no fue evaluada como "fuera de target" por Cintia. <b>Descartada</b> = nunca respondió, o quedó fuera de target. Total del período: <b>${tot}</b> (${reales} reales, ${descart} descartadas).</div>
+    <div class="mkt-leg"><span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (no respondió / fuera de target / fuera de alcance)</span></div>
+    <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = nunca respondió, o Cintia la marcó "fuera de target" (mala consulta) o "fuera de alcance" (no es cliente potencial). El resto son <b>reales</b>. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (no respondió ${noResp}, fuera de target ${fuera}, otros ${otros}).</div>
   </div>`;
 
   /* 2 · por canal (orden fijo, locales separados) */
@@ -17806,8 +17892,8 @@ function mktBucketResultado(base){
       <div class="mkt-kpi r"><div class="n">${noResp.length} <small>· ${mktPct(noResp.length,rech.length)}%</small></div><div class="l">Por "no responde"</div></div>
     </div>
     ${subtabs}
-    ${rowsNR.length?`<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>Canal</th><th>Rechazadas</th><th>No responde</th><th>% no responde</th></tr></thead><tbody>
-      ${rowsNR.map(c=>{const o=nrc[c];return `<tr><td>${escapeHtml(c)}</td><td>${o.rech}</td><td class="mkt-cr">${o.nr}</td><td><b class="pn">${mktPct(o.nr,o.rech)}%</b></td></tr>`;}).join('')}
+    ${rowsNR.length?`<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>Canal</th><th>No responde</th><th>% no responde</th><th>Rechazadas (total)</th></tr></thead><tbody>
+      ${rowsNR.map(c=>{const o=nrc[c];return `<tr><td>${escapeHtml(c)}</td><td class="mkt-cr">${o.nr}</td><td><b class="pn">${mktPct(o.nr,o.rech)}%</b></td><td>${o.rech}</td></tr>`;}).join('')}
     </tbody></table>`:'<p class="mkt-note">Sin rechazos en este corte.</p>'}
     <div class="mkt-foot"><b>Qué medimos:</b> rechazos por "no responde" (nunca contestó) separados por canal de origen.</div></div>`;
 
@@ -17832,15 +17918,44 @@ function mktBucketResultado(base){
 }
 
 function mktBucketProd(base){
-  const prod={};
-  base.forEach(a=>{(a.muebles||[]).forEach(m=>{ if(!m||!m.elegido)return; const f=mktProdFam(m); (prod[f]=prod[f]||{cot:0,ven:0}); prod[f].cot++; if(m.vendido)prod[f].ven++; });});
-  const rowsProd=Object.entries(prod).map(([k,o])=>({k,cot:o.cot,ven:o.ven})).sort((a,b)=>b.cot-a.cot).slice(0,14);
-  const card6=`<div class="mkt-card wide"><h3>Productos por los que llega la consulta</h3>
-    <p class="cap">Qué muebles seleccionaron los vendedores (sin montos). "Cotizado" = veces que apareció como producto elegido; "Vendido" = terminó en compra. Ojo: refleja lo que el vendedor cargó, no siempre lo primero que preguntó el cliente.</p>
-    ${rowsProd.length?`<table class="mkt-tbl"><thead><tr><th>Producto</th><th>Cotizado</th><th>Vendido</th><th>Conversión</th></tr></thead><tbody>
-      ${rowsProd.map(r=>`<tr><td>${escapeHtml(r.k)}</td><td>${r.cot}</td><td class="mkt-cg">${r.ven}</td><td><span class="mkt-pill ${r.ven/r.cot>=0.3?'g':(r.ven/r.cot>=0.15?'a':'r')}">${mktPct(r.ven,r.cot)}%</span></td></tr>`).join('')}
+  const totC=base.length;
+  const conM=base.filter(a=>(a.muebles||[]).some(m=>m&&m.elegido)).length;
+  const sinM=totC-conM;
+  const prod={}, esp={};
+  MKT_ESPACIOS.forEach(e=>esp[e]={ven:0,seg:0,rech:0,sin:0,tot:0});
+  base.forEach(a=>{const e=estadoDe(a);
+    (a.muebles||[]).forEach(m=>{ if(!m||!m.elegido)return;
+      const fam=mktProdFam(m), espx=mktEspacio(nombreMueble(m));
+      const add=o=>{o.tot++; if(e==='Concretado')o.ven++; else if(e==='En seguimiento')o.seg++; else if(e==='Rechazado')o.rech++; else o.sin++;};
+      (prod[fam]=prod[fam]||{ven:0,seg:0,rech:0,sin:0,tot:0}); add(prod[fam]);
+      add(esp[espx]);
+    });
+  });
+  const cel=(n,t,cls)=>`<td><span class="${cls}">${n}</span> <b class="pn">${mktPct(n,t)}%</b></td>`;
+  const kpi=`<div class="mkt-kpirow">
+    <div class="mkt-kpi"><div class="n">${totC}</div><div class="l">Total consultas</div></div>
+    <div class="mkt-kpi g"><div class="n">${conM} <small>· ${mktPct(conM,totC)}%</small></div><div class="l">Con mueble cotizado</div></div>
+    <div class="mkt-kpi"><div class="n">${sinM} <small>· ${mktPct(sinM,totC)}%</small></div><div class="l">Sin cotizar</div></div>
+  </div>`;
+
+  // 1 · Por espacio
+  const rowsEsp=MKT_ESPACIOS.filter(e=>esp[e].tot);
+  const cardEsp=`<div class="mkt-card wide"><h3>1 · Muebles por espacio</h3>
+    <p class="cap">Los muebles cotizados agrupados por ambiente. Conversión = vendidos / cotizados · Rechazo = rechazados / cotizados.</p>
+    ${kpi}
+    ${rowsEsp.length?`<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>Espacio</th><th>Cotizados</th><th>Vendidos</th><th>Conversión</th><th>Rechazo</th></tr></thead><tbody>
+      ${rowsEsp.map(e=>{const o=esp[e];return `<tr><td>${e}</td><td><b>${o.tot}</b></td><td class="mkt-cg">${o.ven}</td><td><span class="mkt-pill ${o.ven/o.tot>=0.3?'g':(o.ven/o.tot>=0.15?'a':'r')}">${mktPct(o.ven,o.tot)}%</span></td><td><span class="mkt-pill ${o.rech/o.tot<=0.3?'g':(o.rech/o.tot<=0.5?'a':'r')}">${mktPct(o.rech,o.tot)}%</span></td></tr>`;}).join('')}
+    </tbody></table>`:'<p class="mkt-note">Sin muebles cotizados en el período.</p>'}
+    <div class="mkt-foot"><b>Qué medimos:</b> muebles cotizados por ambiente. <b>Ojo con la cobertura:</b> esto sale del <b>${mktPct(conM,totC)}%</b> de las consultas que tienen mueble cargado; el otro ${mktPct(sinM,totC)}% no está cotizado y no entra acá.</div></div>`;
+
+  // 2 · Productos cotizados (vendidos / seguimiento / rechazados / total)
+  const rowsProd=Object.entries(prod).map(([k,o])=>({k,...o})).sort((a,b)=>b.tot-a.tot);
+  const card6=`<div class="mkt-card wide"><h3>2 · Productos cotizados</h3>
+    <p class="cap">Listado de muebles: cuántos se vendieron, quedaron en seguimiento o se rechazaron, según el estado de la consulta. El total es cuántas veces se cotizó cada uno.</p>
+    ${rowsProd.length?`<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>Producto</th><th>Vendidos</th><th>Seguimiento</th><th>Rechazados</th><th>Total cotizado</th></tr></thead><tbody>
+      ${rowsProd.map(r=>`<tr><td>${escapeHtml(r.k)}</td>${cel(r.ven,r.tot,'mkt-cg')}${cel(r.seg,r.tot,'mkt-cy')}${cel(r.rech,r.tot,'mkt-cr')}<td><b>${r.tot}</b></td></tr>`).join('')}
     </tbody></table>`:'<p class="mkt-note">Sin productos cargados en el período.</p>'}
-    <div class="mkt-foot"><b>Qué medimos:</b> productos elegidos en las consultas del período.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> cada mueble elegido en una consulta, cruzado con el resultado de esa consulta. El % es sobre el total cotizado de ese producto.</div></div>`;
   const g={};
   atenciones.forEach(a=>{
     const tel=(a.clienteTelefono||a.clienteTelefonoIG||'').replace(/\D/g,'');
@@ -17863,19 +17978,19 @@ function mktBucketProd(base){
     ${reconsult.length?`<div class="mkt-scroll"><table class="mkt-tbl"><thead><tr><th>Cliente</th><th>Contacto</th><th>Canales</th><th>Consultas</th></tr></thead><tbody>
       ${reconsult.slice(0,40).map(c=>`<tr><td>${escapeHtml(c.nombre||'—')}</td><td>${escapeHtml(c.tel||'—')}</td><td style="text-align:left;color:var(--sec);font-size:12px">${escapeHtml([...c.canales].join(', '))}</td><td><b>${c.n}</b></td></tr>`).join('')}
     </tbody></table></div>${reconsult.length>40?`<p class="mkt-note">Mostrando los 40 con más consultas de ${reconsult.length}.</p>`:''}`:'<p class="mkt-note">Todavía no hay clientes con más de una consulta.</p>'}</div>`;
-  return card6 + card7;
+  return cardEsp + card6 + card7;
 }
 
 function htmlMarketing(){
   const base=mktBaseAll();
-  const BUCKETS=[['volumen','Volumen'],['resultado','Resultados'],['prod','Clientes']];
+  const BUCKETS=[['volumen','Volumen'],['resultado','Resultados'],['prod','Muebles']];
   const nav=`<div class="mkt-nav">${BUCKETS.map(([v,t])=>`<button class="mkt-navbtn ${mktTab===v?'on':''}" onclick="mktSetTab('${v}')">${t}</button>`).join('')}</div>`;
   let cuerpo='';
   if(mktTab==='prod')                              cuerpo=mktBucketProd(base);
   else if(mktTab==='resultado'||mktTab==='calidad')cuerpo=mktBucketResultado(base);
   else                                             cuerpo=mktBucketVolumen(base);
   return `<div class="mkt-wrap">
-    <div class="mkt-head"><h2>📈 Marketing — Estadísticas</h2><span class="badge">SOLO LECTURA</span></div>
+    <div class="mkt-head"><h2>📈 Marketing — Estadísticas</h2></div>
     <p class="mkt-sub">Elegí un balde y ajustá los filtros de abajo. Todo se recalcula al instante.</p>
     ${nav}
     ${mktFiltrosHtml()}
