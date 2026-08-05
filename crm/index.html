@@ -1699,7 +1699,7 @@ textarea{resize:vertical;min-height:60px}
     <span class="title">Belgrano Soft</span>
     <nav class="mod-switch">
       <span class="mod-switch-item mod-switch-active">CRM</span>
-      <a class="mod-switch-item" href="https://belgranohomeenvios.github.io/logistica/">Logística</a>
+      <a class="mod-switch-item" id="modLogistica" href="https://belgranohomeenvios.github.io/logistica/">Logística</a>
     </nav>
     <span class="spacer"></span>
     <select id="filtroLocalAdmin" class="hidden" onchange="cambiarFiltroLocalAdmin(this.value)"></select>
@@ -2695,6 +2695,7 @@ function entrarApp(){
   $('screen-app').classList.remove('hidden');
   $('tabConfig').classList.toggle('hidden', !esAdmin());
   $('tabMarketing').classList.toggle('hidden', !(esMarketing()||esAdmin()));  // módulo de Marketing: lo ven Ariel y dirección
+  { const _ml=document.getElementById('modLogistica'); if(_ml) _ml.classList.toggle('hidden', esMarketing()); }  // Ariel no ve Logística, solo CRM
   // Default de período por rol: el vendedor arranca viendo los últimos 15 días
   // (3/8/2026, Brian: 30 le mostraba demasiado y diluía la agenda del día).
   // Cintia y dirección siguen con la ventana más amplia.
@@ -17608,9 +17609,22 @@ function mktColorCanal(c){
   const M={'WhatsApp':'#15803d','Instagram':'#7c3aed','Publicidad Instagram':'#a833d1','Publicidad Mensajería':'#ea580c','Belgrano 2020':'#1e5fce','Belgrano 2299':'#0369a1'};
   return M[c]||'#5b6675';
 }
+/* Unifica variantes del mismo producto (singular/plural/acentos): "Comoda", "Comodas",
+   "Cómoda" → "Cómoda". Es un parche de VISTA (no toca los datos). La solución de fondo es
+   que el vendedor elija el producto de una lista al cargar, no que lo escriba a mano.
+   SYN: correcciones/sinónimos manuales — agregá acá lo que veas mal unificado. */
+const MKT_PROD_SYN={ 'comoda':'Cómoda', 'sillon':'Sillón', 'vajillero':'Vajillero', 'botinero':'Botinero',
+  'placar':'Placard', 'placard':'Placard', 'modular':'Modular', 'silla':'Silla' };
+function mktCanonProd(w){
+  let s=(w||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();  // minúscula, sin acentos
+  if(/[a-z]es$/.test(s) && s.length>4) s=s.slice(0,-2);        // plurales -es: sillones→sillon, divisores→divisor
+  else if(/s$/.test(s) && s.length>3) s=s.slice(0,-1);         // plurales -s: comodas→comoda, mesas→mesa
+  if(MKT_PROD_SYN[s]) return MKT_PROD_SYN[s];
+  return s.charAt(0).toUpperCase()+s.slice(1);
+}
 function mktProdFam(m){
   const w=(nombreMueble(m)||'').trim().split(/\s+/)[0]||'Sin nombre';
-  return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();
+  return mktCanonProd(w);
 }
 /* Ambiente al que pertenece cada mueble. El orden de los if importa (ej: "mesa ratona"
    es living, no comedor; "mesa de luz" es dormitorio). Lo que no matchea va a "Otros". */
