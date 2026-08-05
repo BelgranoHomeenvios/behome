@@ -17428,14 +17428,16 @@ function htmlFichaReclamo(){
 .mkt-head .badge{background:var(--navy);color:#fff;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.03em}
 .mkt-sub{color:var(--sec);font-size:13px;margin:4px 0 14px}
 .mkt-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
-.mkt-navbtn{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:14px 12px;font-size:14px;font-weight:700;color:var(--sec);box-shadow:var(--shadow);transition:all .12s;text-align:left}
+.mkt-navbtn{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:30px 18px;min-height:78px;font-size:18px;font-weight:700;color:var(--sec);box-shadow:var(--shadow);transition:all .12s;text-align:left;display:flex;align-items:center}
 .mkt-navbtn:hover{border-color:#b9d0f5;color:var(--navy)}
 .mkt-navbtn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
-.mkt-filtros{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:18px;box-shadow:var(--shadow)}
+.mkt-filtros{display:flex;flex-direction:column;gap:14px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:18px;box-shadow:var(--shadow)}
 .mkt-fgroup{display:flex;flex-direction:column;gap:6px}
 .mkt-fgroup>.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
 .mkt-chips{display:flex;gap:6px}
 .mkt-chips.wrap{flex-wrap:wrap;max-width:560px}
+.mkt-chips.oneline{flex-wrap:nowrap;overflow-x:auto;max-width:100%}
+.mkt-rango{font-size:12px;color:var(--sec);font-weight:600;margin-top:8px;text-align:center}
 .mkt-chip{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;color:var(--sec);white-space:nowrap}
 .mkt-chip.sm{padding:5px 10px;font-size:12px}
 .mkt-chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -17495,7 +17497,7 @@ table.mkt-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .mkt-stack{display:flex;height:20px;border-radius:6px;overflow:hidden;background:var(--line2)}
 .mkt-stack i{display:block;height:100%;cursor:default}
 .mkt-stack i.s-conc{background:var(--green)}
-.mkt-stack i.s-seg{background:var(--amber)}
+.mkt-stack i.s-seg{background:#eab308}
 .mkt-stack i.s-rech{background:var(--red)}
 .mkt-stack i.s-sin{background:#c7ced6}
 @media(max-width:820px){.mkt-grid{grid-template-columns:1fr}.mkt-nav{grid-template-columns:1fr 1fr}.mkt-bar .bl{width:110px}}
@@ -17607,6 +17609,7 @@ function mktFechaCorta(t,unit){
   if(unit==='mes') return MS[x.getMonth()]+' '+String(x.getFullYear()).slice(2);
   return x.getDate()+'/'+(x.getMonth()+1);
 }
+function mktFechaFull(t){ const x=new Date(t); return x.getDate()+'/'+(x.getMonth()+1)+'/'+x.getFullYear(); }
 
 function renderMarketing(boxId){
   if(boxId) mktBox=boxId;
@@ -17636,12 +17639,12 @@ function mktFiltrosHtml(){
       ${mktPreset==='pers'?`<div class="mkt-fechas"><input type="date" value="${mktDesde||''}" onchange="mktSetFecha('d',this.value)"> a <input type="date" value="${mktHasta||''}" onchange="mktSetFecha('h',this.value)"></div>`:''}
     </div>
     <div class="mkt-fgroup"><span class="lbl">Vendedor (elegí uno o varios)</span>
-      <div class="mkt-chips wrap">
+      <div class="mkt-chips oneline">
         <span class="mkt-chip ${!mktVendSel.length?'on':''}" onclick="mktToggleVend('__all__')">Todos</span>
         ${MKT_VEND_ORDEN.filter(u=>USUARIOS[u]).map(u=>`<span class="mkt-chip sm ${mktVendSel.includes(u)?'on':''}" onclick="mktToggleVend('${u}')">${escapeHtml(nombreDe(u))}</span>`).join('')}
       </div></div>
     <div class="mkt-fgroup"><span class="lbl">Canal (elegí uno o varios)</span>
-      <div class="mkt-chips wrap">
+      <div class="mkt-chips oneline">
         <span class="mkt-chip ${!mktCanalSel.length?'on':''}" onclick="mktToggleCanal('__all__')">Todos</span>
         ${MKT_CANALES.map(c=>`<span class="mkt-chip sm ${mktCanalSel.includes(c)?'on':''}" onclick="mktToggleCanal('${escAttr(c)}')">${escapeHtml(c)}</span>`).join('')}
       </div></div>
@@ -17662,9 +17665,15 @@ function mktBucketVolumen(base){
   const H=118;
   const barras=serie.out.map(p=>{
     const rp=Math.round(p.real/maxD*H), dp=Math.round(p.desc/maxD*H);
-    return `<div class="dcol" title="${mktFechaCorta(p.t,serie.unit)} — ${p.real+p.desc} consultas (${p.real} reales · ${p.desc} descartadas)">
-      <div class="seg desc" style="height:${dp}px"></div><div class="seg real" style="height:${rp}px"></div></div>`;
+    const f=mktFechaCorta(p.t,serie.unit);
+    return `<div class="dcol">
+      <div class="seg desc" style="height:${dp}px" title="${f} — Descartadas: ${p.desc}"></div>
+      <div class="seg real" style="height:${rp}px" title="${f} — Reales: ${p.real}"></div></div>`;
   }).join('');
+  const _n=serie.out.length, _K=Math.min(_n,8), _ticks=[];
+  for(let i=0;i<_K;i++){ _ticks.push(serie.out[Math.round(i*(_n-1)/Math.max(1,_K-1))].t); }
+  const ejeHtml=`<div class="mkt-axis">${_ticks.map(t=>`<span>${mktFechaCorta(t,serie.unit)}</span>`).join('')}</div>`;
+  const rangoHtml=_n?`<div class="mkt-rango">Mostrando del ${mktFechaFull(serie.out[0].t)} al ${mktFechaFull(serie.out[_n-1].t)}</div>`:'';
   const ejeUnit=serie.unit==='dia'?'por día':(serie.unit==='sem'?'por semana':'por mes');
   const prom=serie.out.length?(tot/serie.out.length):0;
   const card1=`<div class="mkt-card wide"><h3>1 · Consultas que llegaron ${ejeUnit}</h3>
@@ -17676,7 +17685,8 @@ function mktBucketVolumen(base){
       <div class="mkt-kpi"><div class="n">${prom.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>
     </div>
     <div class="mkt-days">${barras}</div>
-    <div class="mkt-axis"><span>${serie.out.length?mktFechaCorta(serie.out[0].t,serie.unit):''}</span><span>${serie.out.length?mktFechaCorta(serie.out[serie.out.length-1].t,serie.unit):''}</span></div>
+    ${ejeHtml}
+    ${rangoHtml}
     <div class="mkt-leg"><span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (no respondió / fuera de target)</span></div>
     <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Real</b> = respondió y no fue evaluada como "fuera de target" por Cintia. <b>Descartada</b> = nunca respondió, o quedó fuera de target. Total del período: <b>${tot}</b> (${reales} reales, ${descart} descartadas).</div>
   </div>`;
@@ -17705,7 +17715,7 @@ function mktBucketVolumen(base){
   const card3=`<div class="mkt-card"><h3>3 · Consultas por vendedor</h3>
     <p class="cap">Cuántas tomó cada uno y en qué terminaron. Pasá el mouse por la barra para ver el % de cada estado.</p>
     ${filasV||'<p class="mkt-note">Sin datos.</p>'}
-    <div class="mkt-leg"><span><i style="background:var(--green)"></i>Concretados</span><span><i style="background:var(--amber)"></i>En seguimiento</span><span><i style="background:var(--red)"></i>Rechazados</span><span><i style="background:#c7ced6"></i>Sin clasificar</span></div>
+    <div class="mkt-leg"><span><i style="background:var(--green)"></i>Concretados</span><span><i style="background:#eab308"></i>En seguimiento</span><span><i style="background:var(--red)"></i>Rechazados</span><span><i style="background:#c7ced6"></i>Sin clasificar</span></div>
     <div class="mkt-foot"><b>Qué medimos:</b> consultas asignadas a cada vendedor. El % del título es la parte del total (${tot}); la barra muestra cómo se reparten sus estados.</div></div>`;
 
   return card1 + `<div class="mkt-grid">${card2}${card3}</div>`;
@@ -17834,7 +17844,7 @@ function mktBucketCalidad(base){
 
 function htmlMarketing(){
   const base=mktBaseAll();
-  const BUCKETS=[['volumen','📥 Volumen y origen'],['resultado','🎯 Resultados y cierre'],['prod','🛋️ Productos y clientes'],['calidad','⭐ Calidad y pauta']];
+  const BUCKETS=[['volumen','Volumen y origen'],['resultado','Resultados y cierre'],['prod','Productos y clientes'],['calidad','Calidad y pauta']];
   const nav=`<div class="mkt-nav">${BUCKETS.map(([v,t])=>`<button class="mkt-navbtn ${mktTab===v?'on':''}" onclick="mktSetTab('${v}')">${t}</button>`).join('')}</div>`;
   let cuerpo='';
   if(mktTab==='volumen')        cuerpo=mktBucketVolumen(base);
