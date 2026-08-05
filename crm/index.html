@@ -17485,7 +17485,9 @@ function htmlFichaReclamo(){
 .mkt-bar .bt>i{display:block;height:100%;border-radius:8px;min-width:2px}
 .mkt-bar .bv{width:100px;font-size:12.5px;font-weight:700;color:var(--ink);flex:0 0 auto}
 .mkt-bar .bv small{color:var(--muted);font-weight:600}
-.mkt-days{display:flex;align-items:flex-end;gap:3px;height:130px;padding-top:8px}
+.mkt-days{display:flex;align-items:stretch;gap:3px;height:130px;padding-top:8px}
+.mkt-tip{position:fixed;z-index:100000;display:none;background:#0f1a2a;color:#fff;padding:8px 11px;border-radius:8px;font-size:12.5px;line-height:1.55;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.28);white-space:nowrap}
+.mkt-tip b{font-weight:800}
 .mkt-days .dcol{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-width:2px}
 .mkt-days .seg{width:100%;display:block}
 .mkt-days .seg.real{background:var(--blue);border-radius:3px 3px 0 0}
@@ -17676,16 +17678,33 @@ function mktBarrasVolumen(serie, clickable){
     const rp=Math.round(p.real/maxD*H), dp=Math.round(p.desc/maxD*H);
     const f=mktFechaCorta(p.t,serie.unit);
     const click=clickable?` onclick="mktAbrirMes('${mktMesKey(p.t)}')" style="cursor:pointer"`:'';
-    return `<div class="dcol"${click}>
-      <div class="seg desc" style="height:${dp}px" title="${f} — Descartadas: ${p.desc} (${mktPct(p.desc,tt)}%)"></div>
-      <div class="seg real" style="height:${rp}px" title="${f} — Reales: ${p.real} (${mktPct(p.real,tt)}%)"></div></div>`;
+    return `<div class="dcol"${click} data-fecha="${escAttr(f)}" data-tot="${tt}" data-real="${p.real}" data-desc="${p.desc}" data-preal="${mktPct(p.real,tt)}" data-pdesc="${mktPct(p.desc,tt)}">
+      <div class="seg desc" style="height:${dp}px"></div>
+      <div class="seg real" style="height:${rp}px"></div></div>`;
   }).join('');
+}
+/* Tooltip propio del gráfico de volumen: aparece al instante al pasar por cualquier
+   columna (aunque sea la parte vacía de arriba) y muestra los números exactos. */
+function mktTipInit(){
+  if(window._mktTipWired) return; window._mktTipWired=true;
+  const t=document.createElement('div'); t.id='mktTip'; t.className='mkt-tip'; document.body.appendChild(t);
+  document.addEventListener('mousemove', e=>{
+    const col=e.target.closest ? e.target.closest('.mkt-days .dcol') : null;
+    if(col && col.dataset.tot!==undefined){
+      t.innerHTML=`<b>${col.dataset.fecha}</b> · Total: <b>${col.dataset.tot}</b><br>`+
+        `<span style="color:#5b9bff">●</span> Reales: <b>${col.dataset.real}</b> (${col.dataset.preal}%)<br>`+
+        `<span style="color:#c7ced6">●</span> Descartadas: <b>${col.dataset.desc}</b> (${col.dataset.pdesc}%)`;
+      t.style.display='block';
+      let x=e.clientX+14; if(x+250>window.innerWidth) x=e.clientX-250;
+      t.style.left=x+'px'; t.style.top=(e.clientY+14)+'px';
+    } else { t.style.display='none'; }
+  }, true);
 }
 
 function renderMarketing(boxId){
   if(boxId) mktBox=boxId;
   const el=document.getElementById(mktBox);
-  if(el){ el.innerHTML=htmlMarketing(); mktAplicarColapso(el); }
+  if(el){ el.innerHTML=htmlMarketing(); mktAplicarColapso(el); mktTipInit(); }
 }
 /* Acordeón: cada tarjeta se pliega dejando solo el título. La clave es 'balde:índice',
    estable aunque cambie el texto del título (ej. "por mes" ↔ "por día"). */
@@ -17751,9 +17770,6 @@ function mktBucketVolumen(base){
 
   /* 1 · volumen en el tiempo, agrupado por mes con drill al día */
   const {d1,d2}=mktRango();
-  const _mm1=new Date(d1); _mm1.setDate(1); _mm1.setHours(0,0,0,0);
-  const _mm2=new Date(d2); _mm2.setDate(1); _mm2.setHours(0,0,0,0);
-  const multiMes=_mm2.getTime()>_mm1.getTime();
   let serie, clickable=false, drillHead='';
   if(mktMesAbierto){
     const pr=mktMesAbierto.split('-'); const yy=+pr[0], mm=+pr[1];
@@ -17762,11 +17778,15 @@ function mktBucketVolumen(base){
     if(ms<d1)ms=new Date(d1); if(me>d2)me=new Date(d2);
     serie=mktSerieUnit(base,'dia',ms,me);
     drillHead=`<div class="mkt-drillhead"><span class="mkt-back" onclick="mktVolverMeses()">‹ Volver a meses</span><b>${mktMesLabel(yy,mm)}</b></div>`;
-  }else if(multiMes){
-    serie=mktSerieUnit(base,'mes',d1,d2); clickable=true;
-    drillHead=`<div class="mkt-drillhint">Está agrupado por mes — tocá un mes para abrirlo día por día.</div>`;
   }else{
-    serie=mktSerieUnit(base,'dia',d1,d2);
+    // La granularidad la manda el PERÍODO elegido, no el calendario:
+    // 7 días / último mes → días · 3 meses → semanas · personalizado → automático por largo.
+    let unit;
+    if(mktPreset==='7d'||mktPreset==='mes') unit='dia';
+    else if(mktPreset==='3m') unit='sem';
+    else { const spanD=Math.max(1,Math.round((d2.getTime()-d1.getTime())/86400000)); unit=spanD<=45?'dia':(spanD<=220?'sem':'mes'); }
+    serie=mktSerieUnit(base,unit,d1,d2);
+    if(unit==='mes'){ clickable=true; drillHead=`<div class="mkt-drillhint">Está agrupado por mes — tocá un mes para abrirlo día por día.</div>`; }
   }
   const barras=mktBarrasVolumen(serie, clickable);
   const _n=serie.out.length, _K=Math.min(_n,8), _ticks=[];
@@ -17776,7 +17796,7 @@ function mktBucketVolumen(base){
   const ejeUnit=serie.unit==='dia'?'por día':(serie.unit==='sem'?'por semana':'por mes');
   const prom=_n?(serie.out.reduce((s,p)=>s+p.real+p.desc,0)/_n):0;
   const card1=`<div class="mkt-card wide"><h3>1 · Consultas que llegaron ${ejeUnit}</h3>
-    <p class="cap">Volumen en el tiempo, separando las que valen de las que no. ${multiMes&&!mktMesAbierto?'Tocá un mes para abrirlo día por día.':'Pasá el mouse por una barra para ver cantidad y %.'}</p>
+    <p class="cap">Volumen en el tiempo, separando las que valen de las que no. ${clickable&&!mktMesAbierto?'Tocá un mes para abrirlo día por día.':'Pasá el mouse por una barra para ver cantidad y %.'}</p>
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${tot}</div><div class="l">Total recibidas</div></div>
       <div class="mkt-kpi g"><div class="n">${reales} <small>· ${mktPct(reales,tot)}%</small></div><div class="l">Consultas reales</div></div>
@@ -17832,10 +17852,11 @@ function mktEstadoTablaBig(rows, keyLbl){
   if(!rows.length) return '<p class="mkt-note">Sin datos.</p>';
   const T={conc:0,seg:0,rech:0,sin:0,tot:0}; rows.forEach(r=>{T.conc+=r.conc;T.seg+=r.seg;T.rech+=r.rech;T.sin+=(r.sin||0);T.tot+=r.tot;});
   const cel=(n,t,cls)=>`<td><span class="${cls}">${n}</span> <b class="pn">${mktPct(n,t)}%</b></td>`;
-  const fila=r=>`<tr><td>${escapeHtml(r.k)}</td>${cel(r.conc,r.tot,'mkt-cg')}${cel(r.seg,r.tot,'mkt-cy')}${cel(r.rech,r.tot,'mkt-cr')}${cel(r.sin||0,r.tot,'mkt-cs')}<td><b>${r.tot}</b></td></tr>`;
-  return `<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>${keyLbl}</th><th>Concretadas</th><th>Seguimiento</th><th>Rechazados</th><th>Sin clasificar</th><th>Total</th></tr></thead><tbody>
+  const celTot=n=>`<td><b>${n}</b> <b class="pn">${mktPct(n,T.tot)}%</b></td>`;
+  const fila=r=>`<tr><td>${escapeHtml(r.k)}</td>${cel(r.conc,r.tot,'mkt-cg')}${cel(r.seg,r.tot,'mkt-cy')}${cel(r.rech,r.tot,'mkt-cr')}${cel(r.sin||0,r.tot,'mkt-cs')}${celTot(r.tot)}</tr>`;
+  return `<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>${keyLbl}</th><th>Concretadas</th><th>Seguimiento</th><th>Rechazados</th><th>Sin clasificar</th><th>Total (% s/total)</th></tr></thead><tbody>
     ${rows.map(fila).join('')}
-    <tr class="tot"><td>Total</td>${cel(T.conc,T.tot,'mkt-cg')}${cel(T.seg,T.tot,'mkt-cy')}${cel(T.rech,T.tot,'mkt-cr')}${cel(T.sin,T.tot,'mkt-cs')}<td><b>${T.tot}</b></td></tr>
+    <tr class="tot"><td>Total</td>${cel(T.conc,T.tot,'mkt-cg')}${cel(T.seg,T.tot,'mkt-cy')}${cel(T.rech,T.tot,'mkt-cr')}${cel(T.sin,T.tot,'mkt-cs')}${celTot(T.tot)}</tr>
   </tbody></table>`;
 }
 
@@ -17862,8 +17883,11 @@ function mktBucketResultado(base){
   base.forEach(a=>{ if(!(a.evaluada&&a.evalConsulta))return; const c=mktCanalMostrar(a); (pc[c]=pc[c]||{1:0,2:0,3:0,n:0}); pc[c][a.evalConsulta]++; pc[c].n++;});
   const rowsPC=MKT_CANALES.filter(c=>pc[c]);
   const celc=(n,t,cls)=>`<td><span class="${cls}">${n}</span> <b class="pn">${mktPct(n,t)}%</b></td>`;
-  const tablaCal=rowsPC.length?`<table class="mkt-tbl mkt-tbl-big" style="margin-top:12px"><thead><tr><th>Canal</th><th>Bien orientadas</th><th>Genéricas</th><th>Fuera de target</th><th>Total evaluadas</th></tr></thead><tbody>
-    ${rowsPC.map(c=>{const o=pc[c];return `<tr><td>${escapeHtml(c)}</td>${celc(o[1],o.n,'mkt-cg')}${celc(o[2],o.n,'mkt-cy')}${celc(o[3],o.n,'mkt-cr')}<td><b>${o.n}</b></td></tr>`;}).join('')}
+  const TC={1:0,2:0,3:0,n:0}; rowsPC.forEach(c=>{const o=pc[c];TC[1]+=o[1];TC[2]+=o[2];TC[3]+=o[3];TC.n+=o.n;});
+  const celTotEv=n=>`<td><b>${n}</b> <b class="pn">${mktPct(n,TC.n)}%</b></td>`;
+  const tablaCal=rowsPC.length?`<table class="mkt-tbl mkt-tbl-big" style="margin-top:12px"><thead><tr><th>Canal</th><th>Bien orientadas</th><th>Genéricas</th><th>Fuera de target</th><th>Total evaluadas (% s/total)</th></tr></thead><tbody>
+    ${rowsPC.map(c=>{const o=pc[c];return `<tr><td>${escapeHtml(c)}</td>${celc(o[1],o.n,'mkt-cg')}${celc(o[2],o.n,'mkt-cy')}${celc(o[3],o.n,'mkt-cr')}${celTotEv(o.n)}</tr>`;}).join('')}
+    <tr class="tot"><td>Total</td>${celc(TC[1],TC.n,'mkt-cg')}${celc(TC[2],TC.n,'mkt-cy')}${celc(TC[3],TC.n,'mkt-cr')}${celTotEv(TC.n)}</tr>
   </tbody></table>`:'<p class="mkt-note">Sin consultas evaluadas en el período.</p>';
   const card8=`<div class="mkt-card wide"><h3>3 · Calidad de la consulta — evaluación de Cintia</h3>
     <p class="cap">Cintia clasifica cada consulta. Tocá una categoría para filtrar los paneles 1, 2 y 4 por esa calidad. La tabla separa por canal.</p>
