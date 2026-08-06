@@ -2212,7 +2212,12 @@ function sbSuscribirCRMRealtime(){
     _canalCRM = sb.channel('crm-kv-cambios')
       .on('postgres_changes',{event:'*',schema:'public',table:'crm_kv'},async payload=>{
         try{
-          await loadState();
+          // IMPORTANTE: un cambio en crm_kv (contactos, config, etc.) NO debe recargar
+          // consultas ni reclamos. Esas tienen su propio canal realtime por tabla, y
+          // recargarlas acá pisaba la edición en curso (la fecha se revertía sola) y
+          // bajaba la base entera en cada guardado de cualquiera. Solo recargamos las
+          // claves que viven en crm_kv.
+          await recargarConfigKv();
           if(typeof YO!=='undefined' && YO) render();
         }catch(e){ console.error('realtime crm_kv',e); }
       })
@@ -3181,10 +3186,18 @@ async function loadContactos(){
   try{
     const r=await window.storage.get('contactos',true);
     if(r&&r.value) CONTACTOS=JSON.parse(r.value);
-  }catch(e){CONTACTOS={};}
+    // Si no hubo value (error de red o clave inexistente) NO se pisa lo que ya está en
+    // memoria: antes se ponía CONTACTOS={} y el próximo guardado persistía ese vacío,
+    // borrando contactos reales.
+  }catch(e){ console.error('loadContactos', e); /* se conserva lo que ya estaba en memoria */ }
 }
 async function saveContactos(){
-  try{await window.storage.set('contactos',JSON.stringify(CONTACTOS),true);}catch(e){}
+  try{
+    await window.storage.set('contactos',JSON.stringify(CONTACTOS),true);
+  }catch(e){
+    console.error('saveContactos', e);
+    toast('No se pudo guardar el contacto (reintentá)');
+  }
 }
 
 /* Pedidos de baja de contacto: cualquiera puede pedirla desde la fila, pero solo Cintia
@@ -3707,6 +3720,24 @@ async function loadState(){
   if(YO) render();
 }
 
+/* Recarga SOLO las claves que viven en crm_kv (locales, contactos, config…). NO toca
+   consultas ni reclamos: esas tienen su propio realtime por tabla y recargarlas desde acá
+   pisaba la edición en curso. La usa el canal realtime de crm_kv. */
+async function recargarConfigKv(){
+  await loadLocales();
+  await loadActivos();
+  await loadJornadas();
+  await loadUltimoLocal();
+  await loadContactos();
+  await loadSolicitudes();
+  await loadCanalesConfig();
+  await loadEstadosPedido();
+  await loadConsultasInvalidas();
+  await loadNotasSinAccion();
+  await loadRecordatorios();
+  pintarConfigLocales();
+}
+
 /* ═══════════════ CONSULTAS: una fila por consulta en Supabase ═══════════════
    Antes todas las consultas viajaban juntas en un solo bloque JSON. Con el
    equipo completo trabajando eso tenía dos problemas: cada apertura se bajaba
@@ -3743,7 +3774,9 @@ function filaAConsulta(f){
   ponerSi('resultadoMotivo', f.motivo_rechazo);
   ponerSi('origen',          f.origen);
   if(f.fecha && a.ts === undefined) a.ts = new Date(f.fecha).getTime();
-  if(f.proxima_accion && a.proximaAccionTs === undefined) a.proximaAccionTs = new Date(f.proxima_accion).getTime();
+  // ISO string, igual que todas las rutas que la escriben (rapidoCuando, guardarEtapaSeguimiento…),
+  // para que el tipo sea siempre el mismo y no quede a veces número y a veces texto.
+  if(f.proxima_accion && a.proximaAccionTs === undefined) a.proximaAccionTs = new Date(f.proxima_accion).toISOString();
   if(a.evaluable === undefined)       a.evaluable       = f.evaluable !== false;
   if(a.evaluada === undefined)        a.evaluada        = !!f.evaluada;
   if(a.nuncaRespondio === undefined)  a.nuncaRespondio  = !!f.nunca_respondio;
@@ -3950,27 +3983,81 @@ async function saveAtenciones(){
   // Hubo un cambio real hecho por esta persona: queda registrada la hora de la última
   // edición del día (para el tablero de dirección). El admin no se registra a sí mismo.
   if(YO && !esAdmin()) registrarEdicion(YO);
+  marcarGuardando();                       // indicador visible: "Guardando…"
   clearTimeout(_timerGuardado);
-  _timerGuardado = setTimeout(async () => {
-    const ids = [..._colaGuardado]; _colaGuardado.clear();
-    const filas = ids.map(id => {
-      const a = atenciones.find(x => x.id === id);
-      return a ? consultaAFila(a) : null;
-    }).filter(Boolean);
-    if(!filas.length) return;
-    try{
-      const {error} = await sb.from('consultas').upsert(filas, {onConflict:'id'});
-      if(error){
-        console.error('guardar consultas', error);
-        toast('No se pudo guardar (reintentá)');
-        ids.forEach(id => _colaGuardado.add(id));
-      }
-    }catch(e){
-      console.error(e);
-      ids.forEach(id => _colaGuardado.add(id));
-    }
-  }, 400);
+  _timerGuardado = setTimeout(_subirConsultas, 400);
 }
+/* Sube a Supabase todo lo que quedó en la cola. Se llama por el debounce (400ms) y también
+   directo desde flushGuardados() al cerrar/refrescar, para no perder lo pendiente. */
+async function _subirConsultas(){
+  if(!sb || !_colaGuardado.size) return;
+  const ids = [..._colaGuardado]; _colaGuardado.clear();
+  const filas = ids.map(id => {
+    const a = atenciones.find(x => x.id === id);
+    return a ? consultaAFila(a) : null;
+  }).filter(Boolean);
+  if(!filas.length){ marcarGuardado(); return; }
+  try{
+    const {error} = await sb.from('consultas').upsert(filas, {onConflict:'id'});
+    if(error){
+      console.error('guardar consultas', error);
+      toast('No se pudo guardar (reintentá)');
+      ids.forEach(id => _colaGuardado.add(id));
+      marcarErrorGuardado();
+    }else{
+      marcarGuardado();
+    }
+  }catch(e){
+    console.error(e);
+    ids.forEach(id => _colaGuardado.add(id));
+    marcarErrorGuardado();
+  }
+}
+
+/* ── Indicador de guardado + red de seguridad al cerrar/refrescar ──────────────
+   Antes el guardado era diferido (400ms) y silencioso: si cerrabas o refrescabas
+   dentro de esa ventana, el cambio se perdía y nadie se enteraba. Ahora hay un
+   cartelito "Guardando… / Guardado ✓" y, sobre todo, un flush que sube lo pendiente
+   antes de que la página se cierre. */
+let _indGuardadoTimer=null;
+function _indEl(){
+  let el=document.getElementById('indGuardado');
+  if(!el){
+    el=document.createElement('div');
+    el.id='indGuardado';
+    el.style.cssText='position:fixed;bottom:16px;right:16px;z-index:99999;padding:8px 14px;'
+      +'border-radius:999px;font:600 13px system-ui,sans-serif;color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.25);'
+      +'opacity:0;transform:translateY(6px);transition:opacity .18s,transform .18s;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function _indMostrar(txt,color,ocultarEn){
+  const el=_indEl();
+  el.textContent=txt; el.style.background=color;
+  el.style.opacity='1'; el.style.transform='translateY(0)';
+  clearTimeout(_indGuardadoTimer);
+  if(ocultarEn) _indGuardadoTimer=setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(6px)'; }, ocultarEn);
+}
+function marcarGuardando(){ _indMostrar('Guardando…', '#334155', 0); }
+function marcarGuardado(){
+  // Solo decir "Guardado" cuando ya no queda NADA pendiente en ninguna de las dos colas.
+  if(_colaGuardado.size || _rcCola.size) return;
+  _indMostrar('Guardado ✓', '#16a34a', 1600);
+}
+function marcarErrorGuardado(){ _indMostrar('Sin guardar — reintentando', '#dc2626', 0); }
+
+/* Sube YA todo lo pendiente (consultas + reclamos), sin esperar el debounce. */
+async function flushGuardados(){
+  clearTimeout(_timerGuardado);
+  clearTimeout(_rcTimer);
+  try{ await _subirConsultas(); }catch(e){ console.error('flush consultas', e); }
+  try{ await _subirReclamos(); }catch(e){ console.error('flush reclamos', e); }
+}
+/* Al ocultar/cerrar la pestaña, forzamos la subida de lo pendiente. 'pagehide' y
+   'visibilitychange' son los eventos confiables para esto (mucho más que 'beforeunload'). */
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flushGuardados(); });
+window.addEventListener('pagehide', ()=>{ flushGuardados(); });
 
 /* Cambios de otros usuarios: se reflejan sin recargar la página */
 let _canalConsultas = null;
@@ -3984,6 +4071,10 @@ function suscribirConsultas(){
           const i = atenciones.findIndex(a => a.id === p.old.id);
           if(i > -1) atenciones.splice(i, 1);
           delete _snapConsultas[p.old.id];
+        }else if(_colaGuardado.has(p.new.id)){
+          // Tengo cambios locales de esta consulta todavía sin subir: NO la piso con la
+          // versión remota (sería un eco viejo que borra lo que estoy editando). Cuando
+          // termine de subir lo mío, el próximo eco ya traerá mi versión.
         }else{
           const a = filaAConsulta(p.new);
           _snapConsultas[a.id] = JSON.stringify(a);
@@ -16153,14 +16244,21 @@ async function guardarReclamos(){
     if(_rcSnap[r.id] !== j){ _rcCola.add(r.id); _rcSnap[r.id] = j; }
   }
   if(!_rcCola.size) return;
+  marcarGuardando();
   clearTimeout(_rcTimer);
-  _rcTimer = setTimeout(async ()=>{
-    const ids = [..._rcCola]; _rcCola.clear();
-    const filas = ids.map(id=>{ const r=reclamos.find(x=>x.id===id); return r ? {id:r.id, data:r, actualizado_en:new Date().toISOString(), actualizado_por:(typeof usuarioActualEmail!=='undefined'?usuarioActualEmail:null)} : null; }).filter(Boolean);
-    if(!filas.length) return;
+  _rcTimer = setTimeout(_subirReclamos, 400);
+}
+/* Igual que _subirConsultas: lo llama el debounce y también flushGuardados() al cerrar. */
+async function _subirReclamos(){
+  if(!sb || !_rcCola.size) return;
+  const ids = [..._rcCola]; _rcCola.clear();
+  const filas = ids.map(id=>{ const r=reclamos.find(x=>x.id===id); return r ? {id:r.id, data:r, actualizado_en:new Date().toISOString(), actualizado_por:(typeof usuarioActualEmail!=='undefined'?usuarioActualEmail:null)} : null; }).filter(Boolean);
+  if(!filas.length){ marcarGuardado(); return; }
+  try{
     const {error} = await sb.from('reclamos').upsert(filas, {onConflict:'id'});
-    if(error){ console.error('guardarReclamos', error); toast('No se pudo guardar el reclamo: '+error.message); ids.forEach(id=>_rcCola.add(id)); }
-  }, 400);
+    if(error){ console.error('guardarReclamos', error); toast('No se pudo guardar el reclamo: '+error.message); ids.forEach(id=>_rcCola.add(id)); marcarErrorGuardado(); }
+    else{ marcarGuardado(); }
+  }catch(e){ console.error('guardarReclamos', e); ids.forEach(id=>_rcCola.add(id)); marcarErrorGuardado(); }
 }
 
 /* --- Helpers de lectura -------------------------------------------------- */
