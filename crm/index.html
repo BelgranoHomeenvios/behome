@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Anti-caché: cada vez que se sube una versión nueva a GitHub, el navegador del
+     equipo la toma al recargar, sin tener que borrar caché a mano. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Belgrano Soft · CRM</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMxMTExMTEiLz48dGV4dCB4PSIzMiIgeT0iMzQiIGZvbnQtZmFtaWx5PSJBcmlhbCxIZWx2ZXRpY2Esc2Fucy1zZXJpZiIgZm9udC1zaXplPSIzMCIgZm9udC13ZWlnaHQ9IjcwMCIgZmlsbD0iI2ZmZmZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiPkJIPC90ZXh0Pjwvc3ZnPg==">
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -496,9 +501,13 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .menu-op.rojo:hover{background:var(--red-l)}
 .solic-item{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:11px 0;border-top:1px solid var(--line2)}
 .asist-filas{margin-top:10px;display:flex;flex-direction:column;gap:12px}
-.asist-fila-wrap{border:1px solid var(--line2);border-radius:10px;overflow:hidden}
-.asist-fila-wrap .crow{border:0;margin:0}
-.asist-fila-msg{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:var(--line2);flex-wrap:wrap}
+.asist-fila-wrap{border:1px solid var(--line2);border-radius:10px;overflow:visible}
+.asist-fila-wrap .crow{border:0;margin:0;border-radius:10px 10px 0 0}
+/* En "Mensajes de vendedores" cada fila tiene el mensaje del vendedor justo debajo.
+   Las observaciones/comentarios (📝, ⋮, etc.) se abren hacia ABAJO para que no queden
+   tapadas por la fila de arriba, y con z-index alto quedan por encima del mensaje. */
+.asist-fila-wrap .ebtn .pop{bottom:auto;top:130%;z-index:650}
+.asist-fila-msg{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:var(--line2);flex-wrap:wrap;border-radius:0 0 9px 9px}
 .asist-fila-txt{font-size:12.5px;color:var(--sec);flex:1;min-width:160px}
 .asist-fila-txt i{color:var(--navy);font-style:normal;font-weight:700}
 .solic-item:first-child{border-top:none}
