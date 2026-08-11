@@ -2212,6 +2212,18 @@ window.storage={
    abierto, el segundo explotaba y la app decía "no se pudo leer tu rol" — un mensaje
    que no tenía nada que ver con el problema real. */
 let _canalCRM=null;
+
+/* ═══════════════ PARCHE 11/8 · Próxima acción que se revertía sola ═══════════════
+   La próxima acción vive en el bloque 'contactos' de crm_kv. El bug: cualquier cambio
+   en crm_kv (incluido el ECO del propio guardado) disparaba recargarConfigKv →
+   loadContactos, que pisaba la edición recién hecha con la versión vieja de la base.
+   Resultado: la fecha se revertía y la consulta seguía apareciendo en "Hoy".
+   Ya se había tapado para 'consultas'; faltaba para 'contactos'. Dos protecciones:
+   (1) el realtime ignora el eco de MI propio guardado; (2) loadContactos no pisa la
+   memoria mientras haya una edición local reciente/en vuelo. */
+let _contactosProtegidoHasta = 0;   // mientras Date.now() < esto, loadContactos NO pisa lo local
+function _protegerContactos(ms){ _contactosProtegidoHasta = Date.now() + (ms||6000); }
+
 function sbSuscribirCRMRealtime(){
   if(!sb) return;
   try{
@@ -2221,6 +2233,13 @@ function sbSuscribirCRMRealtime(){
     _canalCRM = sb.channel('crm-kv-cambios')
       .on('postgres_changes',{event:'*',schema:'public',table:'crm_kv'},async payload=>{
         try{
+          // PARCHE 11/8: ignorar el ECO de mi propio guardado. Ese estado ya lo tengo en
+          // memoria; recargarlo acá era lo que pisaba la edición en curso y revertía la
+          // próxima acción. Los cambios de OTROS usuarios sí se siguen recargando.
+          const _quien = payload && payload.new && payload.new.actualizado_por;
+          if(_quien && typeof usuarioActualEmail!=='undefined' && _quien===usuarioActualEmail){
+            return;
+          }
           // IMPORTANTE: un cambio en crm_kv (contactos, config, etc.) NO debe recargar
           // consultas ni reclamos. Esas tienen su propio canal realtime por tabla, y
           // recargarlas acá pisaba la edición en curso (la fecha se revertía sola) y
@@ -3192,6 +3211,11 @@ function normOrden(o){ return (o||'').toString().toLowerCase().replace(/[^a-z0-9
 
 let CONTACTOS={};
 async function loadContactos(){
+  // PARCHE 11/8: si hay una edición local reciente o en vuelo, NO pisar la memoria con la
+  // versión de la base — eso era lo que revertía la próxima acción y dejaba la consulta en
+  // "Hoy". El próximo cambio en crm_kv (ya fuera de la ventana) vuelve a sincronizar. No
+  // afecta el arranque: al inicio _contactosProtegidoHasta = 0.
+  if(Date.now() < _contactosProtegidoHasta) return;
   try{
     const r=await window.storage.get('contactos',true);
     if(r&&r.value) CONTACTOS=JSON.parse(r.value);
@@ -3201,8 +3225,10 @@ async function loadContactos(){
   }catch(e){ console.error('loadContactos', e); /* se conserva lo que ya estaba en memoria */ }
 }
 async function saveContactos(){
+  _protegerContactos();                 // PARCHE 11/8: blindar la edición local mientras se guarda
   try{
     await window.storage.set('contactos',JSON.stringify(CONTACTOS),true);
+    _protegerContactos(2500);           // ventana corta post-guardado, para cubrir el eco realtime
   }catch(e){
     console.error('saveContactos', e);
     toast('No se pudo guardar el contacto (reintentá)');
