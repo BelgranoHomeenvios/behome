@@ -8510,7 +8510,10 @@ function renderPanelCintia(){
   // Una sola barra de período: la de arriba (cintiaFechaBox). La de abajo (verMasBox,
   // pensada para el vendedor) se esconde en el tablero de Cintia/dirección. En el Panel de
   // dirección la barra de arriba también se esconde: ahí el período se muestra abajo del título.
-  $('cintiaFechaBox').classList.toggle('hidden', cintiaSeccion==='direccion');
+  // Marketing (15/8): también se esconde. Tiene su propio período (mktPreset/mktDesde/mktHasta)
+  // y no lee cintiaFecha*, así que la barra de arriba parecía filtrar Marketing pero en realidad
+  // le movía el período al resto del tablero.
+  $('cintiaFechaBox').classList.toggle('hidden', cintiaSeccion==='direccion' || cintiaSeccion==='marketing');
   { const _vm=$('verMasBox'); if(_vm) _vm.classList.add('hidden'); }
   // La tabla de Consultas reutiliza colaOperativa. En Brian se ve en "Consultas" (todo el
   // equipo) y en "Mis consultas" (lo suyo); en Cintia, solo en "Consultas".
