@@ -2398,6 +2398,13 @@ function vendActivoFiltro(){ return vendFiltrados().length>0; }
    necesita para repartir el soporte del día: a quién ayudar antes de que se le vuelva
    deuda. Mismo criterio que el balde "Para hoy" del vendedor: zonaDe(a)==='hoy'. */
 function htmlHoyPorVendedor(){
+  /* Sacado el 15/8 a pedido de Brian. Se deja la función devolviendo vacío en vez de
+     borrarla porque la llaman dos ramas de renderCintiaMain (Consultas y Mis consultas);
+     para reponerla, borrar este return. El filtro por vendedor no se pierde: sigue estando
+     el de la columna Vendedor de la tabla, que usa el mismo filtroVendedorCintia. */
+  return '';
+}
+function htmlHoyPorVendedor_OCULTA(){
   const base = atenciones.filter(a=>cuentaParaVendedor(a) && rolDe(a.vendedorId)==='vendedor');
   const hoy={}, sinAt={};
   base.forEach(a=>{
@@ -17880,21 +17887,44 @@ function mktSerieUnit(base, unit, d1, d2){
     if(unit==='dia')n.setDate(n.getDate()+1);
     else if(unit==='sem')n.setDate(n.getDate()+7);
     else n.setMonth(n.getMonth()+1); return n;};
-  const R={},D={};
-  base.forEach(a=>{const t=new Date(a.ts).getTime(); if(t<d1.getTime()||t>d2.getTime())return; const k=norm(a.ts).getTime(); if(mktReal(a))R[k]=(R[k]||0)+1; else D[k]=(D[k]||0)+1;});
+  const R={},D={},C={},X={},A={};
+  base.forEach(a=>{const t=new Date(a.ts).getTime(); if(t<d1.getTime()||t>d2.getTime())return; const k=norm(a.ts).getTime();
+    if(mktReal(a)){ R[k]=(R[k]||0)+1;
+      // Y dentro de las reales, en qué terminaron: es lo que se apila cuando el chip
+      // "Solo las reales" está prendido (concretada / rechazada / todavía abierta).
+      const e=estadoDe(a);
+      if(e==='Concretado')      C[k]=(C[k]||0)+1;
+      else if(e==='Rechazado')  X[k]=(X[k]||0)+1;
+      else                      A[k]=(A[k]||0)+1;
+    } else D[k]=(D[k]||0)+1;});
   const out=[]; let cur=norm(d1); const end=norm(d2).getTime(); let guard=0;
-  while(cur.getTime()<=end && guard<732){ const k=cur.getTime(); out.push({t:k,real:R[k]||0,desc:D[k]||0}); cur=step(cur); guard++; }
+  while(cur.getTime()<=end && guard<732){ const k=cur.getTime(); out.push({t:k,real:R[k]||0,desc:D[k]||0,conc:C[k]||0,rech:X[k]||0,abie:A[k]||0}); cur=step(cur); guard++; }
   return {out,unit};
 }
 function mktBarrasVolumen(serie, clickable){
-  const maxD=Math.max(1,...serie.out.map(p=>p.real+p.desc));
+  /* Dos modos, según el chip "Solo las reales":
+       apagado → reales vs descartadas (cuánta basura trae el canal)
+       prendido → dentro de las reales: concretada / rechazada / abierta (en qué terminó
+                  lo que servía). Misma tarjeta, dos preguntas. */
+  const modo = mktSoloReales ? 'resultado' : 'corte';
+  const maxD=Math.max(1, ...serie.out.map(p=> modo==='corte' ? p.real+p.desc : p.real));
   const H=118;
   return serie.out.map(p=>{
-    const tt=p.real+p.desc;
-    const rp=Math.round(p.real/maxD*H), dp=Math.round(p.desc/maxD*H);
     const f=mktFechaCorta(p.t,serie.unit);
     const click=clickable?` onclick="mktAbrirMes('${mktMesKey(p.t)}')" style="cursor:pointer"`:'';
-    return `<div class="dcol"${click} data-fecha="${escAttr(f)}" data-tot="${tt}" data-real="${p.real}" data-desc="${p.desc}" data-preal="${mktPct(p.real,tt)}" data-pdesc="${mktPct(p.desc,tt)}">
+    if(modo==='resultado'){
+      const tt=p.real;
+      const h=n=>Math.round(n/maxD*H);
+      return `<div class="dcol"${click} data-modo="resultado" data-fecha="${escAttr(f)}" data-tot="${tt}"
+        data-conc="${p.conc}" data-rech="${p.rech}" data-abie="${p.abie}"
+        data-pconc="${mktPct(p.conc,tt)}" data-prech="${mktPct(p.rech,tt)}" data-pabie="${mktPct(p.abie,tt)}">
+        <div class="seg" style="height:${h(p.abie)}px;background:#f0c896"></div>
+        <div class="seg" style="height:${h(p.rech)}px;background:#e08b84"></div>
+        <div class="seg" style="height:${h(p.conc)}px;background:#15803d"></div></div>`;
+    }
+    const tt=p.real+p.desc;
+    const rp=Math.round(p.real/maxD*H), dp=Math.round(p.desc/maxD*H);
+    return `<div class="dcol"${click} data-modo="corte" data-fecha="${escAttr(f)}" data-tot="${tt}" data-real="${p.real}" data-desc="${p.desc}" data-preal="${mktPct(p.real,tt)}" data-pdesc="${mktPct(p.desc,tt)}">
       <div class="seg desc" style="height:${dp}px"></div>
       <div class="seg real" style="height:${rp}px"></div></div>`;
   }).join('');
@@ -17907,9 +17937,14 @@ function mktTipInit(){
   document.addEventListener('mousemove', e=>{
     const col=e.target.closest ? e.target.closest('.mkt-days .dcol') : null;
     if(col && col.dataset.tot!==undefined){
-      t.innerHTML=`<b>${col.dataset.fecha}</b> · Total: <b>${col.dataset.tot}</b><br>`+
-        `<span style="color:#5b9bff">●</span> Reales: <b>${col.dataset.real}</b> (${col.dataset.preal}%)<br>`+
-        `<span style="color:#c7ced6">●</span> Descartadas: <b>${col.dataset.desc}</b> (${col.dataset.pdesc}%)`;
+      t.innerHTML = col.dataset.modo==='resultado'
+        ? `<b>${col.dataset.fecha}</b> · Reales: <b>${col.dataset.tot}</b><br>`+
+          `<span style="color:#15803d">●</span> Concretadas: <b>${col.dataset.conc}</b> (${col.dataset.pconc}%)<br>`+
+          `<span style="color:#e08b84">●</span> Rechazadas: <b>${col.dataset.rech}</b> (${col.dataset.prech}%)<br>`+
+          `<span style="color:#f0c896">●</span> Abiertas: <b>${col.dataset.abie}</b> (${col.dataset.pabie}%)`
+        : `<b>${col.dataset.fecha}</b> · Total: <b>${col.dataset.tot}</b><br>`+
+          `<span style="color:#5b9bff">●</span> Reales: <b>${col.dataset.real}</b> (${col.dataset.preal}%)<br>`+
+          `<span style="color:#c7ced6">●</span> Descartadas: <b>${col.dataset.desc}</b> (${col.dataset.pdesc}%)`;
       t.style.display='block';
       let x=e.clientX+14; if(x+250>window.innerWidth) x=e.clientX-250;
       t.style.left=x+'px'; t.style.top=(e.clientY+14)+'px';
@@ -17978,7 +18013,7 @@ function mktFiltrosHtml(){
       <div class="mkt-chips oneline">
         <span class="mkt-chip ${!mktSoloReales?'on':''}" onclick="mktSetSoloReales(false)">Todas las consultas</span>
         <span class="mkt-chip ${mktSoloReales?'on':''}" onclick="mktSetSoloReales(true)">Solo las reales</span>
-        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktTab==='volumen'?'No aplica en Volumen: ese balde muestra el corte.':'Saca las que Cintia descartó.'}</span>
+        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktTab==='volumen'?(mktSoloReales?'El gráfico separa por resultado: concretada / rechazada / abierta.':'El gráfico separa reales de descartadas.'):'Saca las que Cintia descartó.'}</span>
       </div></div>
   </div>`;
 }
@@ -17997,6 +18032,12 @@ function mktBucketVolumen(base){
   const covEv=base.filter(a=>mktEvaluable(a)&&a.evaluada).length;
   const covPct=mktPct(covEv,covEvbl);
   const covCol=!covEvbl?'var(--muted)':(covPct>=80?'#15803d':(covPct>=50?'#b45309':'#b42318'));
+  /* Dentro de las reales, en qué terminaron. Es lo que se muestra cuando el chip
+     "Solo las reales" está prendido. */
+  const realesArr=base.filter(mktReal);
+  const rConc=realesArr.filter(a=>estadoDe(a)==='Concretado').length;
+  const rRech=realesArr.filter(a=>estadoDe(a)==='Rechazado').length;
+  const rAbie=reales-rConc-rRech;
 
   /* 1 · volumen en el tiempo, agrupado por mes con drill al día */
   const {d1,d2}=mktRango();
@@ -18030,15 +18071,21 @@ function mktBucketVolumen(base){
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${tot}</div><div class="l">Total recibidas</div></div>
       <div class="mkt-kpi g"><div class="n">${reales} <small>· ${mktPct(reales,tot)}%</small></div><div class="l">Consultas reales</div></div>
-      <div class="mkt-kpi r"><div class="n">${descart} <small>· ${mktPct(descart,tot)}%</small></div><div class="l">Descartadas<small>nunca respondió ${noResp} · fuera de target ${fuera} · genérica + fuera de alcance ${otros}</small></div></div>
-      <div class="mkt-kpi"><div class="n">${prom.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>
+      ${mktSoloReales
+        ? `<div class="mkt-kpi g"><div class="n">${rConc} <small>· ${mktPct(rConc,reales)}%</small></div><div class="l">Concretadas<small>sobre las reales</small></div></div>
+           <div class="mkt-kpi r"><div class="n">${rRech} <small>· ${mktPct(rRech,reales)}%</small></div><div class="l">Rechazadas<small>sobre las reales</small></div></div>
+           <div class="mkt-kpi"><div class="n">${rAbie} <small>· ${mktPct(rAbie,reales)}%</small></div><div class="l">Todavía abiertas<small>sin cerrar</small></div></div>`
+        : `<div class="mkt-kpi r"><div class="n">${descart} <small>· ${mktPct(descart,tot)}%</small></div><div class="l">Descartadas<small>nunca respondió ${noResp} · fuera de target ${fuera} · genérica + fuera de alcance ${otros}</small></div></div>
+           <div class="mkt-kpi"><div class="n">${prom.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>`}
       <div class="mkt-kpi"><div class="n" style="color:${covEvbl?covCol:'var(--muted)'}">${covEvbl?covPct+'%':'—'}</div><div class="l">Evaluado x Cintia<small>${covEvbl?`${covEv} de ${covEvbl} del período`:'sin consultas evaluables en el período'}</small></div></div>
     </div>
     ${drillHead}
     <div class="mkt-days">${barras}</div>
     ${ejeHtml}
     ${rangoHtml}
-    <div class="mkt-leg"><span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (nunca respondió / fuera de target / genérica + fuera de alcance)</span></div>
+    <div class="mkt-leg">${mktSoloReales
+      ? `<span><i style="background:#15803d"></i>Concretadas</span><span><i style="background:#e08b84"></i>Rechazadas</span><span><i style="background:#f0c896"></i>Todavía abiertas</span>`
+      : `<span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (nunca respondió / fuera de target / genérica + fuera de alcance)</span>`}</div>
     <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = Cintia marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado x Cintia</b>: ${covEvbl?`${covPct}% (${covEv} de ${covEvbl}) — lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado`:'sin consultas evaluables en el período'}.</div>
   </div>`;
 
