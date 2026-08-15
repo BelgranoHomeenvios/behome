@@ -5015,27 +5015,19 @@ function esSegundoRechazo(a){
 const DIAS_CONSULTA_INICIAL = 5;      // 0-5 = respuesta inmediata · 6+ = seguimiento real
 const DIAS_EVALUAR_SEGUIMIENTO = 10;  // recién a los 10 días vale la pena evaluarla
 
-/* ===== MADUREZ PARA ANÁLISIS (15/8, definido por Brian) =====
-   Una consulta de hoy, ayer o anteayer se está trabajando AHORA: no se evalúa ni entra
-   en ningún análisis de resultado. El corte es por FECHA DE INGRESO y nada más — a
-   propósito no mira si está cerrada. Si dejáramos entrar a las cerradas rápido pero
-   excluyéramos a las abiertas recientes, el cohorte quedaría sesgado hacia arriba (entran
-   las que se concretan rápido, todavía no las que van camino a perderse) y la conversión
-   daría mejor de lo que es. Filtrando solo por ingreso, el cohorte entra completo.
-   El número sale de una pregunta con respuesta en los datos: ¿a los cuántos días ya se
-   resolvió el 80-90% de lo que se va a resolver? Medido el 15/8 sobre 354 consultas
-   nativas del CRM de los últimos 6 meses: virtual p80 = 7,7 días y presencial p80 = 7,0.
-   Los dos orígenes coinciden, así que alcanza con un solo N — no hace falta uno por canal.
-   (Las filas migradas de las planillas viejas dan colas de 24-35 días, pero ahí el
-   cerradoTs es la fecha de importación, no la de cierre real: no se usaron.)
-   A los 11 días se llega al p90, pero cuesta una semana y media más de ceguera por 10
-   puntos.
-   OJO con ese 7,7: casi toda la historia nativa del CRM tiene pocas semanas de vida (al
-   pedir solo consultas con 30+ días quedaba UNA fila), así que las que tardan mucho en
-   cerrar todavía no pudieron aparecer en la medición. El sesgo va todo para el mismo
-   lado: 7 es un PISO, el número real va a ser igual o más alto. Rehacer la medición
-   cuando haya varios meses de historia nativa — si da 10-11, subir esta constante.
-   Coincide además con cómo trabaja Brian: no analiza la última semana, la deja correr. */
+/* ===== MADUREZ DE UNA CONSULTA (15/8) =====
+   A los cuántos días una consulta ya terminó en algo. NO filtra nada: es un dato que se
+   muestra ("de las 225 que estás mirando, 97 entraron hace menos de 7 días y todavía se
+   están trabajando") para que se sepa cuánto del período está en curso. Decisión de Brian:
+   el período lo elige él y la app muestra todo lo que hay — una tabla que esconde
+   consultas sin avisar sesga más que una incompleta a la vista.
+   El número salió de los datos: sobre 354 consultas nativas del CRM, virtual p80 = 7,7
+   días y presencial p80 = 7,0 — a los 7 días ya cerró el 80% de lo que va a cerrar.
+   (Las filas migradas de las planillas dan 24-35 días, pero ahí el cerradoTs es la fecha
+   de importación, no la de cierre real: no se usaron.) Y ese 7,7 es un PISO: casi toda la
+   historia nativa tiene pocas semanas de vida, así que las que tardan mucho todavía no
+   pudieron aparecer en la medición. Rehacerla con varios meses de historia nativa.
+   Coincide con cómo trabaja Brian: no analiza la última semana, la deja correr. */
 const DIAS_MADUREZ_ANALISIS = 7;
 function consultaMadura(a){ return diasDesdeISO(a && a.ts) >= DIAS_MADUREZ_ANALISIS; }
 
@@ -9900,17 +9892,14 @@ function estCardResultado(base, baseCmp){
 }
 
 function estCardCobertura(base, baseCmp){
-  // Denominador = consultas MADURAS (ver DIAS_MADUREZ_ANALISIS). Antes dividía por todas
-  // las del período, así que un período en curso nunca podía llegar al 100% y la alerta
-  // de "cobertura baja" se prendía por lo fresco que era el período, no por Cintia.
-  const mad=base.filter(consultaMadura);
-  const ev=mad.filter(a=>a.evaluada).length, tot=mad.length;
+  // Denominador = TODAS las del período elegido, sin recortes por antigüedad: el período
+  // lo elige quien mira, y esconder consultas nuevas del denominador sesga el número.
+  const ev=base.filter(a=>a.evaluada).length, tot=base.length;
   const p=tot?Math.round(ev/tot*100):0;
   let filaCmp='';
   if(baseCmp){
     const rc=estRangoCmp();
-    const madC=baseCmp.filter(consultaMadura);
-    const evC=madC.filter(a=>estEvaluadaEn(a,rc)).length, totC=madC.length;
+    const evC=baseCmp.filter(a=>estEvaluadaEn(a,rc)).length, totC=baseCmp.length;
     const pC=totC?Math.round(evC/totC*100):0;
     filaCmp=`<div class="ecb">
       <span class="ecb-m" style="color:var(--muted)">${estFmtRango(rc)}<span class="s">a la misma altura</span></span>
@@ -9924,7 +9913,7 @@ function estCardCobertura(base, baseCmp){
   return `<div class="est-card">
     <div class="est-hd">
       <div><h3>Cobertura de evaluación</h3>
-      <p class="cap">Los análisis de abajo se calculan solo sobre lo evaluado — este número les pone precio. Se mide sobre las consultas con ${DIAS_MADUREZ_ANALISIS}+ días: las más nuevas se están trabajando ahora y no le tocan todavía a Cintia.</p></div>
+      <p class="cap">Los análisis de abajo se calculan solo sobre lo evaluado — este número les pone precio. Se mide sobre todas las del período elegido.</p></div>
       <div class="est-tot"><div class="n ${p>=70?'':'mal'}">${p}%</div><div class="l">evaluado</div></div>
     </div>
     <div class="ecb">
@@ -11304,9 +11293,9 @@ function htmlEjemplosPorMes(lista, opts){
 
 function htmlEvaluacionDireccion(){
   const enPeriodo = atenciones.filter(a=>dentroDePeriodoCintia(a.ts));
-  // Cobertura con el mismo denominador que Estadísticas y Marketing: solo las MADURAS
-  // (ver DIAS_MADUREZ_ANALISIS). Las de hoy/ayer no cuentan como pendientes de Cintia.
-  const evaluables = enPeriodo.filter(a=>a.evaluable!==false && consultaMadura(a));
+  // Cobertura sobre TODAS las del período, sin recortes por antigüedad (mismo criterio
+  // que Estadísticas y Marketing): el período lo elige quien mira.
+  const evaluables = enPeriodo.filter(a=>a.evaluable!==false);
   const evaluadas  = enPeriodo.filter(a=>a.evaluada);
   const cobertura  = evaluables.length ? Math.round(evaluables.filter(a=>a.evaluada).length*100/evaluables.length) : 0;
   const ejemplosTodos = atenciones.filter(a=>a.ejemploDelMes)
@@ -18043,14 +18032,14 @@ function mktBucketVolumen(base){
       <div class="mkt-kpi g"><div class="n">${reales} <small>· ${mktPct(reales,tot)}%</small></div><div class="l">Consultas reales</div></div>
       <div class="mkt-kpi r"><div class="n">${descart} <small>· ${mktPct(descart,tot)}%</small></div><div class="l">Descartadas<small>nunca respondió ${noResp} · fuera de target ${fuera} · genérica + fuera de alcance ${otros}</small></div></div>
       <div class="mkt-kpi"><div class="n">${prom.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>
-      <div class="mkt-kpi"><div class="n" style="color:${covEvbl?covCol:'var(--muted)'}">${covEvbl?covPct+'%':'—'}</div><div class="l">Evaluado x Cintia<small>${covEvbl?`${covEv} de ${covEvbl} con ${DIAS_MADUREZ_ANALISIS}+ días`:`ninguna del período llegó a los ${DIAS_MADUREZ_ANALISIS} días`}</small></div></div>
+      <div class="mkt-kpi"><div class="n" style="color:${covEvbl?covCol:'var(--muted)'}">${covEvbl?covPct+'%':'—'}</div><div class="l">Evaluado x Cintia<small>${covEvbl?`${covEv} de ${covEvbl} del período`:'sin consultas evaluables en el período'}</small></div></div>
     </div>
     ${drillHead}
     <div class="mkt-days">${barras}</div>
     ${ejeHtml}
     ${rangoHtml}
     <div class="mkt-leg"><span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (nunca respondió / fuera de target / genérica + fuera de alcance)</span></div>
-    <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = Cintia marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado x Cintia</b>: ${covEvbl?`${covPct}% (${covEv} de ${covEvbl} con ${DIAS_MADUREZ_ANALISIS}+ días) — lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado`:`ninguna consulta del período llegó a los ${DIAS_MADUREZ_ANALISIS} días, así que todavía no hay cobertura que medir`}.</div>
+    <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = Cintia marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado x Cintia</b>: ${covEvbl?`${covPct}% (${covEv} de ${covEvbl}) — lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado`:'sin consultas evaluables en el período'}.</div>
   </div>`;
 
   /* 2 · por canal (orden fijo, locales separados) */
@@ -18084,19 +18073,18 @@ function mktBucketVolumen(base){
 }
 
 /* helpers compartidos para baldes 2-4 */
-/* Denominador de la cobertura: TODAS las consultas maduras del período (7+ días), salvo
-   las de gestión, que no se evalúan nunca.
+/* Denominador de la cobertura: TODAS las consultas del período, salvo las de gestión, que
+   no se evalúan nunca. Sin recortes por antigüedad: si algo entró en el período que
+   elegiste, cuenta — incluidas las de hoy. Que una consulta nueva figure como "sin
+   evaluar" es información correcta, no un castigo a Cintia.
    OJO — 15/8: acá antes se usaba evaluable(), la regla de la cola de Cintia ("más de 25
    días sin movimiento no se evalúa, ya no se puede rastrear el chat"). Como denominador
    de un período pasado eso da un número circular y siempre cercano al 100%: la consulta
    que Cintia evaluó tiene movimiento reciente (la evaluación misma) y queda adentro; la
    que nunca evaluó no se tocó nunca, pasó los 25 días y quedaba AFUERA del denominador.
-   Expulsaba justo a las que faltaban. La cobertura tiene que medirse contra todo lo que
-   entró, evaluado o no. */
+   Expulsaba justo a las que faltaban. */
 function mktEvaluable(a){
-  if(!consultaMadura(a)) return false;
-  if(typeof esConsultaGestion==='function' && esConsultaGestion(a)) return false;
-  return true;
+  return !(typeof esConsultaGestion==='function' && esConsultaGestion(a));
 }
 function mktEstadoRows(base, keyFn, orden){
   const m={};
@@ -18129,7 +18117,7 @@ function mktBucketResultado(base){
   const card4=`<div class="mkt-card wide"><h3>1 · Estado por canal</h3>
     <p class="cap">En qué termina lo que trae cada canal. Cada estado muestra la cantidad y, en negrita, su % sobre el total del canal.</p>
     ${mktEstadoTablaBig(mktEstadoRows(rbase, a=>mktCanalMostrar(a), MKT_CANALES), 'Canal')}
-    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal${mktSoloReales?', <b>solo sobre las reales</b> (afuera las que Cintia descartó: nunca respondió, fuera de target, o genérica + fuera de alcance)':', sobre <b>todas</b> las recibidas — descartadas incluidas'}. Entran solo las de <b>${DIAS_MADUREZ_ANALISIS}+ días</b>: las más nuevas se están trabajando ahora y todavía no terminaron en nada. <b>Evaluado x Cintia</b> = de esas, cuántas evaluó; si el % es bajo, lo descartado está incompleto y la tabla hay que leerla con pinzas.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal${mktSoloReales?', <b>solo sobre las reales</b> (afuera las que Cintia descartó: nunca respondió, fuera de target, o genérica + fuera de alcance)':', sobre <b>todas</b> las recibidas — descartadas incluidas'}. Entran <b>todas</b> las del período elegido, incluidas las de hoy — ojo que esas todavía no terminaron en nada y arrastran el % de concretadas para abajo. <b>Evaluado x Cintia</b> = sobre ese mismo total, cuántas evaluó; si el % es bajo, lo descartado está incompleto y la tabla hay que leerla con pinzas.</div></div>`;
   const card5=`<div class="mkt-card wide"><h3>2 · Estado por vendedor</h3>
     <p class="cap">El mismo corte, por persona.</p>
     ${mktEstadoTablaBig(mktEstadoRows(rbase, a=>a.vendedorId?nombreDe(a.vendedorId):'', MKT_VEND_ORDEN.map(nombreDe)), 'Vendedor')}
@@ -18281,12 +18269,31 @@ function htmlMarketing(){
   const BUCKETS=[['volumen','Volumen'],['resultado','Resultados'],['prod','Muebles']];
   const nav=`<div class="mkt-nav">${BUCKETS.map(([v,t])=>`<button class="mkt-navbtn ${mktTab===v?'on':''}" onclick="mktSetTab('${v}')">${t}</button>`).join('')}</div>`;
   let cuerpo='';
-  // Resultados y Muebles miden EN QUÉ TERMINARON las consultas, así que corren solo sobre
-  // las maduras (3+ días): las de hoy se están trabajando ahora y meterlas ensucia la
-  // conversión. Volumen mide CUÁNTAS LLEGARON — eso no madura — y recibe la base completa,
-  // también porque es el balde que muestra el corte real/descartada.
-  let baseMedida = base.filter(consultaMadura);
-  if(mktSoloReales) baseMedida = baseMedida.filter(mktReal);
+  /* NADA se filtra por antigüedad (15/8, decisión de Brian): el período lo elige él, y una
+     tabla que esconde consultas sin avisar es peor que una incompleta a la vista. Los
+     7 días quedan como DATO informativo en la línea de arriba —cuánto de lo que estás
+     mirando todavía se está trabajando— pero no sacan nada de ninguna tabla. */
+  let baseMedida = mktSoloReales ? base.filter(mktReal) : base;
+  /* La cadena completa, de lo más grande a lo más chico, para que el faltante de
+     evaluación se lea solo: recibidas → evaluadas / sin evaluar → midiendo. */
+  const evaluadasN = base.filter(a=>a.evaluada).length;
+  const faltanEval = base.filter(a=>!a.evaluada && !esConsultaGestion(a)).length;
+  const enCurso = base.filter(a=>!consultaMadura(a)).length;
+  const descartadasN = base.length - (mktSoloReales?baseMedida.length:base.length);
+  const paso = (n,l,col)=>`<span style="display:inline-block;margin-right:18px"><b style="font-size:15px;${col?'color:'+col:''}">${n}</b> <span style="color:var(--sec)">${l}</span></span>`;
+  const explica = (mktTab==='resultado'||mktTab==='calidad'||mktTab==='prod')
+    ? `<div class="mkt-card wide" style="padding:12px 16px;margin-bottom:12px">
+        ${paso(base.length,'recibidas en el período')}
+        ${paso(evaluadasN,'evaluadas por Cintia','#15803d')}
+        ${paso(faltanEval,'sin evaluar', faltanEval?'#b42318':'#15803d')}
+        ${mktSoloReales?paso(descartadasN,'descartadas'):''}
+        ${paso(baseMedida.length,'midiendo abajo')}
+        <div class="tiny" style="color:var(--sec);margin-top:6px">
+          ${enCurso?`De las ${base.length}, <b>${enCurso}</b> entraron hace menos de ${DIAS_MADUREZ_ANALISIS} días y todavía se están trabajando: entran en la tabla igual, pero arrastran el % de concretadas para abajo. Si querés el corte limpio, cortá el período hasta hace ${DIAS_MADUREZ_ANALISIS} días.`:`Todas tienen más de ${DIAS_MADUREZ_ANALISIS} días: el período está maduro.`}
+          ${faltanEval?` Las ${faltanEval} sin evaluar cuentan hoy como reales; cuando Cintia las mire, parte puede pasar a descartadas.`:''}
+        </div>
+      </div>`
+    : '';
   if(mktTab==='prod')                              cuerpo=mktBucketProd(baseMedida);
   else if(mktTab==='resultado'||mktTab==='calidad')cuerpo=mktBucketResultado(baseMedida);
   else                                             cuerpo=mktBucketVolumen(base);
@@ -18295,6 +18302,7 @@ function htmlMarketing(){
     <p class="mkt-sub">Elegí un balde y ajustá los filtros de abajo. Todo se recalcula al instante.</p>
     ${nav}
     ${mktFiltrosHtml()}
+    ${explica}
     ${cuerpo}
   </div>`;
 }
