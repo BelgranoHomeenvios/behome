@@ -8695,6 +8695,8 @@ function renderCintiaBotones(){
     {id:'evaluar', label:'Evaluación', ic:'evaluar', cnt:colaEvaluarCintia().length},
     {id:'clientes', label:'Clientes', ic:'pulso'},
     {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
+    // Marketing para Cintia (15/8): la misma pantalla de solo lectura que ve dirección.
+    {id:'marketing', label:'Marketing', ic:'pulso'},
     ...(esAdmin() ? [{id:'ejemplos', label:'Ejemplo del mes', ic:'evaluar', cnt:atenciones.filter(a=>a.ejemploDelMes && !a.ejemploDelMes.leido).length}] : []),
   ];
   $('cintiaBotones').className='gridbtn gb'+items.length;
@@ -8730,6 +8732,7 @@ function renderCintiaMain(){
   else if(cintiaSeccion==='mispendientes') box.innerHTML=htmlCintiaMisPendientes();
   else if(cintiaSeccion==='clientes') box.innerHTML=htmlCintiaClientes();
   else if(cintiaSeccion==='reclamos') box.innerHTML=htmlReclamos();
+  else if(cintiaSeccion==='marketing'){ mktBox='cintiaMain'; box.innerHTML=htmlMarketing(); }
   else if(cintiaSeccion==='ejemplos') box.innerHTML=htmlEjemplosDelMes();
 }
 
