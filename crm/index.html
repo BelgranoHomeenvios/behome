@@ -17709,6 +17709,11 @@ let mktNoRespScope='todos';     // panel de no-responde: 'todos' | 'pub' | 'otro
 let mktMesAbierto=null;         // drill del gráfico de volumen: 'YYYY-M' del mes abierto, o null
 let mktAbiertas=new Set();      // tarjetas ABIERTAS (acordeón). Default: todas cerradas → Ari ve los títulos y abre lo que necesita.
 let mktProdPag=1;               // página de la tabla de productos cotizados (20 por página)
+/* Medir sobre todas las consultas o solo sobre las reales (15/8). Aplica a Resultados y
+   Muebles. NO aplica a Volumen: ese balde existe para mostrar el corte real/descartada,
+   filtrarlo lo dejaría sin sentido. Ojo: "reales" = no descartadas por Cintia, y lo que
+   ella todavía no evaluó cuenta como real. */
+let mktSoloReales=false;
 
 /* Canales que cuentan para marketing, EN ESTE ORDEN. Todo lo demás (proveedores,
    otros, consulta de estado, envíos web, email, CVs, etc.) queda afuera. Los dos
@@ -17927,6 +17932,7 @@ function mktToggleCanal(c){
 }
 function mktToggleCal(v){ const i=mktCalSel.indexOf(v); if(i>=0)mktCalSel.splice(i,1); else mktCalSel.push(v); renderMarketing(); }
 function mktSetNoRespScope(v){ mktNoRespScope=v; renderMarketing(); }
+function mktSetSoloReales(v){ mktSoloReales=!!v; mktProdPag=1; renderMarketing(); }
 function mktAbrirMes(k){ mktMesAbierto=k; renderMarketing(); }
 function mktVolverMeses(){ mktMesAbierto=null; renderMarketing(); }
 
@@ -17947,6 +17953,12 @@ function mktFiltrosHtml(){
       <div class="mkt-chips oneline">
         <span class="mkt-chip ${!mktCanalSel.length?'on':''}" onclick="mktToggleCanal('__all__')">Todos</span>
         ${MKT_CANALES.map(c=>`<span class="mkt-chip sm ${mktCanalSel.includes(c)?'on':''}" onclick="mktToggleCanal('${escAttr(c)}')">${escapeHtml(c)}</span>`).join('')}
+      </div></div>
+    <div class="mkt-fgroup"><span class="lbl">Medir sobre</span>
+      <div class="mkt-chips oneline">
+        <span class="mkt-chip ${!mktSoloReales?'on':''}" onclick="mktSetSoloReales(false)">Todas las consultas</span>
+        <span class="mkt-chip ${mktSoloReales?'on':''}" onclick="mktSetSoloReales(true)">Solo las reales</span>
+        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktTab==='volumen'?'No aplica en Volumen: ese balde muestra el corte.':'Saca las que Cintia descartó.'}</span>
       </div></div>
   </div>`;
 }
@@ -18059,7 +18071,7 @@ function mktBucketResultado(base){
   const card4=`<div class="mkt-card wide"><h3>1 · Estado por canal</h3>
     <p class="cap">En qué termina lo que trae cada canal. Cada estado muestra la cantidad y, en negrita, su % sobre el total del canal.</p>
     ${mktEstadoTablaBig(mktEstadoRows(rbase, a=>mktCanalMostrar(a), MKT_CANALES), 'Canal')}
-    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal${mktSoloReales?', <b>solo sobre las reales</b> (afuera las que Cintia descartó: nunca respondió, fuera de target, o genérica + fuera de alcance)':', sobre <b>todas</b> las recibidas — descartadas incluidas'}.</div></div>`;
   const card5=`<div class="mkt-card wide"><h3>2 · Estado por vendedor</h3>
     <p class="cap">El mismo corte, por persona.</p>
     ${mktEstadoTablaBig(mktEstadoRows(rbase, a=>a.vendedorId?nombreDe(a.vendedorId):'', MKT_VEND_ORDEN.map(nombreDe)), 'Vendedor')}
@@ -18211,8 +18223,11 @@ function htmlMarketing(){
   const BUCKETS=[['volumen','Volumen'],['resultado','Resultados'],['prod','Muebles']];
   const nav=`<div class="mkt-nav">${BUCKETS.map(([v,t])=>`<button class="mkt-navbtn ${mktTab===v?'on':''}" onclick="mktSetTab('${v}')">${t}</button>`).join('')}</div>`;
   let cuerpo='';
-  if(mktTab==='prod')                              cuerpo=mktBucketProd(base);
-  else if(mktTab==='resultado'||mktTab==='calidad')cuerpo=mktBucketResultado(base);
+  // "Solo las reales" aplica a Resultados y Muebles. Volumen recibe la base completa
+  // siempre: es el balde que muestra la separación entre reales y descartadas.
+  const baseMedida = mktSoloReales ? base.filter(mktReal) : base;
+  if(mktTab==='prod')                              cuerpo=mktBucketProd(baseMedida);
+  else if(mktTab==='resultado'||mktTab==='calidad')cuerpo=mktBucketResultado(baseMedida);
   else                                             cuerpo=mktBucketVolumen(base);
   return `<div class="mkt-wrap">
     <div class="mkt-head"><h2>📈 Marketing — Estadísticas</h2></div>
