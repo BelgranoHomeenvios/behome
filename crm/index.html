@@ -5015,6 +5015,30 @@ function esSegundoRechazo(a){
 const DIAS_CONSULTA_INICIAL = 5;      // 0-5 = respuesta inmediata · 6+ = seguimiento real
 const DIAS_EVALUAR_SEGUIMIENTO = 10;  // recién a los 10 días vale la pena evaluarla
 
+/* ===== MADUREZ PARA ANÁLISIS (15/8, definido por Brian) =====
+   Una consulta de hoy, ayer o anteayer se está trabajando AHORA: no se evalúa ni entra
+   en ningún análisis de resultado. El corte es por FECHA DE INGRESO y nada más — a
+   propósito no mira si está cerrada. Si dejáramos entrar a las cerradas rápido pero
+   excluyéramos a las abiertas recientes, el cohorte quedaría sesgado hacia arriba (entran
+   las que se concretan rápido, todavía no las que van camino a perderse) y la conversión
+   daría mejor de lo que es. Filtrando solo por ingreso, el cohorte entra completo.
+   El número sale de una pregunta con respuesta en los datos: ¿a los cuántos días ya se
+   resolvió el 80-90% de lo que se va a resolver? Medido el 15/8 sobre 354 consultas
+   nativas del CRM de los últimos 6 meses: virtual p80 = 7,7 días y presencial p80 = 7,0.
+   Los dos orígenes coinciden, así que alcanza con un solo N — no hace falta uno por canal.
+   (Las filas migradas de las planillas viejas dan colas de 24-35 días, pero ahí el
+   cerradoTs es la fecha de importación, no la de cierre real: no se usaron.)
+   A los 11 días se llega al p90, pero cuesta una semana y media más de ceguera por 10
+   puntos.
+   OJO con ese 7,7: casi toda la historia nativa del CRM tiene pocas semanas de vida (al
+   pedir solo consultas con 30+ días quedaba UNA fila), así que las que tardan mucho en
+   cerrar todavía no pudieron aparecer en la medición. El sesgo va todo para el mismo
+   lado: 7 es un PISO, el número real va a ser igual o más alto. Rehacer la medición
+   cuando haya varios meses de historia nativa — si da 10-11, subir esta constante.
+   Coincide además con cómo trabaja Brian: no analiza la última semana, la deja correr. */
+const DIAS_MADUREZ_ANALISIS = 7;
+function consultaMadura(a){ return diasDesdeISO(a && a.ts) >= DIAS_MADUREZ_ANALISIS; }
+
 function diasDesdeConsulta(a){ return diasDesdeISO(a && a.ts); }
 function etapaSeguimiento(a){
   const e=estadoDe(a);
@@ -9876,12 +9900,17 @@ function estCardResultado(base, baseCmp){
 }
 
 function estCardCobertura(base, baseCmp){
-  const ev=base.filter(a=>a.evaluada).length, tot=base.length;
+  // Denominador = consultas MADURAS (ver DIAS_MADUREZ_ANALISIS). Antes dividía por todas
+  // las del período, así que un período en curso nunca podía llegar al 100% y la alerta
+  // de "cobertura baja" se prendía por lo fresco que era el período, no por Cintia.
+  const mad=base.filter(consultaMadura);
+  const ev=mad.filter(a=>a.evaluada).length, tot=mad.length;
   const p=tot?Math.round(ev/tot*100):0;
   let filaCmp='';
   if(baseCmp){
     const rc=estRangoCmp();
-    const evC=baseCmp.filter(a=>estEvaluadaEn(a,rc)).length, totC=baseCmp.length;
+    const madC=baseCmp.filter(consultaMadura);
+    const evC=madC.filter(a=>estEvaluadaEn(a,rc)).length, totC=madC.length;
     const pC=totC?Math.round(evC/totC*100):0;
     filaCmp=`<div class="ecb">
       <span class="ecb-m" style="color:var(--muted)">${estFmtRango(rc)}<span class="s">a la misma altura</span></span>
@@ -9895,7 +9924,7 @@ function estCardCobertura(base, baseCmp){
   return `<div class="est-card">
     <div class="est-hd">
       <div><h3>Cobertura de evaluación</h3>
-      <p class="cap">Los análisis de abajo se calculan solo sobre lo evaluado — este número les pone precio.</p></div>
+      <p class="cap">Los análisis de abajo se calculan solo sobre lo evaluado — este número les pone precio. Se mide sobre las consultas con ${DIAS_MADUREZ_ANALISIS}+ días: las más nuevas se están trabajando ahora y no le tocan todavía a Cintia.</p></div>
       <div class="est-tot"><div class="n ${p>=70?'':'mal'}">${p}%</div><div class="l">evaluado</div></div>
     </div>
     <div class="ecb">
@@ -11275,9 +11304,11 @@ function htmlEjemplosPorMes(lista, opts){
 
 function htmlEvaluacionDireccion(){
   const enPeriodo = atenciones.filter(a=>dentroDePeriodoCintia(a.ts));
-  const evaluables = enPeriodo.filter(a=>a.evaluable!==false);
+  // Cobertura con el mismo denominador que Estadísticas y Marketing: solo las MADURAS
+  // (ver DIAS_MADUREZ_ANALISIS). Las de hoy/ayer no cuentan como pendientes de Cintia.
+  const evaluables = enPeriodo.filter(a=>a.evaluable!==false && consultaMadura(a));
   const evaluadas  = enPeriodo.filter(a=>a.evaluada);
-  const cobertura  = evaluables.length ? Math.round(evaluadas.length*100/evaluables.length) : 0;
+  const cobertura  = evaluables.length ? Math.round(evaluables.filter(a=>a.evaluada).length*100/evaluables.length) : 0;
   const ejemplosTodos = atenciones.filter(a=>a.ejemploDelMes)
     .sort((x,y)=>new Date(y.ejemploDelMes.ts||y.ts)-new Date(x.ejemploDelMes.ts||x.ts));
   const paraMi = ejemplosTodos.filter(evEsParaDireccion);
@@ -17971,6 +18002,12 @@ function mktBucketVolumen(base){
   const otros=base.filter(a=>mktFueraAlcance(a)&&!mktNuncaResp(a)&&!mktFueraTarget(a)).length;
   const descart=base.filter(mktDescartada).length;
   const reales=tot-descart;
+  /* Cobertura de evaluación: sin esto, el corte reales/descartadas se lee como si
+     estuviera cerrado, y en realidad solo está tan completo como lo que Cintia miró. */
+  const covEvbl=base.filter(mktEvaluable).length;
+  const covEv=base.filter(a=>mktEvaluable(a)&&a.evaluada).length;
+  const covPct=mktPct(covEv,covEvbl);
+  const covCol=!covEvbl?'var(--muted)':(covPct>=80?'#15803d':(covPct>=50?'#b45309':'#b42318'));
 
   /* 1 · volumen en el tiempo, agrupado por mes con drill al día */
   const {d1,d2}=mktRango();
@@ -18006,13 +18043,14 @@ function mktBucketVolumen(base){
       <div class="mkt-kpi g"><div class="n">${reales} <small>· ${mktPct(reales,tot)}%</small></div><div class="l">Consultas reales</div></div>
       <div class="mkt-kpi r"><div class="n">${descart} <small>· ${mktPct(descart,tot)}%</small></div><div class="l">Descartadas<small>nunca respondió ${noResp} · fuera de target ${fuera} · genérica + fuera de alcance ${otros}</small></div></div>
       <div class="mkt-kpi"><div class="n">${prom.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>
+      <div class="mkt-kpi"><div class="n" style="color:${covCol}">${covPct}%</div><div class="l">Evaluado x Cintia<small>${covEv} de ${covEvbl} que ya le tocaba mirar</small></div></div>
     </div>
     ${drillHead}
     <div class="mkt-days">${barras}</div>
     ${ejeHtml}
     ${rangoHtml}
-    <div class="mkt-leg"><span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (no respondió / fuera de target / fuera de alcance)</span></div>
-    <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = nunca respondió, o Cintia la marcó "fuera de target" (mala consulta) o "fuera de alcance" (no es cliente potencial). El resto son <b>reales</b>. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (no respondió ${noResp}, fuera de target ${fuera}, otros ${otros}).</div>
+    <div class="mkt-leg"><span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (nunca respondió / fuera de target / genérica + fuera de alcance)</span></div>
+    <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = Cintia marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado x Cintia ${covPct}%</b> (${covEv} de ${covEvbl}): lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado.</div>
   </div>`;
 
   /* 2 · por canal (orden fijo, locales separados) */
@@ -18046,21 +18084,35 @@ function mktBucketVolumen(base){
 }
 
 /* helpers compartidos para baldes 2-4 */
+/* Denominador de la cobertura: consultas MADURAS (3+ días desde que entraron) que además
+   se pueden evaluar (no son gestión ni quedaron viejas sin movimiento). Una consulta de
+   ayer no cuenta como pendiente de Cintia: todavía no le toca. */
+function mktEvaluable(a){
+  if(!consultaMadura(a)) return false;
+  if(typeof evaluable==='function' && !evaluable(a)) return false;
+  return true;
+}
 function mktEstadoRows(base, keyFn, orden){
   const m={};
-  base.forEach(a=>{const k=keyFn(a); if(k==null||k==='')return; (m[k]=m[k]||{conc:0,seg:0,rech:0,sin:0,tot:0}); const e=estadoDe(a); m[k].tot++; if(e==='Concretado')m[k].conc++; else if(e==='Rechazado')m[k].rech++; else if(e==='En seguimiento')m[k].seg++; else m[k].sin++;});
+  base.forEach(a=>{const k=keyFn(a); if(k==null||k==='')return; (m[k]=m[k]||{conc:0,seg:0,rech:0,sin:0,tot:0,evbl:0,ev:0}); const e=estadoDe(a); m[k].tot++; if(e==='Concretado')m[k].conc++; else if(e==='Rechazado')m[k].rech++; else if(e==='En seguimiento')m[k].seg++; else m[k].sin++;
+    if(mktEvaluable(a)){ m[k].evbl++; if(a.evaluada) m[k].ev++; }});
   const keys=(orden||Object.keys(m)).filter(k=>m[k]);
   return keys.map(k=>Object.assign({k},m[k]));
 }
 function mktEstadoTablaBig(rows, keyLbl){
   if(!rows.length) return '<p class="mkt-note">Sin datos.</p>';
-  const T={conc:0,seg:0,rech:0,sin:0,tot:0}; rows.forEach(r=>{T.conc+=r.conc;T.seg+=r.seg;T.rech+=r.rech;T.sin+=(r.sin||0);T.tot+=r.tot;});
+  const T={conc:0,seg:0,rech:0,sin:0,tot:0,evbl:0,ev:0}; rows.forEach(r=>{T.conc+=r.conc;T.seg+=r.seg;T.rech+=r.rech;T.sin+=(r.sin||0);T.tot+=r.tot;T.evbl+=(r.evbl||0);T.ev+=(r.ev||0);});
   const cel=(n,t,cls)=>`<td><span class="${cls}">${n}</span> <b class="pn">${mktPct(n,t)}%</b></td>`;
   const celTot=n=>`<td><b>${n}</b> <b class="pn">${mktPct(n,T.tot)}%</b></td>`;
-  const fila=r=>`<tr><td>${escapeHtml(r.k)}</td>${cel(r.conc,r.tot,'mkt-cg')}${cel(r.seg,r.tot,'mkt-cy')}${cel(r.rech,r.tot,'mkt-cr')}${cel(r.sin||0,r.tot,'mkt-cs')}${celTot(r.tot)}</tr>`;
-  return `<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>${keyLbl}</th><th>Concretadas</th><th>Seguimiento</th><th>Rechazados</th><th>Sin clasificar</th><th>Total (% s/total)</th></tr></thead><tbody>
+  // Cobertura: cuánto de lo evaluable ya miró Cintia. Verde 80%+, ámbar 50-79%, rojo abajo.
+  // Sin esto no se puede saber si un corte "solo reales" está completo o a medio auditar.
+  const celEv=r=>{ const e=r.evbl||0, v=r.ev||0, p=mktPct(v,e);
+    const col = !e ? 'var(--muted)' : (p>=80?'#15803d':(p>=50?'#b45309':'#b42318'));
+    return `<td>${e?`<span style="color:${col}">${v}/${e}</span> <b class="pn" style="color:${col}">${p}%</b>`:'<span style="color:var(--muted)">—</span>'}</td>`; };
+  const fila=r=>`<tr><td>${escapeHtml(r.k)}</td>${cel(r.conc,r.tot,'mkt-cg')}${cel(r.seg,r.tot,'mkt-cy')}${cel(r.rech,r.tot,'mkt-cr')}${cel(r.sin||0,r.tot,'mkt-cs')}${celTot(r.tot)}${celEv(r)}</tr>`;
+  return `<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>${keyLbl}</th><th>Concretadas</th><th>Seguimiento</th><th>Rechazados</th><th>Sin clasificar</th><th>Total (% s/total)</th><th>Evaluado x Cintia</th></tr></thead><tbody>
     ${rows.map(fila).join('')}
-    <tr class="tot"><td>Total</td>${cel(T.conc,T.tot,'mkt-cg')}${cel(T.seg,T.tot,'mkt-cy')}${cel(T.rech,T.tot,'mkt-cr')}${cel(T.sin,T.tot,'mkt-cs')}${celTot(T.tot)}</tr>
+    <tr class="tot"><td>Total</td>${cel(T.conc,T.tot,'mkt-cg')}${cel(T.seg,T.tot,'mkt-cy')}${cel(T.rech,T.tot,'mkt-cr')}${cel(T.sin,T.tot,'mkt-cs')}${celTot(T.tot)}${celEv(T)}</tr>
   </tbody></table>`;
 }
 
@@ -18071,11 +18123,11 @@ function mktBucketResultado(base){
   const card4=`<div class="mkt-card wide"><h3>1 · Estado por canal</h3>
     <p class="cap">En qué termina lo que trae cada canal. Cada estado muestra la cantidad y, en negrita, su % sobre el total del canal.</p>
     ${mktEstadoTablaBig(mktEstadoRows(rbase, a=>mktCanalMostrar(a), MKT_CANALES), 'Canal')}
-    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal${mktSoloReales?', <b>solo sobre las reales</b> (afuera las que Cintia descartó: nunca respondió, fuera de target, o genérica + fuera de alcance)':', sobre <b>todas</b> las recibidas — descartadas incluidas'}.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal${mktSoloReales?', <b>solo sobre las reales</b> (afuera las que Cintia descartó: nunca respondió, fuera de target, o genérica + fuera de alcance)':', sobre <b>todas</b> las recibidas — descartadas incluidas'}. Entran solo las de <b>${DIAS_MADUREZ_ANALISIS}+ días</b>: las más nuevas se están trabajando ahora y todavía no terminaron en nada. <b>Evaluado x Cintia</b> = de esas, cuántas evaluó; si el % es bajo, lo descartado está incompleto y la tabla hay que leerla con pinzas.</div></div>`;
   const card5=`<div class="mkt-card wide"><h3>2 · Estado por vendedor</h3>
     <p class="cap">El mismo corte, por persona.</p>
     ${mktEstadoTablaBig(mktEstadoRows(rbase, a=>a.vendedorId?nombreDe(a.vendedorId):'', MKT_VEND_ORDEN.map(nombreDe)), 'Vendedor')}
-    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por vendedor.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por vendedor. La última columna es cuánto de lo evaluable ya miró Cintia — un vendedor con cobertura baja tiene los números menos auditados, no necesariamente mejores.</div></div>`;
 
   // 3 · Calidad de la consulta — chips que filtran
   const evb=base.filter(a=>a.evaluada && a.evalConsulta);
@@ -18223,9 +18275,12 @@ function htmlMarketing(){
   const BUCKETS=[['volumen','Volumen'],['resultado','Resultados'],['prod','Muebles']];
   const nav=`<div class="mkt-nav">${BUCKETS.map(([v,t])=>`<button class="mkt-navbtn ${mktTab===v?'on':''}" onclick="mktSetTab('${v}')">${t}</button>`).join('')}</div>`;
   let cuerpo='';
-  // "Solo las reales" aplica a Resultados y Muebles. Volumen recibe la base completa
-  // siempre: es el balde que muestra la separación entre reales y descartadas.
-  const baseMedida = mktSoloReales ? base.filter(mktReal) : base;
+  // Resultados y Muebles miden EN QUÉ TERMINARON las consultas, así que corren solo sobre
+  // las maduras (3+ días): las de hoy se están trabajando ahora y meterlas ensucia la
+  // conversión. Volumen mide CUÁNTAS LLEGARON — eso no madura — y recibe la base completa,
+  // también porque es el balde que muestra el corte real/descartada.
+  let baseMedida = base.filter(consultaMadura);
+  if(mktSoloReales) baseMedida = baseMedida.filter(mktReal);
   if(mktTab==='prod')                              cuerpo=mktBucketProd(baseMedida);
   else if(mktTab==='resultado'||mktTab==='calidad')cuerpo=mktBucketResultado(baseMedida);
   else                                             cuerpo=mktBucketVolumen(base);
