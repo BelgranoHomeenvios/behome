@@ -5219,7 +5219,7 @@ function htmlFormRechazado(a){
       </div>
 
       <div class="aviso-nc hidden" id="avisoNoCliente">
-        No era una venta real, así que <b>los $ ${miles(cotizado)} no cuentan como plata perdida</b>.
+        Los $ ${miles(cotizado)} quedan como plata perdida. Si la consulta no era una venta posible, <b>lo define Cintia al evaluarla</b>.
       </div>
 
       <div class="cierre-sep"></div>
@@ -5417,8 +5417,12 @@ async function guardarCierre(){if(esSoloLectura())return avisoLectura();
     a.resultadoMotivo = sel.dataset.motivo;
     a.rechazoObservaciones = observaciones || null;
     a.rechazoComentario = comentario || null;
-    // Si nunca fue un cliente real / venta posible, el cotizado no es plata perdida: ensuciaría la métrica.
-    a.montoPerdido = (sel.dataset.nocuenta==='1') ? null : (cotizado || null);
+    // El cotizado SIEMPRE se guarda como plata perdida. Antes, elegir "No responde" /
+    // "Dejó de responderme" / "Lo resolvió de otra manera" lo borraba acá mismo: el
+    // vendedor decidía que esa plata no se había perdido. Ahora el descuento lo hace
+    // descartadaPorCintia() al leer, así que solo se descuenta cuando Cintia marcó
+    // nunca respondió, fuera de target, o genérica + fuera de alcance.
+    a.montoPerdido = cotizado || null;
     a.montoVendido = null;
   }
   // Nombre / teléfono: la ficha de cierre ahora los pide (para el caso en que se
@@ -8814,26 +8818,40 @@ function filaStatsVendedor(nombre, cs, esGeneral){
 }
 
 /* ================= Resumen: semáforo de carga =================
-   Regla de oro pedida por Brian: acá SOLO se cuentan clientes reales. Una consulta que se
-   cerró como "No era un cliente" o "Dejó de responder" nunca fue una oportunidad de venta —
-   si la contáramos, un vendedor que recibió mucho spam parecería tener más rechazos que uno
-   que efectivamente perdió ventas, y la comparación entre vendedores dejaría de ser justa. */
-// Se deriva de MOTIVOS_RECHAZO para que no se desincronice: si un motivo se marca
-// noCuenta allá, deja de contarle al vendedor acá automáticamente.
-const MOTIVOS_NO_CLIENTE=MOTIVOS_RECHAZO.filter(m=>m.noCuenta).map(m=>m.t);
-/* Regla única: una consulta donde el cliente NUNCA contestó no se le computa al vendedor
-   en ningún lado — ni en su carga, ni en sus atrasadas, ni en su tasa de cierre, ni en su
-   pulso. No hizo nada mal; le tocó un fantasma. Se usa en TODAS las tablas que miran a un
-   vendedor, para que la regla no dependa de acordarse de aplicarla en cada una. */
+   Regla de oro: acá SOLO se cuentan clientes reales.
+   ===== QUIÉN DESCARTA (15/8, regla de Brian) =====
+   Nada de lo que carga el VENDEDOR descarta una consulta o un cliente. Antes, cerrar
+   con motivo "No responde" / "Dejó de responderme" / "Lo resolvió de otra manera"
+   (los noCuenta de MOTIVOS_RECHAZO) sacaba la consulta de este conteo, de las
+   estadísticas del propio vendedor y de la plata perdida de dirección. El problema:
+   ese motivo lo elige la misma persona que está siendo medida, y no lo audita nadie —
+   la forma más barata de hacer desaparecer una consulta mal atendida era cerrarla como
+   "No responde". Además "Dejó de responderme" significa que el cliente SÍ contestó al
+   menos una vez: era un cliente real y la venta se perdió en el seguimiento.
+   Ahora lo único que descarta es lo que marcó CINTIA en la evaluación. */
+/* Regla única: una consulta donde el cliente NUNCA contestó (marcado por Cintia) no se le
+   computa al vendedor en ningún lado — ni en su carga, ni en sus atrasadas, ni en su tasa
+   de cierre, ni en su pulso. No hizo nada mal; le tocó un fantasma. Se usa en TODAS las
+   tablas que miran a un vendedor, para que la regla no dependa de acordarse de aplicarla
+   en cada una. */
 function cuentaParaVendedor(a){ return !a.nuncaRespondio; }
-function esClienteReal(a){
-  // Un cliente que nunca contestó no fue nunca una oportunidad — contarlo haría que un
-  // vendedor al que le tocaron muchos fantasmas parezca peor que uno que perdió ventas reales.
-  if(a.nuncaRespondio) return false;
-  if(estadoDe(a)!=='Rechazado') return true;
-  const m=a.resultadoMotivo||'';
-  return !MOTIVOS_NO_CLIENTE.some(x=>m.startsWith(x));
+/* ===== LA REGLA DE DESCARTE, EN UN SOLO LUGAR (15/8, definida por Brian) =====
+   Una consulta se descarta SOLO si lo dijo Cintia en la evaluación, en uno de estos casos:
+     1) marcó "Nunca respondió"
+     2) consulta Fuera de target            (evalConsulta 3)
+     3) consulta Genérica Y cliente Fuera de alcance   (evalConsulta 2 + evalCliente 4)
+   Consulta BIEN ORIENTADA + cliente fuera de alcance NO se descarta: la pauta trajo lo
+   que tenía que traer. Esta función es la única fuente de verdad — Marketing, el semáforo
+   de carga y la plata perdida de dirección salen todos de acá, para que la regla no
+   dependa de acordarse de aplicarla en cada pantalla. */
+function descartadaPorCintia(a){
+  if(!a) return false;
+  if(a.nuncaRespondio) return true;
+  if(a.evalConsulta===3) return true;
+  if(a.evalConsulta===2 && a.evalCliente===4) return true;
+  return false;
 }
+function esClienteReal(a){ return !descartadaPorCintia(a); }
 
 let resumenCanal='todos';    // 'todos' | nombre de canal de CANALES
 let resumenVendedor=null;    // uid cuando Cintia entra al detalle de un vendedor
@@ -17736,10 +17754,24 @@ function mktBaseAll(){
   });
 }
 /* Clasificación calidad */
+/* Motivo de cierre declarado por el VENDEDOR. Se usa solo en la tarjeta 4 (rechazos por
+   "no responde" por canal), que es justamente lo que esa tarjeta mide. NO descarta. */
 function mktNoResp(a){ return a.nuncaRespondio===true || MKT_NORESP.includes(a.resultadoMotivo); }
+/* ===== QUÉ SE DESCARTA (15/8, definido por Brian) =====
+   Solo descarta lo que dijo CINTIA en la evaluación. El motivo de cierre del vendedor
+   ("No responde" / "Dejó de responderme") ya no descarta: lo carga la misma persona que
+   está siendo medida, y "dejó de responderme" significa que el cliente SÍ contestó al
+   menos una vez — o sea que el lead era real y la venta se perdió en el seguimiento.
+   Tres casos, todos de Cintia:
+     1) marcó "Nunca respondió"
+     2) consulta Fuera de target
+     3) consulta Genérica Y cliente Fuera de alcance
+   Ojo con el 3: consulta BIEN ORIENTADA + cliente fuera de alcance cuenta como REAL.
+   La pauta trajo lo que tenía que traer; que ese cliente no cerrara es otra cosa. */
+function mktNuncaResp(a){ return a.nuncaRespondio===true; }
 function mktFueraTarget(a){ return a.evalConsulta===3; }
-function mktFueraAlcance(a){ return a.evalCliente===4; }   // Cintia marcó al cliente "fuera de alcance": no es un cliente potencial
-function mktDescartada(a){ return mktNoResp(a) || mktFueraTarget(a) || mktFueraAlcance(a); }
+function mktFueraAlcance(a){ return a.evalConsulta===2 && a.evalCliente===4; }
+function mktDescartada(a){ return descartadaPorCintia(a); }   // única fuente de verdad, definida junto a esClienteReal
 function mktReal(a){ return !mktDescartada(a); }
 
 function mktPct(c,t){ return t? Math.round(c/t*100):0; }
@@ -17922,9 +17954,9 @@ function mktFiltrosHtml(){
 /* ------- BALDE 1: Volumen y origen ------- */
 function mktBucketVolumen(base){
   const tot=base.length;
-  const noResp=base.filter(mktNoResp).length;
-  const fuera=base.filter(a=>mktFueraTarget(a)&&!mktNoResp(a)).length;
-  const otros=base.filter(a=>mktFueraAlcance(a)&&!mktNoResp(a)&&!mktFueraTarget(a)).length;
+  const noResp=base.filter(mktNuncaResp).length;
+  const fuera=base.filter(a=>mktFueraTarget(a)&&!mktNuncaResp(a)).length;
+  const otros=base.filter(a=>mktFueraAlcance(a)&&!mktNuncaResp(a)&&!mktFueraTarget(a)).length;
   const descart=base.filter(mktDescartada).length;
   const reales=tot-descart;
 
@@ -17960,7 +17992,7 @@ function mktBucketVolumen(base){
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${tot}</div><div class="l">Total recibidas</div></div>
       <div class="mkt-kpi g"><div class="n">${reales} <small>· ${mktPct(reales,tot)}%</small></div><div class="l">Consultas reales</div></div>
-      <div class="mkt-kpi r"><div class="n">${descart} <small>· ${mktPct(descart,tot)}%</small></div><div class="l">Descartadas<small>no respondió ${noResp} · fuera de target ${fuera} · otros ${otros}</small></div></div>
+      <div class="mkt-kpi r"><div class="n">${descart} <small>· ${mktPct(descart,tot)}%</small></div><div class="l">Descartadas<small>nunca respondió ${noResp} · fuera de target ${fuera} · genérica + fuera de alcance ${otros}</small></div></div>
       <div class="mkt-kpi"><div class="n">${prom.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>
     </div>
     ${drillHead}
