@@ -15968,6 +15968,26 @@ function recParaTs(){
 .cal-d.domingo{color:#c3cad6;cursor:not-allowed;text-decoration:line-through;background:transparent}
 .cal-dw.domingo{color:#c3cad6}
 .rc-print:hover{filter:none;opacity:1}
+
+/* ===== Registro de impresiones (18/8) =====
+   El 🖨️ de la lista ya no imprime derecho: abre este popover, que muestra quién lo
+   imprimió, cuándo y cuántas veces, y desde ahí se reimprime si hace falta. El ícono
+   encendido = ya se imprimió al menos una vez. Sin columnas nuevas ni tarjetas. */
+.rc-print.impreso{filter:none;opacity:1}
+.rc-ico{position:relative}
+.rc-impr-pop{position:absolute;top:100%;right:0;z-index:70;background:#fff;border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 8px 26px rgba(15,26,42,.16);padding:11px;min-width:250px;
+  text-align:left;white-space:normal;font-weight:400;cursor:default}
+.rc-impr-tit{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.rc-impr-hist{max-height:168px;overflow:auto;margin-bottom:9px}
+.rc-impr-it{font-size:12.5px;color:var(--ink);padding:4px 0;border-bottom:1px solid var(--line2);line-height:1.35}
+.rc-impr-it:last-child{border-bottom:0}
+.rc-impr-it b{font-weight:700}
+.rc-impr-it span{color:var(--muted);font-size:11.5px}
+.rc-impr-vacio{font-size:12.5px;color:var(--muted);margin-bottom:9px;line-height:1.4}
+.rc-impr-acc{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line2);padding-top:9px}
+.rc-impr-acc .rc-impr-x{margin-left:auto;font-size:12px;color:var(--sec);cursor:pointer}
+.rc-impr-acc .rc-impr-x:hover{color:var(--blue)}
 .rc-fila.urg{background:#fff8f5}
 .rc-fila.urg:hover{background:#fff1ea}
 .rc-sub2{font-size:12px;color:var(--sec)}
@@ -16699,7 +16719,8 @@ function htmlReclamos(){
       <td class="rc-sub2">${rcEsc(r.responsable||'—')}</td>
       <td class="${co.cls}">${co.txt}</td>
       <td class="rc-ico">${obs?`<span class="rc-globo" title="${rcEsc(obs)}">💬</span>`:'<span class="rc-globo vacio">💬</span>'}</td>
-      <td class="rc-ico"><span class="rc-print" onclick="rcImprimir('${r.id}',event)" title="Imprimir remito para fábrica">🖨️</span></td>
+      <td class="rc-ico"><span class="rc-print${rcImpresiones(r).length?' impreso':''}" onclick="rcTogImpr('${r.id}',event)"
+            title="${rcEsc(rcImprResumen(r))}">🖨️</span>${rcPopImpr===r.id?rcImprPopHtml(r):''}</td>
       <td class="rc-ico">${rcPuedePedirBaja()
         ? `<span class="rc-print" onclick="rcSolicitarBaja('${r.id}',event)" title="${r.bajaPedida?('Baja pedida por '+nombreDe(r.bajaPedida.por)):(esAdmin()?'Dar de baja este reclamo':'Pedir la baja de este reclamo')}">${r.bajaPedida?'⏳':'🗑️'}</span>`
         : ''}</td>
@@ -17060,6 +17081,7 @@ function rcAbrirFicha(id){
   if(typeof cintiaSeccion!=='undefined' && cintiaSeccion!=='reclamos'
      && typeof cintiaIrSeccion==='function') cintiaIrSeccion('reclamos');
   rcFichaId = id;
+  rcPopImpr = null;   // si quedó abierto el popover de impresiones, se cierra al entrar
   const r = rcActual();
   if(r){
     rcModCerrados = new Set(['m5']);
@@ -17311,12 +17333,72 @@ ${r.obsSolucion?`<div class="p-tit">Observaciones de la solución</div><div clas
   return html;
 }
 
+/* ===== REGISTRO DE IMPRESIONES (18/8, pedido de Brian) =====
+   Cada vez que alguien manda el remito a imprimir queda anotado quién y cuándo,
+   dentro del propio reclamo (r.impresiones), que ya viaja entero en el blob `data`
+   — no hizo falta tocar la tabla.
+
+   Se anota en rcPrevImprimir y NO en rcImprimir: abrir la vista previa no es
+   imprimir, y marcarlo ahí llenaba la lista de reclamos "impresos" que nadie
+   sacó en papel. Aclaración honesta: el navegador no avisa si la persona cancela
+   el diálogo, así que lo que queda registrado es "se mandó a imprimir". Es lo
+   máximo que se puede saber desde la web. */
+function rcImpresiones(r){ return (r && Array.isArray(r.impresiones)) ? r.impresiones : []; }
+
+function rcImprFechaLarga(ts){
+  const d = new Date(ts); if(isNaN(d)) return '—';
+  const hh = String(d.getHours()).padStart(2,'0'), mm = String(d.getMinutes()).padStart(2,'0');
+  return `${d.getDate()}/${d.getMonth()+1} ${hh}:${mm}`;
+}
+/* El texto del tooltip del ícono: se lee sin abrir nada. */
+function rcImprResumen(r){
+  const l = rcImpresiones(r);
+  if(!l.length) return 'Sin imprimir — clic para imprimir el remito';
+  const u = l[l.length-1];
+  return `Impreso por ${nombreDe(u.por)||'—'} el ${rcImprFechaLarga(u.ts)}`
+       + (l.length>1 ? ` · ${l.length} veces` : '') + ' — clic para ver o reimprimir';
+}
+
+var rcPopImpr = null;   // id del reclamo con el popover de impresiones abierto
+function rcTogImpr(id, ev){
+  if(ev) ev.stopPropagation();
+  rcPopImpr = (rcPopImpr===id ? null : id);
+  renderCintiaMain();
+}
+function rcCerrarImpr(ev){ if(ev) ev.stopPropagation(); rcPopImpr=null; renderCintiaMain(); }
+
+function rcImprPopHtml(r){
+  const l = rcImpresiones(r).slice().reverse();   // la última arriba
+  const hist = l.length
+    ? `<div class="rc-impr-hist">${l.map(u=>
+        `<div class="rc-impr-it"><b>${rcEsc(nombreDe(u.por)||'—')}</b> <span>· ${rcImprFechaLarga(u.ts)}</span></div>`
+      ).join('')}</div>`
+    : `<div class="rc-impr-vacio">Todavía no se imprimió.</div>`;
+  const n = l.length;
+  return `<div class="rc-impr-pop" onclick="event.stopPropagation()">
+    <div class="rc-impr-tit">Impresiones${n?` · ${n} ${n===1?'vez':'veces'}`:''}</div>
+    ${hist}
+    <div class="rc-impr-acc">
+      <button class="btn btn-sm rc-btn-nota" onclick="rcImprimir('${r.id}',event)">🖨️ ${n?'Volver a imprimir':'Imprimir'}</button>
+      <span class="rc-impr-x" onclick="rcCerrarImpr(event)">Cerrar</span>
+    </div>
+  </div>`;
+}
+
+/* Se anota acá: es el único punto donde el remito sale de verdad hacia la impresora. */
+function rcRegistrarImpresion(id){
+  const r = reclamos.find(x=>x.id===id); if(!r) return;
+  r.impresiones = rcImpresiones(r).concat([{ts:new Date().toISOString(), por:(typeof YO!=='undefined'?YO:null)}]);
+  guardarReclamos();
+}
+
 /* Vista previa en un pop-up, con el remito armado en hoja A4. Se imprime o se
    guarda como PDF desde el mismo diálogo del navegador (destino "Guardar como PDF"). */
 var rcPrevId = null, _rcPrevHtml = '';
 function rcImprimir(id, ev){
   if(ev) ev.stopPropagation();
   const r = reclamos.find(x=>x.id===id); if(!r) return;
+  rcPopImpr = null;   // el popover ya cumplió: ahora manda la vista previa
   rcPrevId = id; _rcPrevHtml = rcRemitoHtml(r);
   renderCintiaMain();
   setTimeout(rcPrevPintar, 30);
@@ -17333,7 +17415,10 @@ function rcPrevImprimir(ev){
   if(ev) ev.stopPropagation();
   const f = document.getElementById('rcPrevFrame');
   if(!f) return;
-  try{ f.contentWindow.focus(); f.contentWindow.print(); }
+  try{
+    f.contentWindow.focus(); f.contentWindow.print();
+    rcRegistrarImpresion(rcPrevId);   // queda anotado quién y cuándo
+  }
   catch(e){ toast('No se pudo abrir la impresión'); }
 }
 function htmlRcPrevia(){
@@ -17596,7 +17681,8 @@ function htmlFichaReclamo(){
       </div>`:''}
     <div class="rc-ficha-pie">
       <button class="btn btn-outline btn-sm" onclick="rcVolverLista()">Cerrar</button>
-      <button class="btn btn-outline btn-sm" onclick="rcImprimir('${r.id}',event)">🖨️ Imprimir reclamo</button>
+      <button class="btn btn-outline btn-sm" onclick="rcImprimir('${r.id}',event)">🖨️ ${rcImpresiones(r).length?'Volver a imprimir':'Imprimir reclamo'}</button>
+      ${rcImpresiones(r).length ? `<span class="rc-mini-lbl" title="${rcEsc(rcImpresiones(r).slice().reverse().map(u=>(nombreDe(u.por)||'—')+' · '+rcImprFechaLarga(u.ts)).join('\n'))}">Impreso por ${rcEsc(nombreDe(rcImpresiones(r)[rcImpresiones(r).length-1].por)||'—')} el ${rcImprFechaLarga(rcImpresiones(r)[rcImpresiones(r).length-1].ts)}${rcImpresiones(r).length>1?` · ${rcImpresiones(r).length} veces`:''}</span>` : ''}
       <span class="rc-mini-lbl">Se guarda solo, cada vez que cambiás algo.</span>
     </div>
   </div>`;
