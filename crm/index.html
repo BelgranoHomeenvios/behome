@@ -17884,8 +17884,12 @@ function mktRango(){
   else if(mktPreset==='mes')d1.setDate(d1.getDate()-30);
   else if(mktPreset==='3m') d1.setMonth(d1.getMonth()-3);
   else if(mktPreset==='pers'){
-    const dd = mktDesde? new Date(mktDesde+'T00:00:00') : new Date(2000,0,1);
-    const hh = mktHasta? new Date(mktHasta+'T23:59:59') : d2;
+    /* Si las fechas vienen dadas vuelta (desde > hasta), las ordeno en vez de
+       devolver un rango imposible: antes daba 0 en todas las tarjetas, mudo. */
+    let a=mktDesde, b=mktHasta;
+    if(a && b && a>b){ const x=a; a=b; b=x; }
+    const dd = a? new Date(a+'T00:00:00') : new Date(2000,0,1);
+    const hh = b? new Date(b+'T23:59:59') : d2;
     return {d1:dd, d2:hh};
   }
   d1.setHours(0,0,0,0);
@@ -18101,8 +18105,26 @@ function mktAplicarColapso(el){
 }
 function mktSetTab(t){ mktTab=t; renderMarketing(); }
 function mktSetProdPag(n){ mktProdPag=n; renderMarketing(); }
-function mktSetPreset(v){ mktPreset=v; mktMesAbierto=null; renderMarketing(); }
-function mktSetFecha(k,v){ if(k==='d')mktDesde=v||null; else mktHasta=v||null; mktPreset='pers'; mktMesAbierto=null; renderMarketing(); }
+function mktSetPreset(v){
+  mktPreset=v; mktMesAbierto=null;
+  /* Al entrar en Personalizado sin fechas cargadas, arrancar en 1/1/2000 mostraba
+     todo el historico como si fuera el periodo elegido. Precargo ultimos 30 dias. */
+  if(v==='pers' && !mktDesde && !mktHasta){
+    const iso=x=>new Date(x.getTime()-x.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    const h=new Date(), d=new Date(); d.setDate(d.getDate()-30);
+    mktDesde=iso(d); mktHasta=iso(h);
+  }
+  renderMarketing();
+}
+function mktSetFecha(k,v){
+  if(k==='d')mktDesde=v||null; else mktHasta=v||null;
+  mktPreset='pers'; mktMesAbierto=null;
+  renderMarketing();
+  /* renderMarketing reescribe el innerHTML y destruye el input: le devuelvo el foco
+     para poder cargar desde y hasta de corrido sin perder el campo. */
+  const el=document.getElementById(k==='d'?'mktFDesde':'mktFHasta');
+  if(el) el.focus();
+}
 function mktToggleVend(uid){
   if(uid==='__all__'){ mktVendSel=[]; }
   else { const i=mktVendSel.indexOf(uid); if(i>=0)mktVendSel.splice(i,1); else mktVendSel.push(uid); }
@@ -18125,7 +18147,7 @@ function mktFiltrosHtml(){
   return `<div class="mkt-filtros">
     <div class="mkt-fgroup"><span class="lbl">Período</span>
       <div class="mkt-chips">${PER.map(([v,t])=>`<span class="mkt-chip ${mktPreset===v?'on':''}" onclick="mktSetPreset('${v}')">${t}</span>`).join('')}</div>
-      ${mktPreset==='pers'?`<div class="mkt-fechas"><input type="date" value="${mktDesde||''}" onchange="mktSetFecha('d',this.value)"> a <input type="date" value="${mktHasta||''}" onchange="mktSetFecha('h',this.value)"></div>`:''}
+      ${mktPreset==='pers'?`<div class="mkt-fechas"><input type="date" id="mktFDesde" value="${mktDesde||''}" onchange="mktSetFecha('d',this.value)"> a <input type="date" id="mktFHasta" value="${mktHasta||''}" onchange="mktSetFecha('h',this.value)">${(mktDesde&&mktHasta&&mktDesde>mktHasta)?`<span class="tiny" style="color:#b45309;margin-left:8px">⚠ Cargaste las fechas al revés — las ordené solas.</span>`:''}</div>`:''}
     </div>
     <div class="mkt-fgroup"><span class="lbl">Vendedor (elegí uno o varios)</span>
       <div class="mkt-chips oneline">
