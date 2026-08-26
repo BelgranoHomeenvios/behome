@@ -2354,10 +2354,14 @@ const USUARIOS={
   cristian:{n:'Cristian',rol:'vendedor'},
   claudia:{n:'Claudia',rol:'vendedor'},
   cintia:{n:'Cintia',rol:'auditora'},
+  iara:{n:'Iara',rol:'auditora'},
   ariel:{n:'Ariel',rol:'marketing'},
+  lucas:{n:'Lucas',rol:'reclamos'},
   brian:{n:'Brian',rol:'admin'}
 };
-const ORDEN_LOGIN=['sergio','nati','ale','cristian','claudia','cintia','ariel','brian'];
+/* OJO: cintia va ANTES que iara a propósito. uidAuditora() devuelve la primera auditora de
+   esta lista y es la que hereda los defaults viejos (ej. revisiones sin evaluadoPorId). */
+const ORDEN_LOGIN=['sergio','nati','ale','cristian','claudia','cintia','iara','ariel','lucas','brian'];
 
 /* Confirmado: Sergio trabaja Belgrano 2020 de lunes a sábado, y Belgrano 2299 los domingos.
    Ale y Nati también pueden trabajar en cualquiera de los dos locales según el día — por eso
@@ -2524,6 +2528,9 @@ function esConsultaIG(a){ return !!(a && a.canal==='virtual' && /instagram/i.tes
 function esAdmin(){return rolDe(YO)==='admin';}
 function esAuditora(){return rolDe(YO)==='auditora';}
 function esMarketing(){return rolDe(YO)==='marketing';}   // Ariel: rol de solo lectura, ve únicamente el módulo de estadísticas de Marketing
+/* Lucas: dueño del módulo de Reclamos. Ve Reclamos + Clientes y nada del circuito de
+   ventas. Mismo patrón que el rol 'marketing' de Ariel: entra al panel pero con su set. */
+function esReclamos(){return rolDe(YO)==='reclamos';}
 function puedeVerEquipo(){return esAdmin()||esAuditora();}
 
 /* ===== DATOS DE CONTACTO BLOQUEADOS =====
@@ -3616,7 +3623,7 @@ function unificarClientesLimpieza(ids){
   if(!ov){ ov=document.createElement('div'); ov.id='modalCompartida'; ov.className='cmp-overlay'; document.body.appendChild(ov); }
   ov.innerHTML=`<div class="cmp-modal">
     <h3 style="margin:0 0 4px">🔗 Unificar en una sola venta</h3>
-    <p class="tiny" style="margin:0 0 12px;color:var(--muted)">Tienen el mismo teléfono. Elegí cuál queda (con su monto y N° de orden); las demás se borran. Si en realidad cada vendedor vendió una parte, cerrá esto y usá "🤝 Es compartida".</p>
+    <p class="tiny" style="margin:0 0 12px;color:var(--muted)">Mismo teléfono y solo una tiene N° de orden: las otras son cotizaciones repetidas. Elegí cuál queda; las demás se archivan (recuperables). Si cada vendedor vendió una parte, cerrá esto y usá "🤝 Es compartida".</p>
     <div class="cmp-sec" style="border:0"><b>¿Cuál venta queda?</b>${filaOpts}</div>
     <div class="cmp-actions">
       <button class="btn btn-outline" onclick="cerrarModalCompartida()">Cancelar</button>
@@ -3632,6 +3639,13 @@ async function confirmarFusion(){
   const sel=document.querySelector('input[name=fusCli]:checked');
   const queda=sel?arr[+sel.value]:arr[0];
   const borrar=arr.filter(a=>a.id!==queda.id);
+  /* Cinturón: nunca archivar una fila que tiene N° de orden propio. Eso es una venta
+     real, y las ventas no se archivan. Si llega acá, el grupo estaba mal clasificado. */
+  const conOrden=borrar.filter(tieneNroOrden);
+  if(conOrden.length){
+    toast('No se unifica: '+conOrden.length+' tiene(n) N° de orden propio, son ventas reales. Usá "✓ Son dos ventas".');
+    return;
+  }
   /* La fila que queda se lleva el mejor nombre/teléfono del grupo por si la elegida los
      tenía incompletos, sin perder sus datos de venta. */
   const conNombre=arr.find(a=>nombreCliente(a)) || queda;
@@ -3655,6 +3669,84 @@ async function confirmarFusion(){
   render();
   if(typeof renderPanelCintia==='function') renderPanelCintia();
 }
+/* REGLA (Brian, 26/8/2026): solo se unifica cuando coinciden N° DE ORDEN + TELÉFONO.
+   Mismo teléfono con N° de orden DISTINTOS = dos ventas reales del mismo cliente, no un
+   duplicado. Antes el botón "Fusionar cliente" archivaba una de las dos: se perdía una
+   venta real del tablero y de todas las métricas. */
+function tieneNroOrden(a){ return !!(a && (a.nroOrden||'').toString().trim()); }
+function _claveIds(arr){ return arr.map(a=>a.id).slice().sort().join('|'); }
+/* Confirmado = TODAS las filas del grupo tienen el flag y fue confirmado sobre EXACTAMENTE
+   este conjunto de ids. Si mañana entra una tercera venta del mismo teléfono, el grupo
+   vuelve a aparecer para que Cintia lo mire de nuevo. */
+function ventasDistintasOk(arr){
+  const clave=_claveIds(arr);
+  return arr.every(a=>a.ventasDistintas && Array.isArray(a.ventasDistintas.con)
+    && a.ventasDistintas.con.slice().sort().join('|')===clave);
+}
+async function marcarVentasDistintas(ids){
+  if(!puedeMarcarIntervencion()){ toast('Solo Cintia o dirección pueden confirmarlo.'); return; }
+  const arr=(ids||[]).map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
+  if(arr.length<2) return;
+  const ts=new Date().toISOString(), con=arr.map(a=>a.id).slice().sort();
+  arr.forEach(a=>{ a.ventasDistintas={ts, porId:YO, con:con.slice()}; });
+  await saveAtenciones();
+  toast('Confirmado: '+arr.length+' ventas distintas del mismo cliente');
+  render();
+  if(typeof renderPanelCintia==='function') renderPanelCintia();
+}
+/* Unifica SOLO los datos de contacto (lo que el nombre "Fusionar cliente" siempre prometió).
+   No toca montos, N° de orden ni muebles, y no archiva nada. */
+let _soloContactoIds=[];
+function unificarSoloContacto(ids){
+  if(!puedeMarcarIntervencion()){ toast('Solo Cintia o dirección pueden unificar.'); return; }
+  const arr=(ids||[]).map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
+  if(arr.length<2) return;
+  _soloContactoIds=arr.map(a=>a.id);
+  const nombres=[...new Set(arr.map(a=>(nombreCliente(a)||'').trim()).filter(Boolean))];
+  if(nombres.length<2){ aplicarContactoUnificado(nombres[0]||''); return; }
+  const opts=nombres.map((n,i)=>`<label class="cmp-cli"><input type="radio" name="fusNom" value="${i}" ${i===0?'checked':''}> <b>${escapeHtml(n)}</b></label>`).join('');
+  let ov=$('modalCompartida');
+  if(!ov){ ov=document.createElement('div'); ov.id='modalCompartida'; ov.className='cmp-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML=`<div class="cmp-modal">
+    <h3 style="margin:0 0 4px">🔗 Es el mismo cliente</h3>
+    <p class="tiny" style="margin:0 0 12px;color:var(--muted)">Las ventas quedan las dos como están. Solo se emparejan los datos de contacto. ¿Con qué nombre quedan?</p>
+    <div class="cmp-sec" style="border:0"><b>¿Qué nombre queda?</b>${opts}</div>
+    <div class="cmp-actions">
+      <button class="btn btn-outline" onclick="cerrarModalCompartida()">Cancelar</button>
+      <button class="btn btn-navy" onclick="confirmarSoloContacto()">Unificar contacto</button>
+    </div>
+  </div>`;
+  ov.classList.remove('hidden');
+  ov._nombres=nombres;
+}
+async function confirmarSoloContacto(){
+  const ov=$('modalCompartida');
+  const nombres=(ov&&ov._nombres)||[];
+  const sel=document.querySelector('input[name=fusNom]:checked');
+  await aplicarContactoUnificado(nombres[sel?+sel.value:0]||'');
+}
+async function aplicarContactoUnificado(nombre){
+  const arr=_soloContactoIds.map(id=>atenciones.find(x=>x.id===id)).filter(Boolean);
+  if(arr.length<2){ cerrarModalCompartida(); return; }
+  const conTel=arr.find(a=>normContacto(a.clienteTelefono||'')) || arr[0];
+  const ts=new Date().toISOString(), con=arr.map(a=>a.id).slice().sort();
+  arr.forEach(a=>{
+    if(nombre){ a.clienteNombre=nombre; a.noTomoNombre=false; }
+    a.clienteTelefono=conTel.clienteTelefono;
+    a.clienteInstagram=conTel.clienteInstagram;
+    a.noTomoTelefono=conTel.noTomoTelefono;
+    a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
+    a.historialContacto.push({ts, texto:'🔗 Mismo cliente que otra venta — se unificó el contacto ('+nombreDe(YO)+')', porId:YO, intervencion:true});
+    /* Emparejar el contacto ya implica que Cintia miró el grupo: no hace falta que
+       además apriete "Son dos ventas" para que deje de figurar. */
+    a.ventasDistintas={ts, porId:YO, con:con.slice()};
+  });
+  await saveAtenciones();
+  cerrarModalCompartida();
+  toast('Contacto unificado · las '+arr.length+' ventas quedan');
+  render();
+  if(typeof renderPanelCintia==='function') renderPanelCintia();
+}
 /* Módulo de limpieza de concretadas (se muestra en "Mis pendientes" para Cintia y dirección):
    mismo N° de orden (borrar/compartida), sin N° de orden, y mismo teléfono (unificar). */
 function htmlLimpiezaConcretadas(){
@@ -3667,8 +3759,13 @@ function htmlLimpiezaConcretadas(){
   // así que el grupo nunca desaparecía. Se atienden en un solo lugar (borrar / es compartida).
   const _idsPorOrden=new Set(); dupOrden.forEach(([,arr])=>arr.forEach(a=>_idsPorOrden.add(a.id)));
   const _gTel={}; conc.forEach(a=>{const t=normContacto(a.clienteTelefono||''); if(t && !_idsPorOrden.has(a.id))(_gTel[t]=_gTel[t]||[]).push(a);});
-  const dupTel=Object.entries(_gTel).filter(([,arr])=>arr.length>1);
-  if(!(dupOrden.length||sinOrden.length||dupTel.length)) return '';
+  const _dupTel=Object.entries(_gTel).filter(([,arr])=>arr.length>1);
+  /* Mismo teléfono se parte en dos por el N° de orden (regla de Brian):
+     2+ filas CON N° = ventas distintas del mismo cliente → jamás se unifican.
+     0 o 1 fila con N° = cotización repetida → ahí sí se deja una. */
+  const dupTelVentas=_dupTel.filter(([,arr])=>arr.filter(tieneNroOrden).length>1 && !ventasDistintasOk(arr));
+  const dupTelCotiz =_dupTel.filter(([,arr])=>arr.filter(tieneNroOrden).length<=1);
+  if(!(dupOrden.length||sinOrden.length||dupTelVentas.length||dupTelCotiz.length)) return '';
   const _lc=a=>`${escapeHtml(nombreCliente(a)||'sin nombre')} · ${escapeHtml(nombreDe(a.vendedorId))} · $ ${miles(+a.montoVendido||0)}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}`;
   const editarBorrar=a=>`<span style="display:flex;gap:6px;flex:0 0 auto">
       <button class="btn btn-outline btn-sm" onclick="abrirModalCompletar('${a.id}')">Editar</button>
@@ -3687,7 +3784,7 @@ function htmlLimpiezaConcretadas(){
         <button class="btn btn-outline btn-sm" onclick="abrirModalCompletar('${a.id}')">Editar</button>
       </span>`;
   };
-  return `<div class="cin-card"><h3>🧹 Limpieza de concretadas <span class="cnt-pill">${dupOrden.length+sinOrden.length+dupTel.length}</span></h3>
+  return `<div class="cin-card"><h3>🧹 Limpieza de concretadas <span class="cnt-pill">${dupOrden.length+sinOrden.length+dupTelVentas.length+dupTelCotiz.length}</span></h3>
     <p class="tiny" style="margin-top:-8px">Ventas repetidas o incompletas para ordenar. Elegí el período arriba (ej. Ayer / Hoy).</p>
     ${dupOrden.length ? `<div style="margin-bottom:14px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--red)">Mismo N° de orden — dejá 1 y borrá el resto (${dupOrden.length})</b>
       ${dupOrden.map(([ord,arr])=>{
@@ -3701,9 +3798,20 @@ function htmlLimpiezaConcretadas(){
     ${sinOrden.length ? `<div style="margin-bottom:14px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--amber)">Concretadas SIN N° de orden — cargales el número (${sinOrden.length})</b>
       ${sinOrden.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px;font-size:12.5px;padding:5px 2px"><span>${_lc(a)}</span>${pedirODejar(a,'orden')}</div>`).join('')}
     </div>` : ''}
-    ${dupTel.length ? `<div><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">Mismo teléfono — unificá o borrá (${dupTel.length})</b>
-      ${dupTel.map(([,arr])=>`<div style="margin-top:7px;padding:8px 10px;background:var(--line2);border-radius:8px">
-        <div style="display:flex;justify-content:flex-end"><button class="btn btn-outline btn-sm" style="color:#0369a1" onclick="unificarClientesLimpieza([${arr.map(a=>`'${a.id}'`).join(',')}])">🔗 Fusionar cliente</button></div>
+    ${dupTelVentas.length ? `<div style="margin-bottom:14px"><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:#0d9488">Mismo teléfono, VENTAS DISTINTAS — confirmá (${dupTelVentas.length})</b>
+      <p class="tiny" style="margin:2px 0 0;color:var(--muted)">Tienen N° de orden distintos: son dos ventas del mismo cliente. Acá no se unifica nada.</p>
+      ${dupTelVentas.map(([,arr])=>`<div style="margin-top:7px;padding:8px 10px;background:#ecfdf5;border-radius:8px">
+        <div style="display:flex;justify-content:flex-end;gap:6px">
+          <button class="btn btn-outline btn-sm" style="color:#0369a1" onclick="unificarSoloContacto([${arr.map(a=>`'${a.id}'`).join(',')}])" title="Empareja nombre y teléfono en las dos. Las ventas quedan las dos">🔗 Es el mismo cliente</button>
+          <button class="btn btn-outline btn-sm" style="color:#0d9488" onclick="marcarVentasDistintas([${arr.map(a=>`'${a.id}'`).join(',')}])" title="Las dos ventas quedan y este grupo deja de figurar acá">✓ Son dos ventas</button>
+        </div>
+        ${arr.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px;font-size:12.5px"><span>${_lc(a)} · N° ${escapeHtml(a.nroOrden||'—')}</span><span style="display:flex;gap:6px;flex:0 0 auto"><button class="btn btn-outline btn-sm" onclick="abrirModalCompletar('${a.id}')">Editar</button></span></div>`).join('')}
+      </div>`).join('')}
+    </div>` : ''}
+    ${dupTelCotiz.length ? `<div><b class="tiny" style="text-transform:uppercase;letter-spacing:.03em;color:var(--sec)">Mismo teléfono, COTIZACIÓN REPETIDA — unificá o borrá (${dupTelCotiz.length})</b>
+      <p class="tiny" style="margin:2px 0 0;color:var(--muted)">Solo una tiene N° de orden: las otras son la misma venta cargada dos veces.</p>
+      ${dupTelCotiz.map(([,arr])=>`<div style="margin-top:7px;padding:8px 10px;background:var(--line2);border-radius:8px">
+        <div style="display:flex;justify-content:flex-end"><button class="btn btn-outline btn-sm" style="color:#0369a1" onclick="unificarClientesLimpieza([${arr.map(a=>`'${a.id}'`).join(',')}])">🔗 Unificar en una</button></div>
         ${arr.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px;font-size:12.5px"><span>${_lc(a)} · N° ${escapeHtml(a.nroOrden||'—')}</span>${editarBorrar(a)}</div>`).join('')}
       </div>`).join('')}
     </div>` : ''}
@@ -4471,6 +4579,18 @@ function render(){
     $('panelCintia').classList.remove('hidden');
     $('headerConfigBtn').classList.add('hidden');
     document.querySelector('.tabs').style.setProperty('display','none','important');
+    renderPanelCintia();
+  }else if(esReclamos()){
+    // Lucas — dueño de Reclamos. Entra al panel (ahí vive el módulo) pero sin el
+    // circuito de ventas: la tabla de consultas de abajo se apaga.
+    $('adminAccionesBox').classList.add('hidden');
+    $('conexionesHoyBox').classList.add('hidden');
+    $('pausasHoyBox').classList.add('hidden');
+    $('localLineVendedor').classList.add('hidden');
+    $('panelCintia').classList.remove('hidden');
+    $('headerConfigBtn').classList.add('hidden');
+    document.querySelector('.tabs').style.setProperty('display','none','important');
+    if(!['reclamos','clientes'].includes(cintiaSeccion)) cintiaSeccion='reclamos';
     renderPanelCintia();
   }else if(esMarketing()){
     // Ariel — solo lectura. Se le esconde TODO el circuito de ventas y se lo deja
@@ -8731,6 +8851,20 @@ function renderCintiaBotones(){
       </div>`).join('');
     return;
   }
+  if(esReclamos()){
+    // Lucas: dos módulos y nada más. Sin Consultas, sin Evaluación, sin Estadísticas de ventas.
+    const itemsL=[
+      {id:'reclamos', label:'Reclamos', ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(r=>rcAbierto(r)&&rcVigente(r)).length:0)},
+      {id:'clientes', label:'Clientes', ic:'pulso'},
+    ];
+    $('cintiaBotones').className='gridbtn gb'+itemsL.length;
+    $('cintiaBotones').innerHTML=itemsL.map(it=>`
+      <div class="gb ${cintiaSeccion===it.id?'on':''}" onclick="cintiaIrSeccion('${it.id}')">
+        <div class="top"><span class="lbl">${it.label}</span><span class="ic">${CIN_ICONS[it.ic]}</span></div>
+        ${it.cnt!==undefined?`<div class="cnt">${it.cnt}</div>`:''}
+      </div>`).join('');
+    return;
+  }
   // "Resumen del día" sacado de la vista de Cintia (3/8/2026): repetía la info de
   // Atrasadas y le comía un balde. Dirección lo conserva.
   const items=[
@@ -8768,6 +8902,12 @@ function renderCintiaMain(){
     else if(cintiaSeccion==='marketing'){ mktBox='cintiaMain'; box.innerHTML=htmlMarketing(); }
     else if(cintiaSeccion==='configuracion'){ box.innerHTML=htmlAdminConfig(); pintarConfigLocales(); renderEliminacionesAdmin(); renderConfigCanalesDestinos(); }
     else box.innerHTML='';
+    return;
+  }
+  if(esReclamos()){
+    // Cinturón: aunque los baldes solo ofrezcan estos dos, cualquier otra sección queda vacía.
+    if(cintiaSeccion==='clientes') box.innerHTML=htmlCintiaClientes();
+    else box.innerHTML=htmlReclamos();
     return;
   }
   if(cintiaSeccion==='resumen') box.innerHTML=htmlCintiaResumen();
@@ -12224,10 +12364,15 @@ function migrarAsistencias(a){
 }
 function uidAuditora(){ return ORDEN_LOGIN.find(u=>rolDe(u)==='auditora')||'cintia'; }
 function uidDireccion(){ return ORDEN_LOGIN.find(u=>rolDe(u)==='admin')||'brian'; }
-/* La clave del hilo es con quién habla el vendedor. Se mantiene 'cintia' como clave de la
-   auditora porque es la que ya usaban los datos viejos en destinoId. */
-function nombreInterlocutor(k){ return nombreDe(k==='cintia'?uidAuditora():k); }
-function miClaveAsist(){ return esAuditora() ? 'cintia' : (esAdmin() ? YO : null); }
+/* La clave del hilo es con quién habla el vendedor: es el uid del interlocutor. La clave
+   'cintia' coincide con su uid, así que los hilos viejos (que guardaban destinoId='cintia')
+   siguen resolviendo solos. Cada auditora tiene su propia bandeja: si Iara y Cintia
+   compartieran la clave, los vendedores escribirían a un buzón único y las dos leerían
+   lo mismo — decisión de Brian (26/8/2026): bandeja propia. */
+function nombreInterlocutor(k){ return nombreDe(k); }
+function miClaveAsist(){ return (esAuditora()||esAdmin()) ? YO : null; }
+/* Con quiénes puede hablar un vendedor: todas las auditoras + dirección, en orden de login. */
+function destinosAsistencia(){ return ORDEN_LOGIN.filter(u=>rolDe(u)==='auditora'||rolDe(u)==='admin'); }
 /* Qué conversaciones de esta consulta puedo ver YO. Cintia y dirección: SOLO la propia,
    exista o no (para poder arrancarla). El vendedor: las suyas. Cualquier otro: ninguna. */
 function clavesVisibles(a){
@@ -12260,7 +12405,7 @@ function abrirAsistencia(id, clave){
   const vis=clavesVisibles(a), hs=hilosDe(a);
   asistClave = clave || vis.find(k=>hiloSinLeer(hs[k]))
              || vis.find(k=>hs[k]&&hs[k].mensajes&&hs[k].mensajes.length)
-             || vis[0] || miClaveAsist() || 'cintia';
+             || vis[0] || miClaveAsist() || uidAuditora();
   pintarAsistencia();
   $('modalAsistencia').classList.remove('hidden');
   document.body.style.overflow='hidden';
@@ -12307,7 +12452,7 @@ function htmlAsistencia(a){
   const hs=hilosDe(a);
   const brianId=uidDireccion();
   const soyVendedor=!esAdmin()&&!esAuditora();
-  if(!asistClave) asistClave = miClaveAsist() || 'cintia';
+  if(!asistClave) asistClave = miClaveAsist() || uidAuditora();
   const h = hs[asistClave] || {mensajes:[], estado:'abierta'};
   const msgs = h.mensajes || [];
   const resuelta = h.estado==='resuelta';
@@ -12326,7 +12471,7 @@ function htmlAsistencia(a){
      Cintia y dirección NO ven solapas: solo existe la suya, sin rastro de la otra. */
   const cabeza = soyVendedor
     ? `<div style="display:flex;gap:6px;margin:2px 2px 10px;flex-wrap:wrap">
-        ${[['cintia',nombreInterlocutor('cintia')],[brianId,nombreInterlocutor(brianId)]].map(([k,n])=>{
+        ${destinosAsistencia().map(k=>[k,nombreInterlocutor(k)]).map(([k,n])=>{
           const hk=hs[k], cn=(hk&&hk.mensajes)?hk.mensajes.length:0;
           return `<button class="btn btn-sm ${asistClave===k?'btn-navy':'btn-outline'}" onclick="cambiarHiloAsist('${k}')" title="Conversación con ${escAttr(n)} — es privada entre ustedes dos">${escapeHtml(n)}${cn?` (${cn})`:''}${hiloSinLeer(hk)?' <b style="color:var(--red)">●</b>':''}</button>`;
         }).join('')}
@@ -12590,7 +12735,7 @@ function destinosListaCintia(){
   // Orden fijo pedido para "Derivar a": 1 Alejandro, 2 Sergio, 3 Cristian,
   // 4 Nati, 5 Claudia, 6 Brian, 7 Cintia. El nombre sale de USUARIOS si es
   // usuario del sistema, o de CR_NOMBRES_EXTRA (ej. Alejandro) si no lo es.
-  const ORDEN_DERIVAR=['ale','sergio','cristian','nati','claudia','brian','cintia'];
+  const ORDEN_DERIVAR=['ale','sergio','cristian','nati','claudia','brian','cintia','iara'];
   return ORDEN_DERIVAR.map(uid=>({uid, label: USUARIOS[uid]?nombreDe(uid):(CR_NOMBRES_EXTRA[uid]||uid)}));
 }
 /* ============================================================
@@ -16419,7 +16564,8 @@ function rcAbierto(r){ return r.etapa !== 'cierre'; }
    Mismo criterio que las consultas archivadas: nada se destruye. */
 function rcVigente(r){ return !r || !r.anulado; }
 function rcBajasPedidas(){ return (typeof reclamos!=='undefined'?reclamos:[]).filter(r=>r.bajaPedida && !r.anulado); }
-function rcPuedePedirBaja(){ return esAuditora() || esAdmin(); }
+/* Lucas puede PEDIR la baja; confirmarla sigue siendo solo de dirección (rcConfirmarBaja). */
+function rcPuedePedirBaja(){ return esAuditora() || esAdmin() || esReclamos(); }
 
 /* Overlay chiquito para pedir el motivo: se arma solo, no toca el HTML de la página. */
 function rcPedirMotivo(titulo, sub, textoBoton, cb){
@@ -17511,7 +17657,10 @@ function htmlFichaReclamo(){
   const idxAct = subs.indexOf(r.subEtapa||'');
   const enReparacion = r.subEtapa === RC_SUBETAPA_REPARA;
   const venceProv = rcVenceProveedor(r);
-  const puedeSaldo = (typeof esAdmin==='function' && esAdmin());
+  /* Lucas gestiona el costo del reclamo (flete, fábrica), así que ve y carga el saldo
+     igual que dirección. Decisión de Brian, 26/8/2026. */
+  const puedeSaldo = (typeof esAdmin==='function' && esAdmin())
+                  || (typeof esReclamos==='function' && esReclamos());
   const iAct = RC_ETAPAS.findIndex(x=>x.id===r.etapa);
 
   /* ---------- 1 · Datos del cliente y entrega ---------- */
