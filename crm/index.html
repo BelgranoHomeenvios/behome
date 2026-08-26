@@ -2657,11 +2657,14 @@ function pintarAdminViewBar(){
     return;
   }
   $('adminViewBar').classList.remove('hidden');
-  // El admin puede ver a todos (vendedores + Cintia); Cintia solo a los vendedores.
+  // El admin ve la app como cualquiera menos otro admin; una auditora, solo como los vendedores.
+  // La lista sale de ORDEN_LOGIN filtrando por rol: un rol nuevo que no figure acá queda
+  // invisible para el "ver como" aunque el usuario exista (le pasó a 'reclamos').
   const esAdminReal = rolDe(VER_COMO_REAL)==='admin';
   const lbl=$('adminViewLbl'); if(lbl) lbl.textContent = esAdminReal ? 'Modo admin · ver la app como:' : 'Entrar a la planilla de:';
+  const ROLES_VER_COMO=['vendedor','auditora','marketing','reclamos'];
   const uids = esAdminReal
-    ? ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor'||rolDe(uid)==='auditora'||rolDe(uid)==='marketing')
+    ? ORDEN_LOGIN.filter(uid=>ROLES_VER_COMO.includes(rolDe(uid)))
     : ORDEN_LOGIN.filter(uid=>rolDe(uid)==='vendedor');
   $('adminViewSelect').innerHTML =
     `<option value="__real__">${nombreDe(VER_COMO_REAL)} (vos)</option>` +
