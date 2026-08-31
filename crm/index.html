@@ -4593,7 +4593,7 @@ function render(){
     $('panelCintia').classList.remove('hidden');
     $('headerConfigBtn').classList.add('hidden');
     document.querySelector('.tabs').style.setProperty('display','none','important');
-    if(!['reclamos','clientes'].includes(cintiaSeccion)) cintiaSeccion='reclamos';
+    if(!['reclamos','estadisticas'].includes(cintiaSeccion)) cintiaSeccion='reclamos';
     renderPanelCintia();
   }else if(esMarketing()){
     // Ariel — solo lectura. Se le esconde TODO el circuito de ventas y se lo deja
@@ -8654,10 +8654,14 @@ function renderPanelCintia(){
     // para que no se confunda con la carga de consultas.
     const btnReclamo = puedeVerReclamos()
       ? `<button class="btn btn-reclamo" onclick="rcAbrirAlta()">＋ Reclamo</button>` : '';
-    heroBtns.innerHTML = (admin
-      ? `<button class="btn btn-white" onclick="abrirRegistroAdminLocal()">🏬 Registrar atención en local</button>
-         <button class="btn btn-white" onclick="abrirCargaRapidaCintia()">💬 Cargar consulta virtual</button>`
-      : `<button class="btn btn-white" onclick="abrirCargaRapidaCintia()">+ Cargar consulta</button>`) + btnReclamo;
+    // Lucas (rol 'reclamos') NO carga consultas: no está en el circuito de ventas.
+    // Su único botón es el rojo de reclamo.
+    const btnConsulta = esReclamos() ? ''
+      : (admin
+        ? `<button class="btn btn-white" onclick="abrirRegistroAdminLocal()">🏬 Registrar atención en local</button>
+           <button class="btn btn-white" onclick="abrirCargaRapidaCintia()">💬 Cargar consulta virtual</button>`
+        : `<button class="btn btn-white" onclick="abrirCargaRapidaCintia()">+ Cargar consulta</button>`);
+    heroBtns.innerHTML = btnConsulta + btnReclamo;
   }
 
   if(admin){
@@ -8855,10 +8859,11 @@ function renderCintiaBotones(){
     return;
   }
   if(esReclamos()){
-    // Lucas: dos módulos y nada más. Sin Consultas, sin Evaluación, sin Estadísticas de ventas.
+    // Lucas: dos módulos y nada más. Sin Consultas, sin Clientes, sin Evaluación.
+    // Estadísticas entra pero recortado a Reclamos (ver htmlCintiaEstadisticas).
     const itemsL=[
       {id:'reclamos', label:'Reclamos', ic:'invalidas', cnt:(typeof reclamos!=='undefined'?reclamos.filter(r=>rcAbierto(r)&&rcVigente(r)).length:0)},
-      {id:'clientes', label:'Clientes', ic:'pulso'},
+      {id:'estadisticas', label:'Estadísticas', ic:'ventas'},
     ];
     $('cintiaBotones').className='gridbtn gb'+itemsL.length;
     $('cintiaBotones').innerHTML=itemsL.map(it=>`
@@ -8908,8 +8913,8 @@ function renderCintiaMain(){
     return;
   }
   if(esReclamos()){
-    // Cinturón: aunque los baldes solo ofrezcan estos dos, cualquier otra sección queda vacía.
-    if(cintiaSeccion==='clientes') box.innerHTML=htmlCintiaClientes();
+    // Cinturón: aunque los baldes solo ofrezcan estos dos, cualquier otra sección cae en Reclamos.
+    if(cintiaSeccion==='estadisticas') box.innerHTML=htmlCintiaEstadisticas();
     else box.innerHTML=htmlReclamos();
     return;
   }
@@ -10445,6 +10450,8 @@ function estCardClasificacion(){
   </div>`;
 }
 function htmlEstSelector(){
+  // Lucas solo mide reclamos: sin selector no puede cruzar a las estadísticas de ventas.
+  if(typeof esReclamos==='function' && esReclamos()) return '';
   return `<div class="est-que">
     <button class="${estQue==='consultas'?'on':''}" onclick="setEstQue('consultas')">Consultas</button>
     <button class="${estQue==='reclamos'?'on':''}" onclick="setEstQue('reclamos')">Reclamos</button>
@@ -10570,6 +10577,9 @@ function htmlEstReclamos(){
 }
 
 function htmlCintiaEstadisticas(){
+  /* Rol 'reclamos' (Lucas): entra a Estadísticas pero SIEMPRE en la vista de reclamos,
+     pase lo que pase con estQue. Cinturón, además del selector escondido. */
+  if(typeof esReclamos==='function' && esReclamos()) return htmlEstReclamos();
   if(estQue==='reclamos') return htmlEstSelector() + htmlEstReclamos();
   // El detalle por vendedor y los dos gráficos de contactos vinieron acá desde Resumen:
   // son análisis de un período, y este es el lugar donde el filtro de período aplica.
@@ -16499,8 +16509,9 @@ const RC_MUEBLES = ['Cómodas','Mesas','Muebles de TV','Mesas de luz','Escritori
 const RC_DIAS_VIEJO = 15;
 const RC_ANIO_DEFECTO = 2026;   // la fecha de entrega se escribe dd/mm, el año va solo   // a partir de acá el reclamo se marca como demorado
 
-/* Solo Cintia y dirección ven el módulo. El vendedor no. */
-function puedeVerReclamos(){ return (typeof esAdmin==='function' && esAdmin()) || (typeof esAuditora==='function' && esAuditora()); }
+/* Cintia, dirección y Lucas (rol 'reclamos', dueño del módulo) ven Reclamos. El vendedor no.
+   Lucas se sumó el 31/8/2026: era el único que no podía dar de alta el reclamo que después gestiona. */
+function puedeVerReclamos(){ return (typeof esAdmin==='function' && esAdmin()) || (typeof esAuditora==='function' && esAuditora()) || (typeof esReclamos==='function' && esReclamos()); }
 
 /* --- Estado y persistencia ---------------------------------------------- */
 var reclamos = [];
