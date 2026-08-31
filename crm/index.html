@@ -968,6 +968,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .cr-toca{background:#eef4fb}
 .cr-toca .cr-obj{background:#fff}
 .cr-total td{border-top:2px solid var(--navy);font-weight:800}
+.celpc{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end;white-space:nowrap}
+.cr-tabla .celpc .big{font-size:16px;line-height:1}
+.cr-tabla .celpc .cr-obj{margin-left:0}
 .cr-sug{font-size:11px;color:var(--sec);margin:-4px 0 8px}
 .cr-sug b{color:var(--navy)}
 .cr-mas{font-size:12.5px;font-weight:700;color:var(--blue);cursor:pointer;margin:2px 0 10px}
@@ -13199,7 +13202,9 @@ function tablaDistribucionCr(){
   const sug=sugeridoDistribucion();
   const sumaObj=filas.reduce((a,f)=>a+f.obj,0);
   const pct=n=>T?Math.round(n/T*100):0;
-  const cel=(n,color)=>n?`<div class="big"${color?` style="color:${color}"`:''}>${n}</div><div class="pc">${pct(n)}%</div>`:'—';
+  /* Número y % en la misma línea: el % va en la misma chapita que el objetivo del
+     vendedor, para que se lea como un dato aparte y no como un subtítulo del número. */
+  const cel=(n,color)=>n?`<span class="celpc"><b class="big"${color?` style="color:${color}"`:''}>${n}</b><span class="cr-obj">${pct(n)}%</span></span>`:'—';
   /* El objetivo tiene que sumar 100: si no, los porcentajes no significan nada y el
      aviso es más útil que un número silenciosamente mal. */
   const avisoObj = sumaObj!==100
