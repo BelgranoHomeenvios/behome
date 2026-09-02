@@ -17520,7 +17520,9 @@ async function rcTraerDeLogistica(orden){
     if(error || !data || !data.length) return null;
     const ords=data.map(f=>f.data).filter(Boolean);
     if(!ords.length) return null;
-    if(ords.length>1) return {varias:ords.length};
+    /* Con varias no se elige sola, pero SÍ se devuelven todas: la caja de la ficha
+       las lista y Cintia elige cuál es, igual que hace la lista del alta. */
+    if(ords.length>1) return {varias:ords.length, ords:ords};
     return ords[0];
   }catch(e){ console.error('logistica', e); return null; }
 }
@@ -17555,7 +17557,7 @@ async function rcBuscarOrdenFicha(orden, id){
   const r=(reclamos||[]).find(x=>x.id===id);
   if(!r){ rcOrdenSug=null; return; }
   if(!o){ rcOrdenSug={id, orden:q, estado:'nada'}; renderCintiaMain(); return; }
-  if(o.varias){ rcOrdenSug={id, orden:q, estado:'varias', n:o.varias}; renderCintiaMain(); return; }
+  if(o.varias){ rcOrdenSug={id, orden:q, estado:'varias', n:o.varias, ords:o.ords||[]}; renderCintiaMain(); return; }
   const res=rcAplicarOrden(r, o);
   rcOrdenSug={id, orden:q, estado:'ok', o, completados:res.completados, conflictos:res.conflictos};
   await guardarReclamos();
@@ -17572,6 +17574,27 @@ function rcUsarDeLog(campo){
   guardarReclamos();
   renderCintiaMain();
 }
+/* Elegir cuál de las órdenes repetidas es la del reclamo. Trae los cuatro datos de
+   una sola vez; lo que Cintia ya había escrito distinto sigue saliendo como
+   sugerencia, no se pisa por elegir la orden. */
+function rcElegirOrdenLog(i){
+  const r=rcActual(); if(!r || !rcOrdenSug || rcOrdenSug.id!==r.id) return;
+  const o=(rcOrdenSug.ords||[])[i]; if(!o) return;
+  const res=rcAplicarOrden(r,o);
+  rcOrdenSug={id:r.id, orden:rcOrdenSug.orden, estado:'ok', o,
+              completados:res.completados, conflictos:res.conflictos};
+  guardarReclamos();
+  renderCintiaMain();
+}
+/* Aceptar TODAS las sugerencias juntas, para no ir campo por campo. */
+function rcUsarTodoDeLog(){
+  const r=rcActual(); if(!r || !rcOrdenSug || rcOrdenSug.id!==r.id) return;
+  (rcOrdenSug.conflictos||[]).forEach(c=>{ r[c.campo]=c.valor; });
+  rcOrdenSug.completados=(rcOrdenSug.completados||[]).concat((rcOrdenSug.conflictos||[]).map(c=>c.lbl));
+  rcOrdenSug.conflictos=[];
+  guardarReclamos();
+  renderCintiaMain();
+}
 function rcCerrarSugOrden(){ rcOrdenSug=null; renderCintiaMain(); }
 /* La caja que se ve abajo de los datos del cliente. Sin CSS nuevo a propósito:
    el último </style> del archivo está adentro del string del remito de impresión. */
@@ -17582,7 +17605,18 @@ function rcOrdenSugHtml(r){
   if(!s || s.id!==r.id) return r.orden ? `<div style="margin-top:8px">${link}</div>` : '';
   if(s.estado==='buscando') return caja('var(--line)','#f7f8fa', 'Buscando la orden en Log\u00edstica\u2026');
   if(s.estado==='nada')     return caja('var(--line)','#f7f8fa', `No encontr\u00e9 la orden <b>${rcEsc(s.orden)}\u00b7</b> en Log\u00edstica. Carg\u00e1 los datos a mano. ${link}`);
-  if(s.estado==='varias')   return caja('#e0952e','#fdf6ec', `Hay <b>${s.n} \u00f3rdenes</b> con el n\u00famero ${rcEsc(s.orden)} en Log\u00edstica: no toqu\u00e9 nada para no cargar la equivocada. ${link}`);
+  if(s.estado==='varias'){
+    const filas=(s.ords||[]).map((o,i)=>{
+      const det=[o.cliente, (o.tel1||o.tel2), rcChoferDeOrden(o), (o.fecha?rcFechaADdMm(String(o.fecha).slice(0,10)):'')]
+                .filter(Boolean).map(x=>rcEsc(x)).join(' \u00b7 ');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border:1px solid #e6d3b3;border-radius:7px;padding:7px 9px;margin-top:6px">
+        <span>${det||'sin datos cargados'}</span>
+        <button type="button" onclick="rcElegirOrdenLog(${i})" style="border:1px solid var(--blue);background:#fff;color:var(--blue);border-radius:6px;padding:3px 10px;font-size:11.5px;cursor:pointer;white-space:nowrap">usar esta</button>
+      </div>`;
+    }).join('');
+    return caja('#e0952e','#fdf6ec',
+      `<b>Hay ${s.n} \u00f3rdenes con el n\u00famero ${rcEsc(s.orden)}</b> en Log\u00edstica. \u00bfCu\u00e1l es la del reclamo?${filas}`);
+  }
   const o=s.o||{};
   const resumen=[o.cliente, (o.tel1||o.tel2), rcChoferDeOrden(o), (o.fecha?rcFechaADdMm(String(o.fecha).slice(0,10)):'')]
                 .filter(Boolean).map(x=>rcEsc(x)).join(' \u00b7 ');
@@ -17593,11 +17627,13 @@ function rcOrdenSugHtml(r){
       <span><b>${rcEsc(c.lbl)}:</b> Log\u00edstica dice \u201c${rcEsc(c.campo==='fechaEntrega'?rcFechaADdMm(c.valor):c.valor)}\u201d, ac\u00e1 figura \u201c${rcEsc(c.campo==='fechaEntrega'?rcFechaADdMm(c.actual):c.actual)}\u201d</span>
       <button type="button" onclick="rcUsarDeLog('${c.campo}')" style="border:1px solid var(--blue);background:#fff;color:var(--blue);border-radius:6px;padding:2px 8px;font-size:11.5px;cursor:pointer">usar el de Log\u00edstica</button>
     </div>`).join('');
+  const todos=(s.conflictos||[]).length>1
+    ? `<div style="margin-top:7px"><button type="button" onclick="rcUsarTodoDeLog()" style="border:0;background:var(--blue);color:#fff;border-radius:6px;padding:4px 11px;font-size:11.5px;cursor:pointer">usar todos los datos de Log\u00edstica</button></div>` : '';
   const nada=(!comp && !conf) ? '<div style="color:var(--muted);margin-top:3px">Los datos ya estaban cargados igual.</div>' : '';
   return caja('#c9d6e5','#f2f7fc',
     `<div style="display:flex;justify-content:space-between;gap:8px"><b>\ud83d\udce6 Orden ${rcEsc(s.orden)} en Log\u00edstica</b>
        <span onclick="rcCerrarSugOrden()" style="cursor:pointer;color:var(--muted)">\u2715</span></div>
-     <div style="color:var(--muted)">${resumen||'sin datos cargados'}</div>${comp}${conf}${nada}`);
+     <div style="color:var(--muted)">${resumen||'sin datos cargados'}</div>${comp}${conf}${todos}${nada}`);
 }
 
 function rcTomarVenta(i){
@@ -17621,7 +17657,11 @@ async function rcGuardarAlta(completo){
   var _sugAlta=null;
   if(d.orden && String(d.orden).trim()){
     const _o=await rcTraerDeLogistica(d.orden);
-    if(_o && !_o.varias){
+    if(_o && _o.varias){
+      /* Varias órdenes con el mismo número: no se elige sola, pero la lista viaja a
+         la ficha para que Cintia toque "usar esta" y traiga todo junto. */
+      _sugAlta={id:d.id, orden:String(d.orden).trim(), estado:'varias', n:_o.varias, ords:_o.ords||[]};
+    } else if(_o){
       const _res=rcAplicarOrden(d, _o);
       if(_res.completados.length || _res.conflictos.length){
         _sugAlta={id:d.id, orden:String(d.orden).trim(), estado:'ok', o:_o,
