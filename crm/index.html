@@ -17324,10 +17324,10 @@ function rcPintarAlta(){
           <input id="rcNombre" value="${rcEsc(d.clienteNombre)}" oninput="rcDraft.clienteNombre=this.value"></label>
         <label class="rc-f">Teléfono
           <input id="rcTel" value="${rcEsc(d.clienteTelefono)}"
-                 oninput="rcDraft.clienteTelefono=this.value; rcBuscarPronto(this.value);"></label>
+                 oninput="rcDraft.clienteTelefono=this.value; rcBuscarPronto(this.value,'tel');"></label>
         <label class="rc-f">N° de compra
           <input id="rcOrden" value="${rcEsc(d.orden)}" placeholder="4231"
-                 oninput="rcDraft.orden=this.value; rcBuscarPronto(this.value);"></label>
+                 oninput="rcDraft.orden=this.value; rcBuscarPronto(this.value,'orden');"></label>
       </div>
       <div id="rcResultados" class="rc-res"></div>
       <div class="rc-grid-ent">
@@ -17419,11 +17419,11 @@ function rcSetProblema(v){
    de orden, también en Logística — que es donde Lucas carga chofer y entrega. */
 /* Reconoce al cliente mientras Cintia escribe, sin esperar a que salte de campo. */
 var _rcBuscarTimer=null;
-function rcBuscarPronto(v){
+function rcBuscarPronto(v, modo){
   clearTimeout(_rcBuscarTimer);
-  _rcBuscarTimer = setTimeout(()=>rcBuscarVenta(v), 350);
+  _rcBuscarTimer = setTimeout(()=>rcBuscarVenta(v, modo), 350);
 }
-async function rcBuscarVenta(valor){
+async function rcBuscarVenta(valor, modo){
   const q = String(valor!==undefined ? valor : '').trim();
   const box = $('rcResultados');
   if(!q || q.length<3){ box.innerHTML=''; return; }
@@ -17438,7 +17438,14 @@ async function rcBuscarVenta(valor){
     (typeof atenciones!=='undefined'?atenciones:[]).forEach(a=>{
       const tel=String(a.clienteTelefono||''), nom=String(a.clienteNombre||'');
       if(!nq) return;
-      if(norm(tel).includes(nq) || norm(nom).includes(nq)){
+      /* Buscar un N° DE ORDEN adentro de los teléfonos no tiene sentido y además
+         tapa el resultado bueno: "4521" matcheaba media docena de teléfonos que
+         contenían esos dígitos y la orden de Logística quedaba enterrada abajo.
+         Desde el campo N° de compra se busca SOLO por número de orden. */
+      const _match = (modo==='orden')
+        ? (typeof normOrden==='function' ? normOrden(a.nroOrden)===normOrden(q) : String(a.nroOrden||'')===q)
+        : (norm(tel).includes(nq) || norm(nom).includes(nq));
+      if(_match){
         const k = norm(tel)||norm(nom);
         if(vistos.has(k)) return; vistos.add(k);
         res.push({fuente:'CRM', nombre:nom, tel:tel, orden:a.nroOrden||'', fecha:'', chofer:'', muebles:(a.muebles||[]).map(m=>m.mueble).filter(Boolean).join(', ')});
@@ -17469,6 +17476,130 @@ async function rcBuscarVenta(valor){
   window._rcRes = res;
 }
 
+/* ============================================================================
+   TRAER DE LOGÍSTICA los datos de la orden (2/9/2026)
+   Una orden de Logística ya tiene cargado al cliente, el teléfono, el chofer y la
+   fecha de entrega: volver a tipearlos en el reclamo es trabajo al pedo y además
+   se escribe distinto cada vez. Antes esto solo pasaba si Cintia CLICKEABA la
+   tarjeta del resultado; si escribía el número y apretaba "Cargar todo ahora", el
+   reclamo quedaba con el número pelado. Los MUEBLES no se traen a propósito: la
+   orden tiene todos los del envío y el reclamo es por uno solo.
+   ========================================================================= */
+/* Los cuatro campos que viajan, y de dónde salen en el registro de Logística.
+   OJO: el mueble vive en o.lineas[].desc, NO en o.muebles — no se usa acá. */
+const RC_CAMPOS_LOG=[
+  {campo:'clienteNombre',  lbl:'Nombre',           de:o=>String(o.cliente||'').trim()},
+  {campo:'clienteTelefono',lbl:'Tel\u00e9fono',        de:o=>String(o.tel1||o.tel2||'').trim()},
+  {campo:'chofer',         lbl:'Chofer',           de:o=>rcChoferDeOrden(o)},
+  {campo:'fechaEntrega',   lbl:'Fecha de entrega', de:o=>String(o.fecha||'').slice(0,10)}
+];
+/* En Retiro y en Expreso que retira, Logística deja el flete vacío y arma la
+   etiqueta al vuelo. Acá se hace lo mismo para no dejar el chofer en blanco. */
+function rcChoferDeOrden(o){
+  const f=String(o.flete||'').trim();
+  if(f) return f;
+  if(o.tipo==='Retiro') return 'Retiro';
+  if(o.tipo==='Expreso') return 'Expreso';
+  return '';
+}
+/* Dos valores "iguales" aunque estén escritos distinto. En el teléfono se comparan
+   los últimos 8 dígitos, que es la regla que ya usa el resto del CRM. */
+function rcMismoValor(campo, a, b){
+  if(campo==='clienteTelefono'){ const d=x=>String(x).replace(/\D/g,'').slice(-8); return d(a)===d(b); }
+  return String(a).trim().toLowerCase()===String(b).trim().toLowerCase();
+}
+/* Busca la orden en Logística (solo lectura). Devuelve la orden, {varias:N} si hay
+   más de una con ese número, o null. Con varias NO se toca nada: adivinar cuál es
+   sería peor que dejarlo a mano. */
+async function rcTraerDeLogistica(orden){
+  const q=String(orden||'').trim();
+  if(!/^\d{3,6}$/.test(q)) return null;
+  if(typeof sbLOG==='undefined' || !sbLOG) return null;
+  try{
+    const {data,error}=await sbLOG.from('ordenes').select('data').eq('data->>boleta', q).limit(5);
+    if(error || !data || !data.length) return null;
+    const ords=data.map(f=>f.data).filter(Boolean);
+    if(!ords.length) return null;
+    if(ords.length>1) return {varias:ords.length};
+    return ords[0];
+  }catch(e){ console.error('logistica', e); return null; }
+}
+/* REGLA (Brian, 2/9/2026): completa SOLO lo que está vacío. Si Cintia ya escribió
+   algo distinto, no se pisa — se devuelve como sugerencia y ella decide. Pisar en
+   silencio un teléfono corregido a mano es la clase de error que nadie descubre. */
+function rcAplicarOrden(r, o){
+  const completados=[], conflictos=[];
+  RC_CAMPOS_LOG.forEach(c=>{
+    const val=c.de(o); if(!val) return;
+    const actual=String(r[c.campo]||'').trim();
+    if(!actual){ r[c.campo]=val; completados.push(c.lbl); }
+    else if(!rcMismoValor(c.campo, actual, val)) conflictos.push({campo:c.campo, lbl:c.lbl, valor:val, actual:actual});
+  });
+  return {completados, conflictos};
+}
+/* Estado de la caja de sugerencia de la ficha. Vive afuera del render para que
+   sobreviva a los repintados de renderCintiaMain. */
+var rcOrdenSug=null;   // {id, orden, estado:'buscando'|'nada'|'varias'|'ok', o, completados[], conflictos[]}
+async function rcCampoOrden(v){
+  const r=rcActual(); if(!r) return;
+  r.orden=v;
+  guardarReclamos();
+  await rcBuscarOrdenFicha(v, r.id);
+}
+async function rcBuscarOrdenFicha(orden, id){
+  const q=String(orden||'').trim();
+  if(!q){ rcOrdenSug=null; renderCintiaMain(); return; }
+  rcOrdenSug={id, orden:q, estado:'buscando'};
+  renderCintiaMain();
+  const o=await rcTraerDeLogistica(q);
+  const r=(reclamos||[]).find(x=>x.id===id);
+  if(!r){ rcOrdenSug=null; return; }
+  if(!o){ rcOrdenSug={id, orden:q, estado:'nada'}; renderCintiaMain(); return; }
+  if(o.varias){ rcOrdenSug={id, orden:q, estado:'varias', n:o.varias}; renderCintiaMain(); return; }
+  const res=rcAplicarOrden(r, o);
+  rcOrdenSug={id, orden:q, estado:'ok', o, completados:res.completados, conflictos:res.conflictos};
+  await guardarReclamos();
+  renderCintiaMain();
+}
+/* Aceptar una sugerencia puntual: recién acá se pisa lo que había, y porque ella
+   lo apretó. */
+function rcUsarDeLog(campo){
+  const r=rcActual(); if(!r || !rcOrdenSug || rcOrdenSug.id!==r.id) return;
+  const c=(rcOrdenSug.conflictos||[]).find(x=>x.campo===campo); if(!c) return;
+  r[campo]=c.valor;
+  rcOrdenSug.conflictos=rcOrdenSug.conflictos.filter(x=>x.campo!==campo);
+  rcOrdenSug.completados=(rcOrdenSug.completados||[]).concat([c.lbl]);
+  guardarReclamos();
+  renderCintiaMain();
+}
+function rcCerrarSugOrden(){ rcOrdenSug=null; renderCintiaMain(); }
+/* La caja que se ve abajo de los datos del cliente. Sin CSS nuevo a propósito:
+   el último </style> del archivo está adentro del string del remito de impresión. */
+function rcOrdenSugHtml(r){
+  const link=`<span onclick="rcBuscarOrdenFicha((document.getElementById('rcOrdenFicha')||{}).value, '${r.id}')" style="cursor:pointer;color:var(--blue);font-size:12px;text-decoration:underline">\ud83d\udd04 traer datos de Log\u00edstica</span>`;
+  const caja=(borde,fondo,cuerpo)=>`<div style="margin-top:10px;border:1px solid ${borde};background:${fondo};border-radius:8px;padding:9px 11px;font-size:12.5px;line-height:1.5">${cuerpo}</div>`;
+  const s=rcOrdenSug;
+  if(!s || s.id!==r.id) return r.orden ? `<div style="margin-top:8px">${link}</div>` : '';
+  if(s.estado==='buscando') return caja('var(--line)','#f7f8fa', 'Buscando la orden en Log\u00edstica\u2026');
+  if(s.estado==='nada')     return caja('var(--line)','#f7f8fa', `No encontr\u00e9 la orden <b>${rcEsc(s.orden)}\u00b7</b> en Log\u00edstica. Carg\u00e1 los datos a mano. ${link}`);
+  if(s.estado==='varias')   return caja('#e0952e','#fdf6ec', `Hay <b>${s.n} \u00f3rdenes</b> con el n\u00famero ${rcEsc(s.orden)} en Log\u00edstica: no toqu\u00e9 nada para no cargar la equivocada. ${link}`);
+  const o=s.o||{};
+  const resumen=[o.cliente, (o.tel1||o.tel2), rcChoferDeOrden(o), (o.fecha?rcFechaADdMm(String(o.fecha).slice(0,10)):'')]
+                .filter(Boolean).map(x=>rcEsc(x)).join(' \u00b7 ');
+  const comp=(s.completados||[]).length
+    ? `<div style="color:#1f7a46;margin-top:3px">\u2713 Se complet\u00f3: ${s.completados.map(x=>rcEsc(x)).join(', ')}</div>` : '';
+  const conf=(s.conflictos||[]).map(c=>`
+    <div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span><b>${rcEsc(c.lbl)}:</b> Log\u00edstica dice \u201c${rcEsc(c.campo==='fechaEntrega'?rcFechaADdMm(c.valor):c.valor)}\u201d, ac\u00e1 figura \u201c${rcEsc(c.campo==='fechaEntrega'?rcFechaADdMm(c.actual):c.actual)}\u201d</span>
+      <button type="button" onclick="rcUsarDeLog('${c.campo}')" style="border:1px solid var(--blue);background:#fff;color:var(--blue);border-radius:6px;padding:2px 8px;font-size:11.5px;cursor:pointer">usar el de Log\u00edstica</button>
+    </div>`).join('');
+  const nada=(!comp && !conf) ? '<div style="color:var(--muted);margin-top:3px">Los datos ya estaban cargados igual.</div>' : '';
+  return caja('#c9d6e5','#f2f7fc',
+    `<div style="display:flex;justify-content:space-between;gap:8px"><b>\ud83d\udce6 Orden ${rcEsc(s.orden)} en Log\u00edstica</b>
+       <span onclick="rcCerrarSugOrden()" style="cursor:pointer;color:var(--muted)">\u2715</span></div>
+     <div style="color:var(--muted)">${resumen||'sin datos cargados'}</div>${comp}${conf}${nada}`);
+}
+
 function rcTomarVenta(i){
   const r = (window._rcRes||[])[i]; if(!r || !rcDraft) return;
   rcDraft.clienteNombre = r.nombre || rcDraft.clienteNombre;
@@ -17483,6 +17614,21 @@ function rcTomarVenta(i){
 
 async function rcGuardarAlta(completo){
   const d = rcDraft; if(!d) return;
+  /* Si hay N° de compra, se traen los datos de Logística sin que Cintia tenga que
+     clickear la tarjeta del resultado — ese clic era el único camino y se saltea
+     todo el tiempo. Solo completa lo vacío; lo que choca queda como sugerencia y
+     se muestra en la ficha. */
+  var _sugAlta=null;
+  if(d.orden && String(d.orden).trim()){
+    const _o=await rcTraerDeLogistica(d.orden);
+    if(_o && !_o.varias){
+      const _res=rcAplicarOrden(d, _o);
+      if(_res.completados.length || _res.conflictos.length){
+        _sugAlta={id:d.id, orden:String(d.orden).trim(), estado:'ok', o:_o,
+                  completados:_res.completados, conflictos:_res.conflictos};
+      }
+    }
+  }
   // "Cargar todo ahora" pasa derecho a la ficha aunque no haya nada cargado:
   // los campos se completan allá, que es donde está todo junto.
   if(!completo){
@@ -17497,7 +17643,12 @@ async function rcGuardarAlta(completo){
   const id = d.id;
   rcCerrarAlta();
   if(typeof renderCintiaMain==='function') renderCintiaMain();
-  if(completo){ rcAbrirFicha(id); } else { toast('Reclamo registrado'); }
+  if(_sugAlta) rcOrdenSug=_sugAlta;
+  if(completo){ rcAbrirFicha(id); }
+  else {
+    const _n=_sugAlta?(_sugAlta.completados||[]).length:0;
+    toast(_n ? 'Reclamo registrado \u00b7 '+_n+' dato(s) tra\u00eddo(s) de Log\u00edstica' : 'Reclamo registrado');
+  }
 }
 
 
@@ -18002,14 +18153,15 @@ function htmlFichaReclamo(){
     <div class="rc-grid3">
       <label class="rc-f">Nombre<input value="${rcEsc(r.clienteNombre||'')}" onchange="rcCampo('clienteNombre',this.value)"></label>
       <label class="rc-f">Teléfono<input value="${rcEsc(r.clienteTelefono||'')}" onchange="rcCampo('clienteTelefono',this.value,false)"></label>
-      <label class="rc-f">N° de compra<input value="${rcEsc(r.orden||'')}" onchange="rcCampo('orden',this.value)"></label>
+      <label class="rc-f">N° de compra<input id="rcOrdenFicha" value="${rcEsc(r.orden||'')}" onchange="rcCampoOrden(this.value)"></label>
     </div>
     <div class="rc-grid3">
       <label class="rc-f">Fecha de entrega<input placeholder="dd/mm/aa" value="${rcEsc(rcFechaADdMm(r.fechaEntrega))}" onchange="rcCampo('fechaEntrega', rcDdMmAFecha(this.value), false)"></label>
       <label class="rc-f">Chofer<select onchange="rcCampo('chofer',this.value,false)"><option value="">—</option>
         ${rcConHistorico(RC_FLETES, r.chofer).map(f=>`<option ${r.chofer===f?'selected':''}>${f}</option>`).join('')}</select></label>
       <label class="rc-f">Inicio del reclamo<input placeholder="dd/mm/aa" value="${rcEsc(rcFechaADdMm(r.fechaInicio || r.ts))}" onchange="rcCampo('fechaInicio', rcDdMmAFecha(this.value), false)"></label>
-    </div>`;
+    </div>
+    ${rcOrdenSugHtml(r)}`;
 
   /* ---------- 2 · Información del problema ---------- */
   const mbs = rcMuebles(r);
