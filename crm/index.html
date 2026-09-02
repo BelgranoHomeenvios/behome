@@ -3590,41 +3590,183 @@ function marcarCompartidaDesdeRow(id){
   if(grupo.length<2){ toast('No encuentro con cuál está duplicada.'); return; }
   marcarCompartida(grupo.map(x=>x.id));
 }
-/* Editar el canal de una consulta desde el ⋮ de la tabla (Cintia / dirección). Es el primer
-   ítem del menú; más adelante se pueden sumar otras acciones ahí. */
+/* Editar el ORIGEN de una consulta desde el ⋮ de la tabla (Cintia / dirección).
+   No es solo el canal: WhatsApp, las dos Publicidad y Local piden un SEGUNDO dato
+   (de dónde vino / de qué es la campaña / en qué local fue), el mismo que pide
+   "Cargar consulta". Antes este modal editaba solo el canal, así que cambiarlo dejaba
+   el segundo dato del canal viejo colgado (una consulta "Local" con origenWeb de
+   WhatsApp) o el del canal nuevo vacío para siempre. Ahora se pide, se limpia lo que
+   dejó de corresponder y el cambio queda sellado en el historial. */
+let _edOrigenId=null;
+function edCfgCanal(c){ return (typeof CR_CFG!=='undefined' && CR_CFG[c]) || {}; }
+/* Cómo se lee el segundo dato de una consulta, para el historial y para el resumen. */
+function edDetalleOrigen(a){
+  if(!a) return '';
+  if(a.origenWeb) return a.origenWeb + (a.origenWebDetalle? ' · '+a.origenWebDetalle : '');
+  if(a.campanaPublicidad) return 'campaña '+a.campanaPublicidad;
+  if(a.localId && typeof nombreLocal==='function') return nombreLocal(a.localId);
+  return '';
+}
 function abrirEditarCanal(id){
-  if(!puedeVerEquipo()){ toast('Solo Cintia o dirección pueden editar el canal.'); return; }
+  if(!puedeVerEquipo()){ toast('Solo Cintia o dirección pueden editar el origen.'); return; }
   const a=atenciones.find(x=>x.id===id); if(!a) return;
+  _edOrigenId=id;
   const actual=canalReal(a);
   const opts=CANALES.map(c=>`<option value="${escAttr(c)}" ${c===actual?'selected':''}>${escapeHtml(c)}</option>`).join('');
   let ov=$('modalEditarCanal');
   if(!ov){ ov=document.createElement('div'); ov.id='modalEditarCanal'; ov.className='cmp-overlay'; document.body.appendChild(ov); }
   ov.innerHTML=`<div class="cmp-modal">
-    <h3 style="margin:0 0 4px">✎ Editar canal</h3>
+    <h3 style="margin:0 0 4px">✎ Editar origen</h3>
     <p class="tiny" style="margin:0 0 12px;color:var(--muted)">${escapeHtml(nombreCliente(a)||'Consulta')}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}</p>
     <div class="cmp-sec" style="border:0"><b>Canal de la consulta</b>
-      <select id="edCanalSel" class="ev-sel" style="margin-top:6px">${opts}</select>
+      <select id="edCanalSel" class="ev-sel" style="margin-top:6px" onchange="onEdCanalChange()">${opts}</select>
     </div>
+    <div id="edCanalExtra"></div>
     <div class="cmp-actions">
       <button class="btn btn-outline" onclick="cerrarEditarCanal()">Cancelar</button>
       <button class="btn btn-navy" onclick="guardarEditarCanal('${a.id}')">Guardar</button>
     </div>
   </div>`;
   ov.classList.remove('hidden');
+  onEdCanalChange();
 }
-function cerrarEditarCanal(){ const ov=$('modalEditarCanal'); if(ov) ov.classList.add('hidden'); }
+/* Segundo campo según el canal. Sale de CR_CFG (la misma config que usa "Cargar
+   consulta"): si mañana se agrega un canal con segundo dato, aparece acá solo. */
+function onEdCanalChange(){
+  const box=$('edCanalExtra'); if(!box) return;
+  const a=atenciones.find(x=>x.id===_edOrigenId);
+  const c=$('edCanalSel')?$('edCanalSel').value:'';
+  const cfg=edCfgCanal(c);
+  let html='';
+  if(cfg.origenWeb){
+    const lista=(typeof CR_ORIGEN_WEB!=='undefined'?CR_ORIGEN_WEB:[]);
+    html+=`<div class="cmp-sec" style="border:0;margin:0"><b>¿De dónde vino?</b>
+      <select id="edOrigenWeb" class="ev-sel" style="margin-top:6px" onchange="onEdOrigenWebChange()">
+        <option value="">— sin definir —</option>
+        ${lista.map(o=>`<option value="${escAttr(o)}" ${(a&&a.origenWeb===o)?'selected':''}>${escapeHtml(o)}</option>`).join('')}
+      </select>
+      <div id="edOrigenExtra"></div>
+    </div>`;
+  }
+  if(cfg.publicidad){
+    const lista=(typeof CR_CAMPANAS!=='undefined'?CR_CAMPANAS:[]);
+    const actual=(a&&a.campanaPublicidad)||'';
+    /* Una campaña vieja escrita a mano puede no estar en la lista: se agrega como
+       opción para no perderla al abrir el modal. */
+    const suelta = actual && lista.indexOf(actual)===-1;
+    html+=`<div class="cmp-sec" style="border:0;margin:0"><b>¿De qué es la campaña?</b>
+      <select id="edCampana" class="ev-sel" style="margin-top:6px" onchange="onEdCampanaChange()">
+        <option value="">— sin definir —</option>
+        ${suelta?`<option value="${escAttr(actual)}" selected>${escapeHtml(actual)}</option>`:''}
+        ${lista.map(m=>`<option value="${escAttr(m)}" ${actual===m?'selected':''}>${escapeHtml(m)}</option>`).join('')}
+        <option value="__otra__">➕ Adicionar otra…</option>
+      </select>
+      <input type="text" id="edCampanaOtro" class="ev-sel hidden" placeholder="Nombre de la campaña" style="margin-top:6px">
+      <p class="tiny" style="margin-top:3px;color:var(--muted)">Queda como registro de la campaña. Al vendedor no le llega.</p>
+    </div>`;
+  }
+  if(cfg.local){
+    const actual=(a&&a.localId)||'';
+    html+=`<div class="cmp-sec" style="border:0;margin:0"><b>¿En qué local fue?</b>
+      <select id="edLocal" class="ev-sel" style="margin-top:6px">
+        <option value="">— elegí —</option>
+        ${Object.keys(LOCALES).map(id=>`<option value="${escAttr(id)}" ${actual===id?'selected':''}>${escapeHtml(nombreLocal(id))}</option>`).join('')}
+      </select>
+    </div>`;
+  }
+  box.innerHTML=html;
+  if(cfg.origenWeb) onEdOrigenWebChange();
+}
+/* Sub-campo del origen web. Espejo de onOrigenWebChangeCr(), con ids propios para no
+   pisarse con el formulario de carga si los dos están abiertos. El detalle guardado se
+   precarga SOLO si el origen sigue siendo el mismo (si cambió, ese detalle ya no aplica). */
+function onEdOrigenWebChange(){
+  const box=$('edOrigenExtra'); if(!box) return;
+  const a=atenciones.find(x=>x.id===_edOrigenId);
+  const v=($('edOrigenWeb')||{}).value||'';
+  const previo=(a && a.origenWeb===v) ? (a.origenWebDetalle||'') : '';
+  if(v===CR_ORIGEN_CATALOGO){
+    const cats=(typeof CATALOGO_CATS!=='undefined'&&CATALOGO_CATS.length)? CATALOGO_CATS.map(c=>c.label) : [];
+    const suelto = previo && cats.indexOf(previo)===-1 && previo!=='Otros';
+    box.innerHTML=`<div style="margin-top:8px">
+      <label class="tiny" style="color:var(--muted)">¿De qué catálogo?</label>
+      <select id="edOrigenDet" class="ev-sel" style="margin-top:4px">
+        <option value="">— elegí —</option>
+        ${suelto?`<option value="${escAttr(previo)}" selected>${escapeHtml(previo)}</option>`:''}
+        ${cats.map(c=>`<option value="${escAttr(c)}" ${previo===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+        <option value="Otros" ${previo==='Otros'?'selected':''}>Otros</option>
+      </select>
+      ${cats.length?'':'<p class="tiny" style="color:var(--amber);margin-top:3px">No se pudo cargar el catálogo: elegí Otros y avisá.</p>'}
+    </div>`;
+  }else if(v===CR_ORIGEN_PRODUCTO){
+    const lista=(typeof listaMueblesOrigen==='function'?listaMueblesOrigen():[]);
+    box.innerHTML=`<div style="margin-top:8px">
+      <label class="tiny" style="color:var(--muted)">¿Por qué mueble entró?</label>
+      <input type="text" id="edOrigenDet" class="ev-sel" style="margin-top:4px" list="edOrigenProdList" autocomplete="off" placeholder="Empezá a escribir el mueble" value="${escAttr(previo)}">
+      <datalist id="edOrigenProdList">${lista.map(m=>`<option value="${escAttr(m)}">`).join('')}</datalist>
+    </div>`;
+  }else{
+    box.innerHTML='';
+  }
+}
+function onEdCampanaChange(){
+  const sel=$('edCampana'), otro=$('edCampanaOtro');
+  if(!sel||!otro) return;
+  if(sel.value==='__otra__'){ otro.classList.remove('hidden'); otro.focus(); }
+  else otro.classList.add('hidden');
+}
+function cerrarEditarCanal(){ const ov=$('modalEditarCanal'); if(ov) ov.classList.add('hidden'); _edOrigenId=null; }
 async function guardarEditarCanal(id){
   if(!puedeVerEquipo()) return;
   const a=atenciones.find(x=>x.id===id); if(!a) return;
   const nuevo=$('edCanalSel')?$('edCanalSel').value:'';
   if(!nuevo) return;
+  const cfg=edCfgCanal(nuevo);
+  const origenWeb = (cfg.origenWeb && $('edOrigenWeb')) ? ($('edOrigenWeb').value||'') : '';
+  const origenDet = $('edOrigenDet') ? String($('edOrigenDet').value||'').trim() : '';
+  let campana='';
+  if(cfg.publicidad && $('edCampana')){
+    campana = $('edCampana').value==='__otra__' ? ($('edCampanaOtro')?$('edCampanaOtro').value.trim():'') : ($('edCampana').value||'');
+  }
+  const localEl = (cfg.local && $('edLocal')) ? ($('edLocal').value||'') : '';
+  /* Mismas validaciones que "Cargar consulta": el origen web puede quedar sin definir
+     (las consultas viejas no lo tienen), pero si se elige Catálogo o Producto el
+     detalle es obligatorio — sin él el registro no sirve para contar nada. */
+  if(origenWeb===CR_ORIGEN_CATALOGO && !origenDet){ toast('Elegí de qué catálogo vino'); return; }
+  if(origenWeb===CR_ORIGEN_PRODUCTO && !origenDet){ toast('Cargá por qué mueble entró'); return; }
+  if(cfg.local && !localEl){ toast('Elegí en qué local fue'); return; }
+
+  const antesCanal=canalReal(a);
+  const antesDet=edDetalleOrigen(a);
+
   a.canalDetalle=nuevo;
   // canalReal() devuelve 'Local' si a.canal==='presencial', así que hay que ajustarlo también.
   if(nuevo==='Local') a.canal='presencial';
   else if(a.canal==='presencial') a.canal='virtual';
+  /* LIMPIEZA: cada canal se queda ÚNICAMENTE con su segundo dato. Si no, al mover una
+     consulta de WhatsApp a Local quedaba un origenWeb huérfano contaminando el conteo. */
+  a.origenWeb        = cfg.origenWeb ? (origenWeb||null) : null;
+  a.origenWebDetalle = cfg.origenWeb ? (origenDet||null) : null;
+  a.campanaPublicidad= cfg.publicidad ? (campana||null) : null;
+  a.localId          = cfg.local ? (localEl||null) : null;
+
+  const despuesDet=edDetalleOrigen(a);
+  if(antesCanal!==nuevo || antesDet!==despuesDet){
+    /* Sellado en el historial. OJO: NO lleva intervencion:true — ese flag lo borra
+       toggleIntervencionCintia() al sacar la marca de Cintia y se llevaría puesto el
+       registro de la edición. */
+    const ts=new Date().toISOString();
+    a.historialContacto=Array.isArray(a.historialContacto)?a.historialContacto:[];
+    a.historialContacto.push({
+      ts, porId:YO, edicion:true,
+      texto:'✎ Origen editado por '+nombreDe(YO)+': '
+            +(antesCanal||'Sin definir')+(antesDet?' ('+antesDet+')':'')
+            +' → '+nuevo+(despuesDet?' ('+despuesDet+')':'')
+    });
+  }
   await saveAtenciones();
   cerrarEditarCanal();
-  toast('Canal actualizado: '+nuevo);
+  toast('Origen actualizado: '+nuevo+(despuesDet?' · '+despuesDet:''));
   render();
   if(typeof renderPanelCintia==='function') renderPanelCintia();
 }
@@ -6339,7 +6481,7 @@ function logItemHtml(a){
                 ${verEval ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirVistaEvaluacion('${a.id}')">📊 Ver evaluación de Cintia</div>` : ''}
                 ${editEval ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirEvaluar('${a.id}')">✎ Editar evaluación</div>` : ''}
                 ${reasig ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirReasignar('${a.id}')">↪ Reasignar a otro vendedor</div>` : ''}
-                ${editCanal ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirEditarCanal('${a.id}')">✎ Editar canal</div>` : ''}
+                ${editCanal ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();abrirEditarCanal('${a.id}')">✎ Editar origen</div>` : ''}
                 ${recAt ? `<div class="menu-op" onclick="event.stopPropagation();cerrarPops();resolverRecordatorioConsulta('${a.id}')">✓ Marcar recordatorio como atendido</div>` : ''}
               </span>
             </span>`;
@@ -7308,8 +7450,11 @@ function diasDesde(ts){
 /* Días desde el último movimiento real: la última vez que se le habló, o la fecha
    de la consulta si nunca se registró un contacto. */
 function diasSinContacto(a){
-  const h=a.historialContacto;
-  const ultimo = (Array.isArray(h) && h.length) ? h[h.length-1].ts : null;
+  /* Las entradas con edicion:true son correcciones administrativas (editar el origen),
+     NO contacto con el cliente. Si contaran, corregirle el canal a una consulta vieja
+     le reiniciaría el reloj de los 25 días y la sacaría del archivado por inactividad. */
+  const h=(Array.isArray(a.historialContacto)?a.historialContacto:[]).filter(x=>!(x&&x.edicion));
+  const ultimo = h.length ? h[h.length-1].ts : null;
   return diasDesde(ultimo || a.ts);
 }
 
