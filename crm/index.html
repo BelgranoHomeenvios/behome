@@ -575,6 +575,25 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .ev-donut-l{font-size:11px;font-weight:700;fill:var(--muted,#8a94a3)}
 .ev-donut .ev-res-leg{display:flex;flex-direction:column;gap:3px;align-items:flex-start;margin-top:8px;font-size:12px}
 .ev-donut .ev-res-leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
+.ev-dest-card.sin-leer{background:#fffbef;box-shadow:inset 0 0 0 1px #f0e2b6}
+.ev-nuevo{display:inline-block;background:var(--amber,#f08c00);color:#fff;font-size:10px;font-weight:800;border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:2px}
+.ev-dest-acc{display:flex;flex-direction:column;gap:6px;align-items:stretch;flex-shrink:0}
+.ev-leido{font-size:12px;font-weight:700;color:#2f9e44;text-align:center;white-space:nowrap}
+.ev-pills{display:flex;gap:6px;flex-wrap:wrap}
+.ev-pill{font-size:12.5px;font-weight:700;padding:6px 14px;border-radius:999px;border:1px solid var(--line,#dce2ea);background:#fff;color:var(--sec,#5b6675);cursor:pointer}
+.ev-pill:hover{box-shadow:0 1px 5px rgba(15,26,42,.12)}
+.ev-pill.on{background:var(--navy);border-color:var(--navy);color:#fff}
+/* Índice más grande: era de 12px y con cuatro tramos no se leía de un vistazo. */
+.ev-donut .ev-res-leg{font-size:14px!important;gap:6px!important;font-weight:600}
+.ev-donut .ev-res-leg i{width:12px!important;height:12px!important;border-radius:3px}
+.ev-donut .ev-res-leg b{font-size:15px;font-weight:800;color:var(--ink)}
+.ev-leg-pct{font-size:13px;font-weight:700;color:var(--muted,#8a94a3)}
+.ev-seg{cursor:pointer;transition:opacity .12s}
+.ev-donut-svg:hover .ev-seg{opacity:.45}
+.ev-donut-svg .ev-seg:hover{opacity:1}
+.ev-tip{position:fixed;display:none;z-index:9999;background:#0f1a2a;color:#fff;font-size:12.5px;line-height:1.5;
+  padding:8px 11px;border-radius:8px;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.28);max-width:190px}
+.ev-tip .pt{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
 .ev-pag{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px}
 .ev-pag button[disabled]{opacity:.4;cursor:default}
 .situ-chip.acc-sinat .dot{background:var(--violet,#7c5cff)}
@@ -7653,7 +7672,9 @@ function renderPanelGestion(listaVisible){
   const items=[
     {label:'Recordatorio',   ico:'recordatorio',cnt:recCount,    activo:(!seccionVendedor && filtroRecordatorio==='pend'), act:`verRecordatorios()`},
     {label:'Estadísticas',   ico:'estadisticas',cnt:undefined,   activo:(seccionVendedor==='estadisticas'),            act:`abrirSeccionVendedor('estadisticas')`},
-    {label:'Evaluación',     ico:'evaluacion',  cnt:undefined,   activo:(seccionVendedor==='evaluacion'),              act:`abrirSeccionVendedor('evaluacion')`},
+    // Contador: casos que Cintia le marcó y todavía no abrió. Sin esto, el vendedor no
+    // tiene forma de enterarse de que le dejaron algo ahí.
+    {label:'Evaluación',     ico:'evaluacion',  cnt:mias.filter(a=>a.ejemploDelMes && (a.ejemploDelMes.target==='vendedor'||a.ejemploDelMes.target==='ambos') && !a.ejemploDelMes.leidoVend).length, activo:(seccionVendedor==='evaluacion'), act:`abrirSeccionVendedor('evaluacion')`},
     {label:'Oportunidad',    ico:'oportunidad', cnt:mias.filter(a=>esOportunidadCaliente(a)).length, activo:(seccionVendedor==='oportunidad'), act:`abrirSeccionVendedor('oportunidad')`}
   ];
   const btn=(it)=>`
@@ -7914,6 +7935,7 @@ function renderSolapasVendedor(){
   // El módulo de Marketing necesita estos dos enganches después de pintarse (acordeón de
   // las tarjetas y tooltips). Sin esto las tarjetas quedan todas plegadas y sin hover.
   if(seccionVendedor==='estadisticas'){ mktAplicarColapso(box); mktTipInit(); }
+  if(seccionVendedor==='evaluacion') evTipInit();
 }
 
 /* Cuando el vendedor entra a una sección propia, la tabla de consultas se esconde:
@@ -8372,6 +8394,8 @@ function evRango(cual){
   if(per==='custom') return {d1:d?new Date(d+'T00:00:00'):new Date(0), d2:h?new Date(h+'T23:59:59'):hoy};
   if(per==='no'||per==='todo') return null;
   const d1=new Date(); d1.setHours(0,0,0,0);
+  // Ventanas por días (pedido de Brian): las píldoras de arriba usan estas.
+  if(per==='15d'||per==='30d'||per==='60d'){ d1.setDate(d1.getDate()-(parseInt(per,10)-1)); return {d1,d2:hoy}; }
   if(per==='mes')    d1.setMonth(d1.getMonth()-1);
   if(per==='3meses') d1.setMonth(d1.getMonth()-3);
   if(per==='6meses') d1.setMonth(d1.getMonth()-6);
@@ -8407,13 +8431,13 @@ function svEvaluacionesHtml(){
   const listaCmp = rangoCmp ? todas.filter(a=>evEnRango(a,rangoCmp)) : null;
 
   const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
+  /* Período en PÍLDORAS, igual que la barra de arriba de la tabla de consultas: el
+     vendedor ya conoce ese gesto y no tiene que abrir un desplegable para cambiar la vista. */
+  const EV_PILLS=[['15d','15 días'],['30d','30 días'],['60d','60 días'],['todo','Todo'],['custom','Personalizado']];
   const controles=`<div class="est-ctrl" style="margin-bottom:12px">
     <div class="grupo"><span class="est-lb">Período</span>
-      <select onchange="setEvPer('per',this.value)">
-        ${opt('todo','Todo el histórico',evPeriodo)}${opt('mes','Último mes',evPeriodo)}
-        ${opt('3meses','Últimos 3 meses',evPeriodo)}${opt('6meses','Últimos 6 meses',evPeriodo)}
-        ${opt('anio','Este año',evPeriodo)}${opt('custom','Fechas a elección',evPeriodo)}
-      </select>
+      <div class="ev-pills">${EV_PILLS.map(([v,l])=>
+        `<button class="ev-pill${evPeriodo===v?' on':''}" onclick="setEvPer('per','${v}')">${l}</button>`).join('')}</div>
       ${evPeriodo==='custom'?`<input type="date" value="${evDesde||''}" onchange="setEvPer('desde',this.value)"><span class="tiny">a</span><input type="date" value="${evHasta||''}" onchange="setEvPer('hasta',this.value)">`:''}
     </div>
     <div class="grupo"><span class="est-lb">Comparar con</span>
@@ -8472,14 +8496,19 @@ function svEvaluacionesHtml(){
       <div class="ev-dest-hd">★ Lo que Cintia marcó para mostrarte <span class="ev-dest-n">${ejemplos.length}</span></div>
       <p class="tiny" style="margin:0 0 10px;color:var(--muted)">Casos elegidos a mano, para bien o para mal. Son los que valen la pena mirar.</p>
       ${paginaEj.map(a=>{
-        const e=a.ejemploDelMes, malo = e.tipo==='malo';
-        return `<div class="ev-dest-card ${malo?'malo':'bueno'}">
+        const e=a.ejemploDelMes, malo = e.tipo==='malo', sinLeer = !e.leidoVend;
+        return `<div class="ev-dest-card ${malo?'malo':'bueno'}${sinLeer?' sin-leer':''}">
           <div class="ev-dest-top">
             <div>
-              <div class="ev-dest-cli">${escapeHtml(nombreCliente(a)||'Sin nombre')}</div>
+              <div class="ev-dest-cli">${escapeHtml(nombreCliente(a)||'Sin nombre')}${sinLeer?'<span class="ev-nuevo">Sin leer</span>':''}</div>
               <div class="tiny" style="color:var(--muted)">${estadoDe(a)||'Sin estado'} · ${estCanalDe(a)} · ${new Date(a.ts).toLocaleDateString('es-AR')}</div>
             </div>
-            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Ver la consulta</button>
+            <div class="ev-dest-acc">
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Ver la consulta</button>
+              ${sinLeer
+                ? `<button class="btn btn-navy btn-sm" onclick="event.stopPropagation();marcarEjemploLeidoVendedor('${a.id}')">Leído</button>`
+                : `<span class="ev-leido">✓ Leído${e.leidoVendTs?' · '+new Date(e.leidoVendTs).toLocaleDateString('es-AR'):''}</span>`}
+            </div>
           </div>
           <div class="ev-dest-chips">${chip(a.evalAtencion,'atencion')}${chip(a.evalConsulta,'consulta')}${chip(a.evalCliente,'cliente')}
             <span class="ev-chip ${malo?'r':'g'}">${malo?'Así no':'Así sí'}</span></div>
@@ -8490,7 +8519,7 @@ function svEvaluacionesHtml(){
     </div>` : `<div class="ev-dest"><div class="ev-dest-hd">★ Lo que Cintia marcó para mostrarte</div>
       <p class="tiny" style="margin:6px 0 0;color:var(--muted)">Todavía no marcó ningún caso tuyo en este período. Los gráficos de abajo igual muestran cómo viene tu trabajo.</p></div>`;
 
-  if(!lista.length) return controles + cardsEjemplos + `<p class="cin-empty">No hay evaluaciones en el período elegido.</p>`;
+  if(!lista.length) return controles + `<p class="cin-empty">No hay evaluaciones en el período elegido.</p>` + cardsEjemplos;
 
   const pctBuenos=(l,campo)=>{
     let n=0,b=0;
@@ -8517,19 +8546,19 @@ function svEvaluacionesHtml(){
     let off=0;
     const segs=tramos.map(t=>{
       const len=t.n/n*C;
-      const el=`<circle cx="68" cy="68" r="${R}" fill="none" stroke="${COL[t.cls]||'#adb5bd'}" stroke-width="24"
+      // Los datos viajan en el propio segmento; evTipInit los lee al pasar el mouse.
+      const el=`<circle class="ev-seg" cx="68" cy="68" r="${R}" fill="none" stroke="${COL[t.cls]||'#adb5bd'}" stroke-width="26"
         stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"
-        transform="rotate(-90 68 68)"><title>${t.label}: ${t.n} · ${Math.round(t.n/n*100)}%</title></circle>`;
+        transform="rotate(-90 68 68)"
+        data-lbl="${escAttr(t.label)}" data-n="${t.n}" data-pct="${Math.round(t.n/n*100)}" data-col="${COL[t.cls]||'#adb5bd'}"></circle>`;
       off+=len; return el;
     }).join('');
     return `<div class="ev-donut">
       <div class="ev-donut-tit">${titulo}</div>
-      <svg viewBox="0 0 136 136" class="ev-donut-svg">${segs}
-        <text x="68" y="64" text-anchor="middle" class="ev-donut-n">${buenos}%</text>
-        <text x="68" y="82" text-anchor="middle" class="ev-donut-l">bien</text></svg>
+      <svg viewBox="0 0 136 136" class="ev-donut-svg">${segs}</svg>
       ${delta}
       <div class="ev-res-leg">${tramos.map(t=>
-        `<span><i style="background:${COL[t.cls]||'#adb5bd'}"></i>${t.label} <b>${t.n}</b> <span class="tiny" style="color:var(--muted)">${Math.round(t.n/n*100)}%</span></span>`).join('')}</div>
+        `<span><i style="background:${COL[t.cls]||'#adb5bd'}"></i>${t.label} <b>${t.n}</b> <span class="ev-leg-pct">${Math.round(t.n/n*100)}%</span></span>`).join('')}</div>
       <p class="tiny" style="margin:6px 0 0;color:var(--muted)">${ayuda}</p>
     </div>`;
   };
@@ -8551,16 +8580,36 @@ function svEvaluacionesHtml(){
     ${ejemplos.length?`<div class="ev-kpi"><div class="n">${ejemplos.length}</div><div class="l">Marcadas para mostrarte</div></div>`:''}
   </div>`;
 
-  return controles + notaCmp + kpis + cardsEjemplos + `
+  // Orden final (pedido de Brian): controles → KPIs → tortas → lo que Cintia marcó.
+  return controles + notaCmp + kpis + `
     <div class="ev-donuts">
       ${donut('evalAtencion',EV_ATENCION,'Tu calidad de atención','Cómo te evaluó Cintia a vos.')}
       ${donut('evalConsulta',EV_CONSULTA,'Calidad de las consultas que recibiste','No depende de vos: dice si la publicidad trae gente bien orientada.')}
       ${donut('evalCliente',EV_CLIENTE,'Calidad de los clientes','Cuán decididos venían. Marca cuánta oportunidad real tuviste.')}
     </div>
-`;
+` + cardsEjemplos;
 }
 let evPag=1;
 function setEvPag(n){ evPag=Math.max(1,n); renderSolapasVendedor(); }
+
+/* Tooltip de las tortas. Se engancha UNA sola vez al documento y lee los data- del
+   segmento que está debajo del mouse, así sirve para las tortas que se redibujen
+   después sin volver a enganchar nada. Reemplaza al <title> nativo del SVG, que tarda
+   casi un segundo en aparecer y no se puede estilar. */
+function evTipInit(){
+  if(window._evTipWired) return; window._evTipWired=true;
+  const t=document.createElement('div'); t.id='evTip'; t.className='ev-tip'; document.body.appendChild(t);
+  document.addEventListener('mousemove', e=>{
+    const seg = e.target && e.target.classList && e.target.classList.contains('ev-seg') ? e.target : null;
+    if(seg){
+      t.innerHTML=`<span class="pt" style="background:${seg.dataset.col}"></span><b>${seg.dataset.lbl}</b><br>`+
+                  `${seg.dataset.n} consulta${seg.dataset.n==='1'?'':'s'} · ${seg.dataset.pct}%`;
+      t.style.display='block';
+      let x=e.clientX+14; if(x+190>window.innerWidth) x=e.clientX-190;
+      t.style.left=x+'px'; t.style.top=(e.clientY+14)+'px';
+    } else t.style.display='none';
+  }, true);
+}
 
 function abrirSolapaVendedor(id){
   // Toggle: si ya está abierta, la cierra.
@@ -11822,6 +11871,13 @@ function htmlEjemploItem(a, opts){
   };
   const destino = e.target==='ambos' ? 'Vendedor y dirección'
                 : e.target==='direccion' ? '🔒 Solo dirección' : 'Para el vendedor';
+  /* ¿El vendedor lo abrió? Solo tiene sentido si el caso va dirigido a él. Sirve para
+     distinguir "no cambió nada" de "ni se enteró". */
+  const visto = (e.target==='vendedor'||e.target==='ambos')
+    ? (e.leidoVend
+        ? '<span class="ev-chip g" style="font-size:10px;padding:2px 7px">👁 Lo vio el vendedor</span>'
+        : '<span class="ev-chip" style="font-size:10px;padding:2px 7px">👁 Sin ver por el vendedor</span>')
+    : '';
   const texto = opts.paraDireccion ? (e.motivoDir||e.motivo) : e.motivo;
   return '<div class="solic-item ejem-item'+(sinLeer?' sin-leer':'')+'">'
     + '<div class="ejem-cuerpo">'
@@ -11831,7 +11887,7 @@ function htmlEjemploItem(a, opts){
         ? '<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">'+evChip('atencion',a.evalAtencion)+evChip('consulta',a.evalConsulta)+evChip('cliente',a.evalCliente)+'</div>' : '')
     +   '<div class="tiny" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'
     +     '<span class="ev-chip '+(e.tipo==='malo'?'r':'g')+'" style="font-size:10px;padding:2px 7px">'+(e.tipo==='malo'?'👎 Así no':'👍 Así sí')+'</span>'
-    +     '<span class="ev-chip a" style="font-size:10px;padding:2px 7px">'+destino+'</span>'
+    +     '<span class="ev-chip a" style="font-size:10px;padding:2px 7px">'+destino+'</span>'+visto
     +   '</div>'
     +   (texto?'<div class="tiny" style="margin-top:6px;padding:8px 10px;background:var(--line2);border-radius:7px">'+escapeHtml(texto)+'</div>':'')
     +   (e.captura?'<div class="ev-caps"><div class="ev-cap"><img src="'+e.captura+'" onclick="verImagen(\''+e.captura+'\')" title="Tocá para verla en grande"></div></div>':'')
@@ -11950,6 +12006,7 @@ function htmlEjemplosDelMes(){
           <div class="tiny" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
             <span class="ev-chip ${a.ejemploDelMes.tipo==='malo'?'r':'g'}" style="font-size:10px;padding:2px 7px">${a.ejemploDelMes.tipo==='malo'?'👎 Mal ejemplo':'👍 Buen ejemplo'}</span>
             <span class="ev-chip a" style="font-size:10px;padding:2px 7px">${a.ejemploDelMes.target==='direccion'?'🔒 Solo dirección':'Para el vendedor'}</span>
+            ${(a.ejemploDelMes.target==='vendedor'||a.ejemploDelMes.target==='ambos')?`<span class="ev-chip ${a.ejemploDelMes.leidoVend?'g':''}" style="font-size:10px;padding:2px 7px">${a.ejemploDelMes.leidoVend?'👁 Lo vio':'👁 Sin ver'}</span>`:''}
           </div>
           ${a.ejemploDelMes.motivo?`<div class="tiny" style="margin-top:6px;padding:8px 10px;background:var(--line2);border-radius:7px"><b>Motivo:</b> ${escapeHtml(a.ejemploDelMes.motivo)}</div>`:''}
           ${a.ejemploDelMes.captura?`<div class="ev-caps"><div class="ev-cap"><img src="${a.ejemploDelMes.captura}" onclick="verImagen('${a.ejemploDelMes.captura}')" title="Tocá para verla en grande"></div></div>`:''}
@@ -11963,6 +12020,20 @@ function htmlEjemplosDelMes(){
 async function marcarEjemploLeido(id){
   const a=atenciones.find(x=>x.id===id);
   if(a&&a.ejemploDelMes){ a.ejemploDelMes.leido=true; await saveAtenciones(); renderPanelCintia(); }
+}
+/* TERCERA marca de leído, la del VENDEDOR. Va aparte a propósito: `leido` es la de Cintia
+   y `leidoDir` la de dirección, y si el vendedor escribiera en cualquiera de esas dos les
+   estaría marcando como visto algo que ellos no vieron. Guarda también la fecha, que es
+   lo que le permite a Cintia saber si el caso llegó o quedó sin abrir. */
+async function marcarEjemploLeidoVendedor(id){
+  const a=atenciones.find(x=>x.id===id);
+  if(!a||!a.ejemploDelMes) return;
+  if(a.vendedorId!==YO) return;               // solo el dueño de la consulta marca la suya
+  a.ejemploDelMes.leidoVend=true;
+  a.ejemploDelMes.leidoVendTs=new Date().toISOString();
+  await saveAtenciones();
+  renderSolapasVendedor();
+  renderPanelGestion(construirListaFiltrada());
 }
 
 /* ================= Evaluar consulta =================
