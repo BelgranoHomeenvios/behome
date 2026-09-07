@@ -552,6 +552,31 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 /* Píldoras de la barra Acción. Mismo lenguaje de color que el resto del CRM:
    rojo lo vencido, gris lo que nadie agendó, azul hoy, ámbar mañana. */
 .chip-btn.chip-sind{font-style:italic;color:var(--muted,#8a94a3);border-style:dashed}
+/* ===== Solapa Evaluación del vendedor: KPIs, ejemplos, tortas y paginado ===== */
+.ev-kpis{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.ev-kpi{flex:1 1 150px;background:var(--surface-1,#f4f6f8);border:1px solid var(--line,#e3e8ee);border-radius:12px;padding:10px 14px}
+.ev-kpi .n{font-size:24px;font-weight:800;color:var(--navy);line-height:1.1}
+.ev-kpi .l{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted,#8a94a3);margin-top:2px}
+.ev-dest{background:#fffdf5;border:1px solid #f0e2b6;border-radius:14px;padding:14px 16px;margin:0 0 16px}
+.ev-dest-hd{font-size:14px;font-weight:800;color:var(--navy)}
+.ev-dest-n{display:inline-block;background:var(--navy);color:#fff;border-radius:999px;font-size:11px;padding:1px 8px;margin-left:6px;vertical-align:2px}
+.ev-dest-card{background:#fff;border:1px solid var(--line,#e3e8ee);border-left:4px solid #9aa5b1;border-radius:10px;padding:11px 13px;margin-bottom:9px}
+.ev-dest-card.bueno{border-left-color:#2f9e44}
+.ev-dest-card.malo{border-left-color:#c92a2a}
+.ev-dest-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.ev-dest-cli{font-weight:800;font-size:14px;color:var(--ink)}
+.ev-dest-chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0}
+.ev-dest-txt{margin-top:8px;background:var(--surface-1,#f4f6f8);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--sec);line-height:1.45}
+.ev-donuts{display:flex;gap:14px;flex-wrap:wrap}
+.ev-donut{flex:1 1 230px;background:var(--surface-1,#f4f6f8);border:1px solid var(--line,#e3e8ee);border-radius:12px;padding:12px 14px;text-align:center}
+.ev-donut-tit{font-size:13px;font-weight:800;color:var(--navy);margin-bottom:6px}
+.ev-donut-svg{width:136px;height:136px;display:block;margin:0 auto}
+.ev-donut-n{font-size:27px;font-weight:800;fill:var(--ink)}
+.ev-donut-l{font-size:11px;font-weight:700;fill:var(--muted,#8a94a3)}
+.ev-donut .ev-res-leg{display:flex;flex-direction:column;gap:3px;align-items:flex-start;margin-top:8px;font-size:12px}
+.ev-donut .ev-res-leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
+.ev-pag{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px}
+.ev-pag button[disabled]{opacity:.4;cursor:default}
 .situ-chip.acc-sinat .dot{background:var(--violet,#7c5cff)}
 .situ-chip.acc-venc .dot{background:var(--red)}
 .situ-chip.acc-sin  .dot{background:var(--muted,#8a94a3)}
@@ -8359,6 +8384,7 @@ function evEnRango(a, r){
   return t>=r.d1.getTime() && t<=r.d2.getTime();
 }
 function setEvPer(k,v){
+  evPag=1;   // cambiar el período reinicia el paginado
   if(k==='per'){ evPeriodo=v; if(v!=='custom'){evDesde=null;evHasta=null;} }
   else if(k==='desde') evDesde=v;
   else if(k==='hasta') evHasta=v;
@@ -8400,10 +8426,25 @@ function svEvaluacionesHtml(){
     </div>
   </div>`;
 
-  if(!todas.length) return controles+`<p class="cin-empty">Cintia todavía no evaluó ninguna de tus consultas.</p>`;
-  if(!lista.length) return controles+`<p class="cin-empty">No hay evaluaciones en el período elegido.</p>`;
+  /* ===== COBERTURA: qué % de MIS consultas del período miró Cintia =====
+     Va sobre la fecha de la CONSULTA (a.ts), no sobre la de evaluación: la pregunta es
+     "de lo que me entró, cuánto se auditó". Quedan afuera las consultas de gestión, que
+     no son evaluables y bajarían el % sin que nadie pueda hacer nada al respecto. */
+  const evaluables = atenciones.filter(a=>a.vendedorId===YO && !esConsultaGestion(a)
+    && (!rango || (new Date(a.ts).getTime()>=rango.d1.getTime() && new Date(a.ts).getTime()<=rango.d2.getTime())));
+  const evaluadasN = evaluables.filter(a=>a.evaluada).length;
+  const cobertura = evaluables.length ? Math.round(evaluadasN/evaluables.length*100) : null;
 
-  // Las escalas van de 1 (mejor) a 4 (peor); el color sale de la propia definición.
+  /* ===== LO QUE CINTIA QUIERE MOSTRARTE =====
+     Va PRIMERO y es el motivo de entrar acá. Son los casos que ella marcó como ejemplo
+     con destino al vendedor; 'direccion' es solo para Brian y no se muestra. */
+  const ejemplos = atenciones.filter(a=>a.vendedorId===YO && a.ejemploDelMes
+      && (a.ejemploDelMes.target==='vendedor' || a.ejemploDelMes.target==='ambos')
+      && evEnRango(a,rango))
+    .sort((x,y)=>new Date(y.ejemploDelMes.ts||y.ts)-new Date(x.ejemploDelMes.ts||x.ts));
+
+  if(!todas.length && !ejemplos.length) return controles+`<p class="cin-empty">Cintia todavía no evaluó ninguna de tus consultas.</p>`;
+
   const ESC={atencion:EV_ATENCION, consulta:EV_CONSULTA, cliente:EV_CLIENTE};
   const chip=(v,esc)=>{
     const fila=(ESC[esc]||[]).find(x=>x[0]===v);
@@ -8411,16 +8452,55 @@ function svEvaluacionesHtml(){
     const cls = fila[2]==='g1' ? 'g' : (fila[2]==='g4' ? 'r' : '');
     return `<span class="ev-chip ${cls}">${fila[1]}</span>`;
   };
-
-  /* Barra de distribución por eje: antes de la lista, el panorama. Una lista de
-     285 filas no responde "¿cómo vengo atendiendo?"; esto sí, de un vistazo. */
   const COL={g1:'#2f9e44', g2:'#74b816', g3:'#f08c00', g4:'#c92a2a'};
+
+  /* PAGINADO SOBRE LOS EJEMPLOS. Son la única lista que le llega al vendedor, así que es
+     esta la que se corta de a 20 — con el histórico completo puede juntar varias decenas. */
+  const POR_PAG=20;
+  const totalPag=Math.max(1,Math.ceil(ejemplos.length/POR_PAG));
+  if(evPag>totalPag) evPag=totalPag;
+  const desdeIdx=(evPag-1)*POR_PAG;
+  const paginaEj=ejemplos.slice(desdeIdx, desdeIdx+POR_PAG);
+  const paginador = totalPag>1 ? `<div class="ev-pag">
+      <button class="btn btn-outline btn-sm" ${evPag<=1?'disabled':''} onclick="setEvPag(${evPag-1})">‹ Anterior</button>
+      <span class="tiny">Página <b>${evPag}</b> de ${totalPag} · mostrando ${desdeIdx+1}–${Math.min(desdeIdx+POR_PAG,ejemplos.length)} de ${ejemplos.length}</span>
+      <button class="btn btn-outline btn-sm" ${evPag>=totalPag?'disabled':''} onclick="setEvPag(${evPag+1})">Siguiente ›</button>
+    </div>` : '';
+
+  const cardsEjemplos = ejemplos.length ? `
+    <div class="ev-dest">
+      <div class="ev-dest-hd">★ Lo que Cintia marcó para mostrarte <span class="ev-dest-n">${ejemplos.length}</span></div>
+      <p class="tiny" style="margin:0 0 10px;color:var(--muted)">Casos elegidos a mano, para bien o para mal. Son los que valen la pena mirar.</p>
+      ${paginaEj.map(a=>{
+        const e=a.ejemploDelMes, malo = e.tipo==='malo';
+        return `<div class="ev-dest-card ${malo?'malo':'bueno'}">
+          <div class="ev-dest-top">
+            <div>
+              <div class="ev-dest-cli">${escapeHtml(nombreCliente(a)||'Sin nombre')}</div>
+              <div class="tiny" style="color:var(--muted)">${estadoDe(a)||'Sin estado'} · ${estCanalDe(a)} · ${new Date(a.ts).toLocaleDateString('es-AR')}</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();abrirVistaEvaluacion('${a.id}')">Ver la consulta</button>
+          </div>
+          <div class="ev-dest-chips">${chip(a.evalAtencion,'atencion')}${chip(a.evalConsulta,'consulta')}${chip(a.evalCliente,'cliente')}
+            <span class="ev-chip ${malo?'r':'g'}">${malo?'Así no':'Así sí'}</span></div>
+          ${e.motivo?`<div class="ev-dest-txt">${escapeHtml(e.motivo)}</div>`:''}
+        </div>`;
+      }).join('')}
+      ${paginador}
+    </div>` : `<div class="ev-dest"><div class="ev-dest-hd">★ Lo que Cintia marcó para mostrarte</div>
+      <p class="tiny" style="margin:6px 0 0;color:var(--muted)">Todavía no marcó ningún caso tuyo en este período. Los gráficos de abajo igual muestran cómo viene tu trabajo.</p></div>`;
+
+  if(!lista.length) return controles + cardsEjemplos + `<p class="cin-empty">No hay evaluaciones en el período elegido.</p>`;
+
   const pctBuenos=(l,campo)=>{
     let n=0,b=0;
     l.forEach(a=>{ const v=a[campo]; if(v){ n++; if(v<=2) b++; } });
     return n?Math.round(b/n*100):null;
   };
-  const barra=(campo,esc,titulo,ayuda)=>{
+  /* Torta (donut) por eje. Reemplaza a la barra apilada: la barra hacía comparar largos
+     y con tres tramos chicos no se leía. El % "bien" va en el centro, que es el número
+     que el vendedor busca. Es SVG puro, sin librerías. */
+  const donut=(campo,esc,titulo,ayuda)=>{
     const conteo=new Map(esc.map(x=>[x[0],0]));
     let n=0;
     lista.forEach(a=>{ const v=a[campo]; if(conteo.has(v)){ conteo.set(v,conteo.get(v)+1); n++; } });
@@ -8431,19 +8511,26 @@ function svEvaluacionesHtml(){
     let delta='';
     if(buenosCmp!==null && buenos!==null){
       const d=buenos-buenosCmp;
-      const cls = d>0?'epos':(d<0?'eneg':'');
-      delta=`<span class="ev-delta ${cls}">${d>0?'▲':(d<0?'▼':'=')} ${Math.abs(d)} pts vs ${buenosCmp}%</span>`;
+      delta=`<div class="ev-delta ${d>0?'epos':(d<0?'eneg':'')}">${d>0?'▲':(d<0?'▼':'=')} ${Math.abs(d)} pts vs ${buenosCmp}%</div>`;
     }
-    return `<div class="ev-res">
-      <div class="ev-res-hd">
-        <span class="ev-res-tit">${titulo}</span>
-        <span class="ev-res-pct">${buenos}% bien ${delta}</span>
-      </div>
-      <div class="ev-res-barra">${tramos.map(t=>
-        `<span style="width:${(t.n/n*100).toFixed(1)}%;background:${COL[t.cls]||'#adb5bd'}" title="${t.label}: ${t.n}"></span>`).join('')}</div>
+    const R=52, C=2*Math.PI*R;
+    let off=0;
+    const segs=tramos.map(t=>{
+      const len=t.n/n*C;
+      const el=`<circle cx="68" cy="68" r="${R}" fill="none" stroke="${COL[t.cls]||'#adb5bd'}" stroke-width="24"
+        stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"
+        transform="rotate(-90 68 68)"><title>${t.label}: ${t.n} · ${Math.round(t.n/n*100)}%</title></circle>`;
+      off+=len; return el;
+    }).join('');
+    return `<div class="ev-donut">
+      <div class="ev-donut-tit">${titulo}</div>
+      <svg viewBox="0 0 136 136" class="ev-donut-svg">${segs}
+        <text x="68" y="64" text-anchor="middle" class="ev-donut-n">${buenos}%</text>
+        <text x="68" y="82" text-anchor="middle" class="ev-donut-l">bien</text></svg>
+      ${delta}
       <div class="ev-res-leg">${tramos.map(t=>
-        `<span><i style="background:${COL[t.cls]||'#adb5bd'}"></i>${t.label} <b>${t.n}</b></span>`).join('')}</div>
-      <p class="tiny" style="margin:4px 0 0;color:var(--muted)">${ayuda}</p>
+        `<span><i style="background:${COL[t.cls]||'#adb5bd'}"></i>${t.label} <b>${t.n}</b> <span class="tiny" style="color:var(--muted)">${Math.round(t.n/n*100)}%</span></span>`).join('')}</div>
+      <p class="tiny" style="margin:6px 0 0;color:var(--muted)">${ayuda}</p>
     </div>`;
   };
 
@@ -8451,31 +8538,29 @@ function svEvaluacionesHtml(){
     ? `<div class="est-note" style="margin:0 0 12px">Comparando <b>${evFmtRango(rango)}</b> (${lista.length} evaluaciones) contra <b>${evFmtRango(rangoCmp)}</b> (${listaCmp.length}).</div>`
     : '';
 
-  return controles + notaCmp + `
-    <div class="ev-resumen">
-      ${barra('evalAtencion',EV_ATENCION,'Tu calidad de atención','Cómo te evaluó Cintia a vos.')}
-      ${barra('evalConsulta',EV_CONSULTA,'Calidad de las consultas que recibiste','No depende de vos: dice si la publicidad trae gente bien orientada.')}
-      ${barra('evalCliente',EV_CLIENTE,'Calidad de los clientes','Cuán decididos venían. Marca cuánta oportunidad real tuviste.')}
+  /* La TABLA con todas las evaluaciones se SACÓ (pedido de Brian): al vendedor solo le
+     llega lo que Cintia marcó como ejemplo para él. Las evaluaciones que no marcó siguen
+     existiendo y siguen alimentando los gráficos de abajo — simplemente no se listan una
+     por una. Se incluye target 'ambos' ("Vendedor y dirección"): también es para él.
+     CONSECUENCIA: el pedido de revisión, que salía de tocar una fila de esa tabla, ahora
+     solo se puede hacer sobre los casos marcados. */
+
+  const kpis=`<div class="ev-kpis">
+    <div class="ev-kpi"><div class="n">${lista.length}</div><div class="l">Evaluadas en el período</div></div>
+    ${cobertura!==null?`<div class="ev-kpi"><div class="n" style="color:${cobertura>=70?'#2f9e44':(cobertura>=40?'#f08c00':'#c92a2a')}">${cobertura}%</div><div class="l">De tus ${evaluables.length} consultas, evaluadas</div></div>`:''}
+    ${ejemplos.length?`<div class="ev-kpi"><div class="n">${ejemplos.length}</div><div class="l">Marcadas para mostrarte</div></div>`:''}
+  </div>`;
+
+  return controles + notaCmp + kpis + cardsEjemplos + `
+    <div class="ev-donuts">
+      ${donut('evalAtencion',EV_ATENCION,'Tu calidad de atención','Cómo te evaluó Cintia a vos.')}
+      ${donut('evalConsulta',EV_CONSULTA,'Calidad de las consultas que recibiste','No depende de vos: dice si la publicidad trae gente bien orientada.')}
+      ${donut('evalCliente',EV_CLIENTE,'Calidad de los clientes','Cuán decididos venían. Marca cuánta oportunidad real tuviste.')}
     </div>
-    <p class="tiny" style="margin:14px 0 12px">${lista.length} consulta${lista.length===1?'':'s'} evaluada${lista.length===1?'':'s'} en este período. Tocá una para ver el detalle y pedir una revisión.</p>
-    <table class="tabla-cintia"><thead><tr><th>Cliente</th><th>Fecha</th><th>Atención</th><th>Consulta</th><th>Cliente</th><th>Observación</th></tr></thead><tbody>
-    ${lista.map(a=>{
-      // El vendedor NO ve las "Notas internas" de Cintia (obsCintia); solo su comentario dedicado.
-      const obs = comentarioVendedorTexto(a);
-      return `
-      <tr style="cursor:pointer" onclick="abrirVistaEvaluacion('${a.id}')">
-        <td><b>${escapeHtml(a.clienteNombre||'Sin nombre')}</b>${a.oportunidadPerdida?'<span class="nueva-b" style="background:var(--red)">Oport. perdida</span>':''}
-          ${a.clienteTelefono?`<div class="tiny" style="color:var(--muted)">${escapeHtml(a.clienteTelefono)}</div>`:''}</td>
-        <td>${fechaConsultaCorta(a.evaluadoTs||a.ts)}</td>
-        <td>${chip(a.evalAtencion,'atencion')}</td>
-        <td>${chip(a.evalConsulta,'consulta')}</td>
-        <td>${chip(a.evalCliente,'cliente')}</td>
-        <td class="ev-obs-cel">${obs
-          ? `<span title="${escAttr(obs)}">${escapeHtml(obs.length>70?obs.slice(0,70)+'…':obs)}</span>`
-          : '<span class="ena">—</span>'}</td>
-      </tr>`;}).join('')}
-    </tbody></table>`;
+`;
 }
+let evPag=1;
+function setEvPag(n){ evPag=Math.max(1,n); renderSolapasVendedor(); }
 
 function abrirSolapaVendedor(id){
   // Toggle: si ya está abierta, la cierra.
