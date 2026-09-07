@@ -551,6 +551,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .situ-chip.alerta .dot{background:var(--red)}
 /* Píldoras de la barra Acción. Mismo lenguaje de color que el resto del CRM:
    rojo lo vencido, gris lo que nadie agendó, azul hoy, ámbar mañana. */
+.situ-chip.acc-sinat .dot{background:var(--violet,#7c5cff)}
 .situ-chip.acc-venc .dot{background:var(--red)}
 .situ-chip.acc-sin  .dot{background:var(--muted,#8a94a3)}
 .situ-chip.acc-hoy  .dot{background:var(--blue)}
@@ -560,10 +561,6 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .sb-total{margin-left:auto;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);white-space:nowrap}
 .sb-total b{font-size:17px;font-weight:800}
 /* Pop-up de "muchas en seguimiento" */
-.aviso-seg-caja{background:#fff;border-radius:16px;max-width:400px;width:calc(100% - 40px);padding:26px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
-.aviso-seg-caja .aviso-seg-emoji{font-size:40px;margin-bottom:6px}
-.aviso-seg-caja h3{margin:0 0 8px;font-size:18px;color:var(--red)}
-.aviso-seg-caja p{font-size:13.5px;color:var(--sec);line-height:1.5;margin:0 0 18px}
 .interv-ico{opacity:.4;transition:opacity .12s,background .12s}
 .interv-ico:hover{opacity:.8}
 .interv-ico.on{opacity:1;background:rgba(13,148,136,.16);border-radius:6px}
@@ -1480,10 +1477,13 @@ textarea{resize:vertical;min-height:60px}
 .gb .ic svg{width:18px;height:18px}
 .gb .cnt{font-size:28px!important;font-weight:800!important;letter-spacing:-.5px;color:var(--ink)!important;margin-top:6px!important}
 .gb.on{background:var(--blue-l)!important;border-color:var(--blue)!important}
-.gridbtn .gb:nth-child(1){--gbc:var(--amber);--gbl:var(--amber-l)}
-.gridbtn .gb:nth-child(2){--gbc:var(--red);--gbl:var(--red-l)}
-.gridbtn .gb:nth-child(3){--gbc:var(--sky);--gbl:var(--sky-l)}
-.gridbtn .gb:nth-child(4){--gbc:var(--blue);--gbl:var(--blue-l)}
+/* Al bajar los cuatro baldes de agenda, el nth-child corrió y Estadísticas quedaba en
+   ROJO (el color que era de "Pendientes"), como si fuera una alarma. Se reasignaron a los
+   colores que ya tenían en las posiciones 5 a 8. */
+.gridbtn .gb:nth-child(1){--gbc:var(--violet);--gbl:var(--violet-l)}
+.gridbtn .gb:nth-child(2){--gbc:var(--sky);--gbl:var(--sky-l)}
+.gridbtn .gb:nth-child(3){--gbc:var(--green);--gbl:var(--green-l)}
+.gridbtn .gb:nth-child(4){--gbc:var(--amber);--gbl:var(--amber-l)}
 .gridbtn .gb:nth-child(5){--gbc:var(--violet);--gbl:var(--violet-l)}
 .gridbtn .gb:nth-child(6){--gbc:var(--sky);--gbl:var(--sky-l)}
 .gridbtn .gb:nth-child(7){--gbc:var(--green);--gbl:var(--green-l)}
@@ -2767,7 +2767,13 @@ function entrarApp(){
   // Default de período por rol: el vendedor arranca viendo los últimos 15 días
   // (3/8/2026, Brian: 30 le mostraba demasiado y diluía la agenda del día).
   // Cintia y dirección siguen con la ventana más amplia.
-  if(!esAdmin() && !esAuditora()){
+  if(esDireccionReal()){
+    // DIRECCIÓN arranca siempre en "Todo", también cuando mira como un vendedor: mirando
+    // recortado no puede ver el arrastre viejo, que es justo lo que va a buscar. Se gatea
+    // por el usuario REAL para que este default no se le pegue al vendedor, que sigue en 15.
+    pbActivo='todas';
+    cintiaFechaDesde=null; cintiaFechaHasta=null;
+  }else if(!esAdmin() && !esAuditora()){
     pbActivo='15';
     const hoy=new Date(); hoy.setHours(0,0,0,0);
     const d=new Date(hoy); d.setDate(d.getDate()-14);
@@ -2779,9 +2785,6 @@ function entrarApp(){
      así abre rápido y "Todas" termina mostrando todo sin que nadie espere. */
   setTimeout(()=>completarHistoricoEnSegundoPlano(), 1200);
   setTimeout(()=>purgarFotosViejas(), 4000);   // limpia fotos viejas para no inflar la base
-  // Aviso de "muchas en seguimiento": primer chequeo al entrar y después cada 2 horas.
-  setTimeout(()=>chequearSeguimientoAlto(false), 6000);
-  if(!window._segInterval) window._segInterval=setInterval(()=>chequearSeguimientoAlto(false), 2*3600*1000);
   // Latido para la "última señal" (proxy de la hora de desconexión): cada 4 min mientras
   // esté conectado y no en pausa.
   // La "última señal" ahora sigue la ACTIVIDAD real (no solo estar conectado): solo late si
@@ -5137,11 +5140,20 @@ function renderChipsHoy(){
     // meses y sigue en seguimiento activo es trabajo real del vendedor hoy, aunque no haya
     // entrado en la ventana elegida. Aplicarle el período la escondería justo en el caso
     // que más importa (el vendedor con arrastre viejo).
+    // El conteo activo es SOLO DE VENDEDORES. Queda afuera todo el resto de los roles
+    // (auditora: Cintia e Iara · admin: Brian · marketing · reclamos): no son carga de
+    // venta, trabajan transversal sobre todos, y su número al lado del de Nati se leía
+    // como si fueran vendedores con el triple de trabajo. Se van de los chips Y del total,
+    // para que la fila cierre. Es lista blanca a propósito: un rol nuevo que se agregue
+    // mañana no se cuela solo. Siguen contando en Virtual y Físico, que miden volumen de
+    // entrada y ahí sí corresponde.
+    const _fueraDelActivo = uid => rolDe(uid)!=='vendedor';
     const ca={}, caIni={}, caAct={};
     let activasTotal=0;
     base.forEach(a=>{
       const e=etapaSeguimiento(a);          // 'inicial' | 'activo' | null
       if(!e) return;
+      if(a.vendedorId && _fueraDelActivo(a.vendedorId)) return;
       activasTotal++;
       if(!a.vendedorId) return;
       ca[a.vendedorId]=(ca[a.vendedorId]||0)+1;
@@ -5152,7 +5164,8 @@ function renderChipsHoy(){
     const ids=[...new Set([...Object.keys(cv),...Object.keys(cf),...Object.keys(ca),...todosVendedores])].filter(uid=>uid && USUARIOS[uid]);
     // Cada número es un botón: Cintia o dirección filtran la lista de Consultas por ese
     // vendedor y si la atención fue virtual o física. Se vuelve a tocar para quitar el filtro.
-    const fila=(cnt,total,tipo,tip)=>`<div class="chips">${ids.map(uid=>{
+    const idsActivo = ids.filter(uid=>!_fueraDelActivo(uid));
+    const fila=(cnt,total,tipo,tip,idsFila)=>`<div class="chips">${(idsFila||ids).map(uid=>{
         const on = filtroConteoVendedor===uid && filtroConteoTipo===tipo;
         const t = tip ? ` title="${tip(uid)}"` : '';
         return `<button type="button" class="chip chip-btn${on?' on':''}"${t} onclick="toggleConteoFiltro('${uid}','${tipo}')"><b>${cnt[uid]||0}</b> ${nombreDe(uid)}</button>`;
@@ -5160,7 +5173,7 @@ function renderChipsHoy(){
     box.style.display='block';
     box.innerHTML=`<div class="conteo-sub">📲 Conteo virtual</div>${fila(cv,virt.length,'virtual')}
       <div class="conteo-sub" style="margin-top:12px">🚶‍♂️ Conteo físico (local)</div>${fila(cf,fis.length,'fisico')}
-      <div class="conteo-sub" style="margin-top:12px">🔥 Conteo activo <span style="font-weight:600;text-transform:none;letter-spacing:0;opacity:.65">· carga de hoy, sin período</span></div>${fila(ca,activasTotal,'activo',uid=>`${caIni[uid]||0} en consulta inicial · ${caAct[uid]||0} en seguimiento activo`)}`;
+      <div class="conteo-sub" style="margin-top:12px">🔥 Conteo activo <span style="font-weight:600;text-transform:none;letter-spacing:0;opacity:.65">· carga de hoy, sin período</span></div>${fila(ca,activasTotal,'activo',uid=>`${caIni[uid]||0} en consulta inicial · ${caAct[uid]||0} en seguimiento activo`,idsActivo)}`;
     $('chipsTitle').textContent='Conteo';
   }else{
     $('chipsTitle').classList.add('hidden');
@@ -6899,7 +6912,11 @@ const FILTRO_ESTADO_OPCIONES=[
    Devuelve siempre una de las claves de FILTRO_PLAZO_OPCIONES. */
 function accionDe(a){
   const p=proximaAccionDe(a);
-  if(!p) return 'sin';
+  // Sin fecha hay DOS casos que no se parecen en nada y antes caían juntos: el lead que
+  // entró y nadie tocó (hay un cliente esperando, es lo más urgente que existe) y la que
+  // ya se trabajó pero quedó sin próximo paso. Se separan para que la primera no se
+  // esconda entre las colgadas de hace tres semanas.
+  if(!p) return fueTrabajada(a) ? 'sin' : 'sinatender';
   const hoy0=new Date(); hoy0.setHours(0,0,0,0);
   const prox=new Date(p);
   if(prox <  hoy0)                            return 'vencidas';
@@ -6911,8 +6928,8 @@ function accionDe(a){
    agenda del vendedor lo único que cambia el trabajo de HOY es hoy, mañana, lo vencido y
    lo que no tiene fecha. El resto se ordena solo por fecha dentro de la tabla. */
 const FILTRO_PLAZO_OPCIONES=[
-  ['todos','Cualquier acción'],['vencidas','Atrasadas'],['sin','Sin acción'],
-  ['hoy','Hoy'],['manana','Mañana'],['otros','Otros días']
+  ['todos','Cualquier acción'],['sinatender','Sin atender'],['vencidas','Atrasadas'],
+  ['hoy','Hoy'],['manana','Mañana'],['otros','Otros días'],['sin','Sin acción']
 ];
 /* El filtro de oportunidad ahora es por estrellas. '3','2','1' filtran por calificación
    y 'sin' junta todo lo que no tiene estrellas (sin calificar, "No sé todavía",
@@ -7586,7 +7603,6 @@ function renderPanelGestion(listaVisible){
   // Base: las mismas consultas que ve el vendedor, sin aplicar el filtro de zona,
   // para que los contadores no se vacíen cuando ya filtró por uno.
   const base = (listaVisible||[]);
-  const n = z => base.filter(a=>zonaDe(a)===z).length;
   const mias = atenciones.filter(a=>a.vendedorId===YO);
 
   // Dos buzones separados: "Pendientes" junta los comentarios/coaching que Cintia le marca
@@ -7598,13 +7614,11 @@ function renderPanelGestion(listaVisible){
   const recCount = base.filter(a=>_pendIds.has(a.id)).length;
   const ICO={hoy:'evaluar',pendientes:'bajas',sinclas:'consultas',semana:'estados',
              recordatorio:'bajas',estadisticas:'ventas',evaluacion:'evaluar',oportunidad:'pulso'};
+  /* Los cuatro baldes de agenda (Para hoy · Sin atender · Pendientes · Esta semana) se
+     BAJARON: nadie los usaba como balde y ahora esa misma información vive en la barra
+     de píldoras ACCIÓN, que además es excluyente y suma exacto. Quedan solo los cuatro
+     que abren una sección y no filtran la tabla — por eso entran en una sola fila. */
   const items=[
-    {label:'Para hoy',       ico:'hoy',         cnt:n('hoy'),    activo:(!seccionVendedor && zonaActiva==='hoy'),      act:`setZona('hoy')`},
-    // "Sin atender" (antes "Sin clasificar") va SEGUNDO a propósito: son consultas nuevas
-    // con un cliente esperando, no una tarea administrativa que se deja para mañana.
-    {label:'Sin atender',    ico:'sinclas',     cnt:n('sinclas'),activo:(!seccionVendedor && zonaActiva==='sinclas'),  act:`setZona('sinclas')`},
-    {label:'Pendientes',     ico:'pendientes',  cnt:n('atrasada'),activo:(!seccionVendedor && zonaActiva==='atrasada'), act:`setZona('atrasada')`},
-    {label:'Esta semana',    ico:'semana',      cnt:n('semana'), activo:(!seccionVendedor && zonaActiva==='semana'),   act:`setZona('semana')`},
     {label:'Recordatorio',   ico:'recordatorio',cnt:recCount,    activo:(!seccionVendedor && filtroRecordatorio==='pend'), act:`verRecordatorios()`},
     {label:'Estadísticas',   ico:'estadisticas',cnt:undefined,   activo:(seccionVendedor==='estadisticas'),            act:`abrirSeccionVendedor('estadisticas')`},
     {label:'Evaluación',     ico:'evaluacion',  cnt:undefined,   activo:(seccionVendedor==='evaluacion'),              act:`abrirSeccionVendedor('evaluacion')`},
@@ -7685,12 +7699,17 @@ function renderSituResumen(){
    2) NO se aplica el período. Es cola de trabajo, no reporte — misma regla que ya rige
       para los baldes del tablero desde el 3/8: una atrasada de hace dos meses tiene que
       aparecer aunque la ventana sea de 15 días. */
+/* Orden de izquierda a derecha = urgencia. Primero el cliente que espera sin que nadie
+   lo haya tocado, después la deuda, después la agenda, y al final lo que quedó sin
+   próximo paso. Son EXCLUYENTES: cada consulta cae en una sola y los seis números
+   suman exacto el total de abiertas. */
 const ACCION_PILLS=[
+  ['sinatender','Sin atender','acc-sinat'],
   ['vencidas','Atrasadas','acc-venc'],
-  ['sin','Sin acción','acc-sin'],
   ['hoy','Hoy','acc-hoy'],
   ['manana','Mañana','acc-man'],
-  ['otros','Otros días','acc-otros']
+  ['otros','Otros días','acc-otros'],
+  ['sin','Sin acción','acc-sin']
 ];
 function baseAccionVendedor(){
   // zonaDe ya resuelve qué está cerrado: concretada, rechazada, nunca respondió,
@@ -7703,10 +7722,9 @@ function baseAccionVendedor(){
 }
 function renderAccionBarra(){
   const box=$('accionBarraBox'); if(!box) return;
-  // SOLO DIRECCIÓN (pedido de Brian): no la ven los vendedores ni Cintia. Se gatea por el
-  // usuario REAL, no por el rol de la pantalla, para que siga apareciendo cuando Brian
-  // mira como un vendedor — que es justamente donde la quiere usar.
-  if(!esDireccionReal()){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  // La ven todos (vendedores, Cintia, Iara y dirección): reemplaza a los cuatro baldes
+  // del tablero, que nadie usaba. Si no se viera para alguien, ese rol se quedaría sin
+  // ninguna forma de saber a quién tiene que hablarle hoy.
   box.classList.remove('hidden');
   const base=baseAccionVendedor();
   const tot=base.length;
@@ -7742,45 +7760,10 @@ function filtrarPorAccion(val){
   renderHistorial();
 }
 
-/* Cada 2 horas, si el vendedor tiene más del tope de consultas En seguimiento, le salta
-   un aviso para que las baje (cerrando o rechazando) hasta quedar por debajo del tope. */
-let _ultimoAvisoSeg=0;
-function porcentajeSeguimiento(){
-  const mias=atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts));
-  const tot=mias.length; if(!tot) return {pct:0,seg:0,tot:0};
-  const cerr=mias.filter(a=>{const e=estadoDe(a);return e==='Concretado'||e==='Rechazado';}).length;
-  const seg=tot-cerr;
-  return {pct:Math.round(seg/tot*100), seg, tot};
-}
-function chequearSeguimientoAlto(forzar){
-  if(esAdmin()||esAuditora()) return;
-  if(!yaConectadoHoy(YO)||forzandoSelector||estaPausado(YO)) return;
-  const {pct,seg}=porcentajeSeguimiento();
-  if(pct<=TOPE_SEGUIMIENTO) return;
-  // No repetir el aviso si ya saltó hace menos de 2 horas (salvo que se fuerce).
-  if(!forzar && (Date.now()-_ultimoAvisoSeg) < 2*3600*1000) return;
-  _ultimoAvisoSeg=Date.now();
-  mostrarAvisoSeguimiento(seg, pct);
-}
-function mostrarAvisoSeguimiento(seg, pct){
-  cerrarAvisoSeguimiento();
-  const d=document.createElement('div');
-  d.className='modal-fondo';
-  d.id='avisoSegFondo';
-  d.innerHTML=`<div class="aviso-seg-caja">
-    <div class="aviso-seg-emoji">📥</div>
-    <h3>Tenés muchas consultas en seguimiento</h3>
-    <p>Tenés <b>${seg}</b> consultas en seguimiento (<b>${pct}%</b> del total). El límite es <b>${TOPE_SEGUIMIENTO}%</b>.
-    Bajalas cerrando las que ya se concretaron o rechazando las que no van, hasta quedar por debajo del ${TOPE_SEGUIMIENTO}%.</p>
-    <button class="btn btn-navy" style="width:100%" onclick="cerrarAvisoSeguimiento()">Entendido, las bajo</button>
-  </div>`;
-  document.body.appendChild(d);
-  document.body.style.overflow='hidden';
-}
-function cerrarAvisoSeguimiento(){
-  const d=$('avisoSegFondo'); if(d) d.remove();
-  if(!document.querySelector('.modal-fondo:not(.hidden)')) document.body.style.overflow='';
-}
+/* El pop-up "Tenés muchas consultas en seguimiento" se ELIMINÓ (pedido de Brian). Con él
+   se fueron chequearSeguimientoAlto, porcentajeSeguimiento, mostrarAvisoSeguimiento,
+   cerrarAvisoSeguimiento y su temporizador. TOPE_SEGUIMIENTO SIGUE VIVO: lo usa la alerta
+   roja de la barra Estado, que es otra cosa y no se toca. */
 
 /* Oportunidad caliente: el cliente mostró intención real de comprar y la consulta sigue viva. */
 function esOportunidadCaliente(a){
