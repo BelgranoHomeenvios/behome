@@ -6969,11 +6969,11 @@ const FILTRO_ESTADO_OPCIONES=[
    Devuelve siempre una de las claves de FILTRO_PLAZO_OPCIONES. */
 function accionDe(a){
   const p=proximaAccionDe(a);
-  // Sin fecha hay DOS casos que no se parecen en nada y antes caían juntos: el lead que
-  // entró y nadie tocó (hay un cliente esperando, es lo más urgente que existe) y la que
-  // ya se trabajó pero quedó sin próximo paso. Se separan para que la primera no se
-  // esconda entre las colgadas de hace tres semanas.
-  if(!p) return fueTrabajada(a) ? 'sin' : 'sinatender';
+  // Sin fecha = "Sin atender", un solo balde y el PRIMERO de la barra (decisión de Brian).
+  // Adentro conviven dos casos distintos: el lead que entró y nadie tocó, y la consulta
+  // ya trabajada que quedó sin próximo paso. No se parten en dos píldoras, pero el
+  // desglose viaja en el title del chip para no perder la distinción.
+  if(!p) return 'sinatender';
   const hoy0=new Date(); hoy0.setHours(0,0,0,0);
   const prox=new Date(p);
   if(prox <  hoy0)                            return 'vencidas';
@@ -6986,7 +6986,7 @@ function accionDe(a){
    lo que no tiene fecha. El resto se ordena solo por fecha dentro de la tabla. */
 const FILTRO_PLAZO_OPCIONES=[
   ['todos','Cualquier acción'],['sinatender','Sin atender'],['vencidas','Atrasadas'],
-  ['hoy','Hoy'],['manana','Mañana'],['otros','Otros días'],['sin','Sin acción']
+  ['hoy','Hoy'],['manana','Mañana'],['otros','Otros días']
 ];
 /* El filtro de oportunidad ahora es por estrellas. '3','2','1' filtran por calificación
    y 'sin' junta todo lo que no tiene estrellas (sin calificar, "No sé todavía",
@@ -7773,8 +7773,7 @@ const ACCION_PILLS=[
   ['vencidas','Atrasadas','acc-venc'],
   ['hoy','Hoy','acc-hoy'],
   ['manana','Mañana','acc-man'],
-  ['otros','Otros días','acc-otros'],
-  ['sin','Sin acción','acc-sin']
+  ['otros','Otros días','acc-otros']
 ];
 function baseAccionVendedor(){
   // zonaDe ya resuelve qué está cerrado: concretada, rechazada, nunca respondió,
@@ -7797,10 +7796,18 @@ function renderAccionBarra(){
   const tot=base.length;
   const c={}; base.forEach(a=>{ const k=accionDe(a); c[k]=(c[k]||0)+1; });
   const pct=n=>tot?Math.round(n/tot*100):0;
+  // "Sin atender" junta dos situaciones distintas: el lead que nadie tocó y la consulta
+  // trabajada que quedó sin próximo paso. Son una sola píldora, pero el detalle se ve
+  // al pasar el mouse — piden acciones diferentes.
+  let sinTocar=0, sinPaso=0;
+  base.forEach(a=>{ if(accionDe(a)!=='sinatender') return; if(fueTrabajada(a)) sinPaso++; else sinTocar++; });
   const chip=([val,lbl,cls])=>{
     const n=c[val]||0, on=filtroPlazo===val;
+    const tip = val==='sinatender'
+      ? `${sinTocar} que nadie tocó todavía · ${sinPaso} trabajadas sin próximo paso`
+      : (on?'Quitar el filtro':'Ver solo: '+lbl.toLowerCase());
     return `<span class="situ-chip ${cls}${on?' on':''}" role="button" tabindex="0"
-      title="${on?'Quitar el filtro':'Ver solo: '+lbl.toLowerCase()}"
+      title="${tip}"
       onclick="filtrarPorAccion('${val}')"
       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filtrarPorAccion('${val}')}"
       ><span class="dot"></span>${lbl} <b>${n}</b> <span class="pct">${pct(n)}%</span></span>`;
