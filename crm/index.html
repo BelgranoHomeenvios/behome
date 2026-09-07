@@ -579,6 +579,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .ev-nuevo{display:inline-block;background:var(--amber,#f08c00);color:#fff;font-size:10px;font-weight:800;border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:2px}
 .ev-dest-acc{display:flex;flex-direction:column;gap:6px;align-items:stretch;flex-shrink:0}
 .ev-leido{font-size:12px;font-weight:700;color:#2f9e44;text-align:center;white-space:nowrap}
+.ev-aviso{background:#fffbef;border:1px solid #f0e2b6;border-radius:10px;padding:9px 13px;font-size:12.5px;color:var(--sec,#5b6675);line-height:1.5;margin:0 0 12px}
 .ev-fechas{flex-basis:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:8px;margin-top:2px;border-top:1px solid var(--line,#e3e8ee)}
 .ev-fechas input[type=date]{font:inherit;font-size:12.5px;padding:5px 9px;border:1px solid var(--line,#d0d7e2);border-radius:8px;background:#fff;color:var(--ink)}
 .ev-sel{font:inherit;font-size:12px;font-weight:600;padding:5px 10px;border:1px solid var(--line,#d0d7e2);border-radius:20px;background:#fff;color:var(--sec,#5b6675);cursor:pointer}
@@ -8448,8 +8449,8 @@ function svEvaluacionesHtml(){
   const todas = atenciones.filter(a=>a.vendedorId===YO && a.evaluada)
     .sort((a,b)=>new Date(b.evaluadoTs||b.ts)-new Date(a.evaluadoTs||a.ts));
   const rango=evRango('per'), rangoCmp=evCmp==='no'?null:evRango('cmp');
-  const lista = todas.filter(a=>evEnRango(a,rango));
-  const listaCmp = rangoCmp ? todas.filter(a=>evEnRango(a,rangoCmp)) : null;
+  const lista = todas.filter(a=>evEnRango(a,rango) && evPasaFiltros(a));
+  const listaCmp = rangoCmp ? todas.filter(a=>evEnRango(a,rangoCmp) && evPasaFiltros(a)) : null;
 
   const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
   /* Período con las MISMAS opciones y las MISMAS clases (periodo-barra / pb-chip) que la
@@ -8476,13 +8477,26 @@ function svEvaluacionesHtml(){
       <input type="date" value="${evCmpDesde||''}" onchange="setEvPer('cmpdesde',this.value)">
       <span class="pb-lbl">Hasta</span>
       <input type="date" value="${evCmpHasta||''}" onchange="setEvPer('cmphasta',this.value)"></div>`:''}
-  </div>`;
+  </div>
+  <div class="periodo-barra" style="margin-bottom:12px;align-items:flex-start">
+    <span class="pb-lbl">Canal</span>
+    <div class="pb-chips">
+      <button type="button" class="pb-chip${!evCanalSel.length?' on':''}" onclick="evToggleCanal('__all__')">Todos</button>
+      ${MKT_CANALES.map(c=>`<button type="button" class="pb-chip${evCanalSel.includes(c)?' on':''}" onclick="evToggleCanal('${escAttr(c)}')">${escapeHtml(c)}</button>`).join('')}
+    </div>
+    <span class="pb-lbl" style="margin-left:auto">Medir sobre</span>
+    <div class="pb-chips">
+      <button type="button" class="pb-chip${!evSoloReales?' on':''}" onclick="evSetReales(false)">Todas las consultas</button>
+      <button type="button" class="pb-chip${evSoloReales?' on':''}" onclick="evSetReales(true)">Solo las reales</button>
+    </div>
+  </div>
+  ${evSoloReales?`<div class="ev-aviso">⚠︎ Con <b>Solo las reales</b>, la torta "Calidad de las consultas" pierde sentido: lo que se saca son justamente las <b>fuera de target</b>, así que va a marcar casi 100%. Sirve para leer <b>tu calidad de atención</b> sin la basura adentro.</div>`:''}`;
 
   /* ===== COBERTURA: qué % de MIS consultas del período miró Cintia =====
      Va sobre la fecha de la CONSULTA (a.ts), no sobre la de evaluación: la pregunta es
      "de lo que me entró, cuánto se auditó". Quedan afuera las consultas de gestión, que
      no son evaluables y bajarían el % sin que nadie pueda hacer nada al respecto. */
-  const evaluables = atenciones.filter(a=>a.vendedorId===YO && !esConsultaGestion(a)
+  const evaluables = atenciones.filter(a=>a.vendedorId===YO && !esConsultaGestion(a) && evPasaFiltros(a)
     && (!rango || (new Date(a.ts).getTime()>=rango.d1.getTime() && new Date(a.ts).getTime()<=rango.d2.getTime())));
   const evaluadasN = evaluables.filter(a=>a.evaluada).length;
   const cobertura = evaluables.length ? Math.round(evaluadasN/evaluables.length*100) : null;
@@ -8492,7 +8506,7 @@ function svEvaluacionesHtml(){
      con destino al vendedor; 'direccion' es solo para Brian y no se muestra. */
   const ejemplos = atenciones.filter(a=>a.vendedorId===YO && a.ejemploDelMes
       && (a.ejemploDelMes.target==='vendedor' || a.ejemploDelMes.target==='ambos')
-      && evEnRango(a,rango))
+      && evEnRango(a,rango) && evPasaFiltros(a))
     .sort((x,y)=>new Date(y.ejemploDelMes.ts||y.ts)-new Date(x.ejemploDelMes.ts||x.ts));
 
   if(!todas.length && !ejemplos.length) return controles+`<p class="cin-empty">Cintia todavía no evaluó ninguna de tus consultas.</p>`;
@@ -8619,6 +8633,24 @@ function svEvaluacionesHtml(){
 }
 let evPag=1;
 function setEvPag(n){ evPag=Math.max(1,n); renderSolapasVendedor(); }
+/* Filtros de la solapa Evaluación del vendedor. Mismos conceptos que Marketing
+   (canal múltiple + reales/todas) pero con estado propio: si compartieran variable con
+   `mktCanalSel`, tocar uno movería el otro sin que se vea. */
+let evCanalSel=[];        // [] = todos
+let evSoloReales=false;   // false = todas las consultas
+function evToggleCanal(c){
+  if(c==='__all__') evCanalSel=[];
+  else { const i=evCanalSel.indexOf(c); if(i>=0) evCanalSel.splice(i,1); else evCanalSel.push(c); }
+  evPag=1; renderSolapasVendedor();
+}
+function evSetReales(v){ evSoloReales=v; evPag=1; renderSolapasVendedor(); }
+/* Un solo lugar donde se deciden los dos filtros, para que la cobertura, las tortas y
+   los ejemplos midan todos sobre exactamente el mismo conjunto. */
+function evPasaFiltros(a){
+  if(evCanalSel.length && !evCanalSel.includes(estCanalDe(a))) return false;
+  if(evSoloReales && descartadaPorCintia(a)) return false;
+  return true;
+}
 
 /* Tooltip de las tortas. Se engancha UNA sola vez al documento y lee los data- del
    segmento que está debajo del mouse, así sirve para las tortas que se redibujen
