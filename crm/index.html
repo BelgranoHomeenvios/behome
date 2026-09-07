@@ -9085,7 +9085,10 @@ function renderPanelCintia(){
   if(heroBtns){
     // El reclamo se carga desde el hero, disponible en cualquier sección, y en rojo
     // para que no se confunda con la carga de consultas.
-    const btnReclamo = puedeVerReclamos()
+    /* El botón rojo ＋Reclamo NO va para las auditoras (Cintia e Iara): cargar un reclamo
+       nuevo no es tarea de ellas. Se saca SOLO el botón de alta — siguen viendo la sección
+       Reclamos, abriendo fichas y entrando desde la ficha del cliente. */
+    const btnReclamo = (puedeVerReclamos() && !esAuditora())
       ? `<button class="btn btn-reclamo" onclick="rcAbrirAlta()">＋ Reclamo</button>` : '';
     // Lucas (rol 'reclamos') NO carga consultas: no está en el circuito de ventas.
     // Su único botón es el rojo de reclamo.
