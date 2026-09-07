@@ -551,6 +551,7 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .situ-chip.alerta .dot{background:var(--red)}
 /* Píldoras de la barra Acción. Mismo lenguaje de color que el resto del CRM:
    rojo lo vencido, gris lo que nadie agendó, azul hoy, ámbar mañana. */
+.chip-btn.chip-sind{font-style:italic;color:var(--muted,#8a94a3);border-style:dashed}
 .situ-chip.acc-sinat .dot{background:var(--violet,#7c5cff)}
 .situ-chip.acc-venc .dot{background:var(--red)}
 .situ-chip.acc-sin  .dot{background:var(--muted,#8a94a3)}
@@ -1427,10 +1428,12 @@ textarea{resize:vertical;min-height:60px}
 
 /* ===== FUSIÓN ETAPA 2 · Atención en piso ===== */
 #panelSuperior{background:transparent!important;border:0!important;box-shadow:none!important;overflow:visible!important;margin-bottom:18px}
+/* Alto del recuadro azul reducido a ~la mitad (pedido de Brian): padding, contador y
+   botones. El ancho y los colores no se tocan. */
 .turno-card{
   background:linear-gradient(120deg,#12203a 0%,#1e5fce 135%)!important;
   color:#fff;text-align:left!important;border-radius:18px!important;
-  padding:24px 26px 22px!important;box-shadow:0 12px 34px rgba(30,95,206,.20)!important}
+  padding:12px 20px 12px!important;box-shadow:0 12px 34px rgba(30,95,206,.20)!important}
 .turno-card.now{background:linear-gradient(120deg,#0e2f22 0%,#16a34a 135%)!important;box-shadow:0 12px 34px rgba(21,128,61,.24)!important}
 .turno-card .turno-label{font-size:11px!important;letter-spacing:.12em;text-transform:uppercase;color:#a8c2ea!important;opacity:1!important;font-weight:700!important;margin-bottom:4px!important}
 .turno-card.now .turno-label{color:#a7e8c4!important}
@@ -1438,12 +1441,12 @@ textarea{resize:vertical;min-height:60px}
 .turno-card .turno-nombre.big{font-size:27px!important}
 .turno-card .turno-sub{font-size:13.5px!important;color:#c5d6f0!important;opacity:1!important;font-weight:500!important;margin:5px 0 0!important}
 .turno-card.now .turno-sub{color:#cdeede!important}
-.turno-card #badgeTurno{margin-top:12px}
+.turno-card #badgeTurno{margin-top:6px}
 .turno-card .turno-contador:not(.hidden){
   display:inline-flex!important;align-items:center;gap:8px;background:rgba(255,255,255,.16)!important;color:#fff!important;
-  border-radius:14px!important;padding:10px 18px!important;font-size:15px!important;font-weight:800!important;margin-top:14px!important}
-.turno-card #accionesSecundarias:not(.hidden){display:grid!important;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px!important;margin-top:20px!important}
-.turno-card #accionesSecundarias .btn{padding:15px 18px!important;border-radius:14px!important;font-size:14.5px!important;font-weight:700!important;
+  border-radius:11px!important;padding:6px 14px!important;font-size:13.5px!important;font-weight:800!important;margin-top:0!important}
+.turno-card #accionesSecundarias:not(.hidden){display:grid!important;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px!important;margin-top:10px!important}
+.turno-card #accionesSecundarias .btn{padding:9px 16px!important;border-radius:11px!important;font-size:14px!important;font-weight:700!important;
   box-shadow:0 6px 16px rgba(0,0,0,.14)!important;transition:transform .14s, background .14s!important;border:0!important}
 .turno-card #accionesSecundarias .btn:hover{transform:translateY(-2px)}
 .turno-card #accionesSecundarias .btn.btn-primary{background:#fff!important;color:#12203a!important}
@@ -1472,7 +1475,7 @@ textarea{resize:vertical;min-height:60px}
 .gb:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(15,26,42,.09)!important}
 .gb::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gbc,var(--blue))}
 .gb .top{display:flex!important;align-items:center;justify-content:space-between;gap:8px;flex-direction:row!important}
-.gb .lbl{font-size:12.5px!important;color:var(--sec)!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important}
+.gb .lbl{font-size:15px!important;color:var(--ink)!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important}
 .gb .ic{width:34px;height:34px;border-radius:10px;background:var(--gbl,var(--blue-l));display:grid;place-items:center;color:var(--gbc,var(--blue));flex:0 0 auto}
 .gb .ic svg{width:18px;height:18px}
 .gb .cnt{font-size:28px!important;font-weight:800!important;letter-spacing:-.5px;color:var(--ink)!important;margin-top:6px!important}
@@ -5133,7 +5136,12 @@ function renderChipsHoy(){
     const esFisico = a => a.canal==='presencial' || canalReal(a)==='Local';
     const virt = enPeriodo.filter(a=>!esFisico(a));
     const fis  = enPeriodo.filter(a=>esFisico(a));
-    const countBy = arr => { const c={}; arr.forEach(a=>{ if(a.vendedorId) c[a.vendedorId]=(c[a.vendedorId]||0)+1; }); return c; };
+    /* BUG que arrastraba desde antes: countBy descartaba las consultas SIN vendedor
+       asignado (`if(a.vendedorId)`) pero el total las contaba igual, así que la suma de
+       los chips no daba el total y no había forma de saber por qué. Ahora caen en la
+       clave SIN_DUENIO y se muestran en su propio chip: la fila cierra Y esas consultas
+       dejan de ser invisibles, que es el problema de fondo — nadie las está trabajando. */
+    const countBy = arr => { const c={}; arr.forEach(a=>{ c[a.vendedorId||SIN_DUENIO]=(c[a.vendedorId||SIN_DUENIO]||0)+1; }); return c; };
     const cv=countBy(virt), cf=countBy(fis);
     // CONTEO ACTIVO: es una FOTO DE LA CARGA DE HOY, no volumen de entrada. Por eso se
     // calcula sobre toda la base y NO sobre el período: una consulta que entró hace tres
@@ -5155,10 +5163,10 @@ function renderChipsHoy(){
       if(!e) return;
       if(a.vendedorId && _fueraDelActivo(a.vendedorId)) return;
       activasTotal++;
-      if(!a.vendedorId) return;
-      ca[a.vendedorId]=(ca[a.vendedorId]||0)+1;
-      if(e==='inicial') caIni[a.vendedorId]=(caIni[a.vendedorId]||0)+1;
-      else              caAct[a.vendedorId]=(caAct[a.vendedorId]||0)+1;
+      const _k=a.vendedorId||SIN_DUENIO;
+      ca[_k]=(ca[_k]||0)+1;
+      if(e==='inicial') caIni[_k]=(caIni[_k]||0)+1;
+      else              caAct[_k]=(caAct[_k]||0)+1;
     });
     const todosVendedores=[...new Set(Object.keys(LOCALES).flatMap(id=>vendedoresDeLocal(id)))];
     const ids=[...new Set([...Object.keys(cv),...Object.keys(cf),...Object.keys(ca),...todosVendedores])].filter(uid=>uid && USUARIOS[uid]);
@@ -5169,7 +5177,10 @@ function renderChipsHoy(){
         const on = filtroConteoVendedor===uid && filtroConteoTipo===tipo;
         const t = tip ? ` title="${tip(uid)}"` : '';
         return `<button type="button" class="chip chip-btn${on?' on':''}"${t} onclick="toggleConteoFiltro('${uid}','${tipo}')"><b>${cnt[uid]||0}</b> ${nombreDe(uid)}</button>`;
-      }).join('')}<div class="chip total"><b>${total}</b> Total</div></div>`;
+      }).join('')}${cnt[SIN_DUENIO]?(()=>{
+        const on = filtroConteoVendedor===SIN_DUENIO && filtroConteoTipo===tipo;
+        return `<button type="button" class="chip chip-btn chip-sind${on?' on':''}" title="Consultas que no tienen ningún vendedor asignado" onclick="toggleConteoFiltro('${SIN_DUENIO}','${tipo}')"><b>${cnt[SIN_DUENIO]}</b> Sin asignar</button>`;
+      })():''}<div class="chip total"><b>${total}</b> Total</div></div>`;
     box.style.display='block';
     box.innerHTML=`<div class="conteo-sub">📲 Conteo virtual</div>${fila(cv,virt.length,'virtual')}
       <div class="conteo-sub" style="margin-top:12px">🚶‍♂️ Conteo físico (local)</div>${fila(cf,fis.length,'fisico')}
@@ -5178,16 +5189,10 @@ function renderChipsHoy(){
   }else{
     $('chipsTitle').classList.add('hidden');
     $('chipsCard').classList.add('hidden');
-    const misHoy=hoy.filter(a=>a.vendedorId===YO);
-    const local=misHoy.filter(a=>a.canal==='presencial'||canalReal(a)==='Local').length;
-    const virtual=misHoy.length-local;
-    const contador=$('turnoContador');
-    if(yaConectadoHoy(YO) && !forzandoSelector && !estaPausado(YO)){
-      contador.classList.remove('hidden');
-      contador.innerHTML=`<span class="ad-main">Total de atención: <b>${misHoy.length}</b></span><span class="ad-sub">At. Virtual: <b>${virtual}</b> <span class="ad-sep">·</span> At. Local: <b>${local}</b></span>`;
-    }else{
-      contador.classList.add('hidden');
-    }
+    // La pastilla "Total de atención" se SACÓ (pedido de Brian): no aportaba y ocupaba
+    // alto en el recuadro azul. El div queda en el HTML pero siempre oculto, por si más
+    // adelante se quiere poner otra cosa en ese lugar.
+    $('turnoContador').classList.add('hidden');
   }
   renderCalcSena();
 }
@@ -7245,7 +7250,9 @@ function construirListaFiltrada(){
 
   // Filtro por los botones de Conteo (vendedor + virtual/físico) — Cintia y dirección.
   if(puedeVerEquipo() && filtroConteoVendedor){
-    l=l.filter(a=>a.vendedorId===filtroConteoVendedor);
+    l = (filtroConteoVendedor===SIN_DUENIO)
+      ? l.filter(a=>!a.vendedorId)
+      : l.filter(a=>a.vendedorId===filtroConteoVendedor);
     const esFisico=a=>a.canal==='presencial'||canalReal(a)==='Local';
     if(filtroConteoTipo==='virtual') l=l.filter(a=>!esFisico(a));
     else if(filtroConteoTipo==='fisico') l=l.filter(a=>esFisico(a));
@@ -7862,6 +7869,7 @@ function renderSolapasVendedor(){
   if(!box) return;
   // Solo para vendedores conectados y operando (misma condición que la cola).
   const esVendedorOperando = !esAdmin() && !esAuditora() && yaConectadoHoy(YO) && !forzandoSelector && !estaPausado(YO);
+  if(seccionVendedor!=='estadisticas') mktLockVend=null;   // salir suelta el candado
   if(!esVendedorOperando || !seccionVendedor){
     box.classList.add('hidden'); box.innerHTML='';
     mostrarTablaVendedor(true);
@@ -7878,6 +7886,9 @@ function renderSolapasVendedor(){
   else if(seccionVendedor==='oportunidad')  cuerpo = svOportunidadesHtml();
 
   box.innerHTML = `<div class="card">${cuerpo}</div>`;
+  // El módulo de Marketing necesita estos dos enganches después de pintarse (acordeón de
+  // las tarjetas y tooltips). Sin esto las tarjetas quedan todas plegadas y sin hover.
+  if(seccionVendedor==='estadisticas'){ mktAplicarColapso(box); mktTipInit(); }
 }
 
 /* Cuando el vendedor entra a una sección propia, la tabla de consultas se esconde:
@@ -8087,7 +8098,16 @@ function svMetricas(rango){
   };
 }
 
+/* Estadísticas del vendedor = el módulo de Marketing recortado a él (decisión de Brian).
+   Reemplaza a la versión anterior, que quedó como _svEstadisticasPropiasHtml_LEGACY: el
+   corte de Marketing (de dónde vienen las consultas y de qué calidad son) le dice más que
+   los KPIs que tenía. OJO: con esto el vendedor deja de ver su PLATA y su tasa de cierre
+   — Marketing no los mide. Fue una decisión tomada a ojo abierto, no un descuido. */
 function svEstadisticasHtml(){
+  mktLockVend = YO;
+  return htmlMarketing();
+}
+function _svEstadisticasPropiasHtml_LEGACY(){
   const act=svMetricas(svRangoPeriodo('actual'));
   const ref=svComparar==='anterior' ? svMetricas(svRangoPeriodo('anterior')) : null;
 
@@ -8980,6 +9000,9 @@ let cintiaPresetActivo='d30';   // el chip "30 días" arranca marcado: la ventan
 /* Filtro por los botones de Conteo (Cintia/dirección): un vendedor + si fue virtual o
    físico. Se aplica sobre la lista de Consultas. */
 let filtroConteoVendedor=null, filtroConteoTipo=null;
+/* Clave del chip "Sin asignar" del Conteo. No es un uid: no existe en USUARIOS, así que
+   nunca puede chocar con el id de una persona. */
+const SIN_DUENIO='__sin_duenio__';
 function dentroDePeriodoCintia(iso){
   if(!iso) return true;
   const t=new Date(iso).getTime();
@@ -18621,6 +18644,11 @@ let mktBox='view-marketing';    // dónde se pinta (Ariel: view-marketing · Bri
 let mktPreset='mes';            // '7d' | 'mes' | '3m' | 'pers'
 let mktDesde=null, mktHasta=null;
 let mktVendSel=[];              // [] = todos
+/* CANDADO DE VENDEDOR. Cuando tiene un uid, el módulo de Marketing se recorta a esa
+   persona y no hay forma de sacarlo desde la interfaz: el filtro de vendedor no se
+   dibuja y la tarjeta que compara a todos no se arma. Es lo que convierte al módulo en
+   la solapa "Estadísticas" del vendedor, que ve SOLO sus propios datos. */
+let mktLockVend=null;
 let mktCanalSel=[];             // [] = todos
 let mktCalSel=[];               // filtro por calidad de consulta: 1 bien · 2 genérica · 3 fuera de target ([]=todas)
 let mktNoRespScope='todos';     // panel de no-responde: 'todos' | 'pub' | 'otros'
@@ -18676,7 +18704,9 @@ function mktBaseAll(){
     const c=mktCanalMostrar(a);
     if(!MKT_CANALES.includes(c)) return false;                 // whitelist de canales
     if(mktCanalSel.length && !mktCanalSel.includes(c)) return false;
-    if(mktVendSel.length && !mktVendSel.includes(a.vendedorId)) return false;
+    // El candado manda sobre el filtro de chips: si está puesto, no hay chips.
+    if(mktLockVend) { if(a.vendedorId!==mktLockVend) return false; }
+    else if(mktVendSel.length && !mktVendSel.includes(a.vendedorId)) return false;
     return true;
   });
 }
@@ -18848,7 +18878,10 @@ function mktTipInit(){
 }
 
 function renderMarketing(boxId){
-  if(boxId) mktBox=boxId;
+  if(boxId){ mktBox=boxId; mktLockVend=null; }   // entrada del módulo de Marketing: sin candado
+  // Con el candado puesto, el módulo está embebido en la solapa Estadísticas del
+  // vendedor: cualquier filtro que toque tiene que redibujar esa solapa, no #view-marketing.
+  if(mktLockVend){ renderSolapasVendedor(); return; }
   const el=document.getElementById(mktBox);
   if(el){ el.innerHTML=htmlMarketing(); mktAplicarColapso(el); mktTipInit(); }
 }
@@ -18859,6 +18892,10 @@ function mktAplicarColapso(el){
     const h=card.querySelector('h3'); if(!h) return;
     const key=mktTab+':'+idx;
     card.classList.add('mkt-collapsible');
+    // En la vista del vendedor la primera tarjeta del balde arranca ABIERTA: entrar a una
+    // pantalla de títulos plegados no comunica nada. En Marketing (dirección/Ariel) se
+    // mantiene el comportamiento de siempre, todo plegado.
+    if(mktLockVend && idx===0 && ![...mktAbiertas].some(k=>k.startsWith(mktTab+':'))) mktAbiertas.add(key);
     if(!mktAbiertas.has(key)) card.classList.add('collapsed');
     h.addEventListener('click',()=>{
       if(mktAbiertas.has(key)) mktAbiertas.delete(key); else mktAbiertas.add(key);
@@ -18912,11 +18949,11 @@ function mktFiltrosHtml(){
       <div class="mkt-chips">${PER.map(([v,t])=>`<span class="mkt-chip ${mktPreset===v?'on':''}" onclick="mktSetPreset('${v}')">${t}</span>`).join('')}</div>
       ${mktPreset==='pers'?`<div class="mkt-fechas"><input type="date" id="mktFDesde" value="${mktDesde||''}" onchange="mktSetFecha('d',this.value)"> a <input type="date" id="mktFHasta" value="${mktHasta||''}" onchange="mktSetFecha('h',this.value)">${(mktDesde&&mktHasta&&mktDesde>mktHasta)?`<span class="tiny" style="color:#b45309;margin-left:8px">⚠ Cargaste las fechas al revés — las ordené solas.</span>`:''}</div>`:''}
     </div>
-    <div class="mkt-fgroup"><span class="lbl">Vendedor (elegí uno o varios)</span>
+    ${mktLockVend?'':`<div class="mkt-fgroup"><span class="lbl">Vendedor (elegí uno o varios)</span>
       <div class="mkt-chips oneline">
         <span class="mkt-chip ${!mktVendSel.length?'on':''}" onclick="mktToggleVend('__all__')">Todos</span>
         ${MKT_VEND_ORDEN.filter(u=>USUARIOS[u]).map(u=>`<span class="mkt-chip sm ${mktVendSel.includes(u)?'on':''}" onclick="mktToggleVend('${u}')">${escapeHtml(nombreDe(u))}</span>`).join('')}
-      </div></div>
+      </div></div>`}
     <div class="mkt-fgroup"><span class="lbl">Canal (elegí uno o varios)</span>
       <div class="mkt-chips oneline">
         <span class="mkt-chip ${!mktCanalSel.length?'on':''}" onclick="mktToggleCanal('__all__')">Todos</span>
@@ -19029,7 +19066,10 @@ function mktBucketVolumen(base){
     <div class="mkt-leg"><span><i style="background:var(--green)"></i>Concretados</span><span><i style="background:#eab308"></i>En seguimiento</span><span><i style="background:var(--red)"></i>Rechazados</span><span><i style="background:#c7ced6"></i>Sin clasificar</span></div>
     <div class="mkt-foot"><b>Qué medimos:</b> consultas asignadas a cada vendedor. El % del título es la parte del total (${tot}); la barra muestra cómo se reparten sus estados.</div></div>`;
 
-  return card1 + `<div class="mkt-grid">${card2}${card3}</div>`;
+  // card3 se llama "Consultas por vendedor": con el candado puesto la base ya es de una
+  // sola persona, así que mostraría una única fila con el mismo total de arriba. No filtra
+  // datos ajenos —no los tiene— pero no aporta nada, así que se saca.
+  return card1 + `<div class="mkt-grid">${card2}${mktLockVend?'':card3}</div>`;
 }
 
 /* helpers compartidos para baldes 2-4 */
@@ -19148,7 +19188,9 @@ function mktBucketResultado(base){
     </tbody></table>`:'<p class="mkt-note">Sin consultas de publicidad con campaña cargada en el período.</p>'}
     <div class="mkt-foot"><b>Qué medimos:</b> la pauta (campo "¿de qué es la campaña?" que carga Cintia) vs. volumen y no-respuesta. "Publicidad" = Publicidad Mensajería + Publicidad Instagram.</div></div>`;
 
-  return card4 + card5 + card8 + cardNR + cardPauta;
+  // card5 compara a TODOS los vendedores entre sí: es justo lo que el vendedor no
+  // tiene que ver. Con el candado puesto no se arma.
+  return card4 + (mktLockVend?'':card5) + card8 + cardNR + cardPauta;
 }
 
 function mktBucketProd(base){
@@ -19258,8 +19300,8 @@ function htmlMarketing(){
   else if(mktTab==='resultado'||mktTab==='calidad')cuerpo=mktBucketResultado(baseMedida);
   else                                             cuerpo=mktBucketVolumen(base);
   return `<div class="mkt-wrap">
-    <div class="mkt-head"><h2>📈 Marketing — Estadísticas</h2></div>
-    <p class="mkt-sub">Elegí un balde y ajustá los filtros de abajo. Todo se recalcula al instante.</p>
+    <div class="mkt-head"><h2>${mktLockVend?'📊 Mis estadísticas':'📈 Marketing — Estadísticas'}</h2></div>
+    <p class="mkt-sub">${mktLockVend?'Todo lo de abajo son <b>tus</b> consultas. Elegí un balde y ajustá los filtros.':'Elegí un balde y ajustá los filtros de abajo. Todo se recalcula al instante.'}</p>
     ${nav}
     ${mktFiltrosHtml()}
     ${explica}
