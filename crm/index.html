@@ -579,6 +579,9 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .ev-nuevo{display:inline-block;background:var(--amber,#f08c00);color:#fff;font-size:10px;font-weight:800;border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:2px}
 .ev-dest-acc{display:flex;flex-direction:column;gap:6px;align-items:stretch;flex-shrink:0}
 .ev-leido{font-size:12px;font-weight:700;color:#2f9e44;text-align:center;white-space:nowrap}
+.ev-fechas{flex-basis:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:8px;margin-top:2px;border-top:1px solid var(--line,#e3e8ee)}
+.ev-fechas input[type=date]{font:inherit;font-size:12.5px;padding:5px 9px;border:1px solid var(--line,#d0d7e2);border-radius:8px;background:#fff;color:var(--ink)}
+.ev-sel{font:inherit;font-size:12px;font-weight:600;padding:5px 10px;border:1px solid var(--line,#d0d7e2);border-radius:20px;background:#fff;color:var(--sec,#5b6675);cursor:pointer}
 .ev-pills{display:flex;gap:6px;flex-wrap:wrap}
 .ev-pill{font-size:12.5px;font-weight:700;padding:6px 14px;border-radius:999px;border:1px solid var(--line,#dce2ea);background:#fff;color:var(--sec,#5b6675);cursor:pointer}
 .ev-pill:hover{box-shadow:0 1px 5px rgba(15,26,42,.12)}
@@ -7694,6 +7697,10 @@ function renderPanelGestion(listaVisible){
 function renderSituResumen(){
   const box=$('situResumenBox'); if(!box) return;
   if(puedeVerEquipo()){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  // Las barras Estado y Acción cortan la TABLA de consultas. En Evaluación, Estadísticas,
+  // Oportunidad o Recordatorio la tabla no está, así que ahí no filtran nada y solo
+  // confunden: se esconden junto con ella.
+  if(seccionVendedor){ box.classList.add('hidden'); box.innerHTML=''; return; }
   box.classList.remove('hidden');
   const mias = atenciones.filter(a=>a.vendedorId===YO && dentroDePeriodoCintia(a.ts));
   const tot  = mias.length;
@@ -7778,6 +7785,8 @@ function renderAccionBarra(){
   // La ven todos (vendedores, Cintia, Iara y dirección): reemplaza a los cuatro baldes
   // del tablero, que nadie usaba. Si no se viera para alguien, ese rol se quedaría sin
   // ninguna forma de saber a quién tiene que hablarle hoy.
+  // Pero solo sobre la TABLA: en las secciones del vendedor no hay lista que filtrar.
+  if(seccionVendedor){ box.classList.add('hidden'); box.innerHTML=''; return; }
   box.classList.remove('hidden');
   const base=baseAccionVendedor();
   const tot=base.length;
@@ -8395,7 +8404,7 @@ function evRango(cual){
   if(per==='no'||per==='todo') return null;
   const d1=new Date(); d1.setHours(0,0,0,0);
   // Ventanas por días (pedido de Brian): las píldoras de arriba usan estas.
-  if(per==='15d'||per==='30d'||per==='60d'){ d1.setDate(d1.getDate()-(parseInt(per,10)-1)); return {d1,d2:hoy}; }
+  if(per==='7d'||per==='15d'||per==='30d'||per==='60d'){ d1.setDate(d1.getDate()-(parseInt(per,10)-1)); return {d1,d2:hoy}; }
   if(per==='mes')    d1.setMonth(d1.getMonth()-1);
   if(per==='3meses') d1.setMonth(d1.getMonth()-3);
   if(per==='6meses') d1.setMonth(d1.getMonth()-6);
@@ -8431,23 +8440,30 @@ function svEvaluacionesHtml(){
   const listaCmp = rangoCmp ? todas.filter(a=>evEnRango(a,rangoCmp)) : null;
 
   const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
-  /* Período en PÍLDORAS, igual que la barra de arriba de la tabla de consultas: el
-     vendedor ya conoce ese gesto y no tiene que abrir un desplegable para cambiar la vista. */
-  const EV_PILLS=[['15d','15 días'],['30d','30 días'],['60d','60 días'],['todo','Todo'],['custom','Personalizado']];
-  const controles=`<div class="est-ctrl" style="margin-bottom:12px">
-    <div class="grupo"><span class="est-lb">Período</span>
-      <div class="ev-pills">${EV_PILLS.map(([v,l])=>
-        `<button class="ev-pill${evPeriodo===v?' on':''}" onclick="setEvPer('per','${v}')">${l}</button>`).join('')}</div>
-      ${evPeriodo==='custom'?`<input type="date" value="${evDesde||''}" onchange="setEvPer('desde',this.value)"><span class="tiny">a</span><input type="date" value="${evHasta||''}" onchange="setEvPer('hasta',this.value)">`:''}
-    </div>
-    <div class="grupo"><span class="est-lb">Comparar con</span>
-      <select onchange="setEvPer('cmp',this.value)">
-        ${opt('no','Sin comparar',evCmp)}${opt('mes','Último mes',evCmp)}
-        ${opt('3meses','Últimos 3 meses',evCmp)}${opt('anio','Este año',evCmp)}
-        ${opt('custom','Fechas a elección',evCmp)}
-      </select>
-      ${evCmp==='custom'?`<input type="date" value="${evCmpDesde||''}" onchange="setEvPer('cmpdesde',this.value)"><span class="tiny">a</span><input type="date" value="${evCmpHasta||''}" onchange="setEvPer('cmphasta',this.value)">`:''}
-    </div>
+  /* Período con las MISMAS opciones y las MISMAS clases (periodo-barra / pb-chip) que la
+     barra de arriba de la tabla de consultas: es la misma pregunta en toda la app y no
+     tiene por qué verse distinta acá.
+     Las fechas de "Fechas a elección" van en un RENGLÓN PROPIO a todo el ancho: metidas
+     en la misma fila empujaban a las píldoras y las apilaban en columna. */
+  const EV_PILLS=[['7d','7 días'],['15d','15 días'],['30d','30 días'],['60d','60 días'],['todo','Todo'],['custom','Fechas a elección']];
+  const controles=`<div class="periodo-barra" style="margin-bottom:12px">
+    <span class="pb-lbl">Período</span>
+    <div class="pb-chips">${EV_PILLS.map(([v,l])=>
+      `<button type="button" class="pb-chip${evPeriodo===v?' on':''}" onclick="setEvPer('per','${v}')">${l}</button>`).join('')}</div>
+    <span class="pb-lbl" style="margin-left:auto">Comparar con</span>
+    <select class="ev-sel" onchange="setEvPer('cmp',this.value)">
+      ${opt('no','Sin comparar',evCmp)}${opt('mes','Último mes',evCmp)}
+      ${opt('3meses','Últimos 3 meses',evCmp)}${opt('anio','Este año',evCmp)}
+      ${opt('custom','Fechas a elección',evCmp)}
+    </select>
+    ${evPeriodo==='custom'?`<div class="ev-fechas"><span class="pb-lbl">Desde</span>
+      <input type="date" value="${evDesde||''}" onchange="setEvPer('desde',this.value)">
+      <span class="pb-lbl">Hasta</span>
+      <input type="date" value="${evHasta||''}" onchange="setEvPer('hasta',this.value)"></div>`:''}
+    ${evCmp==='custom'?`<div class="ev-fechas"><span class="pb-lbl">Comparar desde</span>
+      <input type="date" value="${evCmpDesde||''}" onchange="setEvPer('cmpdesde',this.value)">
+      <span class="pb-lbl">Hasta</span>
+      <input type="date" value="${evCmpHasta||''}" onchange="setEvPer('cmphasta',this.value)"></div>`:''}
   </div>`;
 
   /* ===== COBERTURA: qué % de MIS consultas del período miró Cintia =====
