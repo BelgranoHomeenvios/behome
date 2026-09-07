@@ -579,6 +579,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .ev-nuevo{display:inline-block;background:var(--amber,#f08c00);color:#fff;font-size:10px;font-weight:800;border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:2px}
 .ev-dest-acc{display:flex;flex-direction:column;gap:6px;align-items:stretch;flex-shrink:0}
 .ev-leido{font-size:12px;font-weight:700;color:#2f9e44;text-align:center;white-space:nowrap}
+.evd-filtros{background:var(--surface-1,#f4f6f8);border:1px solid var(--line,#e3e8ee);border-radius:12px;padding:10px 13px;margin:0 0 14px;display:flex;flex-direction:column;gap:8px}
+.evd-fg{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.evd-lb{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#8a94a3);min-width:72px}
+.evd-chips{display:flex;gap:6px;flex-wrap:wrap}
 .ev-aviso{background:#fffbef;border:1px solid #f0e2b6;border-radius:10px;padding:9px 13px;font-size:12.5px;color:var(--sec,#5b6675);line-height:1.5;margin:0 0 12px}
 .ev-fechas{flex-basis:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:8px;margin-top:2px;border-top:1px solid var(--line,#e3e8ee)}
 .ev-fechas input[type=date]{font:inherit;font-size:12.5px;padding:5px 9px;border:1px solid var(--line,#d0d7e2);border-radius:8px;background:#fff;color:var(--ink)}
@@ -11908,6 +11912,24 @@ function evEsParaDireccion(a){ const e=a.ejemploDelMes; return !!e && (e.target=
 function evDirSinLeer(){ return atenciones.filter(a=>evEsParaDireccion(a) && !a.ejemploDelMes.leidoDir).length; }
 
 let evDirTab='ejemplos';
+/* Filtros del panel Evaluación de dirección: vendedor, canal y nota de atención.
+   Los tres son múltiples y se combinan con Y (vendedor Ale + canal WhatsApp + Mala =
+   las malas de Ale por WhatsApp). Estado propio, separado del de Marketing y del de la
+   solapa del vendedor, para que no se muevan entre sí. */
+let evDirVend=[], evDirCanal=[], evDirAten=[];
+function evDirTog(qual,v){
+  const L = qual==='vend'?evDirVend : qual==='canal'?evDirCanal : evDirAten;
+  if(v==='__all__') L.length=0;
+  else { const i=L.indexOf(v); if(i>=0) L.splice(i,1); else L.push(v); }
+  evDirMesAbierto=null; renderPanelCintia();
+}
+function evDirLimpiar(){ evDirVend=[]; evDirCanal=[]; evDirAten=[]; evDirMesAbierto=null; renderPanelCintia(); }
+function evDirPasa(a){
+  if(evDirVend.length  && !evDirVend.includes(a.vendedorId)) return false;
+  if(evDirCanal.length && !evDirCanal.includes(estCanalDe(a))) return false;
+  if(evDirAten.length  && !evDirAten.includes(a.evalAtencion)) return false;
+  return true;
+}
 let evDirMesAbierto=null;
 function evDirSetTab(t){ evDirTab=t; evDirMesAbierto=null; renderPanelCintia(); }
 function evDirMes(k){ evDirMesAbierto = (evDirMesAbierto===k)?null:k; renderPanelCintia(); }
@@ -11997,9 +12019,9 @@ function htmlEvaluacionDireccion(){
   // Cobertura sobre TODAS las del período, sin recortes por antigüedad (mismo criterio
   // que Estadísticas y Marketing): el período lo elige quien mira.
   const evaluables = enPeriodo.filter(a=>a.evaluable!==false);
-  const evaluadas  = enPeriodo.filter(a=>a.evaluada);
+  const evaluadas  = enPeriodo.filter(a=>a.evaluada && evDirPasa(a));
   const cobertura  = evaluables.length ? Math.round(evaluables.filter(a=>a.evaluada).length*100/evaluables.length) : 0;
-  const ejemplosTodos = atenciones.filter(a=>a.ejemploDelMes)
+  const ejemplosTodos = atenciones.filter(a=>a.ejemploDelMes && evDirPasa(a))
     .sort((x,y)=>new Date(y.ejemploDelMes.ts||y.ts)-new Date(x.ejemploDelMes.ts||x.ts));
   const paraMi = ejemplosTodos.filter(evEsParaDireccion);
   const sinLeer = paraMi.filter(a=>!a.ejemploDelMes.leidoDir).length;
@@ -12021,6 +12043,24 @@ function htmlEvaluacionDireccion(){
     _ctxLista='';
   }
 
+  /* Barra de filtros. Los contadores de las solapas de arriba YA salen filtrados, así
+     que el número del botón y la lista de abajo siempre dicen lo mismo. */
+  const hayFiltro = evDirVend.length || evDirCanal.length || evDirAten.length;
+  const chipF=(qual,val,lbl,on)=>'<span class="mkt-chip sm '+(on?'on':'')+'" onclick="evDirTog(\''+qual+'\','+(typeof val==='number'?val:"'"+val+"'")+')">'+escapeHtml(lbl)+'</span>';
+  const grupo=(lbl,html)=>'<div class="evd-fg"><span class="evd-lb">'+lbl+'</span><div class="evd-chips">'+html+'</div></div>';
+  const filtros = '<div class="evd-filtros">'
+    + grupo('Vendedor',
+        chipF('vend','__all__','Todos', !evDirVend.length)
+        + MKT_VEND_ORDEN.filter(u=>USUARIOS[u]).map(u=>chipF('vend',u,nombreDe(u),evDirVend.includes(u))).join(''))
+    + grupo('Canal',
+        chipF('canal','__all__','Todos', !evDirCanal.length)
+        + MKT_CANALES.map(c=>chipF('canal',c,c,evDirCanal.includes(c))).join(''))
+    + grupo('Atención',
+        chipF('aten','__all__','Todas', !evDirAten.length)
+        + EV_ATENCION.map(([v,l])=>chipF('aten',v,l,evDirAten.includes(v))).join(''))
+    + (hayFiltro?'<button class="btn btn-outline btn-sm" onclick="evDirLimpiar()">✕ Limpiar filtros</button>':'')
+    + '</div>';
+
   return '<div class="cin-card">'
     + '<h3>Evaluación'+(sinLeer?' <span class="cnt-pill">'+sinLeer+' sin leer</span>':'')+'</h3>'
     + '<p class="tiny" style="margin-top:-8px">Todo lo que Cintia evaluó, comentó o marcó como ejemplo. Los gráficos siguen estando en Estadísticas.</p>'
@@ -12035,6 +12075,7 @@ function htmlEvaluacionDireccion(){
     +   tab('parami','💬 Para mí', paraMi.length)
     +   tab('todo','Todo lo evaluado', evaluadas.length)
     + '</div>'
+    + filtros
     + cuerpo
   + '</div>';
 }
@@ -19409,7 +19450,47 @@ function mktBucketResultado(base){
 
   // card5 compara a TODOS los vendedores entre sí: es justo lo que el vendedor no
   // tiene que ver. Con el candado puesto no se arma.
-  return card4 + (mktLockVend?'':card5) + card8 + cardNR + cardPauta;
+  /* Calidad de ATENCIÓN por vendedor. Es la contracara de la tarjeta 3: esa mide la
+     calidad de lo que ENTRA (no depende del vendedor), esta mide cómo lo atendió cada uno.
+     Solo para dirección/Cintia — compara personas, así que con el candado no se arma.
+     Mide sobre las EVALUADAS: una consulta sin evaluar no dice nada de la atención, y
+     meterla como "sin dato" ensuciaría los porcentajes. */
+  const evalRows = MKT_VEND_ORDEN.filter(u=>USUARIOS[u]).map(u=>{
+    const suyas = rbase.filter(a=>a.vendedorId===u && a.evalAtencion);
+    const r={k:nombreDe(u), tot:suyas.length};
+    EV_ATENCION.forEach(([v])=>{ r['v'+v]=suyas.filter(a=>a.evalAtencion===v).length; });
+    r.bien = (r.v1||0)+(r.v2||0);
+    /* COBERTURA. Es la columna que decide si el % de al lado se puede creer: la cola de
+       Cintia prioriza rechazadas y estancadas, así que con poca cobertura lo evaluado
+       está inclinado hacia lo que salió mal — y eso inclina los TRES ejes, no solo el de
+       cliente. Con cobertura alta la selección desaparece y el número es el universo. */
+    r.evbl = rbase.filter(a=>a.vendedorId===u && mktEvaluable(a)).length;
+    return r;
+  }).filter(r=>r.tot);
+  const COL_AT={g1:'#2f9e44',g2:'#74b816',g3:'#f08c00',g4:'#c92a2a'};
+  const card9 = evalRows.length ? (()=>{
+    const T={tot:0,bien:0,evbl:0,k:'Total'}; EV_ATENCION.forEach(([v])=>T['v'+v]=0);
+    evalRows.forEach(r=>{ T.tot+=r.tot; T.bien+=r.bien; T.evbl+=(r.evbl||0); EV_ATENCION.forEach(([v])=>T['v'+v]+=r['v'+v]); });
+    const cel=(n,t,col)=>`<td><span style="color:${col};font-weight:700">${n}</span> <b class="pn">${mktPct(n,t)}%</b></td>`;
+    const celCob=r=>{ const p=mktPct(r.tot,r.evbl||0);
+      const col = !r.evbl ? 'var(--muted)' : (p>=80?'#15803d':(p>=50?'#b45309':'#b42318'));
+      return `<td>${r.evbl?`<span style="color:${col}">${r.tot}/${r.evbl}</span> <b class="pn" style="color:${col}">${p}%</b>`:'<span style="color:var(--muted)">—</span>'}</td>`; };
+    const fila=r=>`<tr><td>${escapeHtml(r.k)}</td>${EV_ATENCION.map(([v,,cls])=>cel(r['v'+v],r.tot,COL_AT[cls])).join('')}
+      ${celCob(r)}<td><b style="color:${r.bien/r.tot>=.8?'#15803d':(r.bien/r.tot>=.6?'#b45309':'#b42318')}">${mktPct(r.bien,r.tot)}%</b></td></tr>`;
+    return `<div class="mkt-card wide"><h3>Calidad de la atención — por vendedor</h3>
+      <p class="cap">Sobre las consultas que Cintia YA evaluó. Muestra a cuántos clientes atendió bien y a cuántos mal cada uno.
+        ${mktSoloReales?'Estás midiendo <b>solo sobre las reales</b>, que es como corresponde leer esta tabla.':'Ojo: estás midiendo sobre <b>todas</b>. Pasá a <b>Solo las reales</b> para no penalizar a quien le tocó más basura.'}</p>
+      <table class="mkt-tbl mkt-tbl-big"><thead><tr><th>Vendedor</th>
+        ${EV_ATENCION.map(([,l])=>`<th>${l}</th>`).join('')}
+        <th>Evaluado x Cintia</th><th>% bien</th></tr></thead><tbody>
+        ${evalRows.sort((a,b)=>(b.bien/b.tot)-(a.bien/a.tot)).map(fila).join('')}
+        <tr class="tot"><td>Total</td>${EV_ATENCION.map(([v,,cls])=>cel(T['v'+v],T.tot,COL_AT[cls])).join('')}
+          ${celCob(T)}<td><b>${mktPct(T.bien,T.tot)}%</b></td></tr>
+      </tbody></table>
+      <div class="mkt-foot"><b>Qué medimos:</b> el eje <b>Atención</b> de la evaluación de Cintia, sobre ${T.tot} consultas evaluadas. <b>% bien</b> = "Muy bien" + "Bien". Ordenado de mejor a peor. <b>Solo compará entre vendedores con cobertura parecida</b>: la cola de Cintia prioriza rechazadas y estancadas, así que con poca cobertura lo evaluado se inclina hacia lo que salió mal. En verde 80%+, ámbar 50-79%, rojo abajo — en rojo, el % de al lado no es comparable.</div></div>`;
+  })() : '';
+
+  return card4 + (mktLockVend?'':card5) + card8 + (mktLockVend?'':card9) + cardNR + cardPauta;
 }
 
 function mktBucketProd(base){
