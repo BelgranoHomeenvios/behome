@@ -549,6 +549,13 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .situ-chip.rech .dot{background:var(--red)}
 .situ-chip.alerta{border-color:var(--red);background:var(--red-l,#fdecea);color:var(--red)}
 .situ-chip.alerta .dot{background:var(--red)}
+/* Píldoras de la barra Acción. Mismo lenguaje de color que el resto del CRM:
+   rojo lo vencido, gris lo que nadie agendó, azul hoy, ámbar mañana. */
+.situ-chip.acc-venc .dot{background:var(--red)}
+.situ-chip.acc-sin  .dot{background:var(--muted,#8a94a3)}
+.situ-chip.acc-hoy  .dot{background:var(--blue)}
+.situ-chip.acc-man  .dot{background:var(--amber)}
+.situ-chip.acc-otros .dot{background:var(--line,#cbd4e0)}
 .situ-chip.alerta b,.situ-chip.alerta .pct{color:var(--red)}
 .sb-total{margin-left:auto;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);white-space:nowrap}
 .sb-total b{font-size:17px;font-weight:800}
@@ -2132,6 +2139,7 @@ textarea{resize:vertical;min-height:60px}
         </div>
       </div>
       <div id="situResumenBox" class="hidden"></div>
+      <div id="accionBarraBox" class="hidden"></div>
       <div class="card" id="historialBox" style="padding:4px 18px">
         <div id="cheadBox"></div>
         <div id="filasBox"></div>
@@ -2537,6 +2545,11 @@ function esMarketing(){return rolDe(YO)==='marketing';}   // Ariel: rol de solo 
    ventas. Mismo patrón que el rol 'marketing' de Ariel: entra al panel pero con su set. */
 function esReclamos(){return rolDe(YO)==='reclamos';}
 function puedeVerEquipo(){return esAdmin()||esAuditora();}
+/* Dirección DE VERDAD: mira el usuario logueado, no el rol de la pantalla que se está
+   viendo. Hace falta porque con "ver como" el admin adopta el rol del vendedor (YO pasa a
+   ser el vendedor) y esAdmin() da false. Todo lo que sea solo para Brian y tenga que
+   seguir viéndose mientras mira como un vendedor se gatea con esto, no con esAdmin(). */
+function esDireccionReal(){ return !!VER_COMO_REAL && rolDe(VER_COMO_REAL)==='admin'; }
 
 /* ===== DATOS DE CONTACTO BLOQUEADOS =====
    Nombre, teléfono, usuario de IG y mail son la IDENTIDAD del cliente: de ahí salen la
@@ -5119,17 +5132,35 @@ function renderChipsHoy(){
     const fis  = enPeriodo.filter(a=>esFisico(a));
     const countBy = arr => { const c={}; arr.forEach(a=>{ if(a.vendedorId) c[a.vendedorId]=(c[a.vendedorId]||0)+1; }); return c; };
     const cv=countBy(virt), cf=countBy(fis);
+    // CONTEO ACTIVO: es una FOTO DE LA CARGA DE HOY, no volumen de entrada. Por eso se
+    // calcula sobre toda la base y NO sobre el período: una consulta que entró hace tres
+    // meses y sigue en seguimiento activo es trabajo real del vendedor hoy, aunque no haya
+    // entrado en la ventana elegida. Aplicarle el período la escondería justo en el caso
+    // que más importa (el vendedor con arrastre viejo).
+    const ca={}, caIni={}, caAct={};
+    let activasTotal=0;
+    base.forEach(a=>{
+      const e=etapaSeguimiento(a);          // 'inicial' | 'activo' | null
+      if(!e) return;
+      activasTotal++;
+      if(!a.vendedorId) return;
+      ca[a.vendedorId]=(ca[a.vendedorId]||0)+1;
+      if(e==='inicial') caIni[a.vendedorId]=(caIni[a.vendedorId]||0)+1;
+      else              caAct[a.vendedorId]=(caAct[a.vendedorId]||0)+1;
+    });
     const todosVendedores=[...new Set(Object.keys(LOCALES).flatMap(id=>vendedoresDeLocal(id)))];
-    const ids=[...new Set([...Object.keys(cv),...Object.keys(cf),...todosVendedores])].filter(uid=>uid && USUARIOS[uid]);
+    const ids=[...new Set([...Object.keys(cv),...Object.keys(cf),...Object.keys(ca),...todosVendedores])].filter(uid=>uid && USUARIOS[uid]);
     // Cada número es un botón: Cintia o dirección filtran la lista de Consultas por ese
     // vendedor y si la atención fue virtual o física. Se vuelve a tocar para quitar el filtro.
-    const fila=(cnt,total,tipo)=>`<div class="chips">${ids.map(uid=>{
+    const fila=(cnt,total,tipo,tip)=>`<div class="chips">${ids.map(uid=>{
         const on = filtroConteoVendedor===uid && filtroConteoTipo===tipo;
-        return `<button type="button" class="chip chip-btn${on?' on':''}" onclick="toggleConteoFiltro('${uid}','${tipo}')"><b>${cnt[uid]||0}</b> ${nombreDe(uid)}</button>`;
+        const t = tip ? ` title="${tip(uid)}"` : '';
+        return `<button type="button" class="chip chip-btn${on?' on':''}"${t} onclick="toggleConteoFiltro('${uid}','${tipo}')"><b>${cnt[uid]||0}</b> ${nombreDe(uid)}</button>`;
       }).join('')}<div class="chip total"><b>${total}</b> Total</div></div>`;
     box.style.display='block';
     box.innerHTML=`<div class="conteo-sub">📲 Conteo virtual</div>${fila(cv,virt.length,'virtual')}
-      <div class="conteo-sub" style="margin-top:12px">🚶‍♂️ Conteo físico (local)</div>${fila(cf,fis.length,'fisico')}`;
+      <div class="conteo-sub" style="margin-top:12px">🚶‍♂️ Conteo físico (local)</div>${fila(cf,fis.length,'fisico')}
+      <div class="conteo-sub" style="margin-top:12px">🔥 Conteo activo <span style="font-weight:600;text-transform:none;letter-spacing:0;opacity:.65">· carga de hoy, sin período</span></div>${fila(ca,activasTotal,'activo',uid=>`${caIni[uid]||0} en consulta inicial · ${caAct[uid]||0} en seguimiento activo`)}`;
     $('chipsTitle').textContent='Conteo';
   }else{
     $('chipsTitle').classList.add('hidden');
@@ -6861,9 +6892,27 @@ const FILTRO_ESTADO_OPCIONES=[
   ['En seguimiento','En seguimiento (las dos)'],
   ['Concretado','Concretado'],['Rechazado','Rechazado'],['todos','Todas, incluidas cerradas']
 ];
+/* ===== ACCIÓN: en qué día cae la próxima acción de la consulta =====
+   Definición ÚNICA que gobiernan a la vez el desplegable de la columna ACCIÓN, la barra
+   de píldoras del vendedor y el filtro de la tabla. Si esto vive en un solo lugar, el
+   número de la píldora y las filas de abajo no pueden decir cosas distintas.
+   Devuelve siempre una de las claves de FILTRO_PLAZO_OPCIONES. */
+function accionDe(a){
+  const p=proximaAccionDe(a);
+  if(!p) return 'sin';
+  const hoy0=new Date(); hoy0.setHours(0,0,0,0);
+  const prox=new Date(p);
+  if(prox <  hoy0)                            return 'vencidas';
+  if(prox <  new Date(hoy0.getTime()+86400000))  return 'hoy';
+  if(prox <  new Date(hoy0.getTime()+2*86400000)) return 'manana';
+  return 'otros';
+}
+/* "Esta semana" y "Más adelante" se fusionaron en "Otros días" (pedido de Brian): en la
+   agenda del vendedor lo único que cambia el trabajo de HOY es hoy, mañana, lo vencido y
+   lo que no tiene fecha. El resto se ordena solo por fecha dentro de la tabla. */
 const FILTRO_PLAZO_OPCIONES=[
-  ['todos','Cualquier plazo'],['vencidas','Atrasadas'],['hoy','Para hoy'],
-  ['semana','Esta semana'],['mas','Más adelante'],['sin','Sin definir']
+  ['todos','Cualquier acción'],['vencidas','Atrasadas'],['sin','Sin acción'],
+  ['hoy','Hoy'],['manana','Mañana'],['otros','Otros días']
 ];
 /* El filtro de oportunidad ahora es por estrellas. '3','2','1' filtran por calificación
    y 'sin' junta todo lo que no tiene estrellas (sin calificar, "No sé todavía",
@@ -7103,6 +7152,7 @@ function setFiltroBusqueda(valor, origen){
   renderFilas(ordenarLista(l));
   renderPanelGestion(baseTablero);
   renderSituResumen();
+  renderAccionBarra();
   renderSolapasVendedor();
   renderFiltrosActivos();
   // Buscar desde la barra de arriba también filtra las secciones de Cintia (Atrasadas).
@@ -7145,21 +7195,10 @@ function construirListaFiltrada(){
     else if(filtroEstado!=='todos') l=l.filter(a=>estadoDe(a)===filtroEstado);
   }
 
+  // Un solo criterio: accionDe(). Antes cada bloque recalculaba las fechas por su cuenta
+  // y podía divergir del conteo de la barra de píldoras.
   if(filtroPlazo!=='todos'){
-    const hoy0=new Date(); hoy0.setHours(0,0,0,0);
-    const manana0=new Date(hoy0.getTime()+86400000);
-    const en7=new Date(hoy0.getTime()+7*86400000);
-    l=l.filter(a=>{
-      const p=proximaAccionDe(a);
-      const prox=p?new Date(p):null;
-      if(filtroPlazo==='sin') return !prox;
-      if(!prox) return false;
-      if(filtroPlazo==='vencidas') return prox<hoy0;
-      if(filtroPlazo==='hoy') return prox>=hoy0 && prox<manana0;
-      if(filtroPlazo==='semana') return prox>=manana0 && prox<en7;
-      if(filtroPlazo==='mas') return prox>=en7;
-      return true;
-    });
+    l=l.filter(a=>accionDe(a)===filtroPlazo);
   }
 
   if(buscar) l=l.filter(a=>(a.clienteNombre||'').toLowerCase().includes(buscar) || (a.clienteTelefono||'').includes(buscar) || (a.clienteInstagram||'').toLowerCase().includes(buscar));
@@ -7182,7 +7221,9 @@ function construirListaFiltrada(){
   if(esAuditora()){
     if(filtroEvaluacion==='evaluadas') l=l.filter(a=>a.evaluada);
     else if(filtroEvaluacion==='sinevaluar') l=l.filter(a=>!a.evaluada);
-    if(!buscar) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
+    // El conteo activo se cuenta sin período: si acá filtráramos por período, el chip diría
+    // 23 y la lista mostraría 9. Cuando ese filtro está puesto, el período no se aplica.
+    if(!buscar && filtroConteoTipo!=='activo') l=l.filter(a=>dentroDePeriodoCintia(a.ts));
   }
 
   // Filtro por los botones de Conteo (vendedor + virtual/físico) — Cintia y dirección.
@@ -7191,6 +7232,8 @@ function construirListaFiltrada(){
     const esFisico=a=>a.canal==='presencial'||canalReal(a)==='Local';
     if(filtroConteoTipo==='virtual') l=l.filter(a=>!esFisico(a));
     else if(filtroConteoTipo==='fisico') l=l.filter(a=>esFisico(a));
+    // 'activo' no filtra por canal: filtra por ETAPA (consulta inicial + seguimiento activo).
+    else if(filtroConteoTipo==='activo') l=l.filter(a=>etapaSeguimiento(a)!==null);
   }
 
   return l;
@@ -7213,20 +7256,10 @@ function filtrosColumna(l){
   if(filtroEtapa!=='todos') l=l.filter(a=>etapaDesdeRegistro(a)===+filtroEtapa);
   if(filtroComentario==='con') l=l.filter(a=>!!(a.notas||a.resultadoMotivo));
   else if(filtroComentario==='sin') l=l.filter(a=>!(a.notas||a.resultadoMotivo));
+  // Un solo criterio: accionDe(). Antes cada bloque recalculaba las fechas por su cuenta
+  // y podía divergir del conteo de la barra de píldoras.
   if(filtroPlazo!=='todos'){
-    const hoy0=new Date(); hoy0.setHours(0,0,0,0);
-    const manana0=new Date(hoy0.getTime()+86400000);
-    const en7=new Date(hoy0.getTime()+7*86400000);
-    l=l.filter(a=>{
-      const p=proximaAccionDe(a); const prox=p?new Date(p):null;
-      if(filtroPlazo==='sin') return !prox;
-      if(!prox) return false;
-      if(filtroPlazo==='vencidas') return prox<hoy0;
-      if(filtroPlazo==='hoy') return prox>=hoy0 && prox<manana0;
-      if(filtroPlazo==='semana') return prox>=manana0 && prox<en7;
-      if(filtroPlazo==='mas') return prox>=en7;
-      return true;
-    });
+    l=l.filter(a=>accionDe(a)===filtroPlazo);
   }
   if(buscar) l=l.filter(a=>(nombreCliente(a)||'').toLowerCase().includes(buscar) || (a.clienteTelefono||'').includes(buscar) || (a.clienteInstagram||'').toLowerCase().includes(buscar));
   if(puedeRecordar()){
@@ -7344,7 +7377,9 @@ function renderHistorial(){
   // esos baldes son la cola de trabajo, no un reporte — una consulta que se le venció ayer
   // tiene que aparecer aunque haya entrado hace tres meses. Además así la lista coincide
   // con el número del balde, que ya se calculaba sin período (3/8/2026, pedido de Brian).
-  if(!esAuditora() && !filtroBusqueda && !zonaActiva) l=l.filter(a=>dentroDePeriodoCintia(a.ts));
+  // filtroPlazo suma a la lista de excepciones por el mismo motivo que zonaActiva: la barra
+  // Acción cuenta sin período, así que si acá recortáramos, la píldora y la tabla no cerrarían.
+  if(!esAuditora() && !filtroBusqueda && !zonaActiva && filtroPlazo==='todos') l=l.filter(a=>dentroDePeriodoCintia(a.ts));
   l=ordenarLista(l);
 
   renderChead();
@@ -7352,6 +7387,7 @@ function renderHistorial(){
 
   renderPanelGestion(baseTablero);
   renderSituResumen();
+  renderAccionBarra();
   renderSolapasVendedor();
   renderFiltrosActivos();
   renderChipsHoy();   // el Conteo del período se actualiza al cambiar fecha/filtros
@@ -7637,6 +7673,75 @@ function renderSituResumen(){
     </div>
   </div>`;
 }
+/* Barra ACCIÓN: la agenda del vendedor, con la misma forma que la barra Estado para que
+   lea la misma gramática dos veces (en qué estado está la consulta / cuándo hay que
+   tocarla). Reemplaza al desplegable escondido del encabezado de la columna ACCIÓN, y
+   escribe en filtroPlazo — el MISMO estado — así no hay dos filtros compitiendo.
+
+   DOS DECISIONES QUE HAY QUE RESPETAR AL TOCAR ESTO:
+   1) Se cuenta SOLO sobre las consultas ABIERTAS. Una concretada o rechazada no tiene
+      próxima acción: si entraran, "Sin acción" arrancaría inflada con todas las cerradas
+      (en la captura de Brian, 24 de 38) y la píldora nacía inútil.
+   2) NO se aplica el período. Es cola de trabajo, no reporte — misma regla que ya rige
+      para los baldes del tablero desde el 3/8: una atrasada de hace dos meses tiene que
+      aparecer aunque la ventana sea de 15 días. */
+const ACCION_PILLS=[
+  ['vencidas','Atrasadas','acc-venc'],
+  ['sin','Sin acción','acc-sin'],
+  ['hoy','Hoy','acc-hoy'],
+  ['manana','Mañana','acc-man'],
+  ['otros','Otros días','acc-otros']
+];
+function baseAccionVendedor(){
+  // zonaDe ya resuelve qué está cerrado: concretada, rechazada, nunca respondió,
+  // archivada por inactividad y las consultas de gestión. No se reescribe acá.
+  // En la pantalla propia de dirección la base es el equipo; mirando como un vendedor,
+  // las de ese vendedor — así la barra dice lo mismo que la tabla que tiene debajo.
+  const base = puedeVerEquipo() ? registrosLocal(FILTRO_LOCAL_ADMIN)
+                                : atenciones.filter(a=>a.vendedorId===YO);
+  return base.filter(a=>zonaDe(a)!=='cerrada');
+}
+function renderAccionBarra(){
+  const box=$('accionBarraBox'); if(!box) return;
+  // SOLO DIRECCIÓN (pedido de Brian): no la ven los vendedores ni Cintia. Se gatea por el
+  // usuario REAL, no por el rol de la pantalla, para que siga apareciendo cuando Brian
+  // mira como un vendedor — que es justamente donde la quiere usar.
+  if(!esDireccionReal()){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  box.classList.remove('hidden');
+  const base=baseAccionVendedor();
+  const tot=base.length;
+  const c={}; base.forEach(a=>{ const k=accionDe(a); c[k]=(c[k]||0)+1; });
+  const pct=n=>tot?Math.round(n/tot*100):0;
+  const chip=([val,lbl,cls])=>{
+    const n=c[val]||0, on=filtroPlazo===val;
+    return `<span class="situ-chip ${cls}${on?' on':''}" role="button" tabindex="0"
+      title="${on?'Quitar el filtro':'Ver solo: '+lbl.toLowerCase()}"
+      onclick="filtrarPorAccion('${val}')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filtrarPorAccion('${val}')}"
+      ><span class="dot"></span>${lbl} <b>${n}</b> <span class="pct">${pct(n)}%</span></span>`;
+  };
+  box.innerHTML=`<div class="situ-barra">
+    <span class="sb-lbl">Acción</span>
+    <div class="sb-chips">
+      ${ACCION_PILLS.map(chip).join('')}
+      <span class="sb-total sb-todas${filtroPlazo==='todos'?' on':''}" role="button" tabindex="0"
+        title="Ver todas las abiertas"
+        onclick="filtrarPorAccion('todos')"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filtrarPorAccion('todos')}"
+        >Abiertas <b>${tot}</b></span>
+    </div>
+  </div>`;
+}
+function filtrarPorAccion(val){
+  reiniciarPaginado();
+  // Toggle: volver a tocar la píldora encendida la apaga.
+  filtroPlazo = (val==='todos') ? 'todos' : (filtroPlazo===val ? 'todos' : val);
+  // Entrar por Acción limpia el balde del tablero: son dos formas de cortar la misma
+  // lista y dejarlas juntas mostraría la intersección, que no es lo que se pidió.
+  zonaActiva=null;
+  renderHistorial();
+}
+
 /* Cada 2 horas, si el vendedor tiene más del tope de consultas En seguimiento, le salta
    un aviso para que las baje (cerrando o rechazando) hasta quedar por debajo del tope. */
 let _ultimoAvisoSeg=0;
