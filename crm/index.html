@@ -19263,7 +19263,12 @@ function mktBucketProd(base){
     ${reconsult.length?`<div class="mkt-scroll"><table class="mkt-tbl"><thead><tr><th>Cliente</th><th>Contacto</th><th>Canales</th><th>Consultas</th></tr></thead><tbody>
       ${reconsult.slice(0,40).map(c=>`<tr><td>${escapeHtml(c.nombre||'—')}</td><td>${escapeHtml(c.tel||'—')}</td><td style="text-align:left;color:var(--sec);font-size:12px">${escapeHtml([...c.canales].join(', '))}</td><td><b>${c.n}</b></td></tr>`).join('')}
     </tbody></table></div>${reconsult.length>40?`<p class="mkt-note">Mostrando los 40 con más consultas de ${reconsult.length}.</p>`:''}`:'<p class="mkt-note">Todavía no hay clientes con más de una consulta.</p>'}</div>`;
-  return cardEsp + card6 + card7;
+  /* card7 (Reconsultas) NO se arma para el vendedor. No es una cuestión de si le sirve:
+     esa tarjeta se calcula sobre `atenciones` DIRECTAMENTE, sin pasar por la base filtrada,
+     así que ignora el candado y le mostraría los clientes y teléfonos de TODA la empresa,
+     incluidos los de los otros vendedores. Si algún día se quiere una versión para él,
+     hay que recalcularla sobre sus propias consultas, no reactivar esta. */
+  return cardEsp + card6 + (mktLockVend?'':card7);
 }
 
 function htmlMarketing(){
