@@ -2420,11 +2420,16 @@ const USUARIOS={
   iara:{n:'Iara',rol:'auditora'},
   ariel:{n:'Ariel',rol:'marketing'},
   lucas:{n:'Lucas',rol:'reclamos'},
-  brian:{n:'Brian',rol:'admin'}
+  brian:{n:'Brian',rol:'admin'},
+  /* Jony entra con su propio uid, NO con el de Brian: comparten permisos pero cada acción
+     tiene que quedar registrada a nombre de quien la hizo. Ya figuraba en
+     CR_ATENDIO_EXTRA (podía aparecer como "quién atendió" en una consulta de Local),
+     pero sin entrada acá la app lo rebotaba al entrar. */
+  jony:{n:'Jony',rol:'admin'}
 };
 /* OJO: cintia va ANTES que iara a propósito. uidAuditora() devuelve la primera auditora de
    esta lista y es la que hereda los defaults viejos (ej. revisiones sin evaluadoPorId). */
-const ORDEN_LOGIN=['sergio','nati','ale','cristian','claudia','cintia','iara','ariel','lucas','brian'];
+const ORDEN_LOGIN=['sergio','nati','ale','cristian','claudia','cintia','iara','ariel','lucas','brian','jony'];
 
 /* Confirmado: Sergio trabaja Belgrano 2020 de lunes a sábado, y Belgrano 2299 los domingos.
    Ale y Nati también pueden trabajar en cualquiera de los dos locales según el día — por eso
