@@ -19294,6 +19294,13 @@ function mktFiltrosHtml(){
       <div class="mkt-chips">${PER.map(([v,t])=>`<span class="mkt-chip ${mktPreset===v?'on':''}" onclick="mktSetPreset('${v}')">${t}</span>`).join('')}</div>
       ${mktPreset==='pers'?`<div class="mkt-fechas"><input type="date" id="mktFDesde" value="${mktDesde||''}" onchange="mktSetFecha('d',this.value)"> a <input type="date" id="mktFHasta" value="${mktHasta||''}" onchange="mktSetFecha('h',this.value)">${(mktDesde&&mktHasta&&mktDesde>mktHasta)?`<span class="tiny" style="color:#b45309;margin-left:8px">⚠ Cargaste las fechas al revés — las ordené solas.</span>`:''}</div>`:''}
     </div>
+    ${mktTab==='volumen'?`<div class="mkt-fgroup"><span class="lbl">Ver el gráfico</span>
+      <div class="mkt-chips">
+        <span class="mkt-chip ${mktVista==='total'?'on':''}" onclick="mktSetVista('total')">Total</span>
+        <span class="mkt-chip ${mktVista==='canal'?'on':''}" onclick="mktSetVista('canal')">Separado por canal</span>
+        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktVista==='canal'?'Una línea de color por canal. Los chips de Canal de abajo siguen filtrando.':'Una sola línea con todo lo que pasa el filtro de canal.'}</span>
+      </div>
+    </div>`:''}
     ${mktTab==='volumen'?`<div class="mkt-fgroup"><span class="lbl">Agrupar por</span>
       <div class="mkt-chips">${MKT_UNIDADES.map(([v,t])=>`<span class="mkt-chip ${mktUnidad===v?'on':''}" onclick="mktSetUnidad('${v}')">${t}${(v==='auto'&&mktUnidad==='auto')?` (por ${MKT_UNIDAD_LBL[mktUnidadEfectiva()]})`:''}</span>`).join('')}</div>
       <span class="tiny" style="color:var(--muted)">Solo afecta al gráfico de la tarjeta 1. En Automático lo decide el período, como hasta ahora.</span>
@@ -19376,9 +19383,8 @@ function mktBucketVolumen(base){
     const rangoHtml=`<div class="mkt-rango">Mostrando del ${mktFechaFull(serie.out[0].t)} al ${mktFechaFull(serie.out[_n-1].t)}</div>`;
     graficoHtml=mktGraficoLinea(base, serie, clickable)+rangoHtml;
   }
-  /* Chips de vista. Es la misma serie a dos niveles de zoom, por eso van adentro de la
-     tarjeta y no en el bloque de filtros de arriba. */
-  const vistaChips=`<div class="mkt-vista">${[['total','Total'],['canal','Por canal']].map(([v,t])=>`<span class="mkt-chip ${mktVista===v?'on':''}" onclick="mktSetVista('${v}')">${t}</span>`).join('')}</div>`;
+  /* Los chips de vista (Total / Por canal) viven en el bloque de filtros, junto a
+     "Agrupar por": son dos controles del mismo gráfico y conviene tenerlos juntos. */
   const card1=`<div class="mkt-card wide"><h3>1 · Consultas que llegaron ${ejeUnit}</h3>
     <p class="cap">${mktVista==='canal'?'De dónde vienen las consultas en el tiempo. Tocá un canal de la leyenda para verlo solo a él.':'Volumen en el tiempo, separando las que valen de las que no.'} ${clickable&&!mktMesAbierto?'Tocá un mes para abrirlo día por día.':'Tocá un tramo para filtrar todo a ese período.'}</p>
     <div class="mkt-kpirow">
@@ -19392,7 +19398,6 @@ function mktBucketVolumen(base){
            <div class="mkt-kpi"><div class="n">${prom.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>`}
       <div class="mkt-kpi"><div class="n" style="color:${covEvbl?covCol:'var(--muted)'}">${covEvbl?covPct+'%':'—'}</div><div class="l">Evaluado x Cintia<small>${covEvbl?`${covEv} de ${covEvbl} del período`:'sin consultas evaluables en el período'}</small></div></div>
     </div>
-    ${vistaChips}
     ${drillHead}
     ${graficoHtml}
     ${(hayParc&&!demasiadas)?`<div class="mkt-leg"><span><i class="hueco"></i>Tramo incompleto — no cubre todos sus días${mktVista==='canal'?' (mirá el tooltip)':''}</span>${mktVista==='canal'?`<span><i class="punteado"></i>Publicidad (pauta)</span>`:''}</div>`:(mktVista==='canal'?`<div class="mkt-leg"><span><i class="punteado"></i>Publicidad (pauta)</span></div>`:'')}
