@@ -18857,6 +18857,13 @@ function htmlFichaReclamo(){
 .mkt-days .seg.real{background:var(--blue);border-radius:3px 3px 0 0}
 .mkt-days .seg.desc{background:#c7ced6;border-radius:3px 3px 0 0}
 .mkt-days .dcol .seg.real{border-radius:0}
+/* Tramo incompleto: mismo color, rayado. El background-image va con !important porque el
+   color de cada segmento se escribe inline con el shorthand `background`, que lo pisaría. */
+.mkt-days .dcol.parc .seg{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.6) 0 3px,transparent 3px 6px)!important}
+.mkt-leg i.rayado{background:var(--blue);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.6) 0 3px,transparent 3px 6px)}
+.mkt-cap-aviso{background:#fff8e6;border:1px solid #f0d9a0;border-radius:10px;padding:14px 16px;margin:12px 0 4px;font-size:13px;color:#7a5b12;line-height:1.55}
+.mkt-cap-aviso b{color:#5c4409}
+.mkt-cap-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .mkt-axis{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:6px}
 .mkt-leg{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--sec)}
 .mkt-leg span{display:flex;align-items:center;gap:6px}
@@ -18902,6 +18909,10 @@ table.mkt-tbl{width:100%;border-collapse:collapse;font-size:13px}
 let mktTab='volumen';           // balde activo
 let mktBox='view-marketing';    // dónde se pinta (Ariel: view-marketing · Brian: cintiaMain)
 let mktPreset='mes';            // '7d' | 'mes' | '3m' | 'pers'
+/* Granularidad del gráfico de volumen. 'auto' = la regla de siempre (la deduce del
+   período); 'dia' | 'sem' | 'mes' = elegida a mano desde los chips "Agrupar por".
+   Default 'auto' para que el módulo se comporte igual que antes si nadie toca nada. */
+let mktUnidad='auto';
 let mktDesde=null, mktHasta=null;
 let mktVendSel=[];              // [] = todos
 /* CANDADO DE VENDEDOR. Cuando tiene un uid, el módulo de Marketing se recorta a esa
@@ -18946,6 +18957,22 @@ function mktRango(){
   d1.setHours(0,0,0,0);
   return {d1,d2};
 }
+/* ===== GRANULARIDAD DEL GRÁFICO DE VOLUMEN — única fuente de verdad =====
+   Antes esta regla estaba escrita en dos lugares (adentro de la tarjeta 1 y en una copia
+   de mktSerie2, que ya no llama nadie y se borró). Ahora vive acá sola: el gráfico, el
+   título, el promedio, el drill y el tope de columnas leen todos de mktUnidadEfectiva().
+   'auto' devuelve exactamente lo que devolvía antes, así el default no cambia nada. */
+const MKT_UNIDADES=[['auto','Automático'],['dia','Día'],['sem','Semana'],['mes','Mes']];
+const MKT_UNIDAD_LBL={dia:'día', sem:'semana', mes:'mes'};
+const MKT_MAX_COLS=120;         // arriba de esto el gráfico no se dibuja: no entra en pantalla
+function mktUnidadAuto(){
+  if(mktPreset==='7d'||mktPreset==='mes') return 'dia';
+  if(mktPreset==='3m') return 'sem';
+  const {d1,d2}=mktRango();
+  const spanD=Math.max(1,Math.round((d2.getTime()-d1.getTime())/86400000));
+  return spanD<=45?'dia':(spanD<=220?'sem':'mes');
+}
+function mktUnidadEfectiva(){ return mktUnidad==='auto' ? mktUnidadAuto() : mktUnidad; }
 /* Canal a mostrar: el presencial se abre en los dos locales. */
 function mktCanalMostrar(a){
   if(a.canal==='presencial' || canalReal(a)==='Local'){
@@ -19037,24 +19064,6 @@ function mktBarras(rows, colorFn, fmt){
     <span class="bt"><i style="width:${Math.round(r.v/max*100)}%;background:${colorFn?colorFn(r.k,r):'var(--blue)'}"></i></span>
     <span class="bv">${fmt?fmt(r):r.v}</span></div>`).join('');
 }
-/* serie temporal con dos series (real / descartada) y relleno de huecos */
-function mktSerie2(base){
-  const {d1,d2}=mktRango();
-  const spanD=Math.max(1,Math.round((d2.getTime()-d1.getTime())/86400000));
-  const unit=spanD<=45?'dia':(spanD<=220?'sem':'mes');
-  const norm=dt=>{const x=new Date(dt);x.setHours(0,0,0,0);
-    if(unit==='sem'){const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);}
-    else if(unit==='mes'){x.setDate(1);} return x;};
-  const step=x=>{const n=new Date(x);
-    if(unit==='dia')n.setDate(n.getDate()+1);
-    else if(unit==='sem')n.setDate(n.getDate()+7);
-    else n.setMonth(n.getMonth()+1); return n;};
-  const R={},D={};
-  base.forEach(a=>{const k=norm(a.ts).getTime(); if(mktReal(a))R[k]=(R[k]||0)+1; else D[k]=(D[k]||0)+1;});
-  const out=[]; let cur=norm(d1); const end=norm(d2).getTime(); let guard=0;
-  while(cur.getTime()<=end && guard<732){ const k=cur.getTime(); out.push({t:k,real:R[k]||0,desc:D[k]||0}); cur=step(cur); guard++; }
-  return {out,unit};
-}
 function mktFechaCorta(t,unit){
   const x=new Date(t); const MS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   if(unit==='mes') return MS[x.getMonth()]+' '+String(x.getFullYear()).slice(2);
@@ -19082,8 +19091,22 @@ function mktSerieUnit(base, unit, d1, d2){
       else if(e==='Rechazado')  X[k]=(X[k]||0)+1;
       else                      A[k]=(A[k]||0)+1;
     } else D[k]=(D[k]||0)+1;});
+  /* Cada tramo se marca si quedó INCOMPLETO: cuando el mes (o la semana) natural se sale
+     del período elegido, la columna cubre menos días de los que le corresponden y baja
+     sola. Antes no podía pasar porque la unidad salía del período; ahora que se elige a
+     mano, la primera y la última pueden quedar cortadas. Se dibujan rayadas y el tooltip
+     dice cuántos días entraron. No se esconden: una columna que falta es peor que una
+     columna corta bien marcada. */
+  const DIA=86400000, d0=x=>{const y=new Date(x);y.setHours(0,0,0,0);return y.getTime();};
+  const ini=d0(d1.getTime()), fin=d0(d2.getTime());
   const out=[]; let cur=norm(d1); const end=norm(d2).getTime(); let guard=0;
-  while(cur.getTime()<=end && guard<732){ const k=cur.getTime(); out.push({t:k,real:R[k]||0,desc:D[k]||0,conc:C[k]||0,rech:X[k]||0,abie:A[k]||0}); cur=step(cur); guard++; }
+  while(cur.getTime()<=end && guard<1500){ const k=cur.getTime();
+    const natFin=step(cur).getTime()-1;
+    const dTot=Math.round((d0(natFin)-d0(k))/DIA)+1;
+    let dIn=Math.round((Math.min(d0(natFin),fin)-Math.max(d0(k),ini))/DIA)+1;
+    dIn=Math.max(1,Math.min(dIn,dTot));
+    out.push({t:k,real:R[k]||0,desc:D[k]||0,conc:C[k]||0,rech:X[k]||0,abie:A[k]||0,dTot,dIn,parcial:dIn<dTot});
+    cur=step(cur); guard++; }
   return {out,unit};
 }
 function mktBarrasVolumen(serie, clickable){
@@ -19097,10 +19120,12 @@ function mktBarrasVolumen(serie, clickable){
   return serie.out.map(p=>{
     const f=mktFechaCorta(p.t,serie.unit);
     const click=clickable?` onclick="mktAbrirMes('${mktMesKey(p.t)}')" style="cursor:pointer"`:'';
+    const parc=p.parcial?' parc':'';
+    const dparc=p.parcial?` data-parc="1" data-din="${p.dIn}" data-dtot="${p.dTot}"`:'';
     if(modo==='resultado'){
       const tt=p.real;
       const h=n=>Math.round(n/maxD*H);
-      return `<div class="dcol"${click} data-modo="resultado" data-fecha="${escAttr(f)}" data-tot="${tt}"
+      return `<div class="dcol${parc}"${click}${dparc} data-modo="resultado" data-fecha="${escAttr(f)}" data-tot="${tt}"
         data-conc="${p.conc}" data-rech="${p.rech}" data-abie="${p.abie}"
         data-pconc="${mktPct(p.conc,tt)}" data-prech="${mktPct(p.rech,tt)}" data-pabie="${mktPct(p.abie,tt)}">
         <div class="seg" style="height:${h(p.abie)}px;background:#f0c896"></div>
@@ -19109,7 +19134,7 @@ function mktBarrasVolumen(serie, clickable){
     }
     const tt=p.real+p.desc;
     const rp=Math.round(p.real/maxD*H), dp=Math.round(p.desc/maxD*H);
-    return `<div class="dcol"${click} data-modo="corte" data-fecha="${escAttr(f)}" data-tot="${tt}" data-real="${p.real}" data-desc="${p.desc}" data-preal="${mktPct(p.real,tt)}" data-pdesc="${mktPct(p.desc,tt)}">
+    return `<div class="dcol${parc}"${click}${dparc} data-modo="corte" data-fecha="${escAttr(f)}" data-tot="${tt}" data-real="${p.real}" data-desc="${p.desc}" data-preal="${mktPct(p.real,tt)}" data-pdesc="${mktPct(p.desc,tt)}">
       <div class="seg desc" style="height:${dp}px"></div>
       <div class="seg real" style="height:${rp}px"></div></div>`;
   }).join('');
@@ -19122,14 +19147,15 @@ function mktTipInit(){
   document.addEventListener('mousemove', e=>{
     const col=e.target.closest ? e.target.closest('.mkt-days .dcol') : null;
     if(col && col.dataset.tot!==undefined){
-      t.innerHTML = col.dataset.modo==='resultado'
+      t.innerHTML = (col.dataset.modo==='resultado'
         ? `<b>${col.dataset.fecha}</b> · Reales: <b>${col.dataset.tot}</b><br>`+
           `<span style="color:#15803d">●</span> Concretadas: <b>${col.dataset.conc}</b> (${col.dataset.pconc}%)<br>`+
           `<span style="color:#e08b84">●</span> Rechazadas: <b>${col.dataset.rech}</b> (${col.dataset.prech}%)<br>`+
           `<span style="color:#f0c896">●</span> Abiertas: <b>${col.dataset.abie}</b> (${col.dataset.pabie}%)`
         : `<b>${col.dataset.fecha}</b> · Total: <b>${col.dataset.tot}</b><br>`+
           `<span style="color:#5b9bff">●</span> Reales: <b>${col.dataset.real}</b> (${col.dataset.preal}%)<br>`+
-          `<span style="color:#c7ced6">●</span> Descartadas: <b>${col.dataset.desc}</b> (${col.dataset.pdesc}%)`;
+          `<span style="color:#c7ced6">●</span> Descartadas: <b>${col.dataset.desc}</b> (${col.dataset.pdesc}%)`)
+        + (col.dataset.parc==='1' ? `<br><span style="color:#f0c896">⚠ Tramo incompleto — ${col.dataset.din} de ${col.dataset.dtot} días</span>` : '');
       t.style.display='block';
       let x=e.clientX+14; if(x+250>window.innerWidth) x=e.clientX-250;
       t.style.left=x+'px'; t.style.top=(e.clientY+14)+'px';
@@ -19164,6 +19190,9 @@ function mktAplicarColapso(el){
   });
 }
 function mktSetTab(t){ mktTab=t; renderMarketing(); }
+/* Cambiar la granularidad cierra el drill de mes abierto: si no, quedaba un estado mezclado
+   (adentro de un mes, pero con la unidad cambiada debajo). Mismo criterio que mktSetPreset. */
+function mktSetUnidad(v){ mktUnidad=v; mktMesAbierto=null; renderMarketing(); }
 function mktSetProdPag(n){ mktProdPag=n; renderMarketing(); }
 function mktSetPreset(v){
   mktPreset=v; mktMesAbierto=null;
@@ -19209,6 +19238,10 @@ function mktFiltrosHtml(){
       <div class="mkt-chips">${PER.map(([v,t])=>`<span class="mkt-chip ${mktPreset===v?'on':''}" onclick="mktSetPreset('${v}')">${t}</span>`).join('')}</div>
       ${mktPreset==='pers'?`<div class="mkt-fechas"><input type="date" id="mktFDesde" value="${mktDesde||''}" onchange="mktSetFecha('d',this.value)"> a <input type="date" id="mktFHasta" value="${mktHasta||''}" onchange="mktSetFecha('h',this.value)">${(mktDesde&&mktHasta&&mktDesde>mktHasta)?`<span class="tiny" style="color:#b45309;margin-left:8px">⚠ Cargaste las fechas al revés — las ordené solas.</span>`:''}</div>`:''}
     </div>
+    ${mktTab==='volumen'?`<div class="mkt-fgroup"><span class="lbl">Agrupar por</span>
+      <div class="mkt-chips">${MKT_UNIDADES.map(([v,t])=>`<span class="mkt-chip ${mktUnidad===v?'on':''}" onclick="mktSetUnidad('${v}')">${t}${(v==='auto'&&mktUnidad==='auto')?` (por ${MKT_UNIDAD_LBL[mktUnidadEfectiva()]})`:''}</span>`).join('')}</div>
+      <span class="tiny" style="color:var(--muted)">Solo afecta al gráfico de la tarjeta 1. En Automático lo decide el período, como hasta ahora.</span>
+    </div>`:''}
     ${mktLockVend?'':`<div class="mkt-fgroup"><span class="lbl">Vendedor (elegí uno o varios)</span>
       <div class="mkt-chips oneline">
         <span class="mkt-chip ${!mktVendSel.length?'on':''}" onclick="mktToggleVend('__all__')">Todos</span>
@@ -19260,22 +19293,37 @@ function mktBucketVolumen(base){
     serie=mktSerieUnit(base,'dia',ms,me);
     drillHead=`<div class="mkt-drillhead"><span class="mkt-back" onclick="mktVolverMeses()">‹ Volver a meses</span><b>${mktMesLabel(yy,mm)}</b></div>`;
   }else{
-    // La granularidad la manda el PERÍODO elegido, no el calendario:
-    // 7 días / último mes → días · 3 meses → semanas · personalizado → automático por largo.
-    let unit;
-    if(mktPreset==='7d'||mktPreset==='mes') unit='dia';
-    else if(mktPreset==='3m') unit='sem';
-    else { const spanD=Math.max(1,Math.round((d2.getTime()-d1.getTime())/86400000)); unit=spanD<=45?'dia':(spanD<=220?'sem':'mes'); }
+    // La unidad sale de mktUnidadEfectiva(): el chip "Agrupar por" cuando está elegido a
+    // mano, y la regla de siempre (según el período) cuando está en Automático.
+    const unit=mktUnidadEfectiva();
     serie=mktSerieUnit(base,unit,d1,d2);
     if(unit==='mes'){ clickable=true; drillHead=`<div class="mkt-drillhint">Está agrupado por mes — tocá un mes para abrirlo día por día.</div>`; }
   }
-  const barras=mktBarrasVolumen(serie, clickable);
-  const _n=serie.out.length, _K=Math.min(_n,8), _ticks=[];
-  for(let i=0;i<_K;i++){ _ticks.push(serie.out[Math.round(i*(_n-1)/Math.max(1,_K-1))].t); }
-  const ejeHtml=`<div class="mkt-axis">${_ticks.map(t=>`<span>${mktFechaCorta(t,serie.unit)}</span>`).join('')}</div>`;
-  const rangoHtml=_n?`<div class="mkt-rango">Mostrando del ${mktFechaFull(serie.out[0].t)} al ${mktFechaFull(serie.out[_n-1].t)}</div>`:'';
+  const _n=serie.out.length;
   const ejeUnit=serie.unit==='dia'?'por día':(serie.unit==='sem'?'por semana':'por mes');
   const prom=_n?(serie.out.reduce((s,p)=>s+p.real+p.desc,0)/_n):0;
+  const hayParc=serie.out.some(p=>p.parcial);
+  /* TOPE DE COLUMNAS. Con la unidad elegida a mano, un período largo por día puede dar 400
+     columnas y el gráfico se desarma. En vez de deshabilitar el chip (que obliga a adivinar
+     por qué), no se dibuja, se explica y se ofrecen los dos botones que lo resuelven en un
+     click. Los KPI de arriba se siguen mostrando: son válidos igual, lo único que no entra
+     en pantalla es el dibujo. */
+  const demasiadas=_n>MKT_MAX_COLS;
+  let graficoHtml;
+  if(demasiadas){
+    graficoHtml=`<div class="mkt-cap-aviso">El período que elegiste da <b>${_n} tramos</b> agrupados por ${MKT_UNIDAD_LBL[serie.unit]}. No entran en pantalla, así que el gráfico no se dibuja — los números de arriba siguen siendo los del período completo.
+      <div class="mkt-cap-btns">
+        ${serie.unit!=='sem'?`<span class="mkt-chip" onclick="mktSetUnidad('sem')">Ver por semana</span>`:''}
+        ${serie.unit!=='mes'?`<span class="mkt-chip" onclick="mktSetUnidad('mes')">Ver por mes</span>`:''}
+      </div></div>`;
+  }else{
+    const barras=mktBarrasVolumen(serie, clickable);
+    const _K=Math.min(_n,8), _ticks=[];
+    for(let i=0;i<_K;i++){ _ticks.push(serie.out[Math.round(i*(_n-1)/Math.max(1,_K-1))].t); }
+    const ejeHtml=`<div class="mkt-axis">${_ticks.map(t=>`<span>${mktFechaCorta(t,serie.unit)}</span>`).join('')}</div>`;
+    const rangoHtml=_n?`<div class="mkt-rango">Mostrando del ${mktFechaFull(serie.out[0].t)} al ${mktFechaFull(serie.out[_n-1].t)}</div>`:'';
+    graficoHtml=`<div class="mkt-days">${barras}</div>${ejeHtml}${rangoHtml}`;
+  }
   const card1=`<div class="mkt-card wide"><h3>1 · Consultas que llegaron ${ejeUnit}</h3>
     <p class="cap">Volumen en el tiempo, separando las que valen de las que no. ${clickable&&!mktMesAbierto?'Tocá un mes para abrirlo día por día.':'Pasá el mouse por una barra para ver cantidad y %.'}</p>
     <div class="mkt-kpirow">
@@ -19290,12 +19338,10 @@ function mktBucketVolumen(base){
       <div class="mkt-kpi"><div class="n" style="color:${covEvbl?covCol:'var(--muted)'}">${covEvbl?covPct+'%':'—'}</div><div class="l">Evaluado x Cintia<small>${covEvbl?`${covEv} de ${covEvbl} del período`:'sin consultas evaluables en el período'}</small></div></div>
     </div>
     ${drillHead}
-    <div class="mkt-days">${barras}</div>
-    ${ejeHtml}
-    ${rangoHtml}
+    ${graficoHtml}
     <div class="mkt-leg">${mktSoloReales
       ? `<span><i style="background:#15803d"></i>Concretadas</span><span><i style="background:#e08b84"></i>Rechazadas</span><span><i style="background:#f0c896"></i>Todavía abiertas</span>`
-      : `<span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (nunca respondió / fuera de target / genérica + fuera de alcance)</span>`}</div>
+      : `<span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (nunca respondió / fuera de target / genérica + fuera de alcance)</span>`}${(hayParc&&!demasiadas)?`<span><i class="rayado"></i>Tramo incompleto — no cubre todos los días</span>`:''}</div>
     <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = Cintia marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado x Cintia</b>: ${covEvbl?`${covPct}% (${covEv} de ${covEvbl}) — lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado`:'sin consultas evaluables en el período'}.</div>
   </div>`;
 
