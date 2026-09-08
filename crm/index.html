@@ -19111,15 +19111,32 @@ function mktSerieUnit(base, unit, d1, d2){
     cur=step(cur); guard++; }
   return {out,unit};
 }
-/* Consultas por canal en cada tramo de una serie ya armada. Reusa los tramos en vez de
-   recalcularlos: la suma de los 6 canales de un tramo da exactamente el total de ese tramo. */
-function mktSerieCanal(base, serie, unit){
+/* Consultas por CLAVE (canal o vendedor) en cada tramo de una serie ya armada. Reusa los
+   tramos en vez de recalcularlos: la suma de todas las claves de un tramo da exactamente el
+   total de ese tramo. Una sola función para las dos separaciones — si el día de mañana se
+   quiere separar por otra cosa (origen web, local), se le pasa otra claveFn. */
+function mktSerieDim(base, serie, unit, claveFn, claves){
   const {norm}=mktNormStep(unit);
   const idx={}; serie.out.forEach((p,i)=>{ idx[p.t]=i; });
-  const m={}; MKT_CANALES.forEach(c=>{ m[c]=new Array(serie.out.length).fill(0); });
-  base.forEach(a=>{ const c=mktCanalMostrar(a); if(!m[c])return;
-    const i=idx[norm(a.ts).getTime()]; if(i!==undefined) m[c][i]++; });
+  const m={}; claves.forEach(k=>{ m[k]=new Array(serie.out.length).fill(0); });
+  base.forEach(a=>{ const k=claveFn(a); if(!m[k])return;
+    const i=idx[norm(a.ts).getTime()]; if(i!==undefined) m[k][i]++; });
   return m;
+}
+/* Vendedores del módulo: el orden fijo de siempre, MÁS cualquier vendedor que exista en
+   USUARIOS y no esté en la lista. Sin esto, alguien que entre nuevo al equipo no aparece
+   ni en el filtro ni en el gráfico, sin ningún aviso. */
+function mktVendedores(){
+  const extra=Object.keys(USUARIOS).filter(u=>rolDe(u)==='vendedor' && !MKT_VEND_ORDEN.includes(u));
+  return MKT_VEND_ORDEN.filter(u=>USUARIOS[u]).concat(extra);
+}
+/* Un color fijo por vendedor: si se asignara por posición en el ranking, alguien cambiaría
+   de color al cambiar el volumen y la lectura entre períodos se volvería imposible. */
+const MKT_COLOR_VEND={ale:'#1e5fce', nati:'#c2255c', sergio:'#0ca678', cristian:'#b45309', claudia:'#7048e8'};
+function mktColorVend(u){
+  if(MKT_COLOR_VEND[u]) return MKT_COLOR_VEND[u];
+  const i=mktVendedores().indexOf(u);
+  return (typeof GRAF_COLORES!=='undefined') ? GRAF_COLORES[(i<0?0:i)%GRAF_COLORES.length] : '#5b6675';
 }
 /* ===========================================================================
    GRÁFICO DE LA TARJETA 1 — línea, no barra apilada.
@@ -19137,35 +19154,42 @@ function mktGraficoLinea(base, serie, clickable){
   const W=680,H=190,P={l:38,r:14,t:12,b:26};
   const {step}=mktNormStep(serie.unit);
   const isoDe=x=>new Date(x.getTime()-x.getTimezoneOffset()*60000).toISOString().slice(0,10);
-  const visible=c=>!mktCanalSel.length||mktCanalSel.includes(c);
-  const canalesVis=MKT_CANALES.filter(visible);
-  const porCanal=(mktVista==='canal')?mktSerieCanal(base,serie,serie.unit):null;
+  /* Una sola descripción de la dimensión que se separa. Todo lo de abajo (líneas, colores,
+     leyenda, tooltip) sale de acá, así agregar una tercera separación es agregar un caso. */
+  const D = mktVistaEfectiva()==='vendedor'
+    ? { claves:mktVendedores(), clave:a=>a.vendedorId, color:mktColorVend, etiq:u=>nombreDe(u),
+        visible:u=>!mktVendSel.length||mktVendSel.includes(u), punteado:()=>false,
+        toggle:u=>`mktToggleVend('${escAttr(u)}')`, reset:`mktToggleVend('__all__')`, hayFiltro:()=>mktVendSel.length>0 }
+    : { claves:MKT_CANALES, clave:a=>mktCanalMostrar(a), color:mktColorCanal, etiq:c=>c,
+        visible:c=>!mktCanalSel.length||mktCanalSel.includes(c), punteado:c=>MKT_PAUTA.includes(c),
+        toggle:c=>`mktToggleCanal('${escAttr(c)}')`, reset:`mktToggleCanal('__all__')`, hayFiltro:()=>mktCanalSel.length>0 };
+  const separa = mktVistaEfectiva()!=='total';
+  const vis = separa ? D.claves.filter(D.visible) : [];
+  const porClave = separa ? mktSerieDim(base, serie, serie.unit, D.clave, D.claves) : null;
   const valArriba=p=>mktSoloReales?p.real:(p.real+p.desc);
   const valLinea =p=>mktSoloReales?p.conc:p.real;
   let maxY=4;
-  if(mktVista==='canal') canalesVis.forEach(c=>porCanal[c].forEach(v=>{ if(v>maxY)maxY=v; }));
+  if(separa) vis.forEach(k=>porClave[k].forEach(v=>{ if(v>maxY)maxY=v; }));
   else pts.forEach(p=>{ if(valArriba(p)>maxY)maxY=valArriba(p); });
   const px=i=>P.l+(W-P.l-P.r)*(n>1?i/(n-1):0.5);
   const py=v=>H-P.b-(H-P.t-P.b)*(v/maxY);
   const linea=vals=>vals.map((v,i)=>(i?'L':'M')+px(i).toFixed(1)+' '+py(v).toFixed(1)).join(' ');
   const ejes=(typeof ejesSVG==='function')?ejesSVG(W,H,P,maxY,pts.map((p,i)=>({x:px(i),lbl:mktFechaCorta(p.t,serie.unit)}))):'';
   let cuerpo='';
-  if(mktVista==='canal'){
-    cuerpo=canalesVis.map(c=>`<path d="${linea(porCanal[c])}" fill="none" stroke="${mktColorCanal(c)}" stroke-width="1.9" stroke-linejoin="round"${MKT_PAUTA.includes(c)?' stroke-dasharray="5 3"':''}/>`).join('');
+  if(separa){
+    cuerpo=vis.map(k=>`<path d="${linea(porClave[k])}" fill="none" stroke="${D.color(k)}" stroke-width="1.9" stroke-linejoin="round"${D.punteado(k)?' stroke-dasharray="5 3"':''}/>`).join('');
   }else{
-    const arriba=pts.map(valArriba), abajo=pts.map(valLinea);
-    const dA=linea(arriba);
+    const arriba=pts.map(valArriba), abajo=pts.map(valLinea), dA=linea(arriba);
     cuerpo=`<path d="${dA} L ${px(n-1).toFixed(1)} ${H-P.b} L ${px(0).toFixed(1)} ${H-P.b} Z" fill="#1e5fce" opacity=".13"/>
       <path d="${dA}" fill="none" stroke="#8fb4e8" stroke-width="1.6" stroke-linejoin="round"/>
       <path d="${linea(abajo)}" fill="none" stroke="#1e5fce" stroke-width="2.2" stroke-linejoin="round"/>
       ${pts.map((p,i)=>`<circle cx="${px(i).toFixed(1)}" cy="${py(abajo[i]).toFixed(1)}" r="3.4" fill="${p.parcial?'var(--card,#fff)':'#1e5fce'}" stroke="#1e5fce" stroke-width="1.6"/>`).join('')}`;
   }
-  /* Tooltip: se arma acá y se guarda en mktTipDatos, no en el atributo del rect. */
   mktTipDatos=pts.map((p,i)=>{
     const f=mktFechaCorta(p.t,serie.unit); let h='';
-    if(mktVista==='canal'){
-      const filas=canalesVis.map(c=>({c,v:porCanal[c][i]})).filter(o=>o.v>0).sort((a,b)=>b.v-a.v);
-      h=filas.length?filas.map(o=>`<span style="color:${mktColorCanal(o.c)}">●</span> ${escapeHtml(o.c)}: <b>${o.v}</b>`).join('<br>')+`<br>Total: <b>${p.real+p.desc}</b>`:'sin consultas';
+    if(separa){
+      const filas=vis.map(k=>({k,v:porClave[k][i]})).filter(o=>o.v>0).sort((a,b)=>b.v-a.v);
+      h=filas.length?filas.map(o=>`<span style="color:${D.color(o.k)}">●</span> ${escapeHtml(D.etiq(o.k))}: <b>${o.v}</b>`).join('<br>')+`<br>Total: <b>${p.real+p.desc}</b>`:'sin consultas';
     }else if(mktSoloReales){
       h=`Reales: <b>${p.real}</b><br><span style="color:#1e5fce">●</span> Concretadas: <b>${p.conc}</b> (${mktPct(p.conc,p.real)}%)<br>Rechazadas: <b>${p.rech}</b> · Abiertas: <b>${p.abie}</b>`;
     }else{
@@ -19186,11 +19210,11 @@ function mktGraficoLinea(base, serie, clickable){
     <line id="mktGuia" x1="0" y1="${P.t}" x2="0" y2="${H-P.b}" stroke="var(--line,#dde3ea)" stroke-width="1" opacity="0"/>
     ${cuerpo}${zonas}</svg>`;
   let ley;
-  if(mktVista==='canal'){
-    const tot={}; MKT_CANALES.forEach(c=>{ tot[c]=(porCanal[c]||[]).reduce((a,b)=>a+b,0); });
-    ley=`<div class="gr-leyenda">${MKT_CANALES.map(c=>`<span class="gr-leg" style="cursor:pointer;opacity:${visible(c)?1:.4}" onclick="mktToggleCanal('${escAttr(c)}')" title="Tocá para ver solo este canal">
-      <i style="background:${mktColorCanal(c)}${MKT_PAUTA.includes(c)?';height:0;border-top:3px dashed '+mktColorCanal(c):''}"></i>${escapeHtml(c)} <b>${visible(c)?tot[c]:'—'}</b></span>`).join('')}
-      ${mktCanalSel.length?`<span class="gr-leg" style="cursor:pointer;color:var(--blue)" onclick="mktToggleCanal('__all__')">ver todos</span>`:''}</div>`;
+  if(separa){
+    const tot={}; D.claves.forEach(k=>{ tot[k]=(porClave[k]||[]).reduce((a,b)=>a+b,0); });
+    ley=`<div class="gr-leyenda">${D.claves.map(k=>`<span class="gr-leg" style="cursor:pointer;opacity:${D.visible(k)?1:.4}" onclick="${D.toggle(k)}" title="Tocá para verlo solo a él">
+      <i style="background:${D.color(k)}${D.punteado(k)?';height:0;border-top:3px dashed '+D.color(k):''}"></i>${escapeHtml(D.etiq(k))} <b>${D.visible(k)?tot[k]:'—'}</b></span>`).join('')}
+      ${D.hayFiltro()?`<span class="gr-leg" style="cursor:pointer;color:var(--blue)" onclick="${D.reset}">ver todos</span>`:''}</div>`;
   }else{
     ley=`<div class="gr-leyenda">
       <span class="gr-leg"><i style="background:#1e5fce"></i>${mktSoloReales?'Concretadas':'Reales'}</span>
@@ -19229,6 +19253,10 @@ function mktSetTab(t){ mktTab=t; renderMarketing(); }
    (adentro de un mes, pero con la unidad cambiada debajo). Mismo criterio que mktSetPreset. */
 function mktSetUnidad(v){ mktUnidad=v; mktMesAbierto=null; renderMarketing(); }
 function mktSetVista(v){ mktVista=v; renderMarketing(); }
+/* Vista efectiva: en la solapa del vendedor (candado puesto) la base es de una sola
+   persona, así que "separado por vendedor" dibujaría una línea igual al total. Cae a Total.
+   Se resuelve acá y no en cada uso, para que no dependa de acordarse. */
+function mktVistaEfectiva(){ return (mktLockVend && mktVista==='vendedor') ? 'total' : mktVista; }
 /* Click en un tramo cuando NO está agrupado por mes: acota el período a ese tramo. Es el
    equivalente del drill de meses para día y semana — la pregunta es la misma ("¿qué pasó
    ese día?") y la respuesta la tienen las otras tarjetas del módulo, ya filtradas. */
@@ -19298,7 +19326,8 @@ function mktFiltrosHtml(){
       <div class="mkt-chips">
         <span class="mkt-chip ${mktVista==='total'?'on':''}" onclick="mktSetVista('total')">Total</span>
         <span class="mkt-chip ${mktVista==='canal'?'on':''}" onclick="mktSetVista('canal')">Separado por canal</span>
-        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktVista==='canal'?'Una línea de color por canal. Los chips de Canal de abajo siguen filtrando.':'Una sola línea con todo lo que pasa el filtro de canal.'}</span>
+        ${mktLockVend?'':`<span class="mkt-chip ${mktVista==='vendedor'?'on':''}" onclick="mktSetVista('vendedor')">Separado por vendedor</span>`}
+        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktVista==='canal'?'Una línea de color por canal.':(mktVista==='vendedor'?'Una línea de color por vendedor.':'Una sola línea con todo lo que pasa los filtros.')} Los chips de abajo siguen filtrando.</span>
       </div>
     </div>`:''}
     ${mktTab==='volumen'?`<div class="mkt-fgroup"><span class="lbl">Agrupar por</span>
@@ -19308,7 +19337,7 @@ function mktFiltrosHtml(){
     ${mktLockVend?'':`<div class="mkt-fgroup"><span class="lbl">Vendedor (elegí uno o varios)</span>
       <div class="mkt-chips oneline">
         <span class="mkt-chip ${!mktVendSel.length?'on':''}" onclick="mktToggleVend('__all__')">Todos</span>
-        ${MKT_VEND_ORDEN.filter(u=>USUARIOS[u]).map(u=>`<span class="mkt-chip sm ${mktVendSel.includes(u)?'on':''}" onclick="mktToggleVend('${u}')">${escapeHtml(nombreDe(u))}</span>`).join('')}
+        ${mktVendedores().map(u=>`<span class="mkt-chip sm ${mktVendSel.includes(u)?'on':''}" onclick="mktToggleVend('${u}')">${escapeHtml(nombreDe(u))}</span>`).join('')}
       </div></div>`}
     <div class="mkt-fgroup"><span class="lbl">Canal (elegí uno o varios)</span>
       <div class="mkt-chips oneline">
@@ -19386,7 +19415,7 @@ function mktBucketVolumen(base){
   /* Los chips de vista (Total / Por canal) viven en el bloque de filtros, junto a
      "Agrupar por": son dos controles del mismo gráfico y conviene tenerlos juntos. */
   const card1=`<div class="mkt-card wide"><h3>1 · Consultas que llegaron ${ejeUnit}</h3>
-    <p class="cap">${mktVista==='canal'?'De dónde vienen las consultas en el tiempo. Tocá un canal de la leyenda para verlo solo a él.':'Volumen en el tiempo, separando las que valen de las que no.'} ${clickable&&!mktMesAbierto?'Tocá un mes para abrirlo día por día.':'Tocá un tramo para filtrar todo a ese período.'}</p>
+    <p class="cap">${mktVistaEfectiva()==='canal'?'De dónde vienen las consultas en el tiempo. Tocá un canal de la leyenda para verlo solo a él.':(mktVistaEfectiva()==='vendedor'?'Cuántas tomó cada vendedor en el tiempo. Tocá un nombre de la leyenda para verlo solo a él.':'Volumen en el tiempo, separando las que valen de las que no.')} ${clickable&&!mktMesAbierto?'Tocá un mes para abrirlo día por día.':'Tocá un tramo para filtrar todo a ese período.'}</p>
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${tot}</div><div class="l">Total recibidas</div></div>
       <div class="mkt-kpi g"><div class="n">${reales} <small>· ${mktPct(reales,tot)}%</small></div><div class="l">Consultas reales</div></div>
@@ -19400,7 +19429,7 @@ function mktBucketVolumen(base){
     </div>
     ${drillHead}
     ${graficoHtml}
-    ${(hayParc&&!demasiadas)?`<div class="mkt-leg"><span><i class="hueco"></i>Tramo incompleto — no cubre todos sus días${mktVista==='canal'?' (mirá el tooltip)':''}</span>${mktVista==='canal'?`<span><i class="punteado"></i>Publicidad (pauta)</span>`:''}</div>`:(mktVista==='canal'?`<div class="mkt-leg"><span><i class="punteado"></i>Publicidad (pauta)</span></div>`:'')}
+    ${(hayParc&&!demasiadas)?`<div class="mkt-leg"><span><i class="hueco"></i>Tramo incompleto — no cubre todos sus días${mktVistaEfectiva()!=='total'?' (mirá el tooltip)':''}</span>${mktVistaEfectiva()==='canal'?`<span><i class="punteado"></i>Publicidad (pauta)</span>`:''}</div>`:(mktVistaEfectiva()==='canal'?`<div class="mkt-leg"><span><i class="punteado"></i>Publicidad (pauta)</span></div>`:'')}
     <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = Cintia marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado x Cintia</b>: ${covEvbl?`${covPct}% (${covEv} de ${covEvbl}) — lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado`:'sin consultas evaluables en el período'}.</div>
   </div>`;
 
