@@ -7960,7 +7960,7 @@ function renderSolapasVendedor(){
   box.innerHTML = `<div class="card">${cuerpo}</div>`;
   // El módulo de Marketing necesita estos dos enganches después de pintarse (acordeón de
   // las tarjetas y tooltips). Sin esto las tarjetas quedan todas plegadas y sin hover.
-  if(seccionVendedor==='estadisticas'){ mktAplicarColapso(box); mktTipInit(); }
+  if(seccionVendedor==='estadisticas'){ mktAplicarColapso(box); }
   if(seccionVendedor==='evaluacion') evTipInit();
 }
 
@@ -18799,7 +18799,6 @@ function htmlFichaReclamo(){
 .mkt-drillhead b{color:var(--navy)}
 .mkt-back{cursor:pointer;color:var(--blue);font-weight:700}
 .mkt-drillhint{font-size:12px;color:var(--muted);margin-bottom:6px}
-.mkt-days .dcol[onclick]:hover .seg.real{background:var(--blue-d)}
 .mkt-card.mkt-collapsible>h3{cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;user-select:none}
 .mkt-card.mkt-collapsible>h3::after{content:'▾';font-size:14px;color:var(--muted);font-weight:400;margin-left:8px}
 .mkt-card.collapsed>h3::after{content:'▸'}
@@ -18849,22 +18848,14 @@ function htmlFichaReclamo(){
 .mkt-bar .bt>i{display:block;height:100%;border-radius:8px;min-width:2px}
 .mkt-bar .bv{width:100px;font-size:12.5px;font-weight:700;color:var(--ink);flex:0 0 auto}
 .mkt-bar .bv small{color:var(--muted);font-weight:600}
-.mkt-days{display:flex;align-items:stretch;gap:3px;height:130px;padding-top:8px}
-.mkt-tip{position:fixed;z-index:100000;display:none;background:#0f1a2a;color:#fff;padding:8px 11px;border-radius:8px;font-size:12.5px;line-height:1.55;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.28);white-space:nowrap}
-.mkt-tip b{font-weight:800}
-.mkt-days .dcol{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-width:2px}
-.mkt-days .seg{width:100%;display:block}
-.mkt-days .seg.real{background:var(--blue);border-radius:3px 3px 0 0}
-.mkt-days .seg.desc{background:#c7ced6;border-radius:3px 3px 0 0}
-.mkt-days .dcol .seg.real{border-radius:0}
 /* Tramo incompleto: mismo color, rayado. El background-image va con !important porque el
    color de cada segmento se escribe inline con el shorthand `background`, que lo pisaría. */
-.mkt-days .dcol.parc .seg{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.6) 0 3px,transparent 3px 6px)!important}
-.mkt-leg i.rayado{background:var(--blue);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.6) 0 3px,transparent 3px 6px)}
+.mkt-vista{display:flex;gap:6px;margin:2px 0 10px}
+.mkt-leg i.hueco{background:var(--card);border:2px solid var(--blue);border-radius:50%;width:11px;height:11px}
+.mkt-leg i.punteado{background:none;border-top:3px dashed #ea580c;height:0;width:16px;border-radius:0}
 .mkt-cap-aviso{background:#fff8e6;border:1px solid #f0d9a0;border-radius:10px;padding:14px 16px;margin:12px 0 4px;font-size:13px;color:#7a5b12;line-height:1.55}
 .mkt-cap-aviso b{color:#5c4409}
 .mkt-cap-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-.mkt-axis{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:6px}
 .mkt-leg{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--sec)}
 .mkt-leg span{display:flex;align-items:center;gap:6px}
 .mkt-leg i{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
@@ -18913,6 +18904,9 @@ let mktPreset='mes';            // '7d' | 'mes' | '3m' | 'pers'
    período); 'dia' | 'sem' | 'mes' = elegida a mano desde los chips "Agrupar por".
    Default 'auto' para que el módulo se comporte igual que antes si nadie toca nada. */
 let mktUnidad='auto';
+/* Qué muestra el gráfico de la tarjeta 1: 'total' (área = recibidas, línea = reales) o
+   'canal' (una línea por canal). Es la misma serie a dos niveles de zoom. */
+let mktVista='total';
 let mktDesde=null, mktHasta=null;
 let mktVendSel=[];              // [] = todos
 /* CANDADO DE VENDEDOR. Cuando tiene un uid, el módulo de Marketing se recorta a esa
@@ -18936,6 +18930,7 @@ let mktSoloReales=false;
    otros, consulta de estado, envíos web, email, CVs, etc.) queda afuera. Los dos
    locales van separados. */
 const MKT_CANALES=['WhatsApp','Instagram','Publicidad Mensajería','Publicidad Instagram','Belgrano 2020','Belgrano 2299'];
+const MKT_PAUTA=['Publicidad Mensajería','Publicidad Instagram'];   // se dibujan punteados: pauta vs orgánico
 const MKT_VEND_ORDEN=['ale','nati','sergio','cristian','claudia'];
 const MKT_NORESP=['No responde','Dejó de responderme'];
 
@@ -19073,7 +19068,10 @@ function mktFechaFull(t){ const x=new Date(t); return x.getDate()+'/'+(x.getMont
 function mktMesKey(t){ const x=new Date(t); return x.getFullYear()+'-'+x.getMonth(); }
 function mktMesLabel(y,m){ const MS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']; return MS[m]+' '+y; }
 /* Serie apilada real/descartada con unidad y rango explícitos (para agrupar por mes y drill al día). */
-function mktSerieUnit(base, unit, d1, d2){
+/* Cómo se corta el eje de tiempo, en un solo lugar: lo usan la serie total y la serie por
+   canal, así las dos caen SIEMPRE en los mismos tramos. Si cada una calculara su propio
+   corte, el modo "por canal" podría no sumar el total del modo "total". */
+function mktNormStep(unit){
   const norm=dt=>{const x=new Date(dt);x.setHours(0,0,0,0);
     if(unit==='sem'){const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);}
     else if(unit==='mes'){x.setDate(1);} return x;};
@@ -19081,6 +19079,10 @@ function mktSerieUnit(base, unit, d1, d2){
     if(unit==='dia')n.setDate(n.getDate()+1);
     else if(unit==='sem')n.setDate(n.getDate()+7);
     else n.setMonth(n.getMonth()+1); return n;};
+  return {norm,step};
+}
+function mktSerieUnit(base, unit, d1, d2){
+  const {norm,step}=mktNormStep(unit);
   const R={},D={},C={},X={},A={};
   base.forEach(a=>{const t=new Date(a.ts).getTime(); if(t<d1.getTime()||t>d2.getTime())return; const k=norm(a.ts).getTime();
     if(mktReal(a)){ R[k]=(R[k]||0)+1;
@@ -19109,67 +19111,100 @@ function mktSerieUnit(base, unit, d1, d2){
     cur=step(cur); guard++; }
   return {out,unit};
 }
-function mktBarrasVolumen(serie, clickable){
-  /* Dos modos, según el chip "Solo las reales":
-       apagado → reales vs descartadas (cuánta basura trae el canal)
-       prendido → dentro de las reales: concretada / rechazada / abierta (en qué terminó
-                  lo que servía). Misma tarjeta, dos preguntas. */
-  const modo = mktSoloReales ? 'resultado' : 'corte';
-  const maxD=Math.max(1, ...serie.out.map(p=> modo==='corte' ? p.real+p.desc : p.real));
-  const H=118;
-  return serie.out.map(p=>{
-    const f=mktFechaCorta(p.t,serie.unit);
-    const click=clickable?` onclick="mktAbrirMes('${mktMesKey(p.t)}')" style="cursor:pointer"`:'';
-    const parc=p.parcial?' parc':'';
-    const dparc=p.parcial?` data-parc="1" data-din="${p.dIn}" data-dtot="${p.dTot}"`:'';
-    if(modo==='resultado'){
-      const tt=p.real;
-      const h=n=>Math.round(n/maxD*H);
-      return `<div class="dcol${parc}"${click}${dparc} data-modo="resultado" data-fecha="${escAttr(f)}" data-tot="${tt}"
-        data-conc="${p.conc}" data-rech="${p.rech}" data-abie="${p.abie}"
-        data-pconc="${mktPct(p.conc,tt)}" data-prech="${mktPct(p.rech,tt)}" data-pabie="${mktPct(p.abie,tt)}">
-        <div class="seg" style="height:${h(p.abie)}px;background:#f0c896"></div>
-        <div class="seg" style="height:${h(p.rech)}px;background:#e08b84"></div>
-        <div class="seg" style="height:${h(p.conc)}px;background:#15803d"></div></div>`;
+/* Consultas por canal en cada tramo de una serie ya armada. Reusa los tramos en vez de
+   recalcularlos: la suma de los 6 canales de un tramo da exactamente el total de ese tramo. */
+function mktSerieCanal(base, serie, unit){
+  const {norm}=mktNormStep(unit);
+  const idx={}; serie.out.forEach((p,i)=>{ idx[p.t]=i; });
+  const m={}; MKT_CANALES.forEach(c=>{ m[c]=new Array(serie.out.length).fill(0); });
+  base.forEach(a=>{ const c=mktCanalMostrar(a); if(!m[c])return;
+    const i=idx[norm(a.ts).getTime()]; if(i!==undefined) m[c][i]++; });
+  return m;
+}
+/* ===========================================================================
+   GRÁFICO DE LA TARJETA 1 — línea, no barra apilada.
+   Reusa el motor que ya existe en Estadísticas (ejesSVG + grafTipTexto): SVG a mano,
+   sin librería. Lo que NO reusa es tramosDelRango, que trae su propia regla de
+   granularidad y lee el período de Cintia — acá el eje lo arma mktSerieUnit, que
+   respeta los chips "Agrupar por", el período de Marketing y los tramos incompletos.
+   Dos modos sobre la MISMA serie:
+     total → área = recibidas, línea = reales (la franja entre las dos son las descartadas)
+     canal → una línea por canal, con la leyenda como filtro
+   =========================================================================== */
+function mktGraficoLinea(base, serie, clickable){
+  const pts=serie.out, n=pts.length;
+  if(!n) return '<p class="mkt-note">Sin datos en este período.</p>';
+  const W=680,H=190,P={l:38,r:14,t:12,b:26};
+  const {step}=mktNormStep(serie.unit);
+  const isoDe=x=>new Date(x.getTime()-x.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  const visible=c=>!mktCanalSel.length||mktCanalSel.includes(c);
+  const canalesVis=MKT_CANALES.filter(visible);
+  const porCanal=(mktVista==='canal')?mktSerieCanal(base,serie,serie.unit):null;
+  const valArriba=p=>mktSoloReales?p.real:(p.real+p.desc);
+  const valLinea =p=>mktSoloReales?p.conc:p.real;
+  let maxY=4;
+  if(mktVista==='canal') canalesVis.forEach(c=>porCanal[c].forEach(v=>{ if(v>maxY)maxY=v; }));
+  else pts.forEach(p=>{ if(valArriba(p)>maxY)maxY=valArriba(p); });
+  const px=i=>P.l+(W-P.l-P.r)*(n>1?i/(n-1):0.5);
+  const py=v=>H-P.b-(H-P.t-P.b)*(v/maxY);
+  const linea=vals=>vals.map((v,i)=>(i?'L':'M')+px(i).toFixed(1)+' '+py(v).toFixed(1)).join(' ');
+  const ejes=(typeof ejesSVG==='function')?ejesSVG(W,H,P,maxY,pts.map((p,i)=>({x:px(i),lbl:mktFechaCorta(p.t,serie.unit)}))):'';
+  let cuerpo='';
+  if(mktVista==='canal'){
+    cuerpo=canalesVis.map(c=>`<path d="${linea(porCanal[c])}" fill="none" stroke="${mktColorCanal(c)}" stroke-width="1.9" stroke-linejoin="round"${MKT_PAUTA.includes(c)?' stroke-dasharray="5 3"':''}/>`).join('');
+  }else{
+    const arriba=pts.map(valArriba), abajo=pts.map(valLinea);
+    const dA=linea(arriba);
+    cuerpo=`<path d="${dA} L ${px(n-1).toFixed(1)} ${H-P.b} L ${px(0).toFixed(1)} ${H-P.b} Z" fill="#1e5fce" opacity=".13"/>
+      <path d="${dA}" fill="none" stroke="#8fb4e8" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="${linea(abajo)}" fill="none" stroke="#1e5fce" stroke-width="2.2" stroke-linejoin="round"/>
+      ${pts.map((p,i)=>`<circle cx="${px(i).toFixed(1)}" cy="${py(abajo[i]).toFixed(1)}" r="3.4" fill="${p.parcial?'var(--card,#fff)':'#1e5fce'}" stroke="#1e5fce" stroke-width="1.6"/>`).join('')}`;
+  }
+  /* Tooltip: se arma acá y se guarda en mktTipDatos, no en el atributo del rect. */
+  mktTipDatos=pts.map((p,i)=>{
+    const f=mktFechaCorta(p.t,serie.unit); let h='';
+    if(mktVista==='canal'){
+      const filas=canalesVis.map(c=>({c,v:porCanal[c][i]})).filter(o=>o.v>0).sort((a,b)=>b.v-a.v);
+      h=filas.length?filas.map(o=>`<span style="color:${mktColorCanal(o.c)}">●</span> ${escapeHtml(o.c)}: <b>${o.v}</b>`).join('<br>')+`<br>Total: <b>${p.real+p.desc}</b>`:'sin consultas';
+    }else if(mktSoloReales){
+      h=`Reales: <b>${p.real}</b><br><span style="color:#1e5fce">●</span> Concretadas: <b>${p.conc}</b> (${mktPct(p.conc,p.real)}%)<br>Rechazadas: <b>${p.rech}</b> · Abiertas: <b>${p.abie}</b>`;
+    }else{
+      const t=p.real+p.desc;
+      h=`Recibidas: <b>${t}</b><br><span style="color:#1e5fce">●</span> Reales: <b>${p.real}</b> (${mktPct(p.real,t)}%)<br>Descartadas: <b>${p.desc}</b> (${mktPct(p.desc,t)}%)`;
     }
-    const tt=p.real+p.desc;
-    const rp=Math.round(p.real/maxD*H), dp=Math.round(p.desc/maxD*H);
-    return `<div class="dcol${parc}"${click}${dparc} data-modo="corte" data-fecha="${escAttr(f)}" data-tot="${tt}" data-real="${p.real}" data-desc="${p.desc}" data-preal="${mktPct(p.real,tt)}" data-pdesc="${mktPct(p.desc,tt)}">
-      <div class="seg desc" style="height:${dp}px"></div>
-      <div class="seg real" style="height:${rp}px"></div></div>`;
+    if(p.parcial) h+=`<br><span style="color:#f0c896">Tramo incompleto — ${p.dIn} de ${p.dTot} días</span>`;
+    return {lbl:f,html:h};
+  });
+  const ancho=n>1?(W-P.l-P.r)/(n-1):40;
+  const zonas=pts.map((p,i)=>{
+    const ini=new Date(p.t), fin=new Date(step(ini).getTime()-86400000);
+    const acc=clickable?`mktAbrirMes('${mktMesKey(p.t)}')`:`mktZoomTramo('${isoDe(ini)}','${isoDe(fin)}')`;
+    return `<rect x="${(px(i)-ancho/2).toFixed(1)}" y="${P.t}" width="${ancho.toFixed(1)}" height="${H-P.t-P.b}" fill="transparent" style="cursor:pointer"
+      onmouseenter="mktGrafHover(event,${i},${px(i).toFixed(1)})" onmouseleave="mktGrafOut()" onclick="${acc}"></rect>`;
   }).join('');
+  const svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${ejes}
+    <line id="mktGuia" x1="0" y1="${P.t}" x2="0" y2="${H-P.b}" stroke="var(--line,#dde3ea)" stroke-width="1" opacity="0"/>
+    ${cuerpo}${zonas}</svg>`;
+  let ley;
+  if(mktVista==='canal'){
+    const tot={}; MKT_CANALES.forEach(c=>{ tot[c]=(porCanal[c]||[]).reduce((a,b)=>a+b,0); });
+    ley=`<div class="gr-leyenda">${MKT_CANALES.map(c=>`<span class="gr-leg" style="cursor:pointer;opacity:${visible(c)?1:.4}" onclick="mktToggleCanal('${escAttr(c)}')" title="Tocá para ver solo este canal">
+      <i style="background:${mktColorCanal(c)}${MKT_PAUTA.includes(c)?';height:0;border-top:3px dashed '+mktColorCanal(c):''}"></i>${escapeHtml(c)} <b>${visible(c)?tot[c]:'—'}</b></span>`).join('')}
+      ${mktCanalSel.length?`<span class="gr-leg" style="cursor:pointer;color:var(--blue)" onclick="mktToggleCanal('__all__')">ver todos</span>`:''}</div>`;
+  }else{
+    ley=`<div class="gr-leyenda">
+      <span class="gr-leg"><i style="background:#1e5fce"></i>${mktSoloReales?'Concretadas':'Reales'}</span>
+      <span class="gr-leg"><i style="background:#8fb4e8"></i>${mktSoloReales?'Total de reales':'Total recibidas'} — la franja son las ${mktSoloReales?'no concretadas':'descartadas'}</span></div>`;
+  }
+  return ley+svg;
 }
-/* Tooltip propio del gráfico de volumen: aparece al instante al pasar por cualquier
-   columna (aunque sea la parte vacía de arriba) y muestra los números exactos. */
-function mktTipInit(){
-  if(window._mktTipWired) return; window._mktTipWired=true;
-  const t=document.createElement('div'); t.id='mktTip'; t.className='mkt-tip'; document.body.appendChild(t);
-  document.addEventListener('mousemove', e=>{
-    const col=e.target.closest ? e.target.closest('.mkt-days .dcol') : null;
-    if(col && col.dataset.tot!==undefined){
-      t.innerHTML = (col.dataset.modo==='resultado'
-        ? `<b>${col.dataset.fecha}</b> · Reales: <b>${col.dataset.tot}</b><br>`+
-          `<span style="color:#15803d">●</span> Concretadas: <b>${col.dataset.conc}</b> (${col.dataset.pconc}%)<br>`+
-          `<span style="color:#e08b84">●</span> Rechazadas: <b>${col.dataset.rech}</b> (${col.dataset.prech}%)<br>`+
-          `<span style="color:#f0c896">●</span> Abiertas: <b>${col.dataset.abie}</b> (${col.dataset.pabie}%)`
-        : `<b>${col.dataset.fecha}</b> · Total: <b>${col.dataset.tot}</b><br>`+
-          `<span style="color:#5b9bff">●</span> Reales: <b>${col.dataset.real}</b> (${col.dataset.preal}%)<br>`+
-          `<span style="color:#c7ced6">●</span> Descartadas: <b>${col.dataset.desc}</b> (${col.dataset.pdesc}%)`)
-        + (col.dataset.parc==='1' ? `<br><span style="color:#f0c896">⚠ Tramo incompleto — ${col.dataset.din} de ${col.dataset.dtot} días</span>` : '');
-      t.style.display='block';
-      let x=e.clientX+14; if(x+250>window.innerWidth) x=e.clientX-250;
-      t.style.left=x+'px'; t.style.top=(e.clientY+14)+'px';
-    } else { t.style.display='none'; }
-  }, true);
-}
-
 function renderMarketing(boxId){
   if(boxId){ mktBox=boxId; mktLockVend=null; }   // entrada del módulo de Marketing: sin candado
   // Con el candado puesto, el módulo está embebido en la solapa Estadísticas del
   // vendedor: cualquier filtro que toque tiene que redibujar esa solapa, no #view-marketing.
   if(mktLockVend){ renderSolapasVendedor(); return; }
   const el=document.getElementById(mktBox);
-  if(el){ el.innerHTML=htmlMarketing(); mktAplicarColapso(el); mktTipInit(); }
+  if(el){ el.innerHTML=htmlMarketing(); mktAplicarColapso(el); }
 }
 /* Acordeón: cada tarjeta se pliega dejando solo el título. La clave es 'balde:índice',
    estable aunque cambie el texto del título (ej. "por mes" ↔ "por día"). */
@@ -19193,6 +19228,27 @@ function mktSetTab(t){ mktTab=t; renderMarketing(); }
 /* Cambiar la granularidad cierra el drill de mes abierto: si no, quedaba un estado mezclado
    (adentro de un mes, pero con la unidad cambiada debajo). Mismo criterio que mktSetPreset. */
 function mktSetUnidad(v){ mktUnidad=v; mktMesAbierto=null; renderMarketing(); }
+function mktSetVista(v){ mktVista=v; renderMarketing(); }
+/* Click en un tramo cuando NO está agrupado por mes: acota el período a ese tramo. Es el
+   equivalente del drill de meses para día y semana — la pregunta es la misma ("¿qué pasó
+   ese día?") y la respuesta la tienen las otras tarjetas del módulo, ya filtradas. */
+function mktZoomTramo(desdeISO, hastaISO){
+  mktDesde=desdeISO; mktHasta=hastaISO; mktPreset='pers'; mktMesAbierto=null;
+  renderMarketing();
+  if(typeof toast==='function') toast('Filtrado al tramo — tocá "Último mes" para volver');
+}
+/* El tooltip del gráfico se arma al dibujar y se guarda acá: meterlo en el atributo del
+   <rect> obligaría a escapar HTML con colores adentro de una comilla simple. */
+let mktTipDatos=[];
+function mktGrafHover(ev,i,x){
+  const g=document.getElementById('mktGuia');
+  if(g){ g.setAttribute('x1',x); g.setAttribute('x2',x); g.setAttribute('opacity','.65'); }
+  const d=mktTipDatos[i]; if(d && typeof grafTipTexto==='function') grafTipTexto(ev,d.lbl,d.html);
+}
+function mktGrafOut(){
+  const g=document.getElementById('mktGuia'); if(g) g.setAttribute('opacity','0');
+  if(typeof grafTipOff==='function') grafTipOff();
+}
 function mktSetProdPag(n){ mktProdPag=n; renderMarketing(); }
 function mktSetPreset(v){
   mktPreset=v; mktMesAbierto=null;
@@ -19317,15 +19373,14 @@ function mktBucketVolumen(base){
         ${serie.unit!=='mes'?`<span class="mkt-chip" onclick="mktSetUnidad('mes')">Ver por mes</span>`:''}
       </div></div>`;
   }else{
-    const barras=mktBarrasVolumen(serie, clickable);
-    const _K=Math.min(_n,8), _ticks=[];
-    for(let i=0;i<_K;i++){ _ticks.push(serie.out[Math.round(i*(_n-1)/Math.max(1,_K-1))].t); }
-    const ejeHtml=`<div class="mkt-axis">${_ticks.map(t=>`<span>${mktFechaCorta(t,serie.unit)}</span>`).join('')}</div>`;
-    const rangoHtml=_n?`<div class="mkt-rango">Mostrando del ${mktFechaFull(serie.out[0].t)} al ${mktFechaFull(serie.out[_n-1].t)}</div>`:'';
-    graficoHtml=`<div class="mkt-days">${barras}</div>${ejeHtml}${rangoHtml}`;
+    const rangoHtml=`<div class="mkt-rango">Mostrando del ${mktFechaFull(serie.out[0].t)} al ${mktFechaFull(serie.out[_n-1].t)}</div>`;
+    graficoHtml=mktGraficoLinea(base, serie, clickable)+rangoHtml;
   }
+  /* Chips de vista. Es la misma serie a dos niveles de zoom, por eso van adentro de la
+     tarjeta y no en el bloque de filtros de arriba. */
+  const vistaChips=`<div class="mkt-vista">${[['total','Total'],['canal','Por canal']].map(([v,t])=>`<span class="mkt-chip ${mktVista===v?'on':''}" onclick="mktSetVista('${v}')">${t}</span>`).join('')}</div>`;
   const card1=`<div class="mkt-card wide"><h3>1 · Consultas que llegaron ${ejeUnit}</h3>
-    <p class="cap">Volumen en el tiempo, separando las que valen de las que no. ${clickable&&!mktMesAbierto?'Tocá un mes para abrirlo día por día.':'Pasá el mouse por una barra para ver cantidad y %.'}</p>
+    <p class="cap">${mktVista==='canal'?'De dónde vienen las consultas en el tiempo. Tocá un canal de la leyenda para verlo solo a él.':'Volumen en el tiempo, separando las que valen de las que no.'} ${clickable&&!mktMesAbierto?'Tocá un mes para abrirlo día por día.':'Tocá un tramo para filtrar todo a ese período.'}</p>
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${tot}</div><div class="l">Total recibidas</div></div>
       <div class="mkt-kpi g"><div class="n">${reales} <small>· ${mktPct(reales,tot)}%</small></div><div class="l">Consultas reales</div></div>
@@ -19337,11 +19392,10 @@ function mktBucketVolumen(base){
            <div class="mkt-kpi"><div class="n">${prom.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>`}
       <div class="mkt-kpi"><div class="n" style="color:${covEvbl?covCol:'var(--muted)'}">${covEvbl?covPct+'%':'—'}</div><div class="l">Evaluado x Cintia<small>${covEvbl?`${covEv} de ${covEvbl} del período`:'sin consultas evaluables en el período'}</small></div></div>
     </div>
+    ${vistaChips}
     ${drillHead}
     ${graficoHtml}
-    <div class="mkt-leg">${mktSoloReales
-      ? `<span><i style="background:#15803d"></i>Concretadas</span><span><i style="background:#e08b84"></i>Rechazadas</span><span><i style="background:#f0c896"></i>Todavía abiertas</span>`
-      : `<span><i style="background:var(--blue)"></i>Reales</span><span><i style="background:#c7ced6"></i>Descartadas (nunca respondió / fuera de target / genérica + fuera de alcance)</span>`}${(hayParc&&!demasiadas)?`<span><i class="rayado"></i>Tramo incompleto — no cubre todos los días</span>`:''}</div>
+    ${(hayParc&&!demasiadas)?`<div class="mkt-leg"><span><i class="hueco"></i>Tramo incompleto — no cubre todos sus días${mktVista==='canal'?' (mirá el tooltip)':''}</span>${mktVista==='canal'?`<span><i class="punteado"></i>Publicidad (pauta)</span>`:''}</div>`:(mktVista==='canal'?`<div class="mkt-leg"><span><i class="punteado"></i>Publicidad (pauta)</span></div>`:'')}
     <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = Cintia marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado x Cintia</b>: ${covEvbl?`${covPct}% (${covEv} de ${covEvbl}) — lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado`:'sin consultas evaluables en el período'}.</div>
   </div>`;
 
