@@ -266,7 +266,7 @@ input:focus{border-color:#8bb6ef;box-shadow:0 0 0 3px rgba(23,105,224,.08);outli
 .wrap{max-width:1320px}
 @media (min-width:1051px){.cot-layout{grid-template-columns:minmax(0,1fr) 290px}}
 span.f{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:600}
-label.f,span.f{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+label.f,span.f{white-space:nowrap;overflow:visible}
 .quote .lines .n{font-size:13px}
 </style>
 </head>
@@ -423,7 +423,7 @@ const flash = (id, t) => { el(id).textContent = t; clearTimeout(el(id)._t); el(i
 const ADIC = [
   { id:"estante", grupo:"Estantes", nombre:"Estante", tipo:"m2", dims:["Ancho","Profundidad"], cantLabel:"Estantes",
     mat:{mel:50000,laq:70000,ench:80000}, minPesos:{mel:35000,laq:40000,ench:45000}, cond:"Por m², con un mínimo por estante.", unidad:"Por m², con un mínimo por estante." },
-  { id:"placa", grupo:"Placa de fondo", nombre:"Placa de fondo", tipo:"m2", dims:["Largo del mueble","Alto del mueble"], cantLabel:"Placas",
+  { id:"placa", grupo:"Placa de fondo", nombre:"Placa de fondo", tipo:"m2", dims:["Largo","Alto"], cantLabel:"Placas",
     mat:{mel:80000,laq:110000,ench:130000}, cond:"Por m²: largo × alto del mueble. Enchapado = paraíso.", unidad:"Por m², según largo × alto del mueble. Enchapado = paraíso." },
   { id:"cajon", grupo:"Cajones", nombre:"Cajón", tipo:"tramo", cantLabel:"Cajones", guias:true,
     tramos:[{max:90,label:"Hasta 90 cm",mat:{mel:50000,laq:60000,ench:65000}},{max:110,label:"De 91 a 110 cm",mat:{mel:80000,laq:90000,ench:110000}}],
