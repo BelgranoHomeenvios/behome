@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Belgrano Soft · Adicionales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f7fb;--panel:#fff;--ink:#10284d;--text:#243b5a;--muted:#718099;
+  --line:#dce5f0;--line2:#e9eef5;--soft:#f7f9fc;--blue:#1769e0;--blue2:#0f5bd4;
+  --blue-soft:#eaf2ff;--blue-softer:#f3f7ff;--green:#13804d;--green-soft:#e8f7ef;
+  --orange:#c56c08;--orange-soft:#fff2df;--red:#c43c3c;--red-soft:#fff0f0;
+  --mel:#e4e8ec;--laq:#fff;--wood:#aa7546;--shadow:0 8px 28px rgba(23,45,84,.06)
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px;line-height:1.42;font-variant-numeric:tabular-nums}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid rgba(23,105,224,.25);outline-offset:2px}
+
+/* chrome Belgrano Soft */
+.app-top{height:58px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 24px;gap:24px;position:sticky;top:0;z-index:30}
+.brand{display:flex;align-items:center;gap:10px;white-space:nowrap;font-weight:700;color:var(--ink)}
+.brand-mark{width:32px;height:32px;border-radius:8px;background:#0d315f;color:#fff;display:grid;place-items:center;font-size:12px}
+.main-nav{display:flex;align-items:center;gap:2px;min-width:0;flex:1;overflow:auto;scrollbar-width:none}
+.main-nav::-webkit-scrollbar{display:none}
+.main-nav a{color:#52627a;text-decoration:none;padding:10px 11px;border-radius:9px;font-size:13px;white-space:nowrap}
+.main-nav a.active{background:var(--blue-soft);color:var(--blue);font-weight:700}
+.user-area{display:flex;align-items:center;gap:10px;white-space:nowrap;color:#445670;font-size:13px}
+.avatar{width:34px;height:34px;border-radius:50%;background:#eaf0f8;color:var(--ink);display:grid;place-items:center;font-weight:700}
+
+.subnav{height:46px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:end;padding:0 28px;gap:28px;overflow:auto;scrollbar-width:none}
+.subnav button{height:46px;border:0;background:transparent;color:#53637b;font-size:13px;padding:0 4px;position:relative;white-space:nowrap}
+.subnav button.active{color:var(--blue);font-weight:700}
+.subnav button.active:after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--blue);border-radius:3px 3px 0 0}
+
+.wrap{max-width:1500px;margin:0 auto;padding:28px 28px 56px}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:22px;margin-bottom:20px}
+.kicker{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);font-weight:700;margin-bottom:3px}
+h1{font-size:30px;line-height:1.1;color:var(--ink);margin:0 0 7px;font-weight:700;letter-spacing:-.025em}
+.vig{margin:0;color:var(--muted);font-size:14px}
+.tabs{display:flex;gap:10px;align-items:center}
+.tabs button{border:1px solid var(--line);background:#fff;padding:10px 18px;border-radius:10px;font-weight:600;color:#4e6078}
+.tabs button[aria-selected=true]{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 5px 14px rgba(23,105,224,.18)}
+
+.modebar{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;align-items:center;gap:8px;margin-bottom:16px;box-shadow:0 3px 12px rgba(23,45,84,.03)}
+.modebar .label{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:0 5px}
+.pills{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
+.pills::-webkit-scrollbar{display:none}
+.pill{flex:none;border:1px solid var(--line);background:#fff;padding:8px 13px;border-radius:999px;font-size:13px;white-space:nowrap;display:inline-flex;align-items:center;gap:7px;color:#53637a}
+.pill:hover{border-color:#b9cae0;background:#fbfdff}
+.pill[aria-pressed=true]{background:var(--blue-soft);color:var(--blue);border-color:#a9c7f5;font-weight:700}
+.pills.sm .pill{padding:7px 12px;font-size:12.5px}
+.sw{display:inline-block;width:13px;height:13px;border-radius:4px;border:1px solid #ccd5df;flex:none}
+.sw.mel{background:var(--mel)}.sw.laq{background:linear-gradient(135deg,#fff 55%,#d7dde4)}.sw.ench{background:repeating-linear-gradient(100deg,#bd8d61 0 3px,#9c6b42 3px 6px)}
+
+.cot-layout{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:18px;align-items:start}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.work-card{padding:20px}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card h2{font-size:18px;color:var(--ink);margin:0 0 3px}
+.hint{color:var(--muted);font-size:13px;margin:0}
+.quote{position:sticky;top:122px;padding:20px}
+
+.section-box{background:var(--soft);border:1px solid var(--line2);border-radius:14px;padding:16px;margin-top:14px}
+.section-title{font-weight:700;color:var(--ink);font-size:14px;margin-bottom:10px}
+label.f{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:600}
+input[type=number],input[type=text]{width:100%;height:44px;padding:0 12px;border:1px solid #cfdbe8;border-radius:9px;background:#fff;color:var(--text);font-size:15px}
+input:focus{border-color:#8bb6ef;box-shadow:0 0 0 3px rgba(23,105,224,.08);outline:none}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+.two{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;margin-bottom:12px}
+.dims{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+.dim{border:1px solid var(--line);background:#fff;border-radius:11px;padding:11px}
+.dim .t{display:flex;justify-content:space-between;font-weight:700;font-size:13px;margin-bottom:8px;color:var(--ink)}
+.dim .t span{font-weight:600;color:var(--blue);font-size:12px}
+.dim .io{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.toggle{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;margin:10px 0;color:var(--text)}
+.toggle input{width:18px;height:18px;accent-color:var(--blue)}
+.row-inline{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.seg button{border:0;border-right:1px solid var(--line);background:#fff;padding:8px 13px;font-size:13px;color:#53637a}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--blue-soft);color:var(--blue);font-weight:700}
+.warn{background:var(--orange-soft);color:#a35600;border:1px solid #f2d2a4;border-radius:10px;padding:10px 12px;font-size:13px;margin:10px 0}
+
+.result{display:flex;justify-content:space-between;align-items:center;gap:14px;border:1px solid #d8e6f8;background:linear-gradient(135deg,#f3f8ff,#edf5ff);border-radius:13px;padding:14px 16px;margin-top:14px;flex-wrap:wrap}
+.big{font-size:28px;font-weight:700;color:var(--blue);line-height:1.05;letter-spacing:-.02em}
+.small{color:var(--muted);font-size:13px;margin-top:4px}
+.detail{font-size:12px;color:var(--muted);margin:5px 0 0;max-width:60ch}
+.btn{border:1px solid var(--blue);border-radius:10px;padding:10px 15px;background:var(--blue);color:#fff;font-weight:700;font-size:13px}
+.btn:hover{background:var(--blue2)}
+.btn[disabled]{opacity:.35;cursor:not-allowed}
+.btn.ghost{background:#fff;color:var(--text);border-color:var(--line)}
+.flash{color:var(--green);font-size:12px;font-weight:700;min-height:1em;margin-top:5px}
+
+.quote-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--line2)}
+.quote-badge{font-size:11px;color:var(--blue);background:var(--blue-soft);border-radius:999px;padding:5px 9px;font-weight:700}
+.lines{list-style:none;margin:0;padding:0;max-height:52vh;overflow:auto}
+.lines li{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:14px 0;border-bottom:1px solid var(--line2)}
+.lines .n{font-weight:700;font-size:13px;color:var(--ink)}
+.lines .d{font-size:12px;color:var(--muted);margin-top:2px}
+.lines .p{text-align:right;white-space:nowrap}
+.lines .p b{display:block;color:var(--blue);font-size:14px}
+.lines .p i{font-style:normal;font-size:11px;color:var(--muted)}
+.lines .x{border:0;background:transparent;color:#99a5b4;font-size:18px;line-height:1;padding:0 2px}
+.empty{color:var(--muted);font-size:13px;margin:20px 0}
+.tot{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.total-box{background:var(--blue-softer);border-radius:12px;padding:12px}
+.actions{display:flex;gap:8px;margin-top:14px}.actions .btn{flex:1}
+.dock{position:fixed;left:16px;right:16px;bottom:14px;z-index:20;background:var(--ink);color:#fff;border:0;border-radius:12px;display:flex;justify-content:space-between;padding:13px 16px;font-weight:700;box-shadow:0 8px 24px rgba(9,28,54,.2)}
+
+/* lista */
+.lst{padding-bottom:40px}
+.list-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.lst .card{padding:0;overflow:hidden}
+.lst .head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;background:#fbfcfe}
+.lst .head h2{margin:0;font-size:16px;color:var(--ink)}
+.lst .head p{margin:0;color:var(--muted);font-size:12px}
+.grid{width:100%;border-collapse:collapse}
+.grid th,.grid td{padding:12px 16px;text-align:right;border-bottom:1px solid var(--line2);vertical-align:top}
+.grid tr:last-child td{border-bottom:0}
+.grid th{font-weight:700;font-size:11px;color:#8190a4;white-space:nowrap;text-transform:uppercase;letter-spacing:.04em;background:#fff}
+.grid th:first-child,.grid td:first-child{text-align:left}
+.grid th .sw{margin-right:5px;vertical-align:-1px}
+.grid tbody tr:hover{background:#fafcff}
+.nm{font-weight:700;color:var(--ink)}
+.cd{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.ef{display:block;font-weight:700;color:var(--blue);white-space:nowrap}
+.li{display:block;color:var(--muted);font-size:11px;white-space:nowrap;margin-top:2px}
+.mn{display:block;color:#a05d15;font-size:10px;white-space:nowrap;margin-top:2px}
+.go{margin-top:7px;border:1px solid #b9ccec;background:#fff;color:var(--blue);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700}
+.pct{font-weight:700;color:var(--orange)}.free{color:var(--muted)}
+.foot{padding:12px 16px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);background:#fbfcfe}
+.scroll{overflow-x:auto}.hide{display:none!important}
+
+@media (max-width:1050px){
+  .cot-layout{grid-template-columns:1fr}.quote{position:static}.main-nav{display:none}.wrap{padding:22px 16px 76px}
+}
+@media (max-width:700px){
+  .app-top{padding:0 14px}.user-area span{display:none}.subnav{padding:0 14px;gap:18px}
+  .page-head{flex-direction:column}.tabs{width:100%}.tabs button{flex:1}
+  h1{font-size:25px}.modebar{align-items:flex-start;flex-direction:column}.modebar .label{display:none}
+  .dims{grid-template-columns:1fr}.dim{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:8px}.dim .t{margin:0;flex-direction:column}
+  .two{grid-template-columns:1fr}.result{align-items:flex-start}.result>div:last-child{width:100%;text-align:left!important}.result .btn{width:100%}
+  .grid th,.grid td{padding:10px 9px}.brand span:last-child{display:none}
+}
+
+/* ajustes de la versión vigente */
+:root{color-scheme:light}
+#gPills,#lPills{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;overflow:visible}
+#gPills .pill,#lPills .pill{justify-content:center;white-space:normal;text-align:center}
+#iPills,#matPills{flex-wrap:wrap;overflow:visible}
+#iPills:empty,#matPills:empty{display:none}
+#matPills{margin-top:8px}
+.one{margin:0;font-size:13px;color:var(--text)}.one b{color:var(--ink);font-weight:700}.one span{color:var(--muted)}
+.modebar #lPills{flex:1}
+@media (max-width:700px){#gPills .pill,#lPills .pill{padding:7px 6px;font-size:12px}}
+
+/* encabezado sin barras de navegación, solapas grandes a la izquierda */
+.page-head{flex-direction:column;align-items:flex-start;gap:16px;margin-bottom:22px}
+.tabs{gap:10px}
+.tabs button{padding:14px 30px;font-size:16px;border-radius:12px;min-width:190px}
+.quote{top:16px}
+@media (max-width:700px){.tabs button{min-width:0;padding:13px 12px;font-size:15px}}
+.rc{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
+.rc .go{margin-top:0;flex:none}
+
+/* ancho más ajustado: más margen a los costados y precios cerca de los nombres */
+.wrap{max-width:1120px;padding-left:40px;padding-right:40px}
+.cot-layout{grid-template-columns:minmax(0,1fr) 360px}
+#vLst{max-width:860px}
+.lst .card{max-width:860px}
+.grid td:not(:first-child),.grid th:not(:first-child){width:130px}
+.grid td:first-child{padding-right:24px}
+@media (max-width:1050px){.wrap{padding-left:24px;padding-right:24px}.cot-layout{grid-template-columns:1fr}}
+@media (max-width:700px){.wrap{padding-left:14px;padding-right:14px}.grid td:not(:first-child),.grid th:not(:first-child){width:auto}}
+
+/* presupuesto minimalista */
+.quote{padding:18px 20px;box-shadow:none}
+.q-title{font-size:16px!important;margin:0 0 4px!important}
+.quote .empty{margin:8px 0 2px}
+.quote .lines li{grid-template-columns:1fr auto auto;gap:10px;padding:11px 0;border-bottom:1px solid var(--line2)}
+.quote .lines li:last-child{border-bottom:0}
+.quote .lines .n{font-weight:600}
+.quote .lines .d{font-size:11.5px}
+.quote .lines .p b{font-weight:600;color:var(--ink);font-size:13.5px}
+.quote .lines .x{font-size:16px;color:#b3bdc9}
+.quote .lines .x:hover{color:var(--red)}
+.quote .tot{display:block;margin-top:6px;padding-top:12px;border-top:1px solid var(--line)}
+.q-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.q-row span{color:var(--muted);font-size:13px}
+.q-row b{font-size:22px;font-weight:700;color:var(--blue);letter-spacing:-.01em}
+.q-sub{margin-top:2px}.q-sub span:last-child{color:var(--text);font-weight:600}
+.quote .actions{align-items:center;margin-top:14px}
+.quote .actions .btn{flex:none;padding:9px 18px}
+.q-link{border:0;background:transparent;color:var(--muted);font-size:13px;padding:6px 4px;text-decoration:underline;text-underline-offset:3px}
+.q-link:hover{color:var(--red)}
+.sel{width:100%;height:44px;padding:0 36px 0 12px;border:1px solid #cfdbe8;border-radius:9px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23718099' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 12px center;color:var(--text);font-size:15px;appearance:none;-webkit-appearance:none;cursor:pointer}
+.sel:focus{border-color:#8bb6ef;box-shadow:0 0 0 3px rgba(23,105,224,.08);outline:none}
+
+/* medidas en acordeón */
+.acc{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.acc-item{background:#fff;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.acc-btn{width:100%;display:flex;align-items:center;gap:10px;border:0;background:#fff;padding:12px 14px;text-align:left;font-weight:600;color:var(--ink);font-size:14px}
+.acc-btn:hover{background:#fbfdff}
+.acc-plus{width:22px;height:22px;border-radius:6px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-weight:700;flex:none;line-height:1}
+.acc-l{flex:1}
+.acc-r{color:var(--blue);font-size:12.5px;font-weight:700}
+.acc-body{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 14px 14px}
+
+/* campos en una sola fila */
+.fields{display:flex!important;gap:10px;align-items:flex-end}
+.fields>div{flex:1 1 0;min-width:0}
+.fields>div.fm{flex:1.6 1 0}
+@media (max-width:700px){.fields{flex-wrap:wrap}.fields>div,.fields>div.fm{flex:1 1 calc(50% - 5px)}}
+
+/* mueble: categoría y medidas */
+.acc-body{display:block}
+.acc-full{grid-column:1 / -1}
+.acc-note{grid-column:1 / -1;margin:0;font-size:12px;color:var(--muted)}
+.info{background:var(--blue-softer);color:var(--blue2);border:1px solid #cfe0fa;border-radius:10px;padding:10px 12px;font-size:13px;margin:10px 0}
+.seg{height:44px}.seg button{height:100%}
+#mDet{line-height:1.55}
+
+.m-result{display:block}
+.m-top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.m-exp{border-top:1px solid #d8e6f8;margin-top:12px;padding-top:10px}
+.m-exp .detail{max-width:none;font-size:13px;color:var(--text)}
+#mCatTxt.bad{color:#a35600}
+
+.d-row{display:flex;gap:10px;align-items:flex-start}
+.d-cell{flex:1 1 0;min-width:0}
+.d-out{height:44px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:15px;font-weight:600}
+.d-strong{color:var(--blue);font-size:17px;font-weight:700;background:var(--blue-softer)}
+.d-btn{flex:none;padding-top:19px;text-align:right}
+.d-btn .btn{height:44px}
+@media (max-width:700px){.d-row{flex-wrap:wrap}.d-cell{flex:1 1 calc(50% - 5px)}.d-btn{flex:1 1 100%;padding-top:0}.d-btn .btn{width:100%}}
+
+/* encabezado de Belgrano Soft (igual al CRM) */
+.bs-header{display:flex;align-items:center;gap:13px;padding:13px 24px;background:linear-gradient(178deg,#12203a,#0f1a2a);color:#fff;font-family:inherit}
+.bs-logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,#2f6fe0,#1e5fce);color:#fff;font-weight:800;font-size:14px;box-shadow:0 4px 14px rgba(30,95,206,.5);flex:none}
+.bs-title{font-weight:800;font-size:17px;letter-spacing:.2px}
+.bs-switch{display:flex;gap:6px;margin-left:14px}
+.bs-switch a,.bs-switch span{font-size:12.5px;font-weight:700;color:rgba(255,255,255,.7);text-decoration:none;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.08)}
+.bs-switch a:hover{background:rgba(255,255,255,.16);color:#fff}
+.bs-switch .on{background:rgba(255,255,255,.22);color:#fff}
+@media (max-width:560px){.bs-header{padding:11px 14px;gap:10px}.bs-title{display:none}.bs-switch{margin-left:0}}
+</style>
+</head>
+<body>
+<header class="bs-header">
+  <span class="bs-logo">BH</span>
+  <span class="bs-title">Belgrano Soft</span>
+  <nav class="bs-switch" aria-label="Módulos">
+    <a href="./">CRM</a>
+    <a href="https://belgranohomeenvios.github.io/logistica/">Logística</a>
+    <span class="on" aria-current="page">Adicionales</span>
+  </nav>
+</header>
+
+<div class="wrap">
+  <header class="page-head">
+    <div>
+      <div class="kicker">Catálogo · Precios</div>
+      <h1>Cotizador de adicionales</h1>
+      <p class="vig">Vigente desde el 16/09/2026. Efectivo en grande, lista (tarjeta) debajo.</p>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Vista">
+      <button role="tab" id="tabCot" aria-selected="true" aria-controls="vCot">Cotizar</button>
+      <button role="tab" id="tabLst" aria-selected="false" aria-controls="vLst">Lista de precios</button>
+    </div>
+  </header>
+
+  <div id="vCot" role="tabpanel" aria-labelledby="tabCot">
+    <div class="modebar">
+      <span class="label">Qué querés cotizar</span>
+      <div class="pills" id="subPills">
+        <button class="pill" data-sub="adic" aria-pressed="true">Adicionales</button>
+        <button class="pill" data-sub="mueble" aria-pressed="false">Medidas</button>
+        <button class="pill" data-sub="dis" aria-pressed="false">Diseño</button>
+      </div>
+    </div>
+
+    <div class="cot-layout">
+      <div class="card work-card">
+        <div class="card-head">
+          <div><h2>Cotización</h2><p class="hint" id="subHint">Elegí el adicional y completá sus datos. El precio se calcula automáticamente.</p></div>
+        </div>
+
+        <div class="hide" id="pMueble">
+          <div class="section-box">
+            <div class="section-title">1. Mueble</div>
+            <div class="d-row">
+              <div class="d-cell"><label class="f" for="mCat">Categoría</label><select id="mCat" class="sel"></select></div>
+              <div class="d-cell"><label class="f" for="mPrecio">Valor estándar</label><input id="mPrecio" type="number" inputmode="numeric" min="0" placeholder="Ej. 950000"></div>
+            </div>
+          </div>
+          <div class="section-box">
+            <div class="section-title">2. Medidas deseadas</div>
+            <div class="acc">
+              <div class="acc-item" id="item-a">
+                <button type="button" class="acc-btn" data-acc="a" aria-expanded="false" aria-controls="acc-a"><span class="acc-plus" aria-hidden="true">+</span><span class="acc-l">Modificar altura</span><span class="acc-r" id="aR"></span></button>
+                <div class="acc-body hide" id="acc-a"><div class="d-row"><input type="hidden" id="aE"><div class="d-cell"><label class="f" for="aP">Altura deseada (cm)</label><input type="number" inputmode="decimal" id="aP"></div>
+                  <div class="d-cell"><span class="f">Valor adicional</span><div class="d-out d-strong" id="aV">$0</div></div></div><div class="acc-full hide" id="r70Wrap" style="margin-top:10px"><label class="f" for="r70">Valor del rack de 70 cm (de 61 a 65 cm se cotiza desde ese rack)</label><input type="number" inputmode="numeric" id="r70"></div></div>
+              </div>
+              <div class="acc-item" id="item-l">
+                <button type="button" class="acc-btn" data-acc="l" aria-expanded="false" aria-controls="acc-l"><span class="acc-plus" aria-hidden="true">+</span><span class="acc-l">Modificar largo</span><span class="acc-r" id="lR"></span></button>
+                <div class="acc-body hide" id="acc-l"><div class="d-row"><div class="d-cell"><label class="f" for="lE">Largo de lista (cm)</label><input type="number" inputmode="decimal" id="lE"></div><div class="d-cell"><label class="f" for="lP">Largo deseado (cm)</label><input type="number" inputmode="decimal" id="lP"></div>
+                  <div class="d-cell"><span class="f">Valor adicional</span><div class="d-out d-strong" id="lV">$0</div></div></div></div>
+              </div>
+              <div class="acc-item" id="item-p">
+                <button type="button" class="acc-btn" data-acc="p" aria-expanded="false" aria-controls="acc-p"><span class="acc-plus" aria-hidden="true">+</span><span class="acc-l">Modificar profundidad</span><span class="acc-r" id="pR"></span></button>
+                <div class="acc-body hide" id="acc-p"><div class="d-row"><input type="hidden" id="pE"><div class="d-cell"><label class="f" for="pP">Profundidad deseada (cm)</label><input type="number" inputmode="decimal" id="pP"></div>
+                  <div class="d-cell"><span class="f">Valor adicional</span><div class="d-out d-strong" id="pV">$0</div></div></div></div>
+              </div>
+            </div>
+            <p class="acc-note" style="margin-top:8px">En largo, el valor estándar tiene que ser el de ese largo de lista.</p>
+          </div>
+          <div id="mWarn" class="warn hide"></div>
+          <div id="mInfo" class="info hide"></div>
+          <div class="result m-result">
+            <div class="m-top"><div><div class="small">Valor cotizado</div><div class="big" id="mEf">$0</div><div class="small" id="mAdic"></div></div>
+            <div style="text-align:right"><button class="btn" id="mAdd" disabled>Agregar al presupuesto</button><div class="flash" id="mFlash" role="status"></div></div></div>
+            <div class="m-exp"><div class="small" style="margin:0 0 4px">Cómo se calculó</div><p class="detail" id="mDet"></p></div>
+          </div>
+        </div>
+
+        <div class="hide" id="pDis">
+          <div class="section-box">
+            <div class="section-title">1. Elegí el diseño</div>
+            <div class="pills sm" id="dPills"><button class="pill" aria-pressed="true">Ranurado</button></div>
+            <p class="one"><b>Ranurado</b> <span>Solo en MDF. Se suma un 15% sobre el valor total del mueble.</span></p>
+          </div>
+          <div class="section-box">
+            <div class="section-title">2. Valor del mueble</div>
+            <div class="d-row">
+              <div class="d-cell"><label class="f" for="dPrecio">Total</label><input id="dPrecio" type="number" inputmode="numeric" min="0" placeholder="Ej. 1166700"></div>
+              <div class="d-cell"><span class="f">Adicional (15%)</span><div class="d-out" id="dEf">$0</div></div>
+              <div class="d-cell"><span class="f">Total</span><div class="d-out d-strong" id="dTot">$0</div></div>
+              <div class="d-btn"><button class="btn" id="dAdd" disabled>Agregar</button><div class="flash" id="dFlash" role="status"></div></div>
+            </div>
+            <p class="acc-note" style="margin-top:8px">Cargá el total del mueble con las medidas especiales ya aplicadas, si las tiene.</p>
+          </div>
+        </div>
+
+        <div id="pAdic">
+          <div class="section-box">
+            <div class="section-title">1. Elegí el grupo</div>
+            <div class="pills" id="gPills" aria-label="Grupo"></div>
+          </div>
+          <div class="section-box">
+            <div class="section-title">2. Elegí el adicional</div>
+            <div class="pills sm" id="iPills" aria-label="Adicional"></div>
+            <div class="pills sm" id="matPills" aria-label="Material"></div>
+            <div class="fields" id="aFields"></div>
+            <label class="toggle hide" id="aGuiasWrap"><input type="checkbox" id="aGuias"> Con guías de cierre suave (una por cajón)</label>
+          </div>
+          <div id="aWarn" class="warn hide"></div>
+          <div class="result">
+            <div><div class="big" id="aEf">$0</div><div class="small" id="aLi">Lista $0</div><p class="detail" id="aDet"></p></div>
+            <div style="text-align:right"><button class="btn" id="aAdd" disabled>Agregar al presupuesto</button><div class="flash" id="aFlash" role="status"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="card quote" id="quote" aria-label="Presupuesto">
+        <h2 class="q-title">Presupuesto</h2>
+        <p class="empty" id="qEmpty">Todavía no agregaste nada.</p>
+        <ul class="lines" id="qLines"></ul>
+        <div class="tot hide" id="qTot">
+          <div class="q-row"><span>Total efectivo</span><b id="qEf"></b></div>
+          <div class="q-row q-sub"><span>Total lista</span><span id="qLi"></span></div>
+        </div>
+        <div class="actions hide" id="qAct"><button class="btn" id="qCopy">Copiar</button><button class="q-link" id="qClear">Vaciar</button></div>
+        <div class="flash" id="qMsg" role="status"></div>
+      </aside>
+    </div>
+    <button class="dock hide" id="dock"><span id="dockN"></span><span id="dockT"></span></button>
+  </div>
+
+  <div id="vLst" class="lst hide" role="tabpanel" aria-labelledby="tabLst">
+    <div class="list-toolbar">
+      <div><div class="kicker">Lista vigente</div><h2 style="margin:0;color:var(--ink)">Lista de precios de adicionales</h2></div>
+    </div>
+    <div class="modebar"><span class="label">Grupo</span><div class="pills" id="lPills" aria-label="Grupo"></div></div>
+    <div class="card" id="lBody"></div>
+  </div>
+</div>
+<script>
+const up100 = n => Math.ceil(n / 100) * 100;
+const toLista = e => up100(e / 0.65);
+const $ = n => "$" + Math.round(n).toLocaleString("es-AR");
+const el = id => document.getElementById(id);
+const num = id => { const x = el(id); if (!x) return null; const v = parseFloat(String(x.value).replace(",", ".")); return isFinite(v) && v > 0 ? v : null; };
+const MATS = { mel:"Melamina", laq:"Laqueado", ench:"Enchapado" };
+const flash = (id, t) => { el(id).textContent = t; clearTimeout(el(id)._t); el(id)._t = setTimeout(() => el(id).textContent = "", 1800); };
+
+/* ===== datos (precios en efectivo) ===== */
+const ADIC = [
+  { id:"estante", grupo:"Estantes", nombre:"Estante", tipo:"m2", dims:["Ancho","Profundidad"], cantLabel:"Estantes",
+    mat:{mel:50000,laq:70000,ench:80000}, minPesos:{mel:35000,laq:40000,ench:45000}, cond:"Por m², con un mínimo por estante.", unidad:"Por m², con un mínimo por estante." },
+  { id:"cajon", grupo:"Cajones", nombre:"Cajón", tipo:"tramo", cantLabel:"Cajones", guias:true,
+    tramos:[{max:90,label:"Hasta 90 cm",mat:{mel:50000,laq:60000,ench:65000}},{max:110,label:"De 91 a 110 cm",mat:{mel:80000,laq:90000,ench:110000}}],
+    cond:"Hasta 90 cm de ancho tiene un valor; de 91 a 110 cm, otro valor. Más de 110 cm no se fabrica.",
+    exceso:"No se fabrican cajones de más de 110 cm.", unidad:"Precio por cajón. Hasta 90 cm un valor; de 91 a 110 cm, otro." },
+  { id:"espejo", grupo:"Espejo", nombre:"Espejo para placard", tipo:"m2", dims:["Ancho","Alto"], cantLabel:"Puertas", precio:100000, cond:"Por m², se calcula por puerta." },
+  { id:"bandeja", grupo:"Bandejas", nombre:"Bandeja", tipo:"tramo", cantLabel:"Bandejas",
+    tramos:[{max:90,label:"Hasta 90 cm",mat:{mel:40000,laq:50000,ench:55000}},{max:120,label:"De 91 a 120 cm",mat:{mel:70000,laq:80000,ench:90000}}],
+    cond:"Hasta 90 cm de ancho tiene un valor; de 91 a 120 cm, otro valor.",
+    exceso:"Bandejas de más de 120 cm: no están en la lista, consultá.", unidad:"Precio por bandeja. Hasta 90 cm un valor; de 91 a 120 cm, otro." },
+  { id:"calada", grupo:"Puertas", nombre:"Puerta calada con vidrio", tipo:"m2", dims:["Ancho","Alto"], cantLabel:"Puertas",
+    mat:{mel:120000,laq:100000,ench:120000}, minM2:1, cond:"Por m², mínimo 1 m² por puerta. En melamina es más cara porque lleva más trabajo.", unidad:"Por m², mínimo 1 m² por puerta. En melamina es más cara porque lleva más trabajo." },
+  { id:"cerradura", grupo:"Herrajes", nombre:"Cerradura tipo tambor", tipo:"unidad", precio:50000, cantLabel:"Cerraduras", cond:"Por cerradura." },
+  { id:"guias", grupo:"Herrajes", nombre:"Guías de cierre suave", tipo:"unidad", precio:30000, cantLabel:"Cajones", cond:"Por cajón (incluye el par)." },
+  { id:"bisagras", grupo:"Herrajes", nombre:"Bisagras de cierre suave", tipo:"unidad", precio:25000, cantLabel:"Puertas", cond:"Por puerta." },
+  { id:"piston", grupo:"Herrajes", nombre:"Pistón a gas adicional", tipo:"unidad", precio:20000, cantLabel:"Pistones", cond:"Por pistón." },
+  { id:"colocacion", grupo:"Servicios", nombre:"Colocación de manijas o guías que trae el cliente", tipo:"unidad", precio:15000, cantLabel:"Unidades", cond:"Por unidad colocada." },
+  { id:"hueco", grupo:"Huecos", nombre:"Sacar un cajón y dejar el hueco", tipo:"unidad", cantLabel:"Huecos", permiteCero:true,
+    mat:{mel:0,laq:40000,ench:40000}, cond:"En melamina no modifica el valor. En laqueado o enchapado el hueco se entrega laqueado o lustrado.", unidad:"Por hueco. En melamina no modifica el valor." },
+];
+const GRUPOS = [...new Set(ADIC.map(a => a.grupo))];
+
+/* ===== solapas ===== */
+function setTab(t){
+  const cot = t === "cot";
+  el("tabCot").setAttribute("aria-selected", cot); el("tabLst").setAttribute("aria-selected", !cot);
+  el("vCot").classList.toggle("hide", !cot); el("vLst").classList.toggle("hide", cot);
+  renderDock();
+}
+el("tabCot").onclick = () => setTab("cot"); el("tabLst").onclick = () => setTab("lst");
+function setSub(s){
+  el("subPills").querySelectorAll(".pill").forEach(p => p.setAttribute("aria-pressed", p.dataset.sub === s));
+  el("pMueble").classList.toggle("hide", s !== "mueble"); el("pAdic").classList.toggle("hide", s !== "adic"); el("pDis").classList.toggle("hide", s !== "dis");
+  el("subHint").textContent = { adic:"Elegí el adicional y completá sus datos. El precio se calcula automáticamente.", mueble:"Elegí la categoría, abrí las medidas que cambian y cargá el valor estándar.", dis:"Elegí el diseño y cargá el valor del mueble." }[s];
+}
+el("subPills").querySelectorAll(".pill").forEach(p => p.onclick = () => setSub(p.dataset.sub));
+
+/* ===== presupuesto ===== */
+let lines = [];
+function renderQ(){
+  const ul = el("qLines"); ul.innerHTML = ""; let tot = 0;
+  lines.forEach((l, i) => {
+    tot += l.ef;
+    const li = document.createElement("li");
+    li.innerHTML = `<div><div class="n">${l.titulo}</div><div class="d">${l.det}</div></div><div class="p"><b>${$(l.ef)}</b>${l.soloValor ? "" : `<i>${$(toLista(l.ef))}</i>`}</div><button class="x" aria-label="Quitar">×</button>`;
+    li.querySelector(".x").onclick = () => { lines.splice(i, 1); renderQ(); };
+    ul.appendChild(li);
+  });
+  const has = lines.length > 0;
+  el("qTot").classList.toggle("hide", !has); el("qAct").classList.toggle("hide", !has); el("qEmpty").classList.toggle("hide", has);
+  const conValor = lines.some(l => l.soloValor);
+  el("qEf").textContent = $(tot); el("qLi").textContent = $(toLista(tot));
+  el("qTot").querySelector(".q-row span").textContent = conValor ? "Total" : "Total efectivo";
+  el("qTot").querySelector(".q-sub").classList.toggle("hide", conValor);
+  el("dockN").textContent = `Presupuesto (${lines.length})`; el("dockT").textContent = `${$(tot)} efectivo`;
+  renderDock();
+}
+function renderDock(){ el("dock").classList.toggle("hide", !(lines.length && !el("vCot").classList.contains("hide"))); }
+el("dock").onclick = () => el("quote").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+const addLine = (titulo, det, ef, soloValor = false) => { lines.push({titulo, det, ef, soloValor}); renderQ(); };
+el("qClear").onclick = () => { lines = []; renderQ(); };
+el("qCopy").onclick = async () => {
+  let tot = 0;
+  const txt = ["Presupuesto Belgrano Home", ...lines.map(l => { tot += l.ef; return l.soloValor ? `• ${l.titulo} (${l.det}): ${$(l.ef)}` : `• ${l.titulo} (${l.det}): ${$(l.ef)} efectivo / ${$(toLista(l.ef))} lista`; }),
+    lines.some(l => l.soloValor) ? `Total: ${$(tot)}` : `Total: ${$(tot)} en efectivo / ${$(toLista(tot))} de lista`].join("\n");
+  try { await navigator.clipboard.writeText(txt); flash("qMsg", "Copiado. Pegalo en WhatsApp."); }
+  catch(e){ const t = document.createElement("textarea"); t.value = txt; document.body.appendChild(t); t.select();
+    const ok = document.execCommand && document.execCommand("copy"); t.remove();
+    flash("qMsg", ok ? "Copiado. Pegalo en WhatsApp." : "No se pudo copiar: copialo a mano."); }
+};
+
+/* ===== mueble ===== */
+const CATS = [
+  { id:"placard",     k:/placard/, n:"Placard",                 alto:240, max:260, prof:60 },
+  { id:"mesaluz",     k:/mesa de luz|mesita/, n:"Mesa de luz",             alto:65,  max:75,  prof:40, baja:true },
+  { id:"comoda",      k:/comoda/, n:"Cómoda",                  alto:90,  max:120, prof:45 },
+  { id:"vajillero",   k:/vajillero/, n:"Vajillero",               alto:90,  max:120, prof:45 },
+  { id:"recibidor",   k:/recibidor/, n:"Recibidor",               alto:90,  max:120, prof:30 },
+  { id:"rackbajo",    k:/(rack|mueble tv).*(bajo|55)/, n:"Rack bajo (55 cm)",       alto:55,  max:60,  prof:40, baja:true, desde70:true },
+  { id:"rackalto",    k:/(rack|mueble tv).*(alto|70)/, n:"Rack alto (70 cm)",       alto:70,  max:80,  prof:40, baja:true },
+  { id:"cama",        k:/cama/, n:"Cama",                    alto:35,  max:75,  prof:null },
+  { id:"biblioteca",  k:/biblioteca/, n:"Biblioteca",              alto:180, max:220, prof:30, ascensor:true },
+  { id:"aparador",    k:/aparador|torre/, n:"Aparador",                alto:180, max:220, prof:40, ascensor:true },
+  { id:"cristalero",  k:/cristalero/, n:"Cristalero",              alto:180, max:220, prof:40, ascensor:true },
+  { id:"escritorio",  k:/escritorio/, n:"Escritorio",              alto:80,  max:100, prof:45 },
+  { id:"mesa",        k:/mesa/, n:"Mesa de comedor",         alto:80,  max:90,  prof:80 },
+  { id:"botinero90",  k:/botinero.*\b90\b/, n:"Botinero (90 cm)",        alto:90,  max:210, prof:30 },
+  { id:"botinero135", k:/botinero.*135/, n:"Botinero (135 cm)",       alto:135, max:210, prof:30 },
+];
+el("mCat").innerHTML = `<option value="">Elegí la categoría</option>` + CATS.map(c => `<option value="${c.id}">${c.n}</option>`).join("");
+const cat = () => CATS.find(c => c.id === el("mCat").value) || null;
+let mState = null, catPrevia = null;
+const pc = x => Math.round(x * 100) + "%";
+const fx = x => "×" + x.toFixed(2).replace(".", ",");
+const FIN = { "0":"terminada en 0", "5":"terminada en 5", "x":"medida exacta" };
+const accOpen = k => el("acc-" + k) && !el("acc-" + k).classList.contains("hide");
+
+function aplicarCategoria(){
+  const c = cat();
+  el("aE").value = c ? c.alto : ""; el("pE").value = c && c.prof ? c.prof : "";
+  const sinProf = c && c.prof === null;
+  el("item-p").classList.toggle("hide", !!sinProf);
+  if (sinProf) { el("pP").value = ""; cerrarAcc("p"); }
+  calcM();
+}
+el("mCat").addEventListener("change", aplicarCategoria);
+
+function calcM(){
+  const c = cat(), precio = num("mPrecio"), warn = [], info = [], pasos = [];
+  ["aR","lR","pR"].forEach(id => el(id).textContent = "");
+  el("r70Wrap").classList.add("hide");
+  let bloqueo = false, factor = 1, usa70 = false;
+  const cambios = [];
+  if (c) {
+    for (const [k, n] of [["a","Alto"],["l","Largo"],["p","Profundidad"]]) {
+      if (!accOpen(k)) continue;
+      let E = num(k + "E"); const P = num(k + "P");
+      if (!E || !P || E === P) continue;
+      const fin = P % 10 === 0 ? "0" : P % 5 === 0 ? "5" : "x";
+      if (k === "a" && c.desde70 && P > c.max) {
+        if (P > 65) { warn.push("Un rack bajo de más de 65 cm se cotiza como rack alto (70 cm)."); bloqueo = true; continue; }
+        el("r70Wrap").classList.remove("hide"); usa70 = true; E = 70;
+      } else if (k === "a" && P > c.max) {
+        warn.push(`No se fabrica: el alto máximo de ${c.n.toLowerCase()} es ${c.max} cm.`); bloqueo = true; continue;
+      }
+      if (k === "l" && P > E) { warn.push("En largo, cargá como estándar la medida de lista superior a la pedida."); bloqueo = true; continue; }
+      const agranda = P > E;
+      let f = 1, R = P;
+      if (agranda) { R = Math.ceil(P / 5) * 5; f = R / E; }
+      const pctSolo = agranda ? { "0":.05, "5":.08, "x":.17 }[fin]
+                              : { "0":.05, "5": (k === "a" && c.baja ? .08 : .10), "x":.17 }[fin];
+      if (k === "a" && c.ascensor && P > 180) info.push("Más de 180 cm de alto: confirmar que entra en el ascensor sin desarmar.");
+      factor *= f;
+      cambios.push({ k, n, E, P, R, f, fin, agranda, pctSolo });
+      pasos.push(usa70 && k === "a"
+        ? `Alto ${c.alto}→${P} cm: se toma el precio del rack de 70 cm`
+        : agranda ? `${n} ${E}→${P} cm: regla de tres${R !== P ? " a " + R + " cm" : ""} ${fx(f)}`
+                  : `${n} ${E}→${P} cm: mismo precio`);
+    }
+  }
+  let pct = 0, recargoTxt = "";
+  if (cambios.length === 1) {
+    const x = cambios[0]; pct = x.pctSolo;
+    recargoTxt = `Recargo ${pc(pct)} (${x.agranda ? "agranda" : "achica"}, ${FIN[x.fin]})`;
+    el(x.k + "R").textContent = (x.agranda ? fx(x.f) + " " : "") + "+" + pc(pct);
+  } else if (cambios.length > 1) {
+    const hayX = cambios.some(x => x.fin === "x"), hay5 = cambios.some(x => x.fin === "5");
+    pct = hayX ? .25 : hay5 ? .20 : .15;
+    recargoTxt = `Recargo único ${pc(pct)} (${cambios.length} medidas, ${hayX ? "alguna exacta" : hay5 ? "alguna terminada en 5" : "todas terminadas en 0"})`;
+    cambios.forEach(x => el(x.k + "R").textContent = x.agranda ? fx(x.f) : "mismo precio");
+  }
+  const precioBase = usa70 ? num("r70") : precio;
+  let ef = 0, faltante = "";
+  if (!c) faltante = "Elegí la categoría del mueble.";
+  else if (!precioBase) faltante = usa70 ? "Cargá el valor del rack de 70 cm." : "Cargá el valor estándar del producto.";
+  if (!faltante && !bloqueo) {
+    ef = precioBase * factor * (1 + pct);
+    ef = up100(ef);
+  }
+  const lineas = [...pasos]; if (recargoTxt) lineas.push(recargoTxt);
+  el("mWarn").textContent = warn.join(" "); el("mWarn").classList.toggle("hide", !warn.length);
+  el("mInfo").textContent = info.join(" "); el("mInfo").classList.toggle("hide", !info.length || bloqueo);
+  el("mEf").textContent = $(ef);
+  const adicional = ef ? Math.max(0, ef - (num("mPrecio") || precioBase)) : 0;
+  ["aV","lV","pV"].forEach(id => el(id).textContent = ef ? $(adicional) : "—");
+  el("mAdic").textContent = ef ? `Adicional por medidas: ${$(adicional)}` : "";
+  el("mDet").innerHTML = faltante ? faltante : bloqueo ? "" : (lineas.length ? lineas.join("<br>") : "Medida estándar, sin recargo.");
+  el("mAdd").disabled = !(ef > 0);
+  const medidas = cambios.map(x => `${x.n.toLowerCase()} ${x.P} cm`).join(", ");
+  mState = ef > 0 ? { titulo: (c ? c.n : "Mueble"), det: (medidas ? medidas + ", " : "medida estándar, ") + (recargoTxt ? recargoTxt.toLowerCase() : "sin recargo"), ef, soloValor:true } : null;
+}
+["mPrecio","aP","lE","lP","pP","r70"].forEach(id => el(id).addEventListener("input", calcM));
+el("mAdd").onclick = () => { if (mState) { addLine(mState.titulo, mState.det, mState.ef, true); flash("mFlash", "Agregado"); } };
+
+/* ===== adicionales ===== */
+let curG = GRUPOS[0], curI = ADIC[0].id, curMat = "laq", aState = null;
+const pill = (label, pressed, data, sw) => `<button class="pill" aria-pressed="${pressed}" ${data}>${sw ? `<span class="sw ${sw}"></span>` : ""}${label}</button>`;
+function renderA(){
+  el("gPills").innerHTML = GRUPOS.map(g => pill(g, g === curG, `data-g="${g}"`)).join("");
+  el("gPills").querySelectorAll("[data-g]").forEach(b => b.onclick = () => { curG = b.dataset.g; curI = ADIC.find(a => a.grupo === curG).id; curMat = "laq"; renderA(); });
+  const items = ADIC.filter(a => a.grupo === curG);
+  const sel0 = ADIC.find(x => x.id === curI);
+  el("iPills").innerHTML = `<p class="one"><b>${sel0.nombre}</b>${sel0.cond ? ` <span>${sel0.cond}</span>` : ""}</p>`;
+  const a = ADIC.find(x => x.id === curI), conMat = !!(a.mat || a.tramos);
+  el("matPills").innerHTML = ""; el("matPills").classList.add("hide");
+  const inp = (id, l, extra = "") => `<div><label class="f" for="${id}">${l}</label><input id="${id}" type="number" inputmode="decimal" min="0" ${extra}></div>`;
+  let h = "";
+  if (items.length > 1) h += `<div class="fm"><label class="f" for="fItem">${curG === "Herrajes" ? "Herraje" : "Adicional"}</label><select id="fItem" class="sel">${items.map(x => `<option value="${x.id}"${x.id === curI ? " selected" : ""}>${x.nombre}</option>`).join("")}</select></div>`;
+  if (conMat) h += `<div class="fm"><label class="f" for="fMat">Material</label><select id="fMat" class="sel">${Object.entries(MATS).map(([k, v]) => `<option value="${k}"${k === curMat ? " selected" : ""}>${v}</option>`).join("")}</select></div>`;
+  if (a.tipo === "m2") h += inp("fD1", `${a.dims[0]} (cm)`) + inp("fD2", `${a.dims[1]} (cm)`);
+  if (a.tipo === "tramo") h += inp("fD1", "Ancho (cm)");
+  h += inp("fCant", a.cantLabel, 'value="1" step="1"');
+  el("aFields").innerHTML = h;
+  el("aFields").querySelectorAll("input").forEach(i => i.addEventListener("input", calcA));
+  if (el("fItem")) el("fItem").addEventListener("change", e => { curI = e.target.value; curMat = "laq"; renderA(); const c = el("fCant"); if (c) c.focus(); });
+  if (el("fMat")) el("fMat").addEventListener("change", e => { curMat = e.target.value; calcA(); });
+  el("aGuiasWrap").classList.toggle("hide", !a.guias); el("aGuias").checked = false;
+  calcA();
+}
+function calcA(){
+  const a = ADIC.find(x => x.id === curI), cant = Math.floor(num("fCant") || 0), mat = (a.mat || a.tramos) ? curMat : null;
+  let unit = 0, det = [], warn = "", titulo = a.nombre;
+  if (a.tipo === "unidad") unit = a.mat ? a.mat[mat] : a.precio;
+  if (a.tipo === "m2") {
+    const d1 = num("fD1"), d2 = num("fD2");
+    if (d1 && d2) {
+      const m2 = d1 / 100 * d2 / 100, pm2 = a.mat ? a.mat[mat] : a.precio, m2s = m2.toFixed(2).replace(".", ",");
+      unit = (a.minM2 ? Math.max(m2, a.minM2) : m2) * pm2;
+      if (a.minM2 && m2 < a.minM2) det.push(`${m2s} m², se cobra 1 m²`); else det.push(`${d1}×${d2} cm = ${m2s} m²`);
+      if (a.minPesos && unit < a.minPesos[mat]) { unit = a.minPesos[mat]; det.push(`mínimo ${$(unit)}`); }
+      unit = up100(unit);
+    }
+  }
+  if (a.tipo === "tramo") {
+    const w = num("fD1");
+    if (w) { const t = a.tramos.find(t => w <= t.max); if (!t) warn = a.exceso; else { unit = t.mat[mat]; det.push(`${w} cm, ${t.label.toLowerCase()}`); } }
+  }
+  if (mat) titulo += " " + MATS[mat].toLowerCase();
+  let ef = unit * cant;
+  if (a.guias && el("aGuias").checked && unit > 0) { ef += 30000 * cant; titulo += " con guías de cierre suave"; det.push(`guías ${$(30000)} c/u`); }
+  if (unit > 0 && cant > 0) det.unshift(`${cant} × ${$(unit)}`);
+  const cero = a.permiteCero && unit === 0 && cant > 0;
+  if (cero) det.push("en melamina no modifica el valor");
+  el("aWarn").textContent = warn; el("aWarn").classList.toggle("hide", !warn);
+  el("aEf").textContent = $(ef); el("aLi").textContent = "Lista " + $(ef ? toLista(ef) : 0);
+  el("aDet").textContent = (ef || cero) ? det.join(", ") : "";
+  el("aAdd").disabled = !(ef > 0 || cero);
+  aState = (ef > 0 || cero) ? { titulo, det: det.join(", ") || "sin cargo", ef } : null;
+}
+el("aGuias").addEventListener("change", calcA);
+el("aAdd").onclick = () => { if (aState) { addLine(aState.titulo, aState.det, aState.ef); flash("aFlash", "Agregado"); } };
+function cotizar(id, mat){
+  const a = ADIC.find(x => x.id === id); curG = a.grupo; curI = id; curMat = mat || "laq";
+  setTab("cot"); setSub("adic"); renderA();
+  const f = el("fD1") || el("fCant"); if (f) f.focus();
+}
+
+/* ===== lista ===== */
+const L_GRUPOS = [...GRUPOS, "Diseño", "Medidas especiales"];
+let curL = L_GRUPOS[0];
+function renderL(){
+  el("lPills").innerHTML = L_GRUPOS.map(g => pill(g, g === curL, `data-l="${g}"`)).join("");
+  el("lPills").querySelectorAll("[data-l]").forEach(b => b.onclick = () => { curL = b.dataset.l; renderL(); });
+  const cell = (p, m, id, k) => p === 0 ? `<td><span class="free">Sin cargo</span></td>` : `<td><span class="ef">${$(p)}</span><span class="li">${$(toLista(p))}</span>${m ? `<span class="mn">mín. ${$(m)}</span>` : ""}</td>`;
+  const head = (t, sub) => `<div class="head"><h2>${t}</h2>${sub ? `<p>${sub}</p>` : ""}</div>`;
+  let h = "";
+  if (curL === "Diseño") {
+    h = head("Diseño") + `<table class="grid"><tbody><tr><td><span class="nm">Ranuras en el frente</span><span class="cd">Solo en MDF. Sobre el valor total del mueble; se cotiza en Diseño.</span></td><td><span class="pct">+15%</span></td></tr></tbody></table>`;
+  } else if (curL === "Medidas especiales") {
+    h = head("Medidas especiales", "La misma regla para alto, largo y profundidad.")
+      + `<div class="scroll"><table class="grid"><thead><tr><th>Cambia 1 medida</th><th>Termina en 0</th><th>Termina en 5</th><th>Exacta</th></tr></thead><tbody>
+      <tr><td><span class="nm">Achica</span><span class="cd">Mismo precio + recargo</span></td><td class="pct">+5%</td><td><span class="pct">+10%</span><span class="cd">8% en alto de mesas de luz y racks</span></td><td class="pct">+17%</td></tr>
+      <tr><td><span class="nm">Agranda</span><span class="cd">Regla de tres al múltiplo de 5 superior + recargo</span></td><td class="pct">+5%</td><td class="pct">+8%</td><td class="pct">+17%</td></tr>
+      </tbody></table></div>
+      <div class="scroll"><table class="grid" style="border-top:1px solid var(--line)"><thead><tr><th>Cambian 2 o 3 medidas</th><th>Todas en 0</th><th>Alguna en 5</th><th>Alguna exacta</th></tr></thead><tbody>
+      <tr><td><span class="nm">Recargo único</span><span class="cd">Reglas de tres en cadena + un solo recargo</span></td><td class="pct">+15%</td><td class="pct">+20%</td><td class="pct">+25%</td></tr>
+      </tbody></table></div>
+      <div class="scroll"><table class="grid" style="border-top:1px solid var(--line)"><thead><tr><th>Categoría</th><th>Alto estándar</th><th>Alto máximo</th><th>Profundidad</th></tr></thead><tbody>
+      ${CATS.map(c => `<tr><td class="nm">${c.n}</td><td>${c.alto} cm</td><td>${c.max} cm</td><td>${c.prof ? c.prof + " cm" : "—"}</td></tr>`).join("")}
+      </tbody></table></div>
+      <div class="foot">Largo: siempre se parte del precio de la medida de lista superior. Rack bajo de 61 a 65 cm: desde el precio del rack de 70. Bibliotecas, aparadores y cristaleros de más de 180 cm: confirmar ascensor. Profundidad sin máximo.<br><button class="go" id="goMueble">Cotizar un mueble</button></div>`;
+  } else {
+    const items = ADIC.filter(a => a.grupo === curL), conMat = items.filter(a => a.mat || a.tramos), sinMat = items.filter(a => !(a.mat || a.tramos));
+    h = head(curL, (conMat[0] && conMat[0].unidad) || "");
+    if (conMat.length) {
+      h += `<div class="scroll"><table class="grid"><thead><tr><th></th>${Object.entries(MATS).map(([k, v]) => `<th><span class="sw ${k}"></span>${v}</th>`).join("")}</tr></thead><tbody>`;
+      for (const a of conMat) {
+        const rows = a.tramos ? a.tramos.map(t => ({ n: `${a.nombre} ${t.label.toLowerCase()}`, mat: t.mat })) : [{ n: a.nombre, mat: a.mat, c: a.cond }];
+        rows.forEach(r => { h += `<tr><td><div class="rc"><span class="nm">${r.n}</span><button class="go" data-go="${a.id}">Cotizar</button></div>${r.c ? `<span class="cd">${r.c}</span>` : ""}</td>${Object.keys(MATS).map(k => cell(r.mat[k], a.minPesos && a.minPesos[k])).join("")}</tr>`; });
+      }
+      h += `</tbody></table></div>`;
+      const ex = conMat.find(a => a.exceso); if (ex) h += `<div class="foot">${ex.exceso}</div>`;
+    }
+    if (sinMat.length) {
+      h += `<table class="grid"><tbody>` + sinMat.map(a => `<tr><td><div class="rc"><span class="nm">${a.nombre}</span><button class="go" data-go="${a.id}">Cotizar</button></div><span class="cd">${a.cond}</span></td><td><span class="ef">${$(a.precio)}</span><span class="li">${$(toLista(a.precio))}</span></td></tr>`).join("") + `</tbody></table>`;
+    }
+  }
+  el("lBody").innerHTML = h;
+  el("lBody").querySelectorAll("[data-go]").forEach(b => b.onclick = () => cotizar(b.dataset.go));
+  const gm = el("goMueble"); if (gm) gm.onclick = () => { setTab("cot"); setSub("mueble"); el("mCat").focus(); };
+}
+
+
+/* ===== diseño ===== */
+let dState = null;
+function calcD(){
+  const v = num("dPrecio");
+  const ad = v ? up100(v * 0.15) : 0;
+  el("dEf").textContent = $(ad);
+  el("dTot").textContent = $(v ? v + ad : 0);
+  el("dAdd").disabled = !(ad > 0);
+  dState = ad > 0 ? { titulo:"Ranurado", det:`15% sobre ${$(v)}`, ef:ad } : null;
+}
+el("dPrecio").addEventListener("input", calcD);
+el("dAdd").onclick = () => { if (dState) { addLine(dState.titulo, dState.det, dState.ef, true); flash("dFlash", "Agregado"); } };
+calcD();
+
+/* acordeón de medidas */
+function cerrarAcc(k){
+  const btn = document.querySelector(`.acc-btn[data-acc="${k}"]`);
+  btn.setAttribute("aria-expanded", "false"); el("acc-" + k).classList.add("hide"); btn.querySelector(".acc-plus").textContent = "+";
+}
+document.querySelectorAll(".acc-btn").forEach(btn => btn.onclick = () => {
+  const k = btn.dataset.acc, open = btn.getAttribute("aria-expanded") === "true";
+  if (open) {
+    cerrarAcc(k); el(k + "P").value = ""; if (k === "a") el("r70").value = "";
+    if (k === "l") el("lE").value = "";
+  } else {
+    btn.setAttribute("aria-expanded", "true"); el("acc-" + k).classList.remove("hide"); btn.querySelector(".acc-plus").textContent = "−";
+    (k === "l" ? el("lE") : el(k + "P")).focus();
+  }
+  calcM();
+});
+aplicarCategoria();
+setSub("adic"); renderA(); calcM(); renderQ(); renderL();
+</script>
+</body>
+</html>
