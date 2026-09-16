@@ -2601,6 +2601,9 @@ function rolDe(uid){return (USUARIOS[uid]||{rol:'vendedor'}).rol;}
 function esConsultaIG(a){ return !!(a && a.canal==='virtual' && /instagram/i.test(a.canalDetalle||'')); }
 function esAdmin(){return rolDe(YO)==='admin';}
 function esAuditora(){return rolDe(YO)==='auditora';}
+/* Columna Evaluar: Cintia siempre; dirección solo dentro de las listas del módulo Evaluación
+   (_ctxLista==='evaluar'). En Consultas dirección sigue viendo Cotizado. */
+function verColEval(){ return esAuditora() || (esAdmin() && _ctxLista==='evaluar'); }
 function esMarketing(){return rolDe(YO)==='marketing';}   // Ariel: rol de solo lectura, ve únicamente el módulo de estadísticas de Marketing
 /* Lucas: dueño del módulo de Reclamos. Ve Reclamos + Clientes y nada del circuito de
    ventas. Mismo patrón que el rol 'marketing' de Ariel: entra al panel pero con su set. */
@@ -6429,7 +6432,7 @@ function logItemHtml(a){
          <span class="or-canal">${canalMostrar}</span>
        </div>`
     : '';
-  const evalCol = esAuditora()
+  const evalCol = verColEval()
     ? `<div class="c-eval">
         ${a.evaluada 
           ? `<span class="eval-ok" role="button" tabindex="0" style="cursor:pointer" title="Evaluada${a.evaluadoTs?' el '+new Date(a.evaluadoTs).toLocaleDateString('es-AR'):''}${a.evalEditadoTs?' · editada el '+new Date(a.evalEditadoTs).toLocaleDateString('es-AR'):''} — clic para editarla" onclick="event.stopPropagation();abrirEvaluar('${a.id}')">✓</span>`
@@ -6438,7 +6441,7 @@ function logItemHtml(a){
               : `<span class="eval-vieja" title="Pasaron más de ${DIAS_PARA_ARCHIVAR} días: ya no se evalúa">–</span>`)}
       </div>`
     : '';
-  const montoCol = esAuditora() ? '' : `
+  const montoCol = verColEval() ? '' : `
       <div class="c-monto" ondblclick="editarSoloMuebles('${a.id}')" title="Doble clic para editar los muebles">
         <div>
           ${a.montoVendido
@@ -7070,6 +7073,10 @@ function cheadHtml(){
     evalCol = `<span class="h-eval"><span class="ebtn filtro-head ${evalActivo?'activo':''}" onclick="event.stopPropagation();togPop(this)">Evaluación<span class="arrow">▾</span>
       <span class="pop pop-down"><b>Filtrar por evaluación</b>${popFiltroOpciones('evaluacion',FILTRO_EVAL_OPCIONES,filtroEvaluacion)}</span>
     </span></span>`;
+  }else if(verColEval()){
+    // Dirección dentro del módulo Evaluación: misma columna, sin el filtro (la cola ya viene recortada).
+    montoCol='';
+    evalCol='<span class="h-eval">Evaluación</span>';
   }
   const recActivo = filtroRecordatorio!=='todos';
   const bellCol = puedeRecordar()
@@ -10333,7 +10340,24 @@ function htmlCintiaEvaluar(){
       + solapas + filas + '</div>';
   }
 
-  let cola=filtrosColumna(colaEvaluarCintia().filter(a=>dentroDePeriodoCintia(fechaUltimoMovimiento(a))))
+  const c = htmlColaEvaluarLista(null);
+  if(!c.total) return `<div class="cin-card"><h3>Evaluación</h3>${solapas}<p class="cin-empty">No hay nada para evaluar en este período.</p></div>`;
+  return `<div class="cin-card" style="padding:4px 18px">
+    <h3 style="padding-top:10px">Evaluación <span class="cnt-pill">${c.pill}</span></h3>
+    ${c.ayuda}
+    ${solapas}
+    ${c.cuerpo}
+  </div>`;
+}
+
+/* Cola de evaluación compartida entre Cintia (Evaluación) y dirección (solapa Para evaluar).
+   Un solo lugar define qué entra, en qué orden y cómo se busca. `pasa` es un filtro extra
+   opcional (dirección aplica vendedor y canal). */
+function colaEvaluarVisible(pasa){
+  return filtrosColumna(colaEvaluarCintia().filter(a=>dentroDePeriodoCintia(fechaUltimoMovimiento(a)) && (!pasa || pasa(a))));
+}
+function htmlColaEvaluarLista(pasa){
+  let cola=colaEvaluarVisible(pasa)
     .sort((a,b)=>(rechazadaEnInicial(b)?1:0)-(rechazadaEnInicial(a)?1:0)
               || diasDesdeISO(fechaUltimoMovimiento(b))-diasDesdeISO(fechaUltimoMovimiento(a)));
   const total=cola.length;
@@ -10341,18 +10365,18 @@ function htmlCintiaEvaluar(){
     const q=evalBusqueda, qTel=q.replace(/\D/g,'');
     cola=cola.filter(a=>(nombreCliente(a)||'').toLowerCase().includes(q) || (a.clienteTelefono||'').includes(qTel||q) || (a.clienteInstagram||'').toLowerCase().includes(q));
   }
-  if(!total) return `<div class="cin-card"><h3>Evaluación</h3>${solapas}<p class="cin-empty">No hay nada para evaluar en este período.</p></div>`;
   _ctxLista='evaluar';
+  const head = cheadHtml();
   const filas = cola.length?cola.map(logItemHtml).join(''):`<p class="cin-empty">Ningún contacto coincide con "${escapeHtml(evalBusqueda)}".</p>`;
   _ctxLista='';
-  return `<div class="cin-card" style="padding:4px 18px">
-    <h3 style="padding-top:10px">Evaluación <span class="cnt-pill">${evalBusqueda?`${cola.length} de ${total}`:`${total} en cola`}</span></h3>
-    <p class="tiny" style="margin-top:-8px;padding-bottom:6px">Cerradas sin evaluar, y en seguimiento a partir de los ${DIAS_EVALUAR_SEGUIMIENTO} días desde que entró el lead. Las de 0-${DIAS_CONSULTA_INICIAL} días no entran: todavía son respuesta inmediata. <b>Arriba van las rechazadas dentro de los primeros ${DIAS_CONSULTA_INICIAL} días</b> — son las que conviene mirar dos veces.</p>
-    ${solapas}
-    <input type="text" class="cli-buscar eval-buscar" placeholder="Buscar contacto por nombre o teléfono…" value="${escAttr(evalBusqueda)}" oninput="filtrarEval(this.value)">
-    ${cheadHtml()}
-    ${filas}
-  </div>`;
+  return {
+    total,
+    pill: evalBusqueda?`${cola.length} de ${total}`:`${total} en cola`,
+    ayuda: `<p class="tiny" style="margin-top:-8px;padding-bottom:6px">Cerradas sin evaluar, y en seguimiento a partir de los ${DIAS_EVALUAR_SEGUIMIENTO} días desde que entró el lead. Las de 0-${DIAS_CONSULTA_INICIAL} días no entran: todavía son respuesta inmediata. <b>Arriba van las rechazadas dentro de los primeros ${DIAS_CONSULTA_INICIAL} días</b> — son las que conviene mirar dos veces.</p>`,
+    cuerpo: `<input type="text" class="cli-buscar eval-buscar" placeholder="Buscar contacto por nombre o teléfono…" value="${escAttr(evalBusqueda)}" oninput="filtrarEval(this.value)">
+    ${head}
+    ${filas}`
+  };
 }
 
 /* -------- Mis consultas: las que quedaron a nombre de Cintia, mismo formato que Consultas --------
@@ -12027,6 +12051,9 @@ function htmlEvaluacionDireccion(){
     .sort((x,y)=>new Date(y.ejemploDelMes.ts||y.ts)-new Date(x.ejemploDelMes.ts||x.ts));
   const paraMi = ejemplosTodos.filter(evEsParaDireccion);
   const sinLeer = paraMi.filter(a=>!a.ejemploDelMes.leidoDir).length;
+  // La cola no tiene nota de atención todavía: acá solo aplican vendedor y canal.
+  const pasaCola = a => (!evDirVend.length || evDirVend.includes(a.vendedorId)) && (!evDirCanal.length || evDirCanal.includes(estCanalDe(a)));
+  const totalCola = colaEvaluarVisible(pasaCola).length;
 
   const kpi=(v,l,cls)=>'<div class="fic-kpi"><div class="v '+(cls||'')+'">'+v+'</div><div class="k">'+l+'</div></div>';
   const tab=(k,l,n)=>'<button class="btn btn-sm '+(evDirTab===k?'btn-navy':'btn-outline')+'" onclick="evDirSetTab(\''+k+'\')">'+l+(n!==undefined?' ('+n+')':'')+'</button>';
@@ -12034,6 +12061,11 @@ function htmlEvaluacionDireccion(){
   let cuerpo='';
   if(evDirTab==='ejemplos'){
     cuerpo = htmlEjemplosPorMes(ejemplosTodos, {});
+  }else if(evDirTab==='cola'){
+    const c = htmlColaEvaluarLista(pasaCola);
+    cuerpo = c.total
+      ? c.ayuda.replace('margin-top:-8px','margin-top:0') + c.cuerpo
+      : '<p class="cin-empty">No hay nada para evaluar en este período.</p>';
   }else if(evDirTab==='parami'){
     cuerpo = paraMi.length
       ? htmlEjemplosPorMes(paraMi, {paraDireccion:true})
@@ -12065,7 +12097,7 @@ function htmlEvaluacionDireccion(){
 
   return '<div class="cin-card">'
     + '<h3>Evaluación'+(sinLeer?' <span class="cnt-pill">'+sinLeer+' sin leer</span>':'')+'</h3>'
-    + '<p class="tiny" style="margin-top:-8px">Todo lo que Cintia evaluó, comentó o marcó como ejemplo. Los gráficos siguen estando en Estadísticas.</p>'
+    + '<p class="tiny" style="margin-top:-8px">Lo que falta evaluar y todo lo que ya se evaluó, comentó o marcó como ejemplo. Los gráficos siguen estando en Estadísticas.</p>'
     + '<div class="fic-kpis">'
     +   kpi(evaluadas.length,'Evaluadas en el período')
     +   kpi(cobertura+'%','Cobertura', cobertura>=80?'epos':'')
@@ -12075,6 +12107,7 @@ function htmlEvaluacionDireccion(){
     + '<div class="row" style="gap:8px;margin:14px 0 12px;flex-wrap:wrap">'
     +   tab('ejemplos','★ Ejemplos', ejemplosTodos.length)
     +   tab('parami','💬 Para mí', paraMi.length)
+    +   tab('cola','Para evaluar', totalCola)
     +   tab('todo','Todo lo evaluado', evaluadas.length)
     + '</div>'
     + filtros
