@@ -268,6 +268,10 @@ input:focus{border-color:#8bb6ef;box-shadow:0 0 0 3px rgba(23,105,224,.08);outli
 span.f{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:600}
 label.f,span.f{white-space:nowrap;overflow:visible}
 .quote .lines .n{font-size:13px}
+
+.a-row{align-items:flex-end}
+.a-row .d-btn{padding-top:0}
+.a-row .d-btn .btn{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -423,7 +427,7 @@ const flash = (id, t) => { el(id).textContent = t; clearTimeout(el(id)._t); el(i
 const ADIC = [
   { id:"estante", grupo:"Estantes", nombre:"Estante", tipo:"m2", dims:["Ancho","Profundidad"], cantLabel:"Estantes",
     mat:{mel:50000,laq:70000,ench:80000}, minPesos:{mel:35000,laq:40000,ench:45000}, cond:"Por m², con un mínimo por estante.", unidad:"Por m², con un mínimo por estante." },
-  { id:"placa", grupo:"Placa de fondo", nombre:"Placa de fondo", tipo:"m2", dims:["Largo","Alto"], cantLabel:"Placas",
+  { id:"placa", grupo:"Placa de fondo", nombre:"Placa de fondo", tipo:"m2", dims:["Largo","Alto"], cantLabel:"Placas", sinCantidad:true, btn:"Agregar placa",
     mat:{mel:80000,laq:110000,ench:130000}, cond:"Por m²: largo × alto del mueble. Enchapado = paraíso.", unidad:"Por m², según largo × alto del mueble. Enchapado = paraíso." },
   { id:"cajon", grupo:"Cajones", nombre:"Cajón", tipo:"tramo", cantLabel:"Cajones", guias:true,
     tramos:[{max:90,label:"Hasta 90 cm",mat:{mel:50000,laq:60000,ench:65000}},{max:110,label:"De 91 a 110 cm",mat:{mel:80000,laq:90000,ench:110000}}],
@@ -614,7 +618,8 @@ function renderA(){
   if (conMat) h += `<div class="fm"><label class="f" for="fMat">Material</label><select id="fMat" class="sel">${Object.entries(MATS).map(([k, v]) => `<option value="${k}"${k === curMat ? " selected" : ""}>${v}</option>`).join("")}</select></div>`;
   if (a.tipo === "m2") h += inp("fD1", `${a.dims[0]} (cm)`) + inp("fD2", `${a.dims[1]} (cm)`);
   if (a.tipo === "tramo") h += inp("fD1", "Ancho (cm)");
-  h += inp("fCant", a.cantLabel, 'value="1" step="1"');
+  if (!a.sinCantidad) h += inp("fCant", a.cantLabel, 'value="1" step="1"');
+  el("aAdd").textContent = a.btn || "Agregar";
   el("aFields").innerHTML = h;
   el("aFields").querySelectorAll("input").forEach(i => i.addEventListener("input", calcA));
   if (el("fItem")) el("fItem").addEventListener("change", e => { curI = e.target.value; curMat = "laq"; renderA(); const c = el("fCant"); if (c) c.focus(); });
@@ -623,7 +628,7 @@ function renderA(){
   calcA();
 }
 function calcA(){
-  const a = ADIC.find(x => x.id === curI), cant = Math.floor(num("fCant") || 0), mat = (a.mat || a.tramos) ? curMat : null;
+  const a = ADIC.find(x => x.id === curI), cant = a.sinCantidad ? 1 : Math.floor(num("fCant") || 0), mat = (a.mat || a.tramos) ? curMat : null;
   let unit = 0, det = [], warn = "", titulo = a.nombre;
   if (a.tipo === "unidad") unit = a.mat ? a.mat[mat] : a.precio;
   if (a.tipo === "m2") {
@@ -643,7 +648,7 @@ function calcA(){
   if (mat) titulo += " " + MATS[mat].toLowerCase();
   let ef = unit * cant;
   if (a.guias && el("aGuias").checked && unit > 0) { ef += 30000 * cant; titulo += " con guías de cierre suave"; det.push(`guías ${$(30000)} c/u`); }
-  if (unit > 0 && cant > 0) det.unshift(`${cant} × ${$(unit)}`);
+  if (unit > 0 && cant > 0 && !a.sinCantidad) det.unshift(`${cant} × ${$(unit)}`);
   const cero = a.permiteCero && unit === 0 && cant > 0;
   if (cero) det.push("en melamina no modifica el valor");
   el("aWarn").textContent = warn; el("aWarn").classList.toggle("hide", !warn);
