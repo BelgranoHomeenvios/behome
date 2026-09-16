@@ -272,6 +272,13 @@ label.f,span.f{white-space:nowrap;overflow:visible}
 .a-row{align-items:flex-end}
 .a-row .d-btn{padding-top:0}
 .a-row .d-btn .btn{white-space:nowrap}
+
+.a-hist{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}
+.a-hrow{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 12px;font-size:13px}
+.a-hn{width:20px;height:20px;border-radius:50%;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-size:11px;font-weight:700;flex:none}
+.a-ht{flex:1;color:var(--text)}
+.a-ht::first-letter{text-transform:uppercase}
+.a-hrow b{color:var(--ink)}
 </style>
 </head>
 <body>
@@ -379,6 +386,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
             <div class="section-title">2. Elegí el adicional</div>
             <div class="pills sm" id="iPills" aria-label="Adicional"></div>
             <div class="pills sm" id="matPills" aria-label="Material"></div>
+            <div class="a-hist" id="aHist"></div>
             <div class="a-row">
               <div class="fields" id="aFields"></div>
               <div class="a-price"><span class="f">Precio</span><div class="a-out"><b id="aEf">$0</b><small id="aLi">Lista $0</small></div></div>
@@ -427,8 +435,8 @@ const flash = (id, t) => { el(id).textContent = t; clearTimeout(el(id)._t); el(i
 const ADIC = [
   { id:"estante", grupo:"Estantes", nombre:"Estante", tipo:"m2", dims:["Ancho","Profundidad"], cantLabel:"Estantes",
     mat:{mel:50000,laq:70000,ench:80000}, minPesos:{mel:35000,laq:40000,ench:45000}, cond:"Por m², con un mínimo por estante.", unidad:"Por m², con un mínimo por estante." },
-  { id:"placa", grupo:"Placa de fondo", nombre:"Placa de fondo", tipo:"m2", dims:["Largo","Alto"], cantLabel:"Placas", sinCantidad:true, btn:"Agregar placa",
-    mat:{mel:80000,laq:110000,ench:130000}, cond:"Por m²: largo × alto del mueble. Enchapado = paraíso.", unidad:"Por m², según largo × alto del mueble. Enchapado = paraíso." },
+  { id:"placa", grupo:"Placa de fondo", nombre:"Placa de fondo", tipo:"m2", dims:["Largo","Alto"], cantLabel:"Placas", sinCantidad:true, minM2:0.5,
+    mat:{mel:80000,laq:110000,ench:130000}, cond:"Por m²: largo × alto del mueble, mínimo 0,5 m². Enchapado = paraíso.", unidad:"Por m², según largo × alto del mueble. Mínimo 0,5 m². Enchapado = paraíso." },
   { id:"cajon", grupo:"Cajones", nombre:"Cajón", tipo:"tramo", cantLabel:"Cajones", guias:true,
     tramos:[{max:90,label:"Hasta 90 cm",mat:{mel:50000,laq:60000,ench:65000}},{max:110,label:"De 91 a 110 cm",mat:{mel:80000,laq:90000,ench:110000}}],
     cond:"Hasta 90 cm de ancho tiene un valor; de 91 a 110 cm, otro valor. Más de 110 cm no se fabrica.",
@@ -467,6 +475,7 @@ el("subPills").querySelectorAll(".pill").forEach(p => p.onclick = () => setSub(p
 /* ===== presupuesto ===== */
 let lines = [];
 function renderQ(){
+  setTimeout(() => { if (typeof renderHist === "function") renderHist(); });
   const ul = el("qLines"); ul.innerHTML = ""; let tot = 0;
   lines.forEach((l, i) => {
     tot += l.ef;
@@ -486,7 +495,7 @@ function renderQ(){
 }
 function renderDock(){ el("dock").classList.toggle("hide", !(lines.length && !el("vCot").classList.contains("hide"))); }
 el("dock").onclick = () => el("quote").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
-const addLine = (titulo, det, ef, soloValor = false) => { lines.push({titulo, det, ef, soloValor}); renderQ(); };
+const addLine = (titulo, det, ef, soloValor = false, itemId = null) => { lines.push({titulo, det, ef, soloValor, itemId}); renderQ(); };
 el("qClear").onclick = () => { lines = []; renderQ(); };
 el("qCopy").onclick = async () => {
   let tot = 0;
@@ -625,6 +634,7 @@ function renderA(){
   if (el("fItem")) el("fItem").addEventListener("change", e => { curI = e.target.value; curMat = "laq"; renderA(); const c = el("fCant"); if (c) c.focus(); });
   if (el("fMat")) el("fMat").addEventListener("change", e => { curMat = e.target.value; calcA(); });
   el("aGuiasWrap").classList.toggle("hide", !a.guias); el("aGuias").checked = false;
+  if (typeof renderHist === "function") renderHist();
   calcA();
 }
 function calcA(){
@@ -636,7 +646,7 @@ function calcA(){
     if (d1 && d2) {
       const m2 = d1 / 100 * d2 / 100, pm2 = a.mat ? a.mat[mat] : a.precio, m2s = m2.toFixed(2).replace(".", ",");
       unit = (a.minM2 ? Math.max(m2, a.minM2) : m2) * pm2;
-      if (a.minM2 && m2 < a.minM2) det.push(`${m2s} m², se cobra 1 m²`); else det.push(`${d1}×${d2} cm = ${m2s} m²`);
+      if (a.minM2 && m2 < a.minM2) det.push(`${m2s} m², se cobra ${String(a.minM2).replace(".", ",")} m²`); else det.push(`${d1}×${d2} cm = ${m2s} m²`);
       if (a.minPesos && unit < a.minPesos[mat]) { unit = a.minPesos[mat]; det.push(`mínimo ${$(unit)}`); }
       unit = up100(unit);
     }
@@ -655,10 +665,23 @@ function calcA(){
   el("aEf").textContent = $(ef); el("aLi").textContent = "Lista " + $(ef ? toLista(ef) : 0);
   el("aDet").textContent = (ef || cero) ? det.join(", ") : "";
   el("aAdd").disabled = !(ef > 0 || cero);
-  aState = (ef > 0 || cero) ? { titulo, det: det.join(", ") || "sin cargo", ef } : null;
+  aState = (ef > 0 || cero) ? { titulo, det: det.join(", ") || "sin cargo", ef, itemId: a.id } : null;
 }
 el("aGuias").addEventListener("change", calcA);
-el("aAdd").onclick = () => { if (aState) { addLine(aState.titulo, aState.det, aState.ef); flash("aFlash", "Agregado"); } };
+el("aAdd").onclick = () => {
+  if (!aState) return;
+  addLine(aState.titulo, aState.det, aState.ef, false, aState.itemId);
+  flash("aFlash", "Agregado");
+  const a = ADIC.find(x => x.id === curI);
+  if (a.sinCantidad) { ["fD1","fD2"].forEach(id => { if (el(id)) el(id).value = ""; }); calcA(); renderHist(); if (el("fD1")) el("fD1").focus(); }
+};
+function renderHist(){
+  const a = ADIC.find(x => x.id === curI), box = el("aHist");
+  if (!box) return;
+  const mias = a && a.sinCantidad ? lines.filter(l => l.itemId === a.id) : [];
+  box.innerHTML = mias.map((l, i) => `<div class="a-hrow"><span class="a-hn">${i + 1}</span><span class="a-ht">${l.titulo.replace(a.nombre, "").trim() || ""} ${l.det}</span><b>${$(l.ef)}</b></div>`).join("");
+  box.classList.toggle("hide", !mias.length);
+}
 function cotizar(id, mat){
   const a = ADIC.find(x => x.id === id); curG = a.grupo; curI = id; curMat = mat || "laq";
   setTab("cot"); setSub("adic"); renderA();
