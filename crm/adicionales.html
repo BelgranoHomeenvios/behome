@@ -249,6 +249,18 @@ input:focus{border-color:#8bb6ef;box-shadow:0 0 0 3px rgba(23,105,224,.08);outli
 .bs-switch a:hover{background:rgba(255,255,255,.16);color:#fff}
 .bs-switch .on{background:rgba(255,255,255,.22);color:#fff}
 @media (max-width:560px){.bs-header{padding:11px 14px;gap:10px}.bs-title{display:none}.bs-switch{margin-left:0}}
+
+/* adicionales en un solo renglón */
+.a-row{display:flex;gap:10px;align-items:flex-start}
+.a-row .fields{flex:1 1 auto;margin:0!important;min-width:0}
+.a-price{flex:0 0 150px}
+.a-out{height:44px;display:flex;flex-direction:column;justify-content:center;padding:0 12px;border:1px solid #cfe0fa;border-radius:9px;background:var(--blue-softer)}
+.a-out b{color:var(--blue);font-size:17px;font-weight:700;line-height:1.1}
+.a-out small{color:var(--muted);font-size:11px;line-height:1.2}
+.a-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px;min-height:18px}
+.a-foot .detail{margin:0;font-size:12px}
+#aGuiasWrap{margin-top:8px}
+@media (max-width:700px){.a-row{flex-wrap:wrap}.a-row .fields{flex:1 1 100%}.a-price{flex:1 1 calc(50% - 5px)}.a-row .d-btn{flex:1 1 calc(50% - 5px);padding-top:19px}.a-row .d-btn .btn{width:100%}}
 </style>
 </head>
 <body>
@@ -356,14 +368,15 @@ input:focus{border-color:#8bb6ef;box-shadow:0 0 0 3px rgba(23,105,224,.08);outli
             <div class="section-title">2. Elegí el adicional</div>
             <div class="pills sm" id="iPills" aria-label="Adicional"></div>
             <div class="pills sm" id="matPills" aria-label="Material"></div>
-            <div class="fields" id="aFields"></div>
+            <div class="a-row">
+              <div class="fields" id="aFields"></div>
+              <div class="a-price"><span class="f">Precio</span><div class="a-out"><b id="aEf">$0</b><small id="aLi">Lista $0</small></div></div>
+              <div class="d-btn"><button class="btn" id="aAdd" disabled>Agregar</button></div>
+            </div>
             <label class="toggle hide" id="aGuiasWrap"><input type="checkbox" id="aGuias"> Con guías de cierre suave (una por cajón)</label>
+            <div class="a-foot"><p class="detail" id="aDet"></p><div class="flash" id="aFlash" role="status"></div></div>
           </div>
           <div id="aWarn" class="warn hide"></div>
-          <div class="result">
-            <div><div class="big" id="aEf">$0</div><div class="small" id="aLi">Lista $0</div><p class="detail" id="aDet"></p></div>
-            <div style="text-align:right"><button class="btn" id="aAdd" disabled>Agregar al presupuesto</button><div class="flash" id="aFlash" role="status"></div></div>
-          </div>
         </div>
       </div>
 
@@ -391,7 +404,7 @@ input:focus{border-color:#8bb6ef;box-shadow:0 0 0 3px rgba(23,105,224,.08);outli
   </div>
 </div>
 <script>
-const up100 = n => Math.ceil(n / 100) * 100;
+const up100 = n => Math.ceil(Math.round(n * 1000) / 1000 / 100) * 100;
 const toLista = e => up100(e / 0.65);
 const $ = n => "$" + Math.round(n).toLocaleString("es-AR");
 const el = id => document.getElementById(id);
@@ -403,11 +416,12 @@ const flash = (id, t) => { el(id).textContent = t; clearTimeout(el(id)._t); el(i
 const ADIC = [
   { id:"estante", grupo:"Estantes", nombre:"Estante", tipo:"m2", dims:["Ancho","Profundidad"], cantLabel:"Estantes",
     mat:{mel:50000,laq:70000,ench:80000}, minPesos:{mel:35000,laq:40000,ench:45000}, cond:"Por m², con un mínimo por estante.", unidad:"Por m², con un mínimo por estante." },
+  { id:"placa", grupo:"Placa de fondo", nombre:"Placa de fondo", tipo:"m2", dims:["Largo del mueble","Alto del mueble"], cantLabel:"Placas",
+    mat:{mel:80000,laq:110000,ench:130000}, cond:"Por m²: largo × alto del mueble. Enchapado = paraíso.", unidad:"Por m², según largo × alto del mueble. Enchapado = paraíso." },
   { id:"cajon", grupo:"Cajones", nombre:"Cajón", tipo:"tramo", cantLabel:"Cajones", guias:true,
     tramos:[{max:90,label:"Hasta 90 cm",mat:{mel:50000,laq:60000,ench:65000}},{max:110,label:"De 91 a 110 cm",mat:{mel:80000,laq:90000,ench:110000}}],
     cond:"Hasta 90 cm de ancho tiene un valor; de 91 a 110 cm, otro valor. Más de 110 cm no se fabrica.",
     exceso:"No se fabrican cajones de más de 110 cm.", unidad:"Precio por cajón. Hasta 90 cm un valor; de 91 a 110 cm, otro." },
-  { id:"espejo", grupo:"Espejo", nombre:"Espejo para placard", tipo:"m2", dims:["Ancho","Alto"], cantLabel:"Puertas", precio:100000, cond:"Por m², se calcula por puerta." },
   { id:"bandeja", grupo:"Bandejas", nombre:"Bandeja", tipo:"tramo", cantLabel:"Bandejas",
     tramos:[{max:90,label:"Hasta 90 cm",mat:{mel:40000,laq:50000,ench:55000}},{max:120,label:"De 91 a 120 cm",mat:{mel:70000,laq:80000,ench:90000}}],
     cond:"Hasta 90 cm de ancho tiene un valor; de 91 a 120 cm, otro valor.",
