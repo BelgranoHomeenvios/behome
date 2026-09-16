@@ -10290,6 +10290,7 @@ function htmlResumenDetalleVendedor(uid){
 let evalBusqueda='', _timerEval=null;
 function filtrarEval(txt){
   evalBusqueda=(txt||'').toLowerCase().trim();
+  evLista.cola=1;
   clearTimeout(_timerEval);
   _timerEval=setTimeout(()=>{
     renderCintiaMain();
@@ -10298,9 +10299,27 @@ function filtrarEval(txt){
 }
 /* La sección de Cintia deja de ser solo la cola: arriba lo que falta evaluar,
    y al lado lo ya evaluado y sus ejemplos, filtrables por destinatario. */
+/* Paginado de las listas de Evaluación (cola, evaluadas, todo lo evaluado): de a 20.
+   Con 3.000 filas pintadas a la vez la pantalla se arrastraba. (evPag ya existe: es el
+   paginado de la solapa Evaluación del vendedor — por eso este se llama evLista.) */
+const EV_POR_PAGINA=20;
+let evLista={cola:1, hechas:1, todo:1};
+function evListaReset(){ evLista={cola:1, hechas:1, todo:1}; }
+function evListaIr(k,p){ evLista[k]=p; renderPanelCintia(); const box=$('cintiaMain'); if(box) box.scrollIntoView({block:'start'}); }
+function evListaIrCola(p){ evListaIr('cola',p); }
+function evListaIrHechas(p){ evListaIr('hechas',p); }
+function evListaIrTodo(p){ evListaIr('todo',p); }
+/* Recorta la lista a la página pedida (ajustando si quedó fuera de rango) y arma el paginador. */
+function evListaPaginar(lista,k,fn){
+  const paginas=Math.max(1,Math.ceil(lista.length/EV_POR_PAGINA));
+  if(evLista[k]>paginas) evLista[k]=paginas;
+  if(evLista[k]<1) evLista[k]=1;
+  const ini=(evLista[k]-1)*EV_POR_PAGINA;
+  return {items:lista.slice(ini,ini+EV_POR_PAGINA), pag:paginadorHtml(evLista[k],paginas,fn)};
+}
 let evCinTab='cola';
 let evCinDestino='todos';
-function evCinSetTab(t){ evCinTab=t; evDirMesAbierto=null; renderPanelCintia(); }
+function evCinSetTab(t){ evCinTab=t; evDirMesAbierto=null; evListaReset(); renderPanelCintia(); }
 function evCinSetDestino(v){ evCinDestino=v; renderPanelCintia(); }
 
 function htmlCintiaEvaluar(){
@@ -10332,8 +10351,9 @@ function htmlCintiaEvaluar(){
       + '</div>';
   }
   if(evCinTab==='hechas'){
+    const pg = evListaPaginar(evaluadas,'hechas','evListaIrHechas');
     _ctxLista='evaluar';
-    const filas = evaluadas.length ? cheadHtml()+evaluadas.map(logItemHtml).join('') : '<p class="cin-empty">Todavía no evaluaste nada en este período.</p>';
+    const filas = evaluadas.length ? cheadHtml()+pg.items.map(logItemHtml).join('')+pg.pag : '<p class="cin-empty">Todavía no evaluaste nada en este período.</p>';
     _ctxLista='';
     return '<div class="cin-card" style="padding:4px 18px"><h3 style="padding-top:10px">Evaluación</h3>'
       + '<p class="tiny" style="margin-top:-8px">Lo que ya evaluaste. Tocá el ✓ de una fila para corregirla.</p>'
@@ -10365,9 +10385,10 @@ function htmlColaEvaluarLista(pasa){
     const q=evalBusqueda, qTel=q.replace(/\D/g,'');
     cola=cola.filter(a=>(nombreCliente(a)||'').toLowerCase().includes(q) || (a.clienteTelefono||'').includes(qTel||q) || (a.clienteInstagram||'').toLowerCase().includes(q));
   }
+  const pg = evListaPaginar(cola,'cola','evListaIrCola');
   _ctxLista='evaluar';
   const head = cheadHtml();
-  const filas = cola.length?cola.map(logItemHtml).join(''):`<p class="cin-empty">Ningún contacto coincide con "${escapeHtml(evalBusqueda)}".</p>`;
+  const filas = cola.length?pg.items.map(logItemHtml).join('')+pg.pag:`<p class="cin-empty">Ningún contacto coincide con "${escapeHtml(evalBusqueda)}".</p>`;
   _ctxLista='';
   return {
     total,
@@ -11947,9 +11968,9 @@ function evDirTog(qual,v){
   const L = qual==='vend'?evDirVend : qual==='canal'?evDirCanal : evDirAten;
   if(v==='__all__') L.length=0;
   else { const i=L.indexOf(v); if(i>=0) L.splice(i,1); else L.push(v); }
-  evDirMesAbierto=null; renderPanelCintia();
+  evDirMesAbierto=null; evListaReset(); renderPanelCintia();
 }
-function evDirLimpiar(){ evDirVend=[]; evDirCanal=[]; evDirAten=[]; evDirMesAbierto=null; renderPanelCintia(); }
+function evDirLimpiar(){ evDirVend=[]; evDirCanal=[]; evDirAten=[]; evDirMesAbierto=null; evListaReset(); renderPanelCintia(); }
 function evDirPasa(a){
   if(evDirVend.length  && !evDirVend.includes(a.vendedorId)) return false;
   if(evDirCanal.length && !evDirCanal.includes(estCanalDe(a))) return false;
@@ -11957,7 +11978,7 @@ function evDirPasa(a){
   return true;
 }
 let evDirMesAbierto=null;
-function evDirSetTab(t){ evDirTab=t; evDirMesAbierto=null; renderPanelCintia(); }
+function evDirSetTab(t){ evDirTab=t; evDirMesAbierto=null; evListaReset(); renderPanelCintia(); }
 function evDirMes(k){ evDirMesAbierto = (evDirMesAbierto===k)?null:k; renderPanelCintia(); }
 async function evDirMarcarLeido(id){
   const a=atenciones.find(x=>x.id===id);
@@ -12072,8 +12093,9 @@ function htmlEvaluacionDireccion(){
       : '<p class="cin-empty">Cintia todavía no te dejó ningún comentario acá.</p>';
   }else{
     const l=evaluadas.slice().sort((x,y)=>new Date(y.evaluadoTs||y.ts)-new Date(x.evaluadoTs||x.ts));
+    const pg = evListaPaginar(l,'todo','evListaIrTodo');
     _ctxLista='evaluar';
-    cuerpo = l.length ? cheadHtml()+l.map(logItemHtml).join('') : '<p class="cin-empty">No hay evaluaciones en este período.</p>';
+    cuerpo = l.length ? cheadHtml()+pg.items.map(logItemHtml).join('')+pg.pag : '<p class="cin-empty">No hay evaluaciones en este período.</p>';
     _ctxLista='';
   }
 
