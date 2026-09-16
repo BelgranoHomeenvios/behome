@@ -261,6 +261,13 @@ input:focus{border-color:#8bb6ef;box-shadow:0 0 0 3px rgba(23,105,224,.08);outli
 .a-foot .detail{margin:0;font-size:12px}
 #aGuiasWrap{margin-top:8px}
 @media (max-width:700px){.a-row{flex-wrap:wrap}.a-row .fields{flex:1 1 100%}.a-price{flex:1 1 calc(50% - 5px)}.a-row .d-btn{flex:1 1 calc(50% - 5px);padding-top:19px}.a-row .d-btn .btn{width:100%}}
+
+/* más ancho para cotizar, presupuesto más angosto */
+.wrap{max-width:1320px}
+@media (min-width:1051px){.cot-layout{grid-template-columns:minmax(0,1fr) 290px}}
+span.f{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:600}
+label.f,span.f{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.quote .lines .n{font-size:13px}
 </style>
 </head>
 <body>
