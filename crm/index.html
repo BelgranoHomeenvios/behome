@@ -18971,6 +18971,13 @@ table.mkt-tbl{width:100%;border-collapse:collapse;font-size:13px}
    Solución: mientras el popover está abierto, el ícono se enciende. */
 .cm-ico.apagado.open{filter:none;opacity:1;cursor:pointer}
 
+/* Puente invisible entre el icono de comentarios y su popover: sin esto, al
+   subir el mouse se cruza un hueco de unos pixeles y el cierre por hover se
+   dispara al pedo. Seguro de poner aca porque .pop-coment no tiene overflow
+   (el scroll vive en .cm-hist); si lo tuviera, recortaria estos pseudos. */
+.pop-coment::before{content:'';position:absolute;left:0;right:0;bottom:100%;height:12px}
+.pop-coment::after {content:'';position:absolute;left:0;right:0;top:100%;height:12px}
+
 /* ---- 2. COTIZADO: qué hay adentro de la silla ----------------------------
    Al pasar el mouse por 🪑 se abre el detalle de los muebles. Solo lectura:
    el clic sigue abriendo el editor de siempre. Reusa la base .ebtn .pop, así
@@ -19911,6 +19918,75 @@ function htmlPopMuebles(a){
        +   pie
        + '</span>';
 }
+
+/* ============================================================================
+   COMENTARIOS — el popover también se abre al pasar el mouse (18/9)
+
+   NO se hace con :hover en CSS a propósito, como sí se hizo con el de muebles:
+   este popover tiene un TEXTAREA adentro. Con CSS, correr el mouse un milímetro
+   mientras alguien escribe cerraría la caja y se perdería lo tipeado. Por eso el
+   cierre es en JS y respeta lo que está en curso.
+
+   El clic NO se toca: en el celular del piso no hay hover y sigue siendo el
+   único camino. Justamente por eso el hover se activa solo en equipos con mouse
+   de verdad (hover:hover + pointer:fine): varios navegadores móviles disparan
+   mouseover al tocar la pantalla, y ahí el hover se pisaría con el clic,
+   abriendo y cerrando el popover solo.
+   ========================================================================= */
+(function(){
+  var soportaHover = false;
+  try{ soportaHover = window.matchMedia('(hover:hover) and (pointer:fine)').matches; }catch(e){}
+  if(!soportaHover) return;
+
+  var MS_ABRIR  = 160;   // que no se vayan abriendo popovers al cruzar la columna
+  var MS_CERRAR = 260;   // lo que tarda el mouse en cruzar el hueco hasta el popover
+  var tAbrir = null, tCerrar = null;
+
+  // Solo el ícono de comentarios. La papelera y el de intervención también son
+  // .cm-ico, pero no tienen .pop-coment adentro, así que quedan afuera.
+  function icoComentario(t){
+    var ico = (t && t.closest) ? t.closest('.cm-ico') : null;
+    return (ico && ico.querySelector('.pop-coment')) ? ico : null;
+  }
+
+  // Si hay algo escrito sin guardar, o el cursor está en la caja, el popover no
+  // se cierra solo: lo cierra la persona con un clic afuera o con Guardar.
+  function estaEnUso(ico){
+    var ta = ico.querySelector('.cm-input');
+    if(!ta) return false;
+    return document.activeElement === ta || !!(ta.value || '').trim();
+  }
+
+  document.addEventListener('mouseover', function(e){
+    var ico = icoComentario(e.target);
+    if(!ico) return;
+    clearTimeout(tCerrar);
+    if(ico.classList.contains('open')) return;
+    clearTimeout(tAbrir);
+    tAbrir = setTimeout(function(){
+      // Revalidar: puede haberse abierto por clic mientras corría el timer, y
+      // togPop() es un toggle — sin este chequeo lo cerraría justo después.
+      if(ico.classList.contains('open')) return;
+      if(!ico.isConnected) return;         // la grilla se repintó
+      if(!ico.matches(':hover')) return;   // el mouse ya no está ahí
+      togPop(ico);                         // sin enfocarComentario: el hover no roba el foco
+    }, MS_ABRIR);
+  });
+
+  document.addEventListener('mouseout', function(e){
+    var ico = icoComentario(e.target);
+    if(!ico) return;
+    if(e.relatedTarget && ico.contains(e.relatedTarget)) return;  // solo pasó a un hijo
+    clearTimeout(tAbrir);
+    clearTimeout(tCerrar);
+    tCerrar = setTimeout(function(){
+      if(!ico.isConnected || !ico.classList.contains('open')) return;
+      if(estaEnUso(ico)) return;
+      if(ico.matches(':hover')) return;
+      cerrarPops();
+    }, MS_CERRAR);
+  });
+})();
 
 </script>
 </body>
