@@ -326,7 +326,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
             <div class="section-title">1. Mueble</div>
             <div class="d-row">
               <div class="d-cell"><label class="f" for="mCat">Categoría</label><select id="mCat" class="sel"></select></div>
-              <div class="d-cell"><label class="f" for="mPrecio">Valor estándar</label><input id="mPrecio" type="number" inputmode="numeric" min="0" placeholder="Ej. 950000"></div>
+              <div class="d-cell"><label class="f" for="mPrecio">Valor estándar</label><input id="mPrecio" class="money" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $950.000"></div>
             </div>
           </div>
           <div class="section-box">
@@ -335,7 +335,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
               <div class="acc-item" id="item-a">
                 <button type="button" class="acc-btn" data-acc="a" aria-expanded="false" aria-controls="acc-a"><span class="acc-plus" aria-hidden="true">+</span><span class="acc-l">Modificar altura</span><span class="acc-r" id="aR"></span></button>
                 <div class="acc-body hide" id="acc-a"><div class="d-row"><input type="hidden" id="aE"><div class="d-cell"><label class="f" for="aP">Altura deseada (cm)</label><input type="number" inputmode="decimal" id="aP"></div>
-                  <div class="d-cell"><span class="f">Valor adicional</span><div class="d-out d-strong" id="aV">$0</div></div></div><div class="acc-full hide" id="r70Wrap" style="margin-top:10px"><label class="f" for="r70">Valor del rack de 70 cm (de 61 a 65 cm se cotiza desde ese rack)</label><input type="number" inputmode="numeric" id="r70"></div></div>
+                  <div class="d-cell"><span class="f">Valor adicional</span><div class="d-out d-strong" id="aV">$0</div></div></div><div class="acc-full hide" id="r70Wrap" style="margin-top:10px"><label class="f" for="r70">Valor del rack de 70 cm (de 61 a 65 cm se cotiza desde ese rack)</label><input id="r70" class="money" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $520.000"></div></div>
               </div>
               <div class="acc-item" id="item-l">
                 <button type="button" class="acc-btn" data-acc="l" aria-expanded="false" aria-controls="acc-l"><span class="acc-plus" aria-hidden="true">+</span><span class="acc-l">Modificar largo</span><span class="acc-r" id="lR"></span></button>
@@ -368,7 +368,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
           <div class="section-box">
             <div class="section-title">2. Valor del mueble</div>
             <div class="d-row">
-              <div class="d-cell"><label class="f" for="dPrecio">Total</label><input id="dPrecio" type="number" inputmode="numeric" min="0" placeholder="Ej. 1166700"></div>
+              <div class="d-cell"><label class="f" for="dPrecio">Total</label><input id="dPrecio" class="money" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $1.166.700"></div>
               <div class="d-cell"><span class="f" id="dLbl">Adicional (15%)</span><div class="d-out" id="dEf">$0</div></div>
               <div class="d-cell"><span class="f">Total</span><div class="d-out d-strong" id="dTot">$0</div></div>
               <div class="d-btn"><button class="btn" id="dAdd" disabled>Agregar</button><div class="flash" id="dFlash" role="status"></div></div>
@@ -386,7 +386,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
           <div class="section-box">
             <div class="section-title">2. Precio en efectivo</div>
             <div class="d-row">
-              <div class="d-cell"><label class="f" for="pgPrecio">Efectivo</label><input id="pgPrecio" type="number" inputmode="numeric" min="0" placeholder="Ej. 1000000"></div>
+              <div class="d-cell"><label class="f" for="pgPrecio">Efectivo</label><input id="pgPrecio" class="money" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $1.000.000"></div>
               <div class="d-cell"><span class="f">Recargo (15%)</span><div class="d-out" id="pgRec">$0</div></div>
               <div class="d-cell"><span class="f">Total transferencia</span><div class="d-out d-strong" id="pgTot">$0</div></div>
               <div class="d-btn"><button class="btn" id="pgAdd" disabled>Agregar</button><div class="flash" id="pgFlash" role="status"></div></div>
@@ -443,7 +443,21 @@ const up100 = n => Math.ceil(Math.round(n * 1000) / 1000 / 100) * 100;
 const toLista = e => up100(e / 0.65);
 const $ = n => "$" + Math.round(n).toLocaleString("es-AR");
 const el = id => document.getElementById(id);
-const num = id => { const x = el(id); if (!x) return null; const v = parseFloat(String(x.value).replace(",", ".")); return isFinite(v) && v > 0 ? v : null; };
+const num = id => { const x = el(id); if (!x) return null;
+  /* campos de plata: se muestran como $1.100.000 → se leen solo los dígitos (el punto es de miles, no decimal) */
+  const v = x.classList.contains("money") ? parseInt(String(x.value).replace(/\D/g, ""), 10) : parseFloat(String(x.value).replace(",", "."));
+  return isFinite(v) && v > 0 ? v : null; };
+/* formato $100.000 mientras se escribe, sin perder la posición del cursor */
+const fmtMoney = x => {
+  const pos = x.selectionStart ?? x.value.length;
+  const dAntes = x.value.slice(0, pos).replace(/\D/g, "").length;
+  const dig = x.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "").slice(0, 12);
+  x.value = dig ? "$" + Number(dig).toLocaleString("es-AR") : "";
+  let p = x.value.length;
+  if (dAntes < dig.length) { let c = 0; for (let i = 0; i < x.value.length; i++) { if (/\d/.test(x.value[i]) && ++c === dAntes) { p = i + 1; break; } } if (dAntes === 0) p = 1; }
+  if (document.activeElement === x) x.setSelectionRange(p, p);
+};
+document.addEventListener("input", e => { if (e.target.classList && e.target.classList.contains("money")) fmtMoney(e.target); }, true);
 const MATS = { mel:"Melamina", laq:"Laqueado", ench:"Enchapado" };
 const flash = (id, t) => { el(id).textContent = t; clearTimeout(el(id)._t); el(id)._t = setTimeout(() => el(id).textContent = "", 1800); };
 
