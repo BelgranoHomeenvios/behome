@@ -259,7 +259,6 @@ input:focus{border-color:#8bb6ef;box-shadow:0 0 0 3px rgba(23,105,224,.08);outli
 .a-out small{color:var(--muted);font-size:11px;line-height:1.2}
 .a-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px;min-height:18px}
 .a-foot .detail{margin:0;font-size:12px}
-#aGuiasWrap{margin-top:8px}
 @media (max-width:700px){.a-row{flex-wrap:wrap}.a-row .fields{flex:1 1 100%}.a-price{flex:1 1 calc(50% - 5px)}.a-row .d-btn{flex:1 1 calc(50% - 5px);padding-top:19px}.a-row .d-btn .btn{width:100%}}
 
 /* más ancho para cotizar, presupuesto más angosto */
@@ -312,6 +311,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
         <button class="pill" data-sub="adic" aria-pressed="true">Adicionales</button>
         <button class="pill" data-sub="mueble" aria-pressed="false">Medidas</button>
         <button class="pill" data-sub="dis" aria-pressed="false">Diseño</button>
+        <button class="pill" data-sub="pago" aria-pressed="false">Medios de pago</button>
       </div>
     </div>
 
@@ -362,14 +362,14 @@ label.f,span.f{white-space:nowrap;overflow:visible}
         <div class="hide" id="pDis">
           <div class="section-box">
             <div class="section-title">1. Elegí el diseño</div>
-            <div class="pills sm" id="dPills"><button class="pill" aria-pressed="true">Ranurado</button></div>
-            <p class="one"><b>Ranurado</b> <span>Solo en MDF. Se suma un 15% sobre el valor total del mueble.</span></p>
+            <div class="pills sm" id="dPills" aria-label="Diseño"></div>
+            <p class="one" id="dTxt"></p>
           </div>
           <div class="section-box">
             <div class="section-title">2. Valor del mueble</div>
             <div class="d-row">
               <div class="d-cell"><label class="f" for="dPrecio">Total</label><input id="dPrecio" type="number" inputmode="numeric" min="0" placeholder="Ej. 1166700"></div>
-              <div class="d-cell"><span class="f">Adicional (15%)</span><div class="d-out" id="dEf">$0</div></div>
+              <div class="d-cell"><span class="f" id="dLbl">Adicional (15%)</span><div class="d-out" id="dEf">$0</div></div>
               <div class="d-cell"><span class="f">Total</span><div class="d-out d-strong" id="dTot">$0</div></div>
               <div class="d-btn"><button class="btn" id="dAdd" disabled>Agregar</button><div class="flash" id="dFlash" role="status"></div></div>
             </div>
@@ -377,6 +377,23 @@ label.f,span.f{white-space:nowrap;overflow:visible}
           </div>
         </div>
 
+        <div class="hide" id="pPago">
+          <div class="section-box">
+            <div class="section-title">1. Elegí el medio de pago</div>
+            <div class="pills sm" id="pgPills"><button class="pill" aria-pressed="true">Transferencia (100%)</button></div>
+            <p class="one"><b>Transferencia</b> <span>Si paga todo por transferencia, se suma un 15% sobre el precio en efectivo.</span></p>
+          </div>
+          <div class="section-box">
+            <div class="section-title">2. Precio en efectivo</div>
+            <div class="d-row">
+              <div class="d-cell"><label class="f" for="pgPrecio">Efectivo</label><input id="pgPrecio" type="number" inputmode="numeric" min="0" placeholder="Ej. 1000000"></div>
+              <div class="d-cell"><span class="f">Recargo (15%)</span><div class="d-out" id="pgRec">$0</div></div>
+              <div class="d-cell"><span class="f">Total transferencia</span><div class="d-out d-strong" id="pgTot">$0</div></div>
+              <div class="d-btn"><button class="btn" id="pgAdd" disabled>Agregar</button><div class="flash" id="pgFlash" role="status"></div></div>
+            </div>
+            <p class="acc-note" style="margin-top:8px">Cargá el total en efectivo, con adicionales y medidas ya incluidos. "Agregar" suma el recargo al presupuesto.</p>
+          </div>
+        </div>
         <div id="pAdic">
           <div class="section-box">
             <div class="section-title">1. Elegí el grupo</div>
@@ -392,7 +409,6 @@ label.f,span.f{white-space:nowrap;overflow:visible}
               <div class="a-price"><span class="f">Precio</span><div class="a-out"><b id="aEf">$0</b><small id="aLi">Lista $0</small></div></div>
               <div class="d-btn"><button class="btn" id="aAdd" disabled>Agregar</button></div>
             </div>
-            <label class="toggle hide" id="aGuiasWrap"><input type="checkbox" id="aGuias"> Con guías de cierre suave (una por cajón)</label>
             <div class="a-foot"><p class="detail" id="aDet"></p><div class="flash" id="aFlash" role="status"></div></div>
           </div>
           <div id="aWarn" class="warn hide"></div>
@@ -437,7 +453,7 @@ const ADIC = [
     mat:{mel:50000,laq:70000,ench:80000}, minPesos:{mel:35000,laq:40000,ench:45000}, cond:"Por m², con un mínimo por estante.", unidad:"Por m², con un mínimo por estante." },
   { id:"placa", grupo:"Placa de fondo", nombre:"Placa de fondo", tipo:"m2", dims:["Largo","Alto"], cantLabel:"Placas", sinCantidad:true, minM2:0.5,
     mat:{mel:80000,laq:110000,ench:130000}, cond:"Por m²: largo × alto del mueble, mínimo 0,5 m². Enchapado = paraíso.", unidad:"Por m², según largo × alto del mueble. Mínimo 0,5 m². Enchapado = paraíso." },
-  { id:"cajon", grupo:"Cajones", nombre:"Cajón", tipo:"tramo", cantLabel:"Cajones", guias:true,
+  { id:"cajon", grupo:"Cajones", nombre:"Cajón", tipo:"tramo", cantLabel:"Cajones",
     tramos:[{max:90,label:"Hasta 90 cm",mat:{mel:50000,laq:60000,ench:65000}},{max:110,label:"De 91 a 110 cm",mat:{mel:80000,laq:90000,ench:110000}}],
     cond:"Hasta 90 cm de ancho tiene un valor; de 91 a 110 cm, otro valor. Más de 110 cm no se fabrica.",
     exceso:"No se fabrican cajones de más de 110 cm.", unidad:"Precio por cajón. Hasta 90 cm un valor; de 91 a 110 cm, otro." },
@@ -451,6 +467,8 @@ const ADIC = [
   { id:"guias", grupo:"Herrajes", nombre:"Guías de cierre suave", tipo:"unidad", precio:30000, cantLabel:"Cajones", cond:"Por cajón (incluye el par)." },
   { id:"bisagras", grupo:"Herrajes", nombre:"Bisagras de cierre suave", tipo:"unidad", precio:25000, cantLabel:"Puertas", cond:"Por puerta." },
   { id:"piston", grupo:"Herrajes", nombre:"Pistón a gas adicional", tipo:"unidad", precio:20000, cantLabel:"Pistones", cond:"Por pistón." },
+  { id:"herrajecristal", grupo:"Herrajes", nombre:"Herraje de cristal", tipo:"unidad", precio:13000, cantLabel:"Herrajes", cond:"Por herraje." },
+  { id:"telescopica", grupo:"Herrajes", nombre:"Guía telescópica", tipo:"unidad", precio:19000, cantLabel:"Cajones", cond:"Por cajón." },
   { id:"colocacion", grupo:"Servicios", nombre:"Colocación de manijas o guías que trae el cliente", tipo:"unidad", precio:15000, cantLabel:"Unidades", cond:"Por unidad colocada." },
   { id:"hueco", grupo:"Huecos", nombre:"Sacar un cajón y dejar el hueco", tipo:"unidad", cantLabel:"Huecos", permiteCero:true,
     mat:{mel:0,laq:40000,ench:40000}, cond:"En melamina no modifica el valor. En laqueado o enchapado el hueco se entrega laqueado o lustrado.", unidad:"Por hueco. En melamina no modifica el valor." },
@@ -467,8 +485,8 @@ function setTab(t){
 el("tabCot").onclick = () => setTab("cot"); el("tabLst").onclick = () => setTab("lst");
 function setSub(s){
   el("subPills").querySelectorAll(".pill").forEach(p => p.setAttribute("aria-pressed", p.dataset.sub === s));
-  el("pMueble").classList.toggle("hide", s !== "mueble"); el("pAdic").classList.toggle("hide", s !== "adic"); el("pDis").classList.toggle("hide", s !== "dis");
-  el("subHint").textContent = { adic:"Elegí el adicional y completá sus datos. El precio se calcula automáticamente.", mueble:"Elegí la categoría, abrí las medidas que cambian y cargá el valor estándar.", dis:"Elegí el diseño y cargá el valor del mueble." }[s];
+  el("pMueble").classList.toggle("hide", s !== "mueble"); el("pAdic").classList.toggle("hide", s !== "adic"); el("pDis").classList.toggle("hide", s !== "dis"); el("pPago").classList.toggle("hide", s !== "pago");
+  el("subHint").textContent = { adic:"Elegí el adicional y completá sus datos. El precio se calcula automáticamente.", mueble:"Elegí la categoría, abrí las medidas que cambian y cargá el valor estándar.", dis:"Elegí el diseño y cargá el valor del mueble.", pago:"Elegí el medio de pago y cargá el precio en efectivo." }[s];
 }
 el("subPills").querySelectorAll(".pill").forEach(p => p.onclick = () => setSub(p.dataset.sub));
 
@@ -633,7 +651,6 @@ function renderA(){
   el("aFields").querySelectorAll("input").forEach(i => i.addEventListener("input", calcA));
   if (el("fItem")) el("fItem").addEventListener("change", e => { curI = e.target.value; curMat = "laq"; renderA(); const c = el("fCant"); if (c) c.focus(); });
   if (el("fMat")) el("fMat").addEventListener("change", e => { curMat = e.target.value; calcA(); });
-  el("aGuiasWrap").classList.toggle("hide", !a.guias); el("aGuias").checked = false;
   if (typeof renderHist === "function") renderHist();
   calcA();
 }
@@ -657,7 +674,6 @@ function calcA(){
   }
   if (mat) titulo += " " + MATS[mat].toLowerCase();
   let ef = unit * cant;
-  if (a.guias && el("aGuias").checked && unit > 0) { ef += 30000 * cant; titulo += " con guías de cierre suave"; det.push(`guías ${$(30000)} c/u`); }
   if (unit > 0 && cant > 0 && !a.sinCantidad) det.unshift(`${cant} × ${$(unit)}`);
   const cero = a.permiteCero && unit === 0 && cant > 0;
   if (cero) det.push("en melamina no modifica el valor");
@@ -667,7 +683,6 @@ function calcA(){
   el("aAdd").disabled = !(ef > 0 || cero);
   aState = (ef > 0 || cero) ? { titulo, det: det.join(", ") || "sin cargo", ef, itemId: a.id } : null;
 }
-el("aGuias").addEventListener("change", calcA);
 el("aAdd").onclick = () => {
   if (!aState) return;
   addLine(aState.titulo, aState.det, aState.ef, false, aState.itemId);
@@ -735,18 +750,44 @@ function renderL(){
 
 
 /* ===== diseño ===== */
-let dState = null;
+const DIS = [
+  { id:"ranurado", n:"Ranurado", titulo:"Ranurado", pct:.15, txt:"Solo en MDF. Se suma un 15% sobre el valor total del mueble." },
+  { id:"fondo",    n:"Fondo",    titulo:"Sin fondo", pct:.10, txt:"Sacarle el fondo al mueble o a una parte. Se suma un 10% sobre el valor total del mueble." },
+  { id:"laqespecial", n:"Laqueado especial", titulo:"Laqueado especial sobre paraíso", pct:.20, txt:"Laqueado sobre paraíso. Se suma un 20% sobre el valor total del mueble." },
+];
+let dSel = DIS[0], dState = null;
+function renderDPills(){
+  el("dPills").innerHTML = DIS.map(d => `<button class="pill" data-dis="${d.id}" aria-pressed="${d === dSel}">${d.n}</button>`).join("");
+  el("dPills").querySelectorAll(".pill").forEach(b => b.onclick = () => { dSel = DIS.find(d => d.id === b.dataset.dis); renderDPills(); calcD(); });
+  el("dTxt").innerHTML = `<b>${dSel.n}</b> <span>${dSel.txt}</span>`;
+  el("dLbl").textContent = `Adicional (${Math.round(dSel.pct * 100)}%)`;
+}
 function calcD(){
   const v = num("dPrecio");
-  const ad = v ? up100(v * 0.15) : 0;
+  const ad = v ? up100(v * dSel.pct) : 0;
   el("dEf").textContent = $(ad);
   el("dTot").textContent = $(v ? v + ad : 0);
   el("dAdd").disabled = !(ad > 0);
-  dState = ad > 0 ? { titulo:"Ranurado", det:`15% sobre ${$(v)}`, ef:ad } : null;
+  dState = ad > 0 ? { titulo:dSel.titulo, det:`${Math.round(dSel.pct * 100)}% sobre ${$(v)}`, ef:ad } : null;
 }
 el("dPrecio").addEventListener("input", calcD);
 el("dAdd").onclick = () => { if (dState) { addLine(dState.titulo, dState.det, dState.ef, true); flash("dFlash", "Agregado"); } };
+renderDPills();
 calcD();
+
+/* ===== medios de pago ===== */
+let pgState = null;
+function calcPg(){
+  const v = num("pgPrecio");
+  const rec = v ? up100(v * 0.15) : 0;
+  el("pgRec").textContent = $(rec);
+  el("pgTot").textContent = $(v ? v + rec : 0);
+  el("pgAdd").disabled = !(rec > 0);
+  pgState = rec > 0 ? { titulo:"Recargo por transferencia", det:`15% sobre ${$(v)} en efectivo`, ef:rec } : null;
+}
+el("pgPrecio").addEventListener("input", calcPg);
+el("pgAdd").onclick = () => { if (pgState) { addLine(pgState.titulo, pgState.det, pgState.ef, true); flash("pgFlash", "Agregado"); } };
+calcPg();
 
 /* acordeón de medidas */
 function cerrarAcc(k){
