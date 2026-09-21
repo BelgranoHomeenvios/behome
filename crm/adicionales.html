@@ -222,6 +222,8 @@ input:focus{border-color:#8bb6ef;box-shadow:0 0 0 3px rgba(23,105,224,.08);outli
 .acc-body{display:block}
 .acc-full{grid-column:1 / -1}
 .acc-note{grid-column:1 / -1;margin:0;font-size:12px;color:var(--muted)}
+.pg-base{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.pg-base span.f{margin:0}
 .info{background:var(--blue-softer);color:var(--blue2);border:1px solid #cfe0fa;border-radius:10px;padding:10px 12px;font-size:13px;margin:10px 0}
 .seg{height:44px}.seg button{height:100%}
 #mDet{line-height:1.55}
@@ -384,14 +386,16 @@ label.f,span.f{white-space:nowrap;overflow:visible}
             <p class="one"><b>Transferencia</b> <span>Si paga todo por transferencia, se suma un 15% sobre el precio en efectivo.</span></p>
           </div>
           <div class="section-box">
-            <div class="section-title">2. Precio en efectivo</div>
+            <div class="section-title">2. Precio</div>
+            <div class="pg-base"><span class="f">Tengo el precio en:</span><div class="pills sm" id="pgBasePills"><button class="pill" aria-pressed="true" data-base="ef">Efectivo</button><button class="pill" aria-pressed="false" data-base="tj">Tarjeta</button></div></div>
             <div class="d-row">
-              <div class="d-cell"><label class="f" for="pgPrecio">Efectivo</label><input id="pgPrecio" class="money" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $1.000.000"></div>
-              <div class="d-cell"><span class="f">Recargo (15%)</span><div class="d-out" id="pgRec">$0</div></div>
+              <div class="d-cell"><label class="f" for="pgPrecio" id="pgLbl">Efectivo</label><input id="pgPrecio" class="money" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $1.000.000"></div>
+              <div class="d-cell hide" id="pgEfWrap"><span class="f">Efectivo (× 0,65)</span><div class="d-out" id="pgEf">$0</div></div>
+              <div class="d-cell" id="pgRecWrap"><span class="f">Recargo (15%)</span><div class="d-out" id="pgRec">$0</div></div>
               <div class="d-cell"><span class="f">Total transferencia</span><div class="d-out d-strong" id="pgTot">$0</div></div>
               <div class="d-btn"><button class="btn" id="pgAdd" disabled>Agregar</button><div class="flash" id="pgFlash" role="status"></div></div>
             </div>
-            <p class="acc-note" style="margin-top:8px">Cargá el total en efectivo, con adicionales y medidas ya incluidos. "Agregar" suma el recargo al presupuesto.</p>
+            <p class="acc-note" style="margin-top:8px" id="pgNote">Cargá el total en efectivo, con adicionales y medidas ya incluidos. "Agregar" suma el recargo al presupuesto.</p>
           </div>
         </div>
         <div id="pAdic">
@@ -500,7 +504,7 @@ el("tabCot").onclick = () => setTab("cot"); el("tabLst").onclick = () => setTab(
 function setSub(s){
   el("subPills").querySelectorAll(".pill").forEach(p => p.setAttribute("aria-pressed", p.dataset.sub === s));
   el("pMueble").classList.toggle("hide", s !== "mueble"); el("pAdic").classList.toggle("hide", s !== "adic"); el("pDis").classList.toggle("hide", s !== "dis"); el("pPago").classList.toggle("hide", s !== "pago");
-  el("subHint").textContent = { adic:"Elegí el adicional y completá sus datos. El precio se calcula automáticamente.", mueble:"Elegí la categoría, abrí las medidas que cambian y cargá el valor estándar.", dis:"Elegí el diseño y cargá el valor del mueble.", pago:"Elegí el medio de pago y cargá el precio en efectivo." }[s];
+  el("subHint").textContent = { adic:"Elegí el adicional y completá sus datos. El precio se calcula automáticamente.", mueble:"Elegí la categoría, abrí las medidas que cambian y cargá el valor estándar.", dis:"Elegí el diseño y cargá el valor del mueble.", pago:"Elegí el medio de pago y cargá el precio en efectivo o en tarjeta." }[s];
 }
 el("subPills").querySelectorAll(".pill").forEach(p => p.onclick = () => setSub(p.dataset.sub));
 
@@ -791,13 +795,39 @@ calcD();
 
 /* ===== medios de pago ===== */
 let pgState = null;
+/* Base del precio que tiene el vendedor: "ef" (efectivo) o "tj" (tarjeta / lista).
+   Desde tarjeta se pasa a efectivo con × 0,65 y se redondea PARA ABAJO a la centena:
+   la lista sale de up100(efectivo / 0,65), así que el redondeo hacia abajo devuelve
+   exactamente el efectivo original (la diferencia que se cae es de $65 como máximo). */
+let pgBase = "ef";
+const down100 = n => Math.floor(Math.round(n * 1000) / 1000 / 100) * 100;
+const PG_NOTA = {
+  ef: 'Cargá el total en efectivo, con adicionales y medidas ya incluidos. "Agregar" suma el recargo al presupuesto.',
+  tj: 'Cargá el total en tarjeta (precio de lista), con adicionales y medidas ya incluidos. Se pasa a efectivo (× 0,65) y sobre eso va el 15%. "Agregar" suma el recargo al presupuesto.'
+};
+function setPgBase(b){
+  pgBase = b;
+  el("pgBasePills").querySelectorAll(".pill").forEach(p => p.setAttribute("aria-pressed", p.dataset.base === b));
+  el("pgLbl").textContent = b === "tj" ? "Tarjeta (lista)" : "Efectivo";
+  el("pgPrecio").placeholder = b === "tj" ? "Ej. $1.538.500" : "Ej. $1.000.000";
+  /* Desde tarjeta el vendedor ve solo lista → total transferencia: las cuentas intermedias
+     (efectivo y recargo) se calculan igual pero no se muestran (pedido de Brian, 21/9). */
+  el("pgEfWrap").classList.add("hide");
+  el("pgRecWrap").classList.toggle("hide", b === "tj");
+  el("pgNote").textContent = PG_NOTA[b];
+  el("pgPrecio").value = "";   /* se limpia: un número cargado como efectivo no se reinterpreta como tarjeta */
+  calcPg(); el("pgPrecio").focus();
+}
+el("pgBasePills").querySelectorAll(".pill").forEach(p => p.onclick = () => setPgBase(p.dataset.base));
 function calcPg(){
   const v = num("pgPrecio");
-  const rec = v ? up100(v * 0.15) : 0;
+  const ef = v ? (pgBase === "tj" ? down100(v * 0.65) : v) : 0;
+  const rec = ef ? up100(ef * 0.15) : 0;
+  el("pgEf").textContent = $(ef);
   el("pgRec").textContent = $(rec);
-  el("pgTot").textContent = $(v ? v + rec : 0);
+  el("pgTot").textContent = $(ef ? ef + rec : 0);
   el("pgAdd").disabled = !(rec > 0);
-  pgState = rec > 0 ? { titulo:"Recargo por transferencia", det:`15% sobre ${$(v)} en efectivo`, ef:rec } : null;
+  pgState = rec > 0 ? { titulo:"Recargo por transferencia", det: pgBase === "tj" ? `15% sobre ${$(ef)} en efectivo (lista ${$(v)})` : `15% sobre ${$(v)} en efectivo`, ef:rec } : null;
 }
 el("pgPrecio").addEventListener("input", calcPg);
 el("pgAdd").onclick = () => { if (pgState) { addLine(pgState.titulo, pgState.det, pgState.ef, true); flash("pgFlash", "Agregado"); } };
