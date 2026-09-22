@@ -469,7 +469,7 @@ const flash = (id, t) => { el(id).textContent = t; clearTimeout(el(id)._t); el(i
 const ADIC = [
   { id:"estante", grupo:"Estantes", nombre:"Estante", tipo:"m2", dims:["Ancho","Profundidad"], cantLabel:"Estantes",
     mat:{mel:50000,laq:70000,ench:80000}, minPesos:{mel:35000,laq:40000,ench:45000}, cond:"Por m², con un mínimo por estante.", unidad:"Por m², con un mínimo por estante." },
-  { id:"placa", grupo:"Placa de fondo", nombre:"Placa de fondo", tipo:"m2", dims:["Largo","Alto"], cantLabel:"Placas", sinCantidad:true, minM2:0.5,
+  { id:"placa", grupo:"Fondo Visto", nombre:"Fondo Visto", tipo:"m2", dims:["Largo","Alto"], cantLabel:"Placas", sinCantidad:true, minM2:0.5,
     mat:{mel:80000,laq:110000,ench:130000}, cond:"Por m²: largo × alto del mueble, mínimo 0,5 m². Enchapado = paraíso.", unidad:"Por m², según largo × alto del mueble. Mínimo 0,5 m². Enchapado = paraíso." },
   { id:"cajon", grupo:"Cajones", nombre:"Cajón", tipo:"tramo", cantLabel:"Cajones",
     tramos:[{max:90,label:"Hasta 90 cm",mat:{mel:50000,laq:60000,ench:65000}},{max:110,label:"De 91 a 110 cm",mat:{mel:80000,laq:90000,ench:110000}}],
@@ -479,14 +479,16 @@ const ADIC = [
     tramos:[{max:90,label:"Hasta 90 cm",mat:{mel:40000,laq:50000,ench:55000}},{max:120,label:"De 91 a 120 cm",mat:{mel:70000,laq:80000,ench:90000}}],
     cond:"Hasta 90 cm de ancho tiene un valor; de 91 a 120 cm, otro valor.",
     exceso:"Bandejas de más de 120 cm: no están en la lista, consultá.", unidad:"Precio por bandeja. Hasta 90 cm un valor; de 91 a 120 cm, otro." },
-  { id:"calada", grupo:"Puertas", nombre:"Puerta calada con vidrio", tipo:"m2", dims:["Ancho","Alto"], cantLabel:"Puertas",
-    mat:{mel:120000,laq:100000,ench:120000}, minM2:1, cond:"Por m², mínimo 1 m² por puerta. En melamina es más cara porque lleva más trabajo.", unidad:"Por m², mínimo 1 m² por puerta. En melamina es más cara porque lleva más trabajo." },
+  { id:"calada", grupo:"Puerta Vidrio", nombre:"Puerta calada con vidrio", tipo:"m2", dims:["Ancho","Alto"], cantLabel:"Puertas",
+    mat:{mel:120000,laq:100000,ench:120000}, minM2:1, maxD1:60, maxMsg:"La puerta calada con vidrio no puede superar los 60 cm de ancho. Revisá la medida.",
+    cond:"Por m², mínimo 1 m² por puerta, ancho máximo 60 cm. En melamina es más cara porque lleva más trabajo.", unidad:"Por m², mínimo 1 m² por puerta, ancho máximo 60 cm. En melamina es más cara porque lleva más trabajo." },
   { id:"cerradura", grupo:"Herrajes", nombre:"Cerradura tipo tambor", tipo:"unidad", precio:50000, cantLabel:"Cerraduras", cond:"Por cerradura." },
   { id:"guias", grupo:"Herrajes", nombre:"Guías de cierre suave", tipo:"unidad", precio:30000, cantLabel:"Cajones", cond:"Por cajón (incluye el par)." },
   { id:"bisagras", grupo:"Herrajes", nombre:"Bisagras de cierre suave", tipo:"unidad", precio:25000, cantLabel:"Puertas", cond:"Por puerta." },
   { id:"piston", grupo:"Herrajes", nombre:"Pistón a gas adicional", tipo:"unidad", precio:20000, cantLabel:"Pistones", cond:"Por pistón." },
   { id:"herrajecristal", grupo:"Herrajes", nombre:"Herraje de cristal", tipo:"unidad", precio:13000, cantLabel:"Herrajes", cond:"Por herraje." },
   { id:"telescopica", grupo:"Herrajes", nombre:"Guía telescópica", tipo:"unidad", precio:19000, cantLabel:"Cajones", cond:"Por cajón." },
+  { id:"push", grupo:"Herrajes", nombre:"Sistema push", tipo:"unidad", precio:25000, cantLabel:"Unidades", cond:"Por unidad." },
   { id:"colocacion", grupo:"Servicios", nombre:"Colocación de manijas o guías que trae el cliente", tipo:"unidad", precio:15000, cantLabel:"Unidades", cond:"Por unidad colocada." },
   { id:"hueco", grupo:"Huecos", nombre:"Sacar un cajón y dejar el hueco", tipo:"unidad", cantLabel:"Huecos", permiteCero:true,
     mat:{mel:0,laq:40000,ench:40000}, cond:"En melamina no modifica el valor. En laqueado o enchapado el hueco se entrega laqueado o lustrado.", unidad:"Por hueco. En melamina no modifica el valor." },
@@ -678,7 +680,9 @@ function calcA(){
   if (a.tipo === "unidad") unit = a.mat ? a.mat[mat] : a.precio;
   if (a.tipo === "m2") {
     const d1 = num("fD1"), d2 = num("fD2");
-    if (d1 && d2) {
+    /* tope de medida (maxD1, en cm, sobre la 1ª dimensión): si se pasa, no hay precio y no se puede agregar */
+    if (a.maxD1 && d1 > a.maxD1) warn = a.maxMsg || `Máximo ${a.maxD1} cm.`;
+    else if (d1 && d2) {
       const m2 = d1 / 100 * d2 / 100, pm2 = a.mat ? a.mat[mat] : a.precio, m2s = m2.toFixed(2).replace(".", ",");
       unit = (a.minM2 ? Math.max(m2, a.minM2) : m2) * pm2;
       if (a.minM2 && m2 < a.minM2) det.push(`${m2s} m², se cobra ${String(a.minM2).replace(".", ",")} m²`); else det.push(`${d1}×${d2} cm = ${m2s} m²`);
@@ -771,7 +775,8 @@ function renderL(){
 const DIS = [
   { id:"ranurado", n:"Ranurado", titulo:"Ranurado", pct:.15, txt:"Solo en MDF. Se suma un 15% sobre el valor total del mueble." },
   { id:"fondo",    n:"Fondo",    titulo:"Sin fondo", pct:.10, txt:"Sacarle el fondo al mueble o a una parte. Se suma un 10% sobre el valor total del mueble." },
-  { id:"laqespecial", n:"Laqueado especial", titulo:"Laqueado especial sobre paraíso", pct:.20, txt:"Laqueado sobre paraíso. Se suma un 20% sobre el valor total del mueble." },
+  { id:"laqespecial", n:"Laq Paraíso", titulo:"Laqueado sobre paraíso", pct:.20, txt:"Laqueado sobre paraíso. Se suma un 20% sobre el valor total del mueble." },
+  { id:"disespecial", n:"Diseño especial", titulo:"Diseño especial", pct:.05, txt:"Se suma un 5% sobre el valor total del mueble." },
 ];
 let dSel = DIS[0], dState = null;
 function renderDPills(){
