@@ -19376,6 +19376,11 @@ const MKT_EST_LBL=['Concretadas','Seguimiento','Rechazadas','Sin clasificar'];
    todo las concretadas) y la tasa sale inflada. Ver estándar de cierre del 9/9. */
 const MKT_VIRTUALES=MKT_CANALES.filter(c=>c!=='Belgrano 2020'&&c!=='Belgrano 2299');
 const MKT_PISO_CIERRE=40, MKT_OBJ_CIERRE=50;
+/* Selector de la tarjeta 1 cuando está "Separado por canal/vendedor": un solo gráfico
+   grande, de Todos o de UNA clave. Es local a la tarjeta: no toca los chips globales de
+   Canal/Vendedor, que filtran todo el balde. null = Todos. */
+let mktResSel=null;
+function mktSetResSel(k){ mktResSel=k||null; renderMarketing(); }
 function mktTabConGrafico(){ return mktTab==='volumen'||mktTab==='resultado'||mktTab==='calidad'; }
 /* En Resultados no existe \"por día\": son 1 a 5 consultas por canal por día y el % salta
    de 0 a 67 de un día al otro. Día (elegido o deducido por Automático) cae a semana. */
@@ -19412,7 +19417,7 @@ function mktNotaTramo(p){
 }
 function mktGraficoColumnas(id, serie, filas, maxY, mini){
   const pts=serie.out, n=pts.length;
-  const W=mini?260:680, H=mini?150:210, P=mini?{l:28,r:6,t:14,b:22}:{l:38,r:14,t:18,b:26};
+  const W=mini?260:680, H=mini?150:250, P=mini?{l:28,r:6,t:14,b:22}:{l:38,r:14,t:18,b:26};
   const {step}=mktNormStep(serie.unit);
   const bw=(W-P.l-P.r)/n, ancho=Math.min(bw*0.62, mini?18:30);
   const cx=i=>P.l+bw*(i+0.5), alto=v=>(H-P.t-P.b)*v/maxY;
@@ -19470,20 +19475,25 @@ function mktGraficoCierre(id, serie, lineas){
 function mktCardsResultadoTiempo(rbase){
   mktTipRes={};
   const {d1,d2}=mktRango();
-  const unit=mktUnidadResultado(), uLbl=MKT_UNIDAD_LBL[unit];
+  /* Dos unidades (22/9): las COLUMNAS aceptan día (son cantidades, se leen igual que el
+     gráfico de llegadas de Volumen); la línea de CIERRE no — un % sobre 2 consultas salta
+     de 0 a 100 —, así que ahí día cae a semana. Cada tarjeta arma su propia serie. */
+  const unit=mktUnidadEfectiva(), uLbl=MKT_UNIDAD_LBL[unit];
   const serie=mktSerieUnit(rbase,unit,d1,d2), n=serie.out.length;
-  const forzado=mktUnidadEfectiva()==='dia';
+  const unit2=mktUnidadResultado(), uLbl2=MKT_UNIDAD_LBL[unit2];
+  const serie2= unit2===unit ? serie : mktSerieUnit(rbase,unit2,d1,d2);
+  const forzado=unit2!==unit;
   if(!n) return '';
-  if(n>MKT_MAX_COLS){
-    return `<div class="mkt-card wide"><h3>1 · Resultado por ${uLbl} de llegada</h3><div class="mkt-cap-aviso">El período da <b>${n} tramos</b> por ${uLbl}: no entran en pantalla.
-      <div class="mkt-cap-btns">${unit!=='mes'?`<span class="mkt-chip" onclick="mktSetUnidad('mes')">Ver por mes</span>`:''}</div></div></div>`;
-  }
+  const demasiadas=n>MKT_MAX_COLS;
   const vista=mktVistaEfectiva(), separa=vista!=='total', D=mktDimRes();
   const leyEst=`<div class="mkt-leg">${MKT_EST_LBL.map((l,k)=>`<span><i style="background:${MKT_EST_COL[k]}"></i>${l}</span>`).join('')}
     <span><i style="background:#15803d;opacity:.4"></i>Tramo abierto (&lt;${DIAS_MADUREZ_ANALISIS} días)</span>
     <span><i style="background:none;border:1.5px dashed var(--muted);width:9px;height:9px"></i>Tramo incompleto</span></div>`;
   let graf1;
-  if(!separa){
+  if(demasiadas){
+    graf1=`<div class="mkt-cap-aviso">El período da <b>${n} tramos</b> por ${uLbl}: no entran en pantalla.
+      <div class="mkt-cap-btns">${unit!=='sem'?`<span class="mkt-chip" onclick="mktSetUnidad('sem')">Ver por semana</span>`:''}${unit!=='mes'?`<span class="mkt-chip" onclick="mktSetUnidad('mes')">Ver por mes</span>`:''}</div></div>`;
+  }else if(!separa){
     const filas=serie.out.map(p=>[p.eConc,p.eSeg,p.eRech,p.eSin]);
     const maxY=Math.max(4,...filas.map(f=>f[0]+f[1]+f[2]+f[3]));
     graf1=mktGraficoColumnas('res_tot',serie,filas,maxY,false);
@@ -19491,16 +19501,20 @@ function mktCardsResultadoTiempo(rbase){
     const por=mktSerieEstadoDim(rbase,serie,D.clave,D.claves);
     const sumK=k=>por[k].reduce((s,f)=>s+f[0]+f[1]+f[2]+f[3],0);
     const keys=D.claves.filter(k=>D.visible(k)&&sumK(k)>0);
-    // Misma escala en todos: si cada mini tuviera la suya, WhatsApp y Publicidad Instagram
-    // se verían del mismo tamaño y la comparación sería engañosa.
-    const maxY=Math.max(4,...keys.map(k=>Math.max(...por[k].map(f=>f[0]+f[1]+f[2]+f[3]))));
-    graf1=keys.length?`<div class="mkt-minis">${keys.map((k,j)=>`<div class="mkt-mini"><div class="mt"><i style="background:${D.color(k)}"></i>${escapeHtml(D.etiq(k))} <b>${sumK(k)}</b></div>${mktGraficoColumnas('res_m'+j,serie,por[k],maxY,true)}</div>`).join('')}</div>
-      <div class="mkt-note" style="margin-top:6px">Todos los mini gráficos usan la misma escala, para poder compararlos.</div>`
+    // Si lo elegido ya no está (lo sacó un filtro o no tuvo consultas), vuelve a Todos.
+    const sel=(mktResSel && keys.includes(mktResSel)) ? mktResSel : null;
+    const selHtml=`<div class="mkt-chips oneline" style="margin:4px 0 10px">
+      <span class="mkt-chip sm ${!sel?'on':''}" onclick="mktSetResSel(null)">Todos <b>${keys.reduce((s,k)=>s+sumK(k),0)}</b></span>
+      ${keys.map(k=>`<span class="mkt-chip sm ${sel===k?'on':''}" onclick="mktSetResSel('${escAttr(k)}')"><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${D.color(k)};margin-right:5px"></i>${escapeHtml(D.etiq(k))} <b>${sumK(k)}</b></span>`).join('')}</div>`;
+    let filas;
+    if(sel) filas=por[sel];
+    else filas=serie.out.map((_,i)=>keys.reduce((acc,k)=>acc.map((v,x)=>v+por[k][i][x]),[0,0,0,0]));
+    const maxY=Math.max(4,...filas.map(f=>f[0]+f[1]+f[2]+f[3]));
+    graf1=keys.length?selHtml+mktGraficoColumnas('res_sel',serie,filas,maxY,false)
       :'<p class="mkt-note">Sin datos en este período.</p>';
   }
   const card1=`<div class="mkt-card wide"><h3>1 · Resultado por ${uLbl} de llegada</h3>
-    <p class="cap">De lo que entró en cada ${uLbl}, en qué terminó hoy.${separa?(vista==='vendedor'?' Un gráfico por vendedor.':' Un gráfico por canal.'):''} Tocá un tramo para acotar el período a ese tramo.</p>
-    ${forzado?`<div class="mkt-drillhint">En Resultados no se agrupa por día (quedan muy pocas consultas por tramo): se muestra por semana.</div>`:''}
+    <p class="cap">De lo que entró en cada ${uLbl}, en qué terminó hoy.${separa?(vista==='vendedor'?' Elegí un vendedor o Todos.':' Elegí un canal o Todos.'):''} Tocá un tramo para acotar el período a ese tramo.</p>
     ${graf1}${leyEst}
     <div class="mkt-foot"><b>Qué medimos:</b> cada consulta cuenta en el tramo en que <b>entró</b> (fecha de ingreso), con el estado que tiene <b>hoy</b>${mktSoloReales?', <b>solo las reales</b>':', todas — descartadas incluidas'}. <b>Tramo abierto</b> = terminó hace menos de ${DIAS_MADUREZ_ANALISIS} días: lo que sigue en seguimiento todavía puede cerrar, así que no se lee como caída. <b>Tramo incompleto</b> = el período elegido lo corta y cubre menos días de los que le tocan.</div></div>`;
 
@@ -19508,21 +19522,22 @@ function mktCardsResultadoTiempo(rbase){
   const vb=rbase.filter(a=>MKT_VIRTUALES.includes(mktCanalMostrar(a)) && mktReal(a));
   let lineas=[];
   if(!separa){
-    const por=mktSerieEstadoDim(vb,serie,()=>'T',['T']);
+    const por=mktSerieEstadoDim(vb,serie2,()=>'T',['T']);
     lineas=[{k:'T',label:'Total virtual',color:'#1e5fce',filas:por.T}];
   }else{
     const claves=vista==='vendedor'?D.claves:MKT_VIRTUALES;
-    const por=mktSerieEstadoDim(vb,serie,D.clave,claves);
+    const por=mktSerieEstadoDim(vb,serie2,D.clave,claves);
     lineas=claves.filter(k=>D.visible(k)&&por[k].some(f=>f[0]+f[1]+f[2]+f[3]>0))
       .map(k=>({k,label:D.etiq(k),color:D.color(k),filas:por[k]}));
   }
   const leyC=`<div class="mkt-leg">${lineas.map(L=>`<span${separa?` style="cursor:pointer" onclick="${D.toggle(L.k)}" title="Tocá para verlo solo a él"`:''}><i style="background:${L.color}"></i>${escapeHtml(L.label)}</span>`).join('')}
     <span><i class="hueco"></i>Tramo abierto (línea punteada)</span></div>`;
   const tot=vb.length, conc=vb.filter(a=>estadoDe(a)==='Concretado').length;
-  const card2=`<div class="mkt-card wide"><h3>2 · Cierre por ${uLbl} — virtual</h3>
+  const card2=`<div class="mkt-card wide"><h3>2 · Cierre por ${uLbl2} — virtual</h3>
+    ${forzado?`<div class="mkt-drillhint">El cierre no se muestra por día (un % sobre 1 o 2 consultas salta de 0 a 100): acá va por semana.</div>`:''}
     <p class="cap">Concretadas sobre consultas reales, en canales virtuales. Las bandas marcan el estándar: piso ${MKT_PISO_CIERRE}%, objetivo ${MKT_OBJ_CIERRE}%.</p>
     ${lineas.length?`<div class="mkt-kpirow"><div class="mkt-kpi g"><div class="n">${mktPct(conc,tot)}% <small>· ${conc} de ${tot}</small></div><div class="l">Cierre del período<small>virtual, sobre reales</small></div></div></div>
-      ${mktGraficoCierre('res_cierre',serie,lineas)}${leyC}`
+      ${mktGraficoCierre('res_cierre',serie2,lineas)}${leyC}`
       :'<p class="mkt-note">Con los filtros actuales no queda ninguna consulta real de canales virtuales.</p>'}
     <div class="mkt-foot"><b>Qué medimos:</b> concretadas / consultas reales (afuera las que Cintia descartó), por tramo de llegada. Siempre sobre reales, aunque arriba esté \"Todas las consultas\". <b>Excluye Belgrano 2020 y 2299</b> aunque estén elegidos en el filtro: el local no se carga completo y la tasa sale inflada. Los tramos abiertos van punteados: su % todavía va a subir.</div></div>`;
   return card1+card2;
@@ -19557,7 +19572,7 @@ function mktSetTab(t){ mktTab=t; renderMarketing(); }
 /* Cambiar la granularidad cierra el drill de mes abierto: si no, quedaba un estado mezclado
    (adentro de un mes, pero con la unidad cambiada debajo). Mismo criterio que mktSetPreset. */
 function mktSetUnidad(v){ mktUnidad=v; mktMesAbierto=null; renderMarketing(); }
-function mktSetVista(v){ mktVista=v; renderMarketing(); }
+function mktSetVista(v){ mktVista=v; mktResSel=null; renderMarketing(); }
 /* Vista efectiva: en la solapa del vendedor (candado puesto) la base es de una sola
    persona, así que "separado por vendedor" dibujaría una línea igual al total. Cae a Total.
    Se resuelve acá y no en cada uso, para que no dependa de acordarse. */
@@ -19632,12 +19647,12 @@ function mktFiltrosHtml(){
         <span class="mkt-chip ${mktVista==='total'?'on':''}" onclick="mktSetVista('total')">Total</span>
         <span class="mkt-chip ${mktVista==='canal'?'on':''}" onclick="mktSetVista('canal')">Separado por canal</span>
         ${mktLockVend?'':`<span class="mkt-chip ${mktVista==='vendedor'?'on':''}" onclick="mktSetVista('vendedor')">Separado por vendedor</span>`}
-        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktTab==='volumen'?(mktVista==='canal'?'Una línea de color por canal.':(mktVista==='vendedor'?'Una línea de color por vendedor.':'Una sola línea con todo lo que pasa los filtros.')):(mktVista==='canal'?'Un mini gráfico por canal y una línea de cierre por canal virtual.':(mktVista==='vendedor'?'Un mini gráfico y una línea de cierre por vendedor.':'Un solo gráfico con todo lo que pasa los filtros.'))} Los chips de abajo siguen filtrando.</span>
+        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktTab==='volumen'?(mktVista==='canal'?'Una línea de color por canal.':(mktVista==='vendedor'?'Una línea de color por vendedor.':'Una sola línea con todo lo que pasa los filtros.')):(mktVista==='canal'?'Elegís un canal en el gráfico de resultados; una línea de cierre por canal virtual.':(mktVista==='vendedor'?'Elegís un vendedor en el gráfico de resultados; una línea de cierre por vendedor.':'Un solo gráfico con todo lo que pasa los filtros.'))} Los chips de abajo siguen filtrando.</span>
       </div>
     </div>`:''}
     ${mktTabConGrafico()?`<div class="mkt-fgroup"><span class="lbl">Agrupar por</span>
-      <div class="mkt-chips">${MKT_UNIDADES.map(([v,t])=>`<span class="mkt-chip ${mktUnidad===v?'on':''}" onclick="mktSetUnidad('${v}')">${t}${(v==='auto'&&mktUnidad==='auto')?` (por ${MKT_UNIDAD_LBL[mktTab==='volumen'?mktUnidadEfectiva():mktUnidadResultado()]})`:''}</span>`).join('')}</div>
-      <span class="tiny" style="color:var(--muted)">Afecta a los gráficos de Volumen y de Resultados. En Automático lo decide el período. En Resultados, Día se muestra por semana.</span>
+      <div class="mkt-chips">${MKT_UNIDADES.map(([v,t])=>`<span class="mkt-chip ${mktUnidad===v?'on':''}" onclick="mktSetUnidad('${v}')">${t}${(v==='auto'&&mktUnidad==='auto')?` (por ${MKT_UNIDAD_LBL[mktUnidadEfectiva()]})`:''}</span>`).join('')}</div>
+      <span class="tiny" style="color:var(--muted)">Afecta a los gráficos de Volumen y de Resultados. En Automático lo decide el período. En Resultados, el cierre (tarjeta 2) va como mínimo por semana.</span>
     </div>`:''}
     ${mktLockVend?'':`<div class="mkt-fgroup"><span class="lbl">Vendedor (elegí uno o varios)</span>
       <div class="mkt-chips oneline">
