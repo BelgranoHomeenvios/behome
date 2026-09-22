@@ -18924,6 +18924,10 @@ function htmlFichaReclamo(){
 .mkt-leg{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--sec)}
 .mkt-leg span{display:flex;align-items:center;gap:6px}
 .mkt-leg i{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
+.mkt-minis{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px}
+.mkt-mini .mt{font-size:12.5px;font-weight:700;color:var(--sec);display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.mkt-mini .mt i{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
+.mkt-mini .mt b{color:var(--ink);margin-left:auto}
 .mkt-foot{font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.5;border-top:1px dashed var(--line);padding-top:9px}
 table.mkt-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .mkt-tbl th{text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line)}
@@ -19206,8 +19210,14 @@ function mktNormStep(unit){
 }
 function mktSerieUnit(base, unit, d1, d2){
   const {norm,step}=mktNormStep(unit);
-  const R={},D={},C={},X={},A={};
+  const R={},D={},C={},X={},A={},EC={},ES={},ER={},EX={};
   base.forEach(a=>{const t=new Date(a.ts).getTime(); if(t<d1.getTime()||t>d2.getTime())return; const k=norm(a.ts).getTime();
+    /* Estado de TODAS las que entran (respeta lo que ya viene filtrado: si arriba está
+       "Solo las reales", la base ya llega sin descartadas). Lo usan las columnas apiladas
+       del balde Resultados. Mismo corte de estados que la tarjeta "Consultas por vendedor". */
+    const e0=estadoDe(a);
+    if(e0==='Concretado') EC[k]=(EC[k]||0)+1; else if(e0==='Rechazado') ER[k]=(ER[k]||0)+1;
+    else if(e0==='En seguimiento') ES[k]=(ES[k]||0)+1; else EX[k]=(EX[k]||0)+1;
     if(mktReal(a)){ R[k]=(R[k]||0)+1;
       // Y dentro de las reales, en qué terminaron: es lo que se apila cuando el chip
       // "Solo las reales" está prendido (concretada / rechazada / todavía abierta).
@@ -19230,7 +19240,14 @@ function mktSerieUnit(base, unit, d1, d2){
     const dTot=Math.round((d0(natFin)-d0(k))/DIA)+1;
     let dIn=Math.round((Math.min(d0(natFin),fin)-Math.max(d0(k),ini))/DIA)+1;
     dIn=Math.max(1,Math.min(dIn,dTot));
-    out.push({t:k,real:R[k]||0,desc:D[k]||0,conc:C[k]||0,rech:X[k]||0,abie:A[k]||0,dTot,dIn,parcial:dIn<dTot});
+    /* ABIERTO ≠ INCOMPLETO. Incompleto = el período corta el tramo. Abierto = el tramo
+       terminó hace menos de DIAS_MADUREZ_ANALISIS días, así que lo que sigue en seguimiento
+       todavía puede cerrar y el % de concretadas va a subir. Misma regla de madurez que el
+       resto de la app (una sola constante), aplicada al último día del tramo. */
+    const ultDia=Math.min(d0(natFin),fin);
+    const abierto=Math.floor((d0(Date.now())-ultDia)/DIA) < DIAS_MADUREZ_ANALISIS;
+    out.push({t:k,real:R[k]||0,desc:D[k]||0,conc:C[k]||0,rech:X[k]||0,abie:A[k]||0,dTot,dIn,parcial:dIn<dTot,
+      eConc:EC[k]||0,eSeg:ES[k]||0,eRech:ER[k]||0,eSin:EX[k]||0,abierto});
     cur=step(cur); guard++; }
   return {out,unit};
 }
@@ -19345,6 +19362,171 @@ function mktGraficoLinea(base, serie, clickable){
   }
   return ley+svg;
 }
+
+/* ===========================================================================
+   BALDE RESULTADOS — gráficos en el tiempo (22/9)
+   Tarjeta 1: columnas apiladas por estado, por tramo de LLEGADA (cohorte): de lo que entró
+   en ese tramo, en qué terminó hoy. Tarjeta 2: cierre (concretadas / reales) solo virtual,
+   con el piso 40% y el objetivo 50%. Los dos respetan período, filtros, \"Agrupar por\" y
+   \"Ver el gráfico\". Los tramos salen de mktSerieUnit: mismos cortes que Volumen.
+   =========================================================================== */
+const MKT_EST_COL=['#15803d','#eab308','#b42318','#c7ced6'];
+const MKT_EST_LBL=['Concretadas','Seguimiento','Rechazadas','Sin clasificar'];
+/* El cierre se mide solo en virtual: el local no se carga completo (se registran sobre
+   todo las concretadas) y la tasa sale inflada. Ver estándar de cierre del 9/9. */
+const MKT_VIRTUALES=MKT_CANALES.filter(c=>c!=='Belgrano 2020'&&c!=='Belgrano 2299');
+const MKT_PISO_CIERRE=40, MKT_OBJ_CIERRE=50;
+function mktTabConGrafico(){ return mktTab==='volumen'||mktTab==='resultado'||mktTab==='calidad'; }
+/* En Resultados no existe \"por día\": son 1 a 5 consultas por canal por día y el % salta
+   de 0 a 67 de un día al otro. Día (elegido o deducido por Automático) cae a semana. */
+function mktUnidadResultado(){ const u=mktUnidadEfectiva(); return u==='dia'?'sem':u; }
+function mktIsoDe(x){ return new Date(x.getTime()-x.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+/* Estados [conc, seg, rech, sin] por CLAVE en cada tramo de una serie ya armada. */
+function mktSerieEstadoDim(base, serie, claveFn, claves){
+  const {norm}=mktNormStep(serie.unit);
+  const idx={}; serie.out.forEach((p,i)=>{ idx[p.t]=i; });
+  const m={}; claves.forEach(k=>{ m[k]=serie.out.map(()=>[0,0,0,0]); });
+  base.forEach(a=>{ const k=claveFn(a); if(!m[k])return;
+    const i=idx[norm(a.ts).getTime()]; if(i===undefined)return;
+    const e=estadoDe(a);
+    m[k][i][e==='Concretado'?0:(e==='En seguimiento'?1:(e==='Rechazado'?2:3))]++; });
+  return m;
+}
+/* La dimensión que se separa (canal o vendedor), en un solo objeto. */
+function mktDimRes(){
+  return mktVistaEfectiva()==='vendedor'
+    ? { claves:mktVendedores(), clave:a=>a.vendedorId, color:mktColorVend, etiq:u=>nombreDe(u),
+        visible:u=>!mktVendSel.length||mktVendSel.includes(u), toggle:u=>`mktToggleVend('${escAttr(u)}')` }
+    : { claves:MKT_CANALES, clave:a=>mktCanalMostrar(a), color:mktColorCanal, etiq:c=>c,
+        visible:c=>!mktCanalSel.length||mktCanalSel.includes(c), toggle:c=>`mktToggleCanal('${escAttr(c)}')` };
+}
+/* Tooltips: uno por gráfico (en Resultados puede haber varios a la vez). */
+let mktTipRes={};
+function mktResHover(ev,id,i){ const d=(mktTipRes[id]||[])[i]; if(d && typeof grafTipTexto==='function') grafTipTexto(ev,d.lbl,d.html); }
+function mktResOut(){ if(typeof grafTipOff==='function') grafTipOff(); }
+function mktNotaTramo(p){
+  let h='';
+  if(p.abierto) h+=`<br><span style="color:#f0c896">Tramo abierto — terminó hace menos de ${DIAS_MADUREZ_ANALISIS} días, todavía puede cerrar</span>`;
+  if(p.parcial) h+=`<br><span style="color:#f0c896">Tramo incompleto — ${p.dIn} de ${p.dTot} días</span>`;
+  return h;
+}
+function mktGraficoColumnas(id, serie, filas, maxY, mini){
+  const pts=serie.out, n=pts.length;
+  const W=mini?260:680, H=mini?150:210, P=mini?{l:28,r:6,t:14,b:22}:{l:38,r:14,t:18,b:26};
+  const {step}=mktNormStep(serie.unit);
+  const bw=(W-P.l-P.r)/n, ancho=Math.min(bw*0.62, mini?18:30);
+  const cx=i=>P.l+bw*(i+0.5), alto=v=>(H-P.t-P.b)*v/maxY;
+  const ejes=(typeof ejesSVG==='function')?ejesSVG(W,H,P,maxY,pts.map((p,i)=>({x:cx(i),lbl:mktFechaCorta(p.t,serie.unit)}))):'';
+  let barras='', zonas='';
+  mktTipRes[id]=[];
+  pts.forEach((p,i)=>{
+    const f=filas[i], tot=f[0]+f[1]+f[2]+f[3], x=cx(i)-ancho/2;
+    let yb=H-P.b;
+    f.forEach((v,k)=>{ if(!v)return; const h=alto(v); yb-=h;
+      barras+=`<rect x="${x.toFixed(1)}" y="${yb.toFixed(1)}" width="${ancho.toFixed(1)}" height="${Math.max(h-1,0.5).toFixed(1)}" fill="${MKT_EST_COL[k]}" opacity="${p.abierto?0.4:1}"/>`; });
+    if(p.parcial && tot) barras+=`<rect x="${(x-1.5).toFixed(1)}" y="${(yb-1.5).toFixed(1)}" width="${(ancho+3).toFixed(1)}" height="${(H-P.b-yb+1.5).toFixed(1)}" fill="none" stroke="var(--muted,#8a94a3)" stroke-width="1" stroke-dasharray="3 2"/>`;
+    if(!mini && tot && n<=20) barras+=`<text x="${cx(i).toFixed(1)}" y="${(yb-4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--sec,#5b6675)">${tot}</text>`;
+    const ini=new Date(p.t), fin=new Date(step(ini).getTime()-86400000);
+    zonas+=`<rect x="${(P.l+bw*i).toFixed(1)}" y="${P.t}" width="${bw.toFixed(1)}" height="${H-P.t-P.b}" fill="transparent" style="cursor:pointer"
+      onmouseenter="mktResHover(event,'${id}',${i})" onmouseleave="mktResOut()" onclick="mktZoomTramo('${mktIsoDe(ini)}','${mktIsoDe(fin)}')"></rect>`;
+    mktTipRes[id].push({lbl:mktFechaCorta(p.t,serie.unit),
+      html:(tot?f.map((v,k)=>`<span style="color:${MKT_EST_COL[k]}">●</span> ${MKT_EST_LBL[k]}: <b>${v}</b> (${mktPct(v,tot)}%)`).join('<br>')+`<br>Total: <b>${tot}</b>`:'sin consultas')+mktNotaTramo(p)});
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${ejes}${barras}${zonas}</svg>`;
+}
+/* lineas: [{k, label, color, filas:[[c,s,r,x],...]}] — % = concretadas / todas (la base ya son reales). */
+function mktGraficoCierre(id, serie, lineas){
+  const pts=serie.out, n=pts.length;
+  const W=680,H=210,P={l:38,r:14,t:12,b:26};
+  const px=i=>P.l+(W-P.l-P.r)*(n>1?i/(n-1):0.5), py=v=>H-P.b-(H-P.t-P.b)*(v/100);
+  const {step}=mktNormStep(serie.unit);
+  let g='';
+  [0,20,40,60,80,100].forEach(v=>{ g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${py(v)}" y2="${py(v)}" stroke="var(--line2,#eef1f5)"/><text x="${P.l-6}" y="${py(v)+4}" text-anchor="end" font-size="10" fill="var(--muted,#8a94a3)">${v}%</text>`; });
+  g+=`<rect x="${P.l}" y="${py(MKT_OBJ_CIERRE)}" width="${W-P.l-P.r}" height="${py(MKT_PISO_CIERRE)-py(MKT_OBJ_CIERRE)}" fill="#15803d" opacity=".07"/>`;
+  [[MKT_PISO_CIERRE,'piso '+MKT_PISO_CIERRE+'%'],[MKT_OBJ_CIERRE,'objetivo '+MKT_OBJ_CIERRE+'%']].forEach(([v,t])=>{
+    g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${py(v)}" y2="${py(v)}" stroke="#15803d" stroke-width="1.2" stroke-dasharray="5 3" opacity=".75"/><text x="${W-P.r-2}" y="${py(v)-4}" text-anchor="end" font-size="10" font-weight="700" fill="#15803d">${t}</text>`; });
+  const cada=Math.max(1,Math.ceil(n/8));
+  pts.forEach((p,i)=>{ if(i%cada===0||i===n-1) g+=`<text x="${px(i).toFixed(1)}" y="${H-P.b+15}" text-anchor="middle" font-size="10" fill="var(--muted,#8a94a3)">${mktFechaCorta(p.t,serie.unit)}</text>`; });
+  const vals=lineas.map(L=>L.filas.map(f=>{ const t=f[0]+f[1]+f[2]+f[3]; return t?{pct:Math.round(f[0]/t*100),c:f[0],t}:null; }));
+  let cuerpo='';
+  lineas.forEach((L,j)=>{ const v=vals[j];
+    for(let i=0;i<n-1;i++){ if(!v[i]||!v[i+1])continue;
+      cuerpo+=`<line x1="${px(i).toFixed(1)}" y1="${py(v[i].pct).toFixed(1)}" x2="${px(i+1).toFixed(1)}" y2="${py(v[i+1].pct).toFixed(1)}" stroke="${L.color}" stroke-width="2" stroke-linecap="round"${(pts[i].abierto||pts[i+1].abierto)?' stroke-dasharray="5 4"':''}/>`; }
+    v.forEach((o,i)=>{ if(!o)return; cuerpo+=`<circle cx="${px(i).toFixed(1)}" cy="${py(o.pct).toFixed(1)}" r="3.4" fill="${pts[i].abierto?'var(--card,#fff)':L.color}" stroke="${L.color}" stroke-width="1.6"/>`; });
+  });
+  const ancho=n>1?(W-P.l-P.r)/(n-1):40;
+  mktTipRes[id]=[];
+  const zonas=pts.map((p,i)=>{
+    const filas=lineas.map((L,j)=>({L,o:vals[j][i]})).filter(x=>x.o).sort((a,b)=>b.o.pct-a.o.pct);
+    mktTipRes[id].push({lbl:mktFechaCorta(p.t,serie.unit),
+      html:(filas.length?filas.map(x=>`<span style="color:${x.L.color}">●</span> ${escapeHtml(x.L.label)}: <b>${x.o.pct}%</b> (${x.o.c} de ${x.o.t})`).join('<br>'):'sin consultas reales virtuales')+mktNotaTramo(p)});
+    const ini=new Date(p.t), fin=new Date(step(ini).getTime()-86400000);
+    return `<rect x="${(px(i)-ancho/2).toFixed(1)}" y="${P.t}" width="${ancho.toFixed(1)}" height="${H-P.t-P.b}" fill="transparent" style="cursor:pointer"
+      onmouseenter="mktResHover(event,'${id}',${i})" onmouseleave="mktResOut()" onclick="mktZoomTramo('${mktIsoDe(ini)}','${mktIsoDe(fin)}')"></rect>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${g}${cuerpo}${zonas}</svg>`;
+}
+/* Las dos tarjetas nuevas. rbase = base del balde (ya con \"Solo las reales\" y calidad). */
+function mktCardsResultadoTiempo(rbase){
+  mktTipRes={};
+  const {d1,d2}=mktRango();
+  const unit=mktUnidadResultado(), uLbl=MKT_UNIDAD_LBL[unit];
+  const serie=mktSerieUnit(rbase,unit,d1,d2), n=serie.out.length;
+  const forzado=mktUnidadEfectiva()==='dia';
+  if(!n) return '';
+  if(n>MKT_MAX_COLS){
+    return `<div class="mkt-card wide"><h3>1 · Resultado por ${uLbl} de llegada</h3><div class="mkt-cap-aviso">El período da <b>${n} tramos</b> por ${uLbl}: no entran en pantalla.
+      <div class="mkt-cap-btns">${unit!=='mes'?`<span class="mkt-chip" onclick="mktSetUnidad('mes')">Ver por mes</span>`:''}</div></div></div>`;
+  }
+  const vista=mktVistaEfectiva(), separa=vista!=='total', D=mktDimRes();
+  const leyEst=`<div class="mkt-leg">${MKT_EST_LBL.map((l,k)=>`<span><i style="background:${MKT_EST_COL[k]}"></i>${l}</span>`).join('')}
+    <span><i style="background:#15803d;opacity:.4"></i>Tramo abierto (&lt;${DIAS_MADUREZ_ANALISIS} días)</span>
+    <span><i style="background:none;border:1.5px dashed var(--muted);width:9px;height:9px"></i>Tramo incompleto</span></div>`;
+  let graf1;
+  if(!separa){
+    const filas=serie.out.map(p=>[p.eConc,p.eSeg,p.eRech,p.eSin]);
+    const maxY=Math.max(4,...filas.map(f=>f[0]+f[1]+f[2]+f[3]));
+    graf1=mktGraficoColumnas('res_tot',serie,filas,maxY,false);
+  }else{
+    const por=mktSerieEstadoDim(rbase,serie,D.clave,D.claves);
+    const sumK=k=>por[k].reduce((s,f)=>s+f[0]+f[1]+f[2]+f[3],0);
+    const keys=D.claves.filter(k=>D.visible(k)&&sumK(k)>0);
+    // Misma escala en todos: si cada mini tuviera la suya, WhatsApp y Publicidad Instagram
+    // se verían del mismo tamaño y la comparación sería engañosa.
+    const maxY=Math.max(4,...keys.map(k=>Math.max(...por[k].map(f=>f[0]+f[1]+f[2]+f[3]))));
+    graf1=keys.length?`<div class="mkt-minis">${keys.map((k,j)=>`<div class="mkt-mini"><div class="mt"><i style="background:${D.color(k)}"></i>${escapeHtml(D.etiq(k))} <b>${sumK(k)}</b></div>${mktGraficoColumnas('res_m'+j,serie,por[k],maxY,true)}</div>`).join('')}</div>
+      <div class="mkt-note" style="margin-top:6px">Todos los mini gráficos usan la misma escala, para poder compararlos.</div>`
+      :'<p class="mkt-note">Sin datos en este período.</p>';
+  }
+  const card1=`<div class="mkt-card wide"><h3>1 · Resultado por ${uLbl} de llegada</h3>
+    <p class="cap">De lo que entró en cada ${uLbl}, en qué terminó hoy.${separa?(vista==='vendedor'?' Un gráfico por vendedor.':' Un gráfico por canal.'):''} Tocá un tramo para acotar el período a ese tramo.</p>
+    ${forzado?`<div class="mkt-drillhint">En Resultados no se agrupa por día (quedan muy pocas consultas por tramo): se muestra por semana.</div>`:''}
+    ${graf1}${leyEst}
+    <div class="mkt-foot"><b>Qué medimos:</b> cada consulta cuenta en el tramo en que <b>entró</b> (fecha de ingreso), con el estado que tiene <b>hoy</b>${mktSoloReales?', <b>solo las reales</b>':', todas — descartadas incluidas'}. <b>Tramo abierto</b> = terminó hace menos de ${DIAS_MADUREZ_ANALISIS} días: lo que sigue en seguimiento todavía puede cerrar, así que no se lee como caída. <b>Tramo incompleto</b> = el período elegido lo corta y cubre menos días de los que le tocan.</div></div>`;
+
+  /* Cierre: solo virtual y solo reales, siempre. */
+  const vb=rbase.filter(a=>MKT_VIRTUALES.includes(mktCanalMostrar(a)) && mktReal(a));
+  let lineas=[];
+  if(!separa){
+    const por=mktSerieEstadoDim(vb,serie,()=>'T',['T']);
+    lineas=[{k:'T',label:'Total virtual',color:'#1e5fce',filas:por.T}];
+  }else{
+    const claves=vista==='vendedor'?D.claves:MKT_VIRTUALES;
+    const por=mktSerieEstadoDim(vb,serie,D.clave,claves);
+    lineas=claves.filter(k=>D.visible(k)&&por[k].some(f=>f[0]+f[1]+f[2]+f[3]>0))
+      .map(k=>({k,label:D.etiq(k),color:D.color(k),filas:por[k]}));
+  }
+  const leyC=`<div class="mkt-leg">${lineas.map(L=>`<span${separa?` style="cursor:pointer" onclick="${D.toggle(L.k)}" title="Tocá para verlo solo a él"`:''}><i style="background:${L.color}"></i>${escapeHtml(L.label)}</span>`).join('')}
+    <span><i class="hueco"></i>Tramo abierto (línea punteada)</span></div>`;
+  const tot=vb.length, conc=vb.filter(a=>estadoDe(a)==='Concretado').length;
+  const card2=`<div class="mkt-card wide"><h3>2 · Cierre por ${uLbl} — virtual</h3>
+    <p class="cap">Concretadas sobre consultas reales, en canales virtuales. Las bandas marcan el estándar: piso ${MKT_PISO_CIERRE}%, objetivo ${MKT_OBJ_CIERRE}%.</p>
+    ${lineas.length?`<div class="mkt-kpirow"><div class="mkt-kpi g"><div class="n">${mktPct(conc,tot)}% <small>· ${conc} de ${tot}</small></div><div class="l">Cierre del período<small>virtual, sobre reales</small></div></div></div>
+      ${mktGraficoCierre('res_cierre',serie,lineas)}${leyC}`
+      :'<p class="mkt-note">Con los filtros actuales no queda ninguna consulta real de canales virtuales.</p>'}
+    <div class="mkt-foot"><b>Qué medimos:</b> concretadas / consultas reales (afuera las que Cintia descartó), por tramo de llegada. Siempre sobre reales, aunque arriba esté \"Todas las consultas\". <b>Excluye Belgrano 2020 y 2299</b> aunque estén elegidos en el filtro: el local no se carga completo y la tasa sale inflada. Los tramos abiertos van punteados: su % todavía va a subir.</div></div>`;
+  return card1+card2;
+}
 function renderMarketing(boxId){
   if(boxId){ mktBox=boxId; mktLockVend=null; }   // entrada del módulo de Marketing: sin candado
   // Con el candado puesto, el módulo está embebido en la solapa Estadísticas del
@@ -19445,17 +19627,17 @@ function mktFiltrosHtml(){
       <div class="mkt-chips">${PER.map(([v,t])=>`<span class="mkt-chip ${mktPreset===v?'on':''}" onclick="mktSetPreset('${v}')">${t}</span>`).join('')}</div>
       ${mktPreset==='pers'?`<div class="mkt-fechas"><input type="date" id="mktFDesde" value="${mktDesde||''}" onchange="mktSetFecha('d',this.value)"> a <input type="date" id="mktFHasta" value="${mktHasta||''}" onchange="mktSetFecha('h',this.value)">${(mktDesde&&mktHasta&&mktDesde>mktHasta)?`<span class="tiny" style="color:#b45309;margin-left:8px">⚠ Cargaste las fechas al revés — las ordené solas.</span>`:''}</div>`:''}
     </div>
-    ${mktTab==='volumen'?`<div class="mkt-fgroup"><span class="lbl">Ver el gráfico</span>
+    ${mktTabConGrafico()?`<div class="mkt-fgroup"><span class="lbl">Ver el gráfico</span>
       <div class="mkt-chips">
         <span class="mkt-chip ${mktVista==='total'?'on':''}" onclick="mktSetVista('total')">Total</span>
         <span class="mkt-chip ${mktVista==='canal'?'on':''}" onclick="mktSetVista('canal')">Separado por canal</span>
         ${mktLockVend?'':`<span class="mkt-chip ${mktVista==='vendedor'?'on':''}" onclick="mktSetVista('vendedor')">Separado por vendedor</span>`}
-        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktVista==='canal'?'Una línea de color por canal.':(mktVista==='vendedor'?'Una línea de color por vendedor.':'Una sola línea con todo lo que pasa los filtros.')} Los chips de abajo siguen filtrando.</span>
+        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktTab==='volumen'?(mktVista==='canal'?'Una línea de color por canal.':(mktVista==='vendedor'?'Una línea de color por vendedor.':'Una sola línea con todo lo que pasa los filtros.')):(mktVista==='canal'?'Un mini gráfico por canal y una línea de cierre por canal virtual.':(mktVista==='vendedor'?'Un mini gráfico y una línea de cierre por vendedor.':'Un solo gráfico con todo lo que pasa los filtros.'))} Los chips de abajo siguen filtrando.</span>
       </div>
     </div>`:''}
-    ${mktTab==='volumen'?`<div class="mkt-fgroup"><span class="lbl">Agrupar por</span>
-      <div class="mkt-chips">${MKT_UNIDADES.map(([v,t])=>`<span class="mkt-chip ${mktUnidad===v?'on':''}" onclick="mktSetUnidad('${v}')">${t}${(v==='auto'&&mktUnidad==='auto')?` (por ${MKT_UNIDAD_LBL[mktUnidadEfectiva()]})`:''}</span>`).join('')}</div>
-      <span class="tiny" style="color:var(--muted)">Solo afecta al gráfico de la tarjeta 1. En Automático lo decide el período, como hasta ahora.</span>
+    ${mktTabConGrafico()?`<div class="mkt-fgroup"><span class="lbl">Agrupar por</span>
+      <div class="mkt-chips">${MKT_UNIDADES.map(([v,t])=>`<span class="mkt-chip ${mktUnidad===v?'on':''}" onclick="mktSetUnidad('${v}')">${t}${(v==='auto'&&mktUnidad==='auto')?` (por ${MKT_UNIDAD_LBL[mktTab==='volumen'?mktUnidadEfectiva():mktUnidadResultado()]})`:''}</span>`).join('')}</div>
+      <span class="tiny" style="color:var(--muted)">Afecta a los gráficos de Volumen y de Resultados. En Automático lo decide el período. En Resultados, Día se muestra por semana.</span>
     </div>`:''}
     ${mktLockVend?'':`<div class="mkt-fgroup"><span class="lbl">Vendedor (elegí uno o varios)</span>
       <div class="mkt-chips oneline">
@@ -19628,14 +19810,14 @@ function mktEstadoTablaBig(rows, keyLbl){
 }
 
 function mktBucketResultado(base){
-  // Los chips de calidad (panel 3) filtran los paneles de estado y rechazos de este balde.
+  // Los chips de calidad (panel 5) filtran los paneles de estado y rechazos de este balde.
   const rbase = mktCalSel.length ? base.filter(a=>mktCalSel.includes(a.evalConsulta)) : base;
 
-  const card4=`<div class="mkt-card wide"><h3>1 · Estado por canal</h3>
+  const card4=`<div class="mkt-card wide"><h3>3 · Estado por canal</h3>
     <p class="cap">En qué termina lo que trae cada canal. Cada estado muestra la cantidad y, en negrita, su % sobre el total del canal.</p>
     ${mktEstadoTablaBig(mktEstadoRows(rbase, a=>mktCanalMostrar(a), MKT_CANALES), 'Canal')}
     <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal${mktSoloReales?', <b>solo sobre las reales</b> (afuera las que Cintia descartó: nunca respondió, fuera de target, o genérica + fuera de alcance)':', sobre <b>todas</b> las recibidas — descartadas incluidas'}. Entran <b>todas</b> las del período elegido, incluidas las de hoy — ojo que esas todavía no terminaron en nada y arrastran el % de concretadas para abajo. <b>Evaluado x Cintia</b> = sobre ese mismo total, cuántas evaluó; si el % es bajo, lo descartado está incompleto y la tabla hay que leerla con pinzas.</div></div>`;
-  const card5=`<div class="mkt-card wide"><h3>2 · Estado por vendedor</h3>
+  const card5=`<div class="mkt-card wide"><h3>4 · Estado por vendedor</h3>
     <p class="cap">El mismo corte, por persona.</p>
     ${mktEstadoTablaBig(mktEstadoRows(rbase, a=>a.vendedorId?nombreDe(a.vendedorId):'', MKT_VEND_ORDEN.map(nombreDe)), 'Vendedor')}
     <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por vendedor. La última columna es cuánto de lo evaluable ya miró Cintia — un vendedor con cobertura baja tiene los números menos auditados, no necesariamente mejores.</div></div>`;
@@ -19656,8 +19838,8 @@ function mktBucketResultado(base){
     ${rowsPC.map(c=>{const o=pc[c];return `<tr><td>${escapeHtml(c)}</td>${celc(o[1],o.n,'mkt-cg')}${celc(o[2],o.n,'mkt-cy')}${celc(o[3],o.n,'mkt-cr')}${celTotEv(o.n)}</tr>`;}).join('')}
     <tr class="tot"><td>Total</td>${celc(TC[1],TC.n,'mkt-cg')}${celc(TC[2],TC.n,'mkt-cy')}${celc(TC[3],TC.n,'mkt-cr')}${celTotEv(TC.n)}</tr>
   </tbody></table>`:'<p class="mkt-note">Sin consultas evaluadas en el período.</p>';
-  const card8=`<div class="mkt-card wide"><h3>3 · Calidad de la consulta — evaluación de Cintia</h3>
-    <p class="cap">Cintia clasifica cada consulta. Tocá una categoría para filtrar los paneles 1, 2 y 4 por esa calidad. La tabla separa por canal.</p>
+  const card8=`<div class="mkt-card wide"><h3>5 · Calidad de la consulta — evaluación de Cintia</h3>
+    <p class="cap">Cintia clasifica cada consulta. Tocá una categoría para filtrar los paneles 1 a 4 y 6 por esa calidad. La tabla separa por canal.</p>
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${evN}</div><div class="l">Consultas evaluadas</div></div>
       <div class="mkt-kpi g"><div class="n">${mktPct(distC[1],evN)}%</div><div class="l">Bien orientadas</div></div>
@@ -19676,7 +19858,7 @@ function mktBucketResultado(base){
   rech.forEach(a=>{const c=mktCanalMostrar(a); if(!scopeCanales.includes(c))return; (nrc[c]=nrc[c]||{rech:0,nr:0}); nrc[c].rech++; if(mktNoResp(a))nrc[c].nr++;});
   const rowsNR=scopeCanales.filter(c=>nrc[c]);
   const subtabs=`<div class="mkt-subtabs">${[['todos','Todos'],['pub','Solo publicidad'],['otros','Solo otras']].map(([v,t])=>`<span class="mkt-chip sm ${mktNoRespScope===v?'on':''}" onclick="mktSetNoRespScope('${v}')">${t}</span>`).join('')}</div>`;
-  const cardNR=`<div class="mkt-card wide"><h3>4 · Rechazos por "no responde", por canal</h3>
+  const cardNR=`<div class="mkt-card wide"><h3>6 · Rechazos por "no responde", por canal</h3>
     <p class="cap">De las rechazadas, cuántas fueron porque el cliente nunca contestó — abierto por canal. Filtrá publicidad vs. el resto.</p>
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${rech.length}</div><div class="l">Rechazadas total</div></div>
@@ -19694,7 +19876,7 @@ function mktBucketResultado(base){
   const camp={};
   pubBase.forEach(a=>{const k=((a.campanaPublicidad||'').trim())||'Sin campaña'; (camp[k]=camp[k]||{n:0,nr:0,val:0}); camp[k].n++; if(mktNoResp(a))camp[k].nr++; camp[k].val+=mktValor(a);});
   const rowsCamp=Object.entries(camp).map(([k,o])=>({k,...o})).sort((a,b)=>b.n-a.n);
-  const cardPauta=`<div class="mkt-card wide"><h3>5 · Publicidad — de qué pauta</h3>
+  const cardPauta=`<div class="mkt-card wide"><h3>7 · Publicidad — de qué pauta</h3>
     <p class="cap">Consultas que entran por pauta, abiertas por la campaña que carga Cintia ("¿de qué es la campaña?"). Muestra qué campaña trae volumen y cuál trae gente que no contesta.</p>
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${pubBase.length}</div><div class="l">Consultas de publicidad</div></div>
@@ -19747,7 +19929,7 @@ function mktBucketResultado(base){
       <div class="mkt-foot"><b>Qué medimos:</b> el eje <b>Atención</b> de la evaluación de Cintia, sobre ${T.tot} consultas evaluadas. <b>% bien</b> = "Muy bien" + "Bien". Ordenado de mejor a peor. <b>Solo compará entre vendedores con cobertura parecida</b>: la cola de Cintia prioriza rechazadas y estancadas, así que con poca cobertura lo evaluado se inclina hacia lo que salió mal. En verde 80%+, ámbar 50-79%, rojo abajo — en rojo, el % de al lado no es comparable.</div></div>`;
   })() : '';
 
-  return card4 + (mktLockVend?'':card5) + card8 + (mktLockVend?'':card9) + cardNR + cardPauta;
+  return mktCardsResultadoTiempo(rbase) + card4 + (mktLockVend?'':card5) + card8 + (mktLockVend?'':card9) + cardNR + cardPauta;
 }
 
 function mktBucketProd(base){
