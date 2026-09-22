@@ -384,7 +384,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
             <div class="section-title">2. Precio del mueble</div>
             <div class="d-row">
               <div class="d-cell"><label class="f" for="mtPrecio">Precio de lista</label><input id="mtPrecio" class="money" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $1.000.000"></div>
-              <div class="d-cell"><span class="f" id="mtLbl">Adicional (60%)</span><div class="d-out" id="mtEf">$0</div></div>
+              <div class="d-cell"><span class="f" id="mtLbl">Adicional (100%)</span><div class="d-out" id="mtEf">$0</div></div>
               <div class="d-cell"><span class="f">Total</span><div class="d-out d-strong" id="mtTot">$0</div></div>
               <div class="d-btn"><button class="btn" id="mtAdd" disabled>Agregar</button><div class="flash" id="mtFlash" role="status"></div></div>
             </div>
@@ -877,8 +877,8 @@ el("pgPrecio").addEventListener("input", calcPg);
    para abajo a la centena (el total nunca queda por debajo de la cuenta exacta). */
 const MAT_CATS = [ { id:"placard", n:"Placard" }, { id:"mueble", n:"Muebles" } ];
 const MAT_CAMBIOS = [
-  { id:"plaq",   cat:"placard", n:"Laqueado",          titulo:"Placard en laqueado",           pct:.60,  txt:"Placard de melamina hecho en laqueado. Se suma un 60% sobre el precio de lista. Los adicionales se cotizan en laqueado." },
-  { id:"plus",   cat:"placard", n:"Lustrado",          titulo:"Placard lustrado (enchapado)",  pct:.80,  txt:"Placard de melamina hecho en enchapado lustrado. Se suma un 80% sobre el precio de lista. Los adicionales se cotizan en enchapado. Si además va laqueado sobre paraíso, después sumá Laq Paraíso en Diseño." },
+  { id:"plaq",   cat:"placard", n:"Laqueado",          titulo:"Placard en laqueado",           pct:1.00, txt:"Placard de melamina hecho en laqueado. Se suma un 100% sobre el precio de lista. Los adicionales se cotizan en laqueado." },
+  { id:"plus",   cat:"placard", n:"Lustrado",          titulo:"Placard lustrado (enchapado)",  pct:1.20, txt:"Placard de melamina hecho en enchapado lustrado. Se suma un 120% sobre el precio de lista. Los adicionales se cotizan en enchapado. Si además va laqueado sobre paraíso, después sumá Laq Paraíso en Diseño." },
   { id:"mblan",  cat:"mueble",  n:"Melamina blanca",   titulo:"Mueble en melamina blanca",     pct:-.17, txt:"Mueble laqueado hecho en melamina blanca. Se descuenta un 17% del precio de lista. Los adicionales se cotizan en melamina." },
   { id:"mcolor", cat:"mueble",  n:"Melamina especial", titulo:"Mueble en melamina color especial", pct:-.10, txt:"Mueble laqueado hecho en melamina de color especial. Se descuenta un 10% del precio de lista. Los adicionales se cotizan en melamina." },
 ];
