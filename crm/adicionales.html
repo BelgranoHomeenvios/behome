@@ -280,6 +280,15 @@ label.f,span.f{white-space:nowrap;overflow:visible}
 .a-ht{flex:1;color:var(--text)}
 .a-ht::first-letter{text-transform:uppercase}
 .a-hrow b{color:var(--ink)}
+
+/* 22/9/2026 — celular: la página se estiraba de costado. La grilla de la cotización usaba
+   1fr (que crece hasta el ancho de la fila de botones más larga); con minmax(0,1fr) se
+   ajusta a la pantalla. Las filas de botones largas (Material, Diseño) pasan a 2 renglones. */
+@media (max-width:1050px){.cot-layout{grid-template-columns:minmax(0,1fr)}}
+#subPills,#dPills{min-width:0;max-width:100%}
+.mt-sel + .one{margin-top:10px}
+@media (max-width:700px){.mt-sel .d-cell{flex:1 1 100%}}
+@media (max-width:700px){#dPills,#subPills{flex-wrap:wrap}}
 </style>
 </head>
 <body>
@@ -310,9 +319,10 @@ label.f,span.f{white-space:nowrap;overflow:visible}
     <div class="modebar">
       <span class="label">Qué querés cotizar</span>
       <div class="pills" id="subPills">
-        <button class="pill" data-sub="adic" aria-pressed="true">Adicionales</button>
+        <button class="pill" data-sub="mat" aria-pressed="false">Material</button>
         <button class="pill" data-sub="mueble" aria-pressed="false">Medidas</button>
         <button class="pill" data-sub="dis" aria-pressed="false">Diseño</button>
+        <button class="pill" data-sub="adic" aria-pressed="true">Adicionales</button>
         <button class="pill" data-sub="pago" aria-pressed="false">Medios de pago</button>
       </div>
     </div>
@@ -350,7 +360,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
                   <div class="d-cell"><span class="f">Valor adicional</span><div class="d-out d-strong" id="pV">$0</div></div></div></div>
               </div>
             </div>
-            <p class="acc-note" style="margin-top:8px">En largo, el valor estándar tiene que ser el de ese largo de lista.</p>
+            <p class="acc-note" style="margin-top:8px">En largo, el valor estándar tiene que ser el de ese largo de lista. Si cambiaste el material, cargá el valor con ese cambio ya aplicado.</p>
           </div>
           <div id="mWarn" class="warn hide"></div>
           <div id="mInfo" class="info hide"></div>
@@ -358,6 +368,27 @@ label.f,span.f{white-space:nowrap;overflow:visible}
             <div class="m-top"><div><div class="small">Valor cotizado</div><div class="big" id="mEf">$0</div><div class="small" id="mAdic"></div></div>
             <div style="text-align:right"><button class="btn" id="mAdd" disabled>Agregar al presupuesto</button><div class="flash" id="mFlash" role="status"></div></div></div>
             <div class="m-exp"><div class="small" style="margin:0 0 4px">Cómo se calculó</div><p class="detail" id="mDet"></p></div>
+          </div>
+        </div>
+
+        <div class="hide" id="pMat">
+          <div class="section-box">
+            <div class="section-title">1. Cambio de material</div>
+            <div class="d-row mt-sel">
+              <div class="d-cell"><label class="f" for="mtCatSel">Categoría</label><select id="mtCatSel" class="sel"></select></div>
+              <div class="d-cell"><label class="f" for="mtOptSel">Llevarlo a</label><select id="mtOptSel" class="sel"></select></div>
+            </div>
+            <p class="one" id="mtTxt"></p>
+          </div>
+          <div class="section-box">
+            <div class="section-title">2. Precio del mueble</div>
+            <div class="d-row">
+              <div class="d-cell"><label class="f" for="mtPrecio">Precio de lista</label><input id="mtPrecio" class="money" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $1.000.000"></div>
+              <div class="d-cell"><span class="f" id="mtLbl">Adicional (60%)</span><div class="d-out" id="mtEf">$0</div></div>
+              <div class="d-cell"><span class="f">Total</span><div class="d-out d-strong" id="mtTot">$0</div></div>
+              <div class="d-btn"><button class="btn" id="mtAdd" disabled>Agregar</button><div class="flash" id="mtFlash" role="status"></div></div>
+            </div>
+            <p class="acc-note" style="margin-top:8px">Cargá el precio del mueble en su material de siempre, sin adicionales. Después seguí en orden: Medidas → Diseño → Adicionales → Medios de pago, cada paso sobre el total que venís arrastrando.</p>
           </div>
         </div>
 
@@ -375,7 +406,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
               <div class="d-cell"><span class="f">Total</span><div class="d-out d-strong" id="dTot">$0</div></div>
               <div class="d-btn"><button class="btn" id="dAdd" disabled>Agregar</button><div class="flash" id="dFlash" role="status"></div></div>
             </div>
-            <p class="acc-note" style="margin-top:8px">Cargá el total del mueble con las medidas especiales ya aplicadas, si las tiene.</p>
+            <p class="acc-note" style="margin-top:8px">Cargá el total del mueble con el material y las medidas especiales ya aplicados, si los tiene.</p>
           </div>
         </div>
 
@@ -445,7 +476,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
 <script>
 const up100 = n => Math.ceil(Math.round(n * 1000) / 1000 / 100) * 100;
 const toLista = e => up100(e / 0.65);
-const $ = n => "$" + Math.round(n).toLocaleString("es-AR");
+const $ = n => (n < 0 ? "−$" : "$") + Math.round(Math.abs(n)).toLocaleString("es-AR");
 const el = id => document.getElementById(id);
 const num = id => { const x = el(id); if (!x) return null;
   /* campos de plata: se muestran como $1.100.000 → se leen solo los dígitos (el punto es de miles, no decimal) */
@@ -505,8 +536,8 @@ function setTab(t){
 el("tabCot").onclick = () => setTab("cot"); el("tabLst").onclick = () => setTab("lst");
 function setSub(s){
   el("subPills").querySelectorAll(".pill").forEach(p => p.setAttribute("aria-pressed", p.dataset.sub === s));
-  el("pMueble").classList.toggle("hide", s !== "mueble"); el("pAdic").classList.toggle("hide", s !== "adic"); el("pDis").classList.toggle("hide", s !== "dis"); el("pPago").classList.toggle("hide", s !== "pago");
-  el("subHint").textContent = { adic:"Elegí el adicional y completá sus datos. El precio se calcula automáticamente.", mueble:"Elegí la categoría, abrí las medidas que cambian y cargá el valor estándar.", dis:"Elegí el diseño y cargá el valor del mueble.", pago:"Elegí el medio de pago y cargá el precio en efectivo o en tarjeta." }[s];
+  el("pMat").classList.toggle("hide", s !== "mat"); el("pMueble").classList.toggle("hide", s !== "mueble"); el("pAdic").classList.toggle("hide", s !== "adic"); el("pDis").classList.toggle("hide", s !== "dis"); el("pPago").classList.toggle("hide", s !== "pago");
+  el("subHint").textContent = { mat:"Elegí la categoría, a qué material lo llevás y cargá el precio del mueble.", adic:"Elegí el adicional y completá sus datos. El precio se calcula automáticamente.", mueble:"Elegí la categoría, abrí las medidas que cambian y cargá el valor estándar.", dis:"Elegí el diseño y cargá el valor del mueble.", pago:"Elegí el medio de pago y cargá el precio en efectivo o en tarjeta." }[s];
 }
 el("subPills").querySelectorAll(".pill").forEach(p => p.onclick = () => setSub(p.dataset.sub));
 
@@ -726,7 +757,7 @@ function cotizar(id, mat){
 }
 
 /* ===== lista ===== */
-const L_GRUPOS = [...GRUPOS, "Diseño", "Medidas especiales"];
+const L_GRUPOS = [...GRUPOS, "Material", "Diseño", "Medidas especiales"];
 let curL = L_GRUPOS[0];
 function renderL(){
   el("lPills").innerHTML = L_GRUPOS.map(g => pill(g, g === curL, `data-l="${g}"`)).join("");
@@ -735,7 +766,9 @@ function renderL(){
   const head = (t, sub) => `<div class="head"><h2>${t}</h2>${sub ? `<p>${sub}</p>` : ""}</div>`;
   let h = "";
   if (curL === "Diseño") {
-    h = head("Diseño") + `<table class="grid"><tbody><tr><td><span class="nm">Ranuras en el frente</span><span class="cd">Solo en MDF. Sobre el valor total del mueble; se cotiza en Diseño.</span></td><td><span class="pct">+15%</span></td></tr></tbody></table>`;
+    h = head("Diseño", "Sobre el total del mueble, con material y medidas ya aplicados. Se cotiza en Diseño.") + `<table class="grid"><tbody>${DIS.map(d => `<tr><td><span class="nm">${d.n}</span><span class="cd">${d.txt}</span></td><td><span class="pct">+${Math.round(d.pct * 100)}%</span></td></tr>`).join("")}</tbody></table>`;
+  } else if (curL === "Material") {
+    h = head("Material", "Primer paso de la cotización: sobre el precio de lista, sin adicionales. Se cotiza en Material.") + `<table class="grid"><tbody>${MAT_CAMBIOS.map(m => `<tr><td><span class="nm">${MAT_CATS.find(c => c.id === m.cat).n} → ${m.n}</span><span class="cd">${m.txt}</span></td><td><span class="pct" style="${m.pct < 0 ? "color:var(--green)" : ""}">${m.pct < 0 ? "−" : "+"}${Math.round(Math.abs(m.pct) * 100)}%</span></td></tr>`).join("")}</tbody></table>`;
   } else if (curL === "Medidas especiales") {
     h = head("Medidas especiales", "La misma regla para alto, largo y profundidad.")
       + `<div class="scroll"><table class="grid"><thead><tr><th>Cambia 1 medida</th><th>Termina en 0</th><th>Termina en 5</th><th>Exacta</th></tr></thead><tbody>
@@ -775,7 +808,7 @@ function renderL(){
 const DIS = [
   { id:"ranurado", n:"Ranurado", titulo:"Ranurado", pct:.15, txt:"Solo en MDF. Se suma un 15% sobre el valor total del mueble." },
   { id:"fondo",    n:"Fondo",    titulo:"Sin fondo", pct:.10, txt:"Sacarle el fondo al mueble o a una parte. Se suma un 10% sobre el valor total del mueble." },
-  { id:"laqespecial", n:"Laq Paraíso", titulo:"Laqueado sobre paraíso", pct:.20, txt:"Laqueado sobre paraíso. Se suma un 20% sobre el valor total del mueble." },
+  { id:"laqespecial", n:"Laq Paraíso", titulo:"Laqueado sobre paraíso", pct:.20, txt:"Laqueado sobre paraíso. Se suma un 20% sobre el precio del mueble en paraíso lustrado. En un placard, primero cotizá el lustrado en Material y después esto." },
   { id:"disespecial", n:"Diseño especial", titulo:"Diseño especial", pct:.05, txt:"Se suma un 5% sobre el valor total del mueble." },
 ];
 let dSel = DIS[0], dState = null;
@@ -835,6 +868,44 @@ function calcPg(){
   pgState = rec > 0 ? { titulo:"Recargo por transferencia", det: pgBase === "tj" ? `15% sobre ${$(ef)} en efectivo (lista ${$(v)})` : `15% sobre ${$(v)} en efectivo`, ef:rec } : null;
 }
 el("pgPrecio").addEventListener("input", calcPg);
+
+/* ===== material (22/9/2026) =====
+   Cambio de material del mueble. Es el PRIMER paso de la cadena: se aplica sobre el
+   precio de lista en su material de siempre, sin adicionales. Después, cada paso
+   (Medidas → Diseño → Adicionales → Medios de pago) va sobre el total acumulado.
+   Recargo: se redondea para arriba a la centena. Descuento: el descuento se redondea
+   para abajo a la centena (el total nunca queda por debajo de la cuenta exacta). */
+const MAT_CATS = [ { id:"placard", n:"Placard" }, { id:"mueble", n:"Muebles" } ];
+const MAT_CAMBIOS = [
+  { id:"plaq",   cat:"placard", n:"Laqueado",          titulo:"Placard en laqueado",           pct:.60,  txt:"Placard de melamina hecho en laqueado. Se suma un 60% sobre el precio de lista. Los adicionales se cotizan en laqueado." },
+  { id:"plus",   cat:"placard", n:"Lustrado",          titulo:"Placard lustrado (enchapado)",  pct:.80,  txt:"Placard de melamina hecho en enchapado lustrado. Se suma un 80% sobre el precio de lista. Los adicionales se cotizan en enchapado. Si además va laqueado sobre paraíso, después sumá Laq Paraíso en Diseño." },
+  { id:"mblan",  cat:"mueble",  n:"Melamina blanca",   titulo:"Mueble en melamina blanca",     pct:-.17, txt:"Mueble laqueado hecho en melamina blanca. Se descuenta un 17% del precio de lista. Los adicionales se cotizan en melamina." },
+  { id:"mcolor", cat:"mueble",  n:"Melamina especial", titulo:"Mueble en melamina color especial", pct:-.10, txt:"Mueble laqueado hecho en melamina de color especial. Se descuenta un 10% del precio de lista. Los adicionales se cotizan en melamina." },
+];
+let mtCat = "placard", mtSel = MAT_CAMBIOS[0], mtState = null;
+/* Dos desplegables en una fila: Categoría (Placard / Muebles) y Llevarlo a (las opciones de esa categoría) */
+function renderMtPills(){
+  el("mtCatSel").innerHTML = MAT_CATS.map(c => `<option value="${c.id}"${c.id === mtCat ? " selected" : ""}>${c.n}</option>`).join("");
+  el("mtOptSel").innerHTML = MAT_CAMBIOS.filter(m => m.cat === mtCat).map(m => `<option value="${m.id}"${m === mtSel ? " selected" : ""}>${m.n}</option>`).join("");
+  el("mtTxt").innerHTML = `<b>${mtSel.titulo}</b> <span>${mtSel.txt}</span>`;
+  const p = Math.round(Math.abs(mtSel.pct) * 100);
+  el("mtLbl").textContent = mtSel.pct < 0 ? `Descuento (${p}%)` : `Adicional (${p}%)`;
+}
+function calcMt(){
+  const v = num("mtPrecio");
+  const aj = v ? (mtSel.pct > 0 ? up100(v * mtSel.pct) : -down100(v * -mtSel.pct)) : 0;
+  el("mtEf").textContent = $(aj);
+  el("mtEf").style.color = aj < 0 ? "var(--green)" : "";
+  el("mtTot").textContent = $(v ? v + aj : 0);
+  el("mtAdd").disabled = !aj;
+  const p = Math.round(Math.abs(mtSel.pct) * 100);
+  mtState = aj ? { titulo:mtSel.titulo, det: mtSel.pct < 0 ? `descuento ${p}% sobre ${$(v)}` : `${p}% sobre ${$(v)}`, ef:aj } : null;
+}
+el("mtCatSel").onchange = () => { mtCat = el("mtCatSel").value; mtSel = MAT_CAMBIOS.find(m => m.cat === mtCat); renderMtPills(); calcMt(); };
+el("mtOptSel").onchange = () => { mtSel = MAT_CAMBIOS.find(m => m.id === el("mtOptSel").value); renderMtPills(); calcMt(); };
+el("mtPrecio").addEventListener("input", calcMt);
+el("mtAdd").onclick = () => { if (mtState) { addLine(mtState.titulo, mtState.det, mtState.ef, true); flash("mtFlash", "Agregado"); } };
+renderMtPills(); calcMt();
 el("pgAdd").onclick = () => { if (pgState) { addLine(pgState.titulo, pgState.det, pgState.ef, true); flash("pgFlash", "Agregado"); } };
 calcPg();
 
