@@ -323,6 +323,7 @@ label.f,span.f{white-space:nowrap;overflow:visible}
         <button class="pill" data-sub="mueble" aria-pressed="false">Medidas</button>
         <button class="pill" data-sub="dis" aria-pressed="false">Diseño</button>
         <button class="pill" data-sub="adic" aria-pressed="true">Adicionales</button>
+        <button class="pill" data-sub="arr" aria-pressed="false">Arreglos</button>
         <button class="pill" data-sub="pago" aria-pressed="false">Medios de pago</button>
       </div>
     </div>
@@ -389,6 +390,26 @@ label.f,span.f{white-space:nowrap;overflow:visible}
               <div class="d-btn"><button class="btn" id="mtAdd" disabled>Agregar</button><div class="flash" id="mtFlash" role="status"></div></div>
             </div>
             <p class="acc-note" style="margin-top:8px">Cargá el precio del mueble en su material de siempre, sin adicionales. Después seguí en orden: Medidas → Diseño → Adicionales → Medios de pago, cada paso sobre el total que venís arrastrando.</p>
+          </div>
+        </div>
+
+        <div class="hide" id="pArr">
+          <div class="section-box">
+            <div class="section-title">1. Elegí el arreglo</div>
+            <div class="d-row mt-sel">
+              <div class="d-cell"><label class="f" for="arTipo">Arreglo</label><select id="arTipo" class="sel"></select></div>
+              <div class="d-cell"><label class="f" for="arItem">Qué se arregla</label><select id="arItem" class="sel"></select></div>
+            </div>
+            <p class="one" id="arTxt"></p>
+          </div>
+          <div class="section-box">
+            <div class="section-title">2. Datos</div>
+            <div class="a-row">
+              <div class="fields" id="arFields"></div>
+              <div class="a-price"><span class="f">Precio</span><div class="a-out"><b id="arEf">$0</b><small id="arLi">Lista $0</small></div></div>
+              <div class="d-btn"><button class="btn" id="arAdd" disabled>Agregar</button></div>
+            </div>
+            <div class="a-foot"><p class="detail" id="arDet"></p><div class="flash" id="arFlash" role="status"></div></div>
           </div>
         </div>
 
@@ -536,8 +557,8 @@ function setTab(t){
 el("tabCot").onclick = () => setTab("cot"); el("tabLst").onclick = () => setTab("lst");
 function setSub(s){
   el("subPills").querySelectorAll(".pill").forEach(p => p.setAttribute("aria-pressed", p.dataset.sub === s));
-  el("pMat").classList.toggle("hide", s !== "mat"); el("pMueble").classList.toggle("hide", s !== "mueble"); el("pAdic").classList.toggle("hide", s !== "adic"); el("pDis").classList.toggle("hide", s !== "dis"); el("pPago").classList.toggle("hide", s !== "pago");
-  el("subHint").textContent = { mat:"Elegí la categoría, a qué material lo llevás y cargá el precio del mueble.", adic:"Elegí el adicional y completá sus datos. El precio se calcula automáticamente.", mueble:"Elegí la categoría, abrí las medidas que cambian y cargá el valor estándar.", dis:"Elegí el diseño y cargá el valor del mueble.", pago:"Elegí el medio de pago y cargá el precio en efectivo o en tarjeta." }[s];
+  el("pMat").classList.toggle("hide", s !== "mat"); el("pArr").classList.toggle("hide", s !== "arr"); el("pMueble").classList.toggle("hide", s !== "mueble"); el("pAdic").classList.toggle("hide", s !== "adic"); el("pDis").classList.toggle("hide", s !== "dis"); el("pPago").classList.toggle("hide", s !== "pago");
+  el("subHint").textContent = { mat:"Elegí la categoría, a qué material lo llevás y cargá el precio del mueble.", arr:"Elegí el arreglo, qué se arregla y completá los datos.", adic:"Elegí el adicional y completá sus datos. El precio se calcula automáticamente.", mueble:"Elegí la categoría, abrí las medidas que cambian y cargá el valor estándar.", dis:"Elegí el diseño y cargá el valor del mueble.", pago:"Elegí el medio de pago y cargá el precio en efectivo o en tarjeta." }[s];
 }
 el("subPills").querySelectorAll(".pill").forEach(p => p.onclick = () => setSub(p.dataset.sub));
 
@@ -757,7 +778,7 @@ function cotizar(id, mat){
 }
 
 /* ===== lista ===== */
-const L_GRUPOS = [...GRUPOS, "Material", "Diseño", "Medidas especiales"];
+const L_GRUPOS = [...GRUPOS, "Material", "Diseño", "Medidas especiales", "Arreglos"];
 let curL = L_GRUPOS[0];
 function renderL(){
   el("lPills").innerHTML = L_GRUPOS.map(g => pill(g, g === curL, `data-l="${g}"`)).join("");
@@ -769,6 +790,8 @@ function renderL(){
     h = head("Diseño", "Sobre el total del mueble, con material y medidas ya aplicados. Se cotiza en Diseño.") + `<table class="grid"><tbody>${DIS.map(d => `<tr><td><span class="nm">${d.n}</span><span class="cd">${d.txt}</span></td><td><span class="pct">+${Math.round(d.pct * 100)}%</span></td></tr>`).join("")}</tbody></table>`;
   } else if (curL === "Material") {
     h = head("Material", "Primer paso de la cotización: sobre el precio de lista, sin adicionales. Se cotiza en Material.") + `<table class="grid"><tbody>${MAT_CAMBIOS.map(m => `<tr><td><span class="nm">${MAT_CATS.find(c => c.id === m.cat).n} → ${m.n}</span><span class="cd">${m.txt}</span></td><td><span class="pct" style="${m.pct < 0 ? "color:var(--green)" : ""}">${m.pct < 0 ? "−" : "+"}${Math.round(Math.abs(m.pct) * 100)}%</span></td></tr>`).join("")}</tbody></table>`;
+  } else if (curL === "Arreglos") {
+    h = ARREGLOS.map(t => head(t.n, "Arreglos sobre un mueble que el cliente ya tiene. Se cotiza en Arreglos.") + `<table class="grid"><tbody>${t.items.map(i => `<tr><td><span class="nm">${i.n}</span><span class="cd">${i.txt}</span></td>${i.tipo === "pct" ? `<td><span class="pct">${Math.round(i.pct * 100)}%</span></td>` : cell(i.precio)}</tr>`).join("")}</tbody></table>`).join("");
   } else if (curL === "Medidas especiales") {
     h = head("Medidas especiales", "La misma regla para alto, largo y profundidad.")
       + `<div class="scroll"><table class="grid"><thead><tr><th>Cambia 1 medida</th><th>Termina en 0</th><th>Termina en 5</th><th>Exacta</th></tr></thead><tbody>
@@ -906,6 +929,61 @@ el("mtOptSel").onchange = () => { mtSel = MAT_CAMBIOS.find(m => m.id === el("mtO
 el("mtPrecio").addEventListener("input", calcMt);
 el("mtAdd").onclick = () => { if (mtState) { addLine(mtState.titulo, mtState.det, mtState.ef, true); flash("mtFlash", "Agregado"); } };
 renderMtPills(); calcMt();
+
+/* ===== arreglos (22/9/2026) =====
+   Servicios sobre un mueble que el cliente ya tiene. NO es parte de la cadena del mueble
+   nuevo (Material → Medidas → Diseño → Adicionales); Medios de pago sí va después.
+   Precios en efectivo. Por m²: mínimo 1 m² por pieza, redondeo para arriba a la centena. */
+const ARREGLOS = [
+  { id:"relaqueo", n:"Relaqueo", titulo:"Relaqueo", items:[
+    { id:"entero",  n:"Mueble entero", tipo:"pct",    pct:.50,                                        txt:"Relaquear el mueble completo. Se cobra el 50% del valor del mueble." },
+    { id:"cajon",   n:"Cajón",         tipo:"unidad", precio:60000, cantLabel:"Cajones",               txt:"Por cajón." },
+    { id:"puerta",  n:"Puerta",        tipo:"m2",     precio:50000, dims:["Ancho","Alto"],        cantLabel:"Puertas",  minM2:1, txt:"Por m², mínimo 1 m² por puerta." },
+    { id:"estante", n:"Estante",       tipo:"m2",     precio:50000, dims:["Ancho","Profundidad"], cantLabel:"Estantes", minM2:1, txt:"Por m², mínimo 1 m² por estante." },
+  ]},
+  /* Herrajes: los mismos de la píldora Herrajes de Adicionales (se leen de ADIC, así un
+     cambio de precio allá se refleja acá) + la corredera Z, que es solo de arreglos. */
+  { id:"herrajes", n:"Herrajes", titulo:"Arreglo de herrajes", items:[
+    ...ADIC.filter(a => a.grupo === "Herrajes" && a.tipo === "unidad" && a.precio).map(a => ({ id:"h_" + a.id, n:a.nombre, tipo:"unidad", precio:a.precio, cantLabel:a.cantLabel, txt:a.cond })),
+    { id:"correderaz", n:"Corredera Z", tipo:"unidad", precio:15000, cantLabel:"Cajones", txt:"Por cajón." },
+  ]},
+];
+let arTipo = ARREGLOS[0], arIt = arTipo.items[0], arState = null;
+const arCampo = (id, lbl, extra) => `<div><label class="f" for="${id}">${lbl}</label><input id="${id}" ${extra}></div>`;
+function renderAr(){
+  el("arTipo").innerHTML = ARREGLOS.map(t => `<option value="${t.id}"${t === arTipo ? " selected" : ""}>${t.n}</option>`).join("");
+  el("arItem").innerHTML = arTipo.items.map(i => `<option value="${i.id}"${i === arIt ? " selected" : ""}>${i.n}</option>`).join("");
+  el("arTxt").innerHTML = `<b>${arTipo.n} · ${arIt.n}</b> <span>${arIt.txt}</span>`;
+  const num1 = 'type="number" inputmode="decimal"', cant = 'type="number" inputmode="numeric" min="1" value="1"';
+  el("arFields").innerHTML =
+    arIt.tipo === "pct"    ? arCampo("arValor", "Valor del mueble", 'class="money" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $1.000.000"') :
+    arIt.tipo === "unidad" ? arCampo("arCant", arIt.cantLabel, cant) :
+    arCampo("arD1", `${arIt.dims[0]} (cm)`, num1) + arCampo("arD2", `${arIt.dims[1]} (cm)`, num1) + arCampo("arCant", arIt.cantLabel, cant);
+  calcAr();
+}
+function calcAr(){
+  const it = arIt, det = []; let ef = 0;
+  if (it.tipo === "pct") { const v = num("arValor"); ef = v ? up100(v * it.pct) : 0; if (ef) det.push(`${Math.round(it.pct * 100)}% sobre ${$(v)}`); }
+  if (it.tipo === "unidad") { const c = Math.floor(num("arCant") || 0); ef = c * it.precio; if (ef) det.push(`${c} × ${$(it.precio)}`); }
+  if (it.tipo === "m2") {
+    const d1 = num("arD1"), d2 = num("arD2"), c = Math.floor(num("arCant") || 0);
+    if (d1 && d2 && c) {
+      const m2 = d1 / 100 * d2 / 100, m2s = m2.toFixed(2).replace(".", ",");
+      const unit = up100(Math.max(m2, it.minM2) * it.precio); ef = unit * c;
+      det.push(`${c} × ${$(unit)}`, m2 < it.minM2 ? `${m2s} m², se cobra ${String(it.minM2).replace(".", ",")} m²` : `${d1}×${d2} cm = ${m2s} m²`);
+    }
+  }
+  el("arEf").textContent = $(ef);
+  el("arLi").textContent = it.tipo === "pct" ? (ef ? `${Math.round(it.pct * 100)}% del valor cargado` : "") : "Lista " + $(ef ? toLista(ef) : 0);
+  el("arDet").textContent = ef ? det.join(", ") : "";
+  el("arAdd").disabled = !(ef > 0);
+  arState = ef > 0 ? { titulo:`${arTipo.titulo} · ${it.n}`, det:det.join(", "), ef, soloValor: it.tipo === "pct" } : null;
+}
+el("arTipo").onchange = () => { arTipo = ARREGLOS.find(t => t.id === el("arTipo").value); arIt = arTipo.items[0]; renderAr(); };
+el("arItem").onchange = () => { arIt = arTipo.items.find(i => i.id === el("arItem").value); renderAr(); };
+el("arFields").addEventListener("input", calcAr);
+el("arAdd").onclick = () => { if (arState) { addLine(arState.titulo, arState.det, arState.ef, arState.soloValor); flash("arFlash", "Agregado"); } };
+renderAr();
 el("pgAdd").onclick = () => { if (pgState) { addLine(pgState.titulo, pgState.det, pgState.ef, true); flash("pgFlash", "Agregado"); } };
 calcPg();
 
