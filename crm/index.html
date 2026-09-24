@@ -1780,6 +1780,7 @@ textarea{resize:vertical;min-height:60px}
       <span class="mod-switch-item mod-switch-active">CRM</span>
       <a class="mod-switch-item" id="modLogistica" href="https://belgranohomeenvios.github.io/logistica/">Logística</a>
       <a class="mod-switch-item" id="modAdicionales" href="adicionales.html">Adicionales</a>
+      <a class="mod-switch-item" id="modSillones" href="sillones.html">Sillones</a>
     </nav>
     <span class="spacer"></span>
     <select id="filtroLocalAdmin" class="hidden" onchange="cambiarFiltroLocalAdmin(this.value)"></select>
@@ -2832,6 +2833,7 @@ function entrarApp(){
   $('tabMarketing').classList.toggle('hidden', !(esMarketing()||esAdmin()));  // módulo de Marketing: lo ven Ariel y dirección
   { const _ml=document.getElementById('modLogistica'); if(_ml) _ml.classList.toggle('hidden', esMarketing()); }  // Ariel no ve Logística, solo CRM
   { const _ma=document.getElementById('modAdicionales'); if(_ma) _ma.classList.toggle('hidden', esMarketing()); }  // ni Adicionales
+  { const _ms=document.getElementById('modSillones'); if(_ms) _ms.classList.toggle('hidden', esMarketing()); }  // ni Sillones
   // Default de período por rol: el vendedor arranca viendo los últimos 15 días
   // (3/8/2026, Brian: 30 le mostraba demasiado y diluía la agenda del día).
   // Cintia y dirección siguen con la ventana más amplia.
