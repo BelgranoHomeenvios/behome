@@ -150,9 +150,8 @@ td input.edited{color:var(--acc-d);border-color:var(--acc);font-weight:700;backg
           <div class="field"><label>5 · Patas</label><div class="selwrap"><select id="pataTipo"></select></div></div>
           <div class="field"><label>6 · Terminación de pata</label><div class="selwrap"><select id="pataFin"></select></div></div>
           <div id="detalleWrap">
-            <div class="field"><label>7 · Estructura</label><div class="selwrap"><select id="estrSel" disabled></select></div></div>
-            <div class="field"><label>8 · Asiento</label><div class="selwrap"><select id="asientoSel" disabled></select></div></div>
-            <div class="field" style="margin-bottom:0"><label>9 · Almohadones</label><div class="selwrap"><select id="almoSel" disabled></select></div></div>
+            <div class="field"><label>7 · Asiento</label><div class="selwrap"><select id="asientoSel" disabled></select></div></div>
+            <div class="field" style="margin-bottom:0"><label>8 · Almohadones</label><div class="selwrap"><select id="almoSel" disabled></select></div></div>
           </div>
         </div>
         <div class="colR">
@@ -315,7 +314,7 @@ function onModelo(){dSel().innerHTML="";pSel().innerHTML="";pSel().disabled=true
   const m=mSel().value;showImg(m);fillDetalle();
   if(!m){dSel().disabled=true;return;}
   const meds=[...new Set(DATA.filter(r=>r.m===m).map(r=>r.d))].sort((a,b)=>numMed(a)-numMed(b));
-  dSel().disabled=false;dSel().innerHTML='<option value="">Elegí la medida…</option>'+meds.map(d=>`<option>${d}</option>`).join("");
+  dSel().disabled=false;dSel().innerHTML='<option value="">Elegí la medida…</option>'+meds.map(d=>`<option value="${d}">${d}${numMed(d)>=2.4?' (se hace en 2 partes)':''}</option>`).join("");
   if(meds.length===1){dSel().value=meds[0];onMedida();}}
 function onMedida(){pSel().innerHTML="";pSel().disabled=true;tSel().innerHTML="";tSel().disabled=true;clearPrice();
   if(!dSel().value)return;
@@ -345,15 +344,13 @@ function updatePata(){pataImgEl().src=pataImgSrc();$("pataFinTxt").textContent=(
 function pataImgEl(){return $("pataImg");}
 // detalle
 const NO_DETALLE=()=>{const o={};MODELOS.forEach(m=>{if(!m.con_detalle)o[m.nombre]=1;});return o;};
-function estrInfo(m){return (m>=2.4)?{v:"En 2 partes",txt:"Se hace en 2 partes"}:{v:"Entera",txt:"Entera (una pieza)"};}
 function asientoInfo(modelo,m){const thr=(modelo==="Camelia")?1.2:2.2;return (m<=thr)?{n:1,txt:"1 (entero)"}:{n:2,txt:"En 2 partes"};}
 function almoOpts(m){let o=[];if(m<=1.2)o.push(1);if(m>1.2&&m<=2.2)o.push(2);if(m>=2.0)o.push(3);return o.length?o:[1];}
 function asLabel(c){return (+c===1)?"entero":c+" partes";}
 function fillDetalle(){const excl=NO_DETALLE()[mSel().value];$("detalleWrap").style.display=excl?"none":"";if(excl)return;
-  if(!dSel().value){$("estrSel").innerHTML='<option>—</option>';$("asientoSel").innerHTML='<option>—</option>';$("almoSel").innerHTML='<option>—</option>';$("estrSel").disabled=true;$("asientoSel").disabled=true;$("almoSel").disabled=true;return;}
-  const m=numMed(dSel().value),es=estrInfo(m),ai=asientoInfo(mSel().value,m),lo=almoOpts(m);
-  $("estrSel").disabled=false;$("asientoSel").disabled=false;$("almoSel").disabled=false;
-  $("estrSel").innerHTML=`<option value="${es.v}">${es.txt}</option>`;
+  if(!dSel().value){$("asientoSel").innerHTML='<option>—</option>';$("almoSel").innerHTML='<option>—</option>';$("asientoSel").disabled=true;$("almoSel").disabled=true;return;}
+  const m=numMed(dSel().value),ai=asientoInfo(mSel().value,m),lo=almoOpts(m);
+  $("asientoSel").disabled=false;$("almoSel").disabled=false;
   $("asientoSel").innerHTML=`<option value="${ai.n}">${ai.txt}</option>`;
   $("almoSel").innerHTML=lo.map(c=>`<option value="${c}">${c===1?"1 almohadón":c+" almohadones"}</option>`).join("");}
 function showImg(m){const img=$("sofaImg"),ph=$("imgPh"),nm=$("imgName");
@@ -361,10 +358,10 @@ function showImg(m){const img=$("sofaImg"),ph=$("imgPh"),nm=$("imgName");
   nm.textContent=m;const src=IMAGES[m];
   if(src){img.src=src;img.style.display="block";ph.style.display="none";}else{img.style.display="none";ph.style.display="block";ph.innerHTML='<span class="ico">&#128247;</span>Sin foto';}}
 // carrito
-function detText(it){let d=it.d;if(it.p&&it.p!=="-")d+=" · prof "+it.p;d+=" · "+it.t+" · Patas "+it.pt.replace(/ \(.*\)/,"")+" "+it.pf;if(it.extra>0)d+=" (+"+fmt(it.extra)+")";if(it.estr)d+=" · Estructura "+it.estr;if(it.as)d+=" · Asiento "+asLabel(it.as);if(it.al)d+=" · Almohadones "+it.al;return d;}
+function detText(it){let d=it.d+(numMed(it.d)>=2.4?" (se hace en 2 partes)":"");if(it.p&&it.p!=="-")d+=" · prof "+it.p;d+=" · "+it.t+" · Patas "+it.pt.replace(/ \(.*\)/,"")+" "+it.pf;if(it.extra>0)d+=" (+"+fmt(it.extra)+")";if(it.as)d+=" · Asiento "+asLabel(it.as);if(it.al)d+=" · Almohadones "+it.al;return d;}
 function addToCart(){if(!tSel().value)return;const r=rowNow();if(!r)return;const extra=pataExtra();
   const it={m:mSel().value,d:dSel().value,p:pSel().value,t:tSel().value,pt:pataTipo().value,pf:pataFin().value,ef:r.ef,tj:r.tj,extra:extra,qty:1};
-  if(!NO_DETALLE()[mSel().value]&&$("asientoSel").value&&!$("asientoSel").disabled){it.estr=$("estrSel").value;it.as=$("asientoSel").value;it.al=$("almoSel").value;}
+  if(!NO_DETALLE()[mSel().value]&&$("asientoSel").value&&!$("asientoSel").disabled){it.as=$("asientoSel").value;it.al=$("almoSel").value;}
   cart.push(it);renderCart();
   const b=$("addCart");b.textContent="✓ Agregado";b.classList.add("added");setTimeout(()=>{b.textContent="+ Agregar al monto";b.classList.remove("added");},1200);}
 function renderCart(){const box=$("cartItems"),tot=$("cartTotals");
