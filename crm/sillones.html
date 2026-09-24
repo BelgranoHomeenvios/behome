@@ -244,7 +244,7 @@ async function boot(){
 async function enter(){
   $("loading").classList.remove("hidden"); $("login").classList.add("hidden");
   const {data:{user}}=await sb.auth.getUser();
-  try{ const r=await sb.rpc("es_direccion"); esDir=(r.data===true); }catch(e){ esDir=false; }
+  try{ const r=await sb.rpc("es_cotizador_admin"); esDir=(r.data===true); }catch(e){ esDir=false; }
   document.body.className = esDir?"role-direccion":"role-vendedor";
   $("who").textContent=(user&&user.email)||"Usuario";
   $("whoRol").textContent=esDir?"Dirección":"Vendedor";
