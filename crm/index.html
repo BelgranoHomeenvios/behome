@@ -2376,6 +2376,13 @@ async function entrarConUsuarioCRM(user){
     err.style.display='';
     return;
   }
+  if(data && data.uid && USUARIOS[data.uid] && USUARIOS[data.uid].baja){
+    mostrarFormularioLoginCRM();
+    err.textContent='Tu usuario ('+email+') está dado de baja en el CRM.';
+    err.style.display='';
+    await sb.auth.signOut();
+    return;
+  }
   if(!data||!data.uid||!USUARIOS[data.uid]){
     mostrarFormularioLoginCRM();
     err.textContent='Tu usuario ('+email+') no tiene un rol asignado en el CRM. Avisale a Brian.';
@@ -2426,7 +2433,10 @@ const USUARIOS={
   ale:{n:'Ale',rol:'vendedor'},
   cristian:{n:'Cristian',rol:'vendedor'},
   claudia:{n:'Claudia',rol:'vendedor'},
-  cintia:{n:'Cintia',rol:'auditora'},
+  /* Cintia dejó de trabajar el 26/9/2026. Queda en USUARIOS para que el historial (consultas
+     que cargó, evaluó o atendió) siga mostrando su nombre, pero con `baja`: no puede entrar,
+     no figura en ninguna lista y todo lo que la tenía por defecto pasa a Iara. */
+  cintia:{n:'Cintia',rol:'auditora',baja:'2026-09-26'},
   iara:{n:'Iara',rol:'auditora'},
   ariel:{n:'Ariel',rol:'marketing'},
   lucas:{n:'Lucas',rol:'reclamos'},
@@ -2437,9 +2447,9 @@ const USUARIOS={
      pero sin entrada acá la app lo rebotaba al entrar. */
   jony:{n:'Jony',rol:'admin'}
 };
-/* OJO: cintia va ANTES que iara a propósito. uidAuditora() devuelve la primera auditora de
-   esta lista y es la que hereda los defaults viejos (ej. revisiones sin evaluadoPorId). */
-const ORDEN_LOGIN=['sergio','nati','ale','cristian','claudia','cintia','iara','ariel','lucas','brian','jony'];
+/* uidAuditora() devuelve la primera auditora de esta lista: es la que recibe todo lo que va
+   "a la auditora" por defecto. Desde el 26/9/2026 es Iara (Cintia se sacó: está de baja). */
+const ORDEN_LOGIN=['sergio','nati','ale','cristian','claudia','iara','ariel','lucas','brian','jony'];
 
 /* Confirmado: Sergio trabaja Belgrano 2020 de lunes a sábado, y Belgrano 2299 los domingos.
    Ale y Nati también pueden trabajar en cualquiera de los dos locales según el día — por eso
@@ -9900,7 +9910,8 @@ function movimientosDelDia(ymd){
     // El cierre ya se cuenta arriba: acá van solo los cambios de estado que no son cierres.
     if(a.estadoTs && est!=='Concretado' && est!=='Rechazado')
       add(a.estadoTs, a.estadoPorId, 'estado', a, (a.estadoAnterior||'sin estado')+' → '+(est||'sin estado'));
-    add(a.evaluadoTs, uidAuditora(), 'evaluacion', a);
+    // Las evaluaciones viejas no guardaban quién evaluó: eran todas de Cintia.
+    add(a.evaluadoTs, a.evaluadoPorId||'cintia', 'evaluacion', a);
     if(a.segundaOportunidad) add(a.segundaOportunidad.ts, a.segundaOportunidad.porId, 'segunda', a,
       a.segundaOportunidad.derivadaA?('a '+nombreDe(a.segundaOportunidad.derivadaA)):'');
     if(a.recordatorioTs) add(a.recordatorioTs, a.recordatorioDe, 'recordatorio', a, (a.recordatorioComentario||'').slice(0,80));
@@ -12658,7 +12669,7 @@ function abrirVistaEvaluacion(id){
         <label class="tiny" style="font-weight:700;display:block;margin-bottom:5px">¿Qué querés que se revise?</label>
         <textarea id="vev-revtxt" rows="3" style="width:100%" placeholder="Ej: el cliente sí me pidió el teléfono y se lo pasé, tengo la captura..."></textarea>
         <div class="row" style="margin-top:8px">
-          <button class="btn btn-navy" onclick="enviarRevision('${a.id}')">Enviar a ${nombreDe(a.evaluadoPorId||'cintia')}</button>
+          <button class="btn btn-navy" onclick="enviarRevision('${a.id}')">Enviar a ${nombreDe(auditoraRevision(a))}</button>
           <button class="btn btn-secondary" onclick="toggleRevForm()">Cancelar</button>
         </div>
       </div>
@@ -12685,7 +12696,7 @@ async function enviarRevision(id){
   if(!txt){ toast('Escribí qué querés que se revise'); return; }
   a.revisionEval={
     texto:txt, porId:YO, ts:new Date().toISOString(),
-    estado:'pendiente', paraId:a.evaluadoPorId||'cintia', escalado:false
+    estado:'pendiente', paraId:auditoraRevision(a), escalado:false
   };
   await saveAtenciones();
   toast('Revisión enviada a '+nombreDe(a.revisionEval.paraId));
@@ -13022,7 +13033,13 @@ function migrarAsistencias(a){
   if(!a.asistencias){ a.asistencias = hilosDe(a); delete a.asistencia; }
   return a.asistencias;
 }
-function uidAuditora(){ return ORDEN_LOGIN.find(u=>rolDe(u)==='auditora')||'cintia'; }
+function uidAuditora(){ return ORDEN_LOGIN.find(u=>rolDe(u)==='auditora')||'iara'; }
+/* A quién va un pedido de revisión: a quien evaluó la consulta, salvo que esté de baja —
+   entonces a la auditora activa. Así lo que evaluó Cintia no queda en una bandeja que nadie mira. */
+function auditoraRevision(a){
+  const ev=a&&a.evaluadoPorId;
+  return (ev && USUARIOS[ev] && !USUARIOS[ev].baja) ? ev : uidAuditora();
+}
 function uidDireccion(){ return ORDEN_LOGIN.find(u=>rolDe(u)==='admin')||'brian'; }
 /* La clave del hilo es con quién habla el vendedor: es el uid del interlocutor. La clave
    'cintia' coincide con su uid, así que los hilos viejos (que guardaban destinoId='cintia')
@@ -13158,7 +13175,7 @@ async function enviarAsistencia(){
   const hs=migrarAsistencias(a);
   // Cintia y dirección escriben SIEMPRE en su propio hilo: no pueden mandar al del otro.
   // El vendedor escribe en la solapa donde está parado.
-  const clave = miClaveAsist() || asistClave || 'cintia';
+  const clave = miClaveAsist() || asistClave || uidAuditora();
   asistClave = clave;
   const h = hs[clave] = hs[clave] || {mensajes:[], estado:'abierta', leidoPor:{}};
   h.destinoId = clave;   // se conserva por compatibilidad con los datos viejos
@@ -13393,9 +13410,10 @@ async function crearAtencionAdminLocal(){if(esSoloLectura())return avisoLectura(
 /* -------- Cargar consulta rápida: Canal → (Publicidad) → Teléfono → Nombre → Derivar a -------- */
 function destinosListaCintia(){
   // Orden fijo pedido para "Derivar a": 1 Alejandro, 2 Sergio, 3 Cristian,
-  // 4 Nati, 5 Claudia, 6 Brian, 7 Cintia. El nombre sale de USUARIOS si es
+  // 4 Nati, 5 Claudia, 6 Brian, 7 Iara. El nombre sale de USUARIOS si es
   // usuario del sistema, o de CR_NOMBRES_EXTRA (ej. Alejandro) si no lo es.
-  const ORDEN_DERIVAR=['ale','sergio','cristian','nati','claudia','brian','cintia','iara'];
+  // Cintia se sacó el 26/9/2026: dejó de trabajar en Belgrano Home.
+  const ORDEN_DERIVAR=['ale','sergio','cristian','nati','claudia','brian','iara'];
   return ORDEN_DERIVAR.map(uid=>({uid, label: USUARIOS[uid]?nombreDe(uid):(CR_NOMBRES_EXTRA[uid]||uid)}));
 }
 /* ============================================================
@@ -13416,9 +13434,9 @@ const CR_CFG={
   'Publicidad Mensajería':{contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, publicidad:true},
   'Publicidad Instagram':{contacto:{lbl:'Usuario de Instagram',ph:'@usuario'}, esIG:true, publicidad:true},
   'Local':               {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, atendido:true, masInfo:true, local:true},
-  'Email':               {contacto:{lbl:'Email',ph:'nombre@mail.com'}, queConsulto:true},
-  'Reclamo':             {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, ig:true, orden:true, derivaCintia:true},
-  'Consulta de estado': {contacto:{lbl:'Celular',ph:'11 xxxx xxxx'}, ig:true, orden:true, derivaCintia:true},
+  'Email':               {contacto:{lbl:'Email',ph:'nombre@mail.com'}, queConsulto:true, derivaIara:true},
+  'Reclamo':             {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, ig:true, orden:true, derivaIara:true},
+  'Consulta de estado': {contacto:{lbl:'Celular',ph:'11 xxxx xxxx'}, ig:true, orden:true, derivaIara:true},
   'Tienda Nube':         {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}, queConsulto:true},
   'Google Shopping':     {contacto:{lbl:'Teléfono',ph:'11 xxxx xxxx'}},
   // `nota` es un campo de texto con etiqueta propia que reusa el mismo #crMensaje de
@@ -13889,11 +13907,11 @@ function onCanalChangeCr(){
   // "¿Quién lo atendió?" ahora se muestra DESPUÉS de "Derivar a" (en onDerivarChangeCr),
   // porque su valor por defecto es justamente a quién se deriva.
   $('crCampos').innerHTML=html;
-  // Reclamo / Consulta de estado: las maneja Cintia, así que la derivación queda
-  // puesta en Cintia sola (se puede cambiar a mano igual).
-  if(cfg.derivaCintia){
+  // Reclamo / Consulta de estado / Email: los maneja Iara (antes Cintia), así que la
+  // derivación queda puesta en Iara sola (se puede cambiar a mano igual).
+  if(cfg.derivaIara){
     const sel=$('crDerivar');
-    if(sel){ const opt=[...sel.options].find(o=>plainValueCr(o.value)==='cintia'); if(opt) sel.value=opt.value; }
+    if(sel){ const opt=[...sel.options].find(o=>plainValueCr(o.value)==='iara'); if(opt) sel.value=opt.value; }
   }
   if(cfg.derivaBrian){
     const sel=$('crDerivar');
