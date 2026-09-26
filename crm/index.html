@@ -13296,7 +13296,7 @@ function abrirReasignar(id){
   reasignandoId=id;
   // Cintia y dirección también atienden consultas: si no están en la lista, la única
   // forma de que Cintia se quede una era pasársela a un vendedor y pedírsela de vuelta.
-  const vendedores=Object.keys(USUARIOS).filter(uid=>['vendedor','auditora','admin'].includes(rolDe(uid)));
+  const vendedores=Object.keys(USUARIOS).filter(uid=>['vendedor','auditora','admin'].includes(rolDe(uid)) && !USUARIOS[uid].baja);
   // Este panel comparte la caja con los recordatorios, que es angosta. Se ensancha solo
   // para la reasignación (7 nombres en un renglón) y cerrarRecordar la deja como estaba.
   const caja=document.querySelector('#modalRecordar .modal-caja');
