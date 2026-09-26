@@ -8595,6 +8595,7 @@ function svEvaluacionesHtml(){
           <div class="ev-dest-chips">${chip(a.evalAtencion,'atencion')}${chip(a.evalConsulta,'consulta')}${chip(a.evalCliente,'cliente')}
             <span class="ev-chip ${malo?'r':'g'}">${malo?'Así no':'Así sí'}</span></div>
           ${e.motivo?`<div class="ev-dest-txt">${escapeHtml(e.motivo)}</div>`:''}
+          ${evComentarioEnTarjeta(a, e.motivo)}
         </div>`;
       }).join('')}
       ${paginador}
@@ -12214,12 +12215,33 @@ async function marcarEjemploLeido(id){
    y `leidoDir` la de dirección, y si el vendedor escribiera en cualquiera de esas dos les
    estaría marcando como visto algo que ellos no vieron. Guarda también la fecha, que es
    lo que le permite a Cintia saber si el caso llegó o quedó sin abrir. */
+/* La devolución al vendedor puede estar en DOS campos: la observación del ejemplo
+   (ejemploDelMes.motivo) o el comentario al vendedor (comentarioVendedor). Iara escribe en
+   el segundo, así que la tarjeta mostraba el ejemplo sin texto. Se muestran los dos, sin
+   nombre de quién lo escribió; si el comentario repite la observación, no se duplica. */
+function evComentarioEnTarjeta(a, motivo){
+  if(!hayComentarioVendedor(a)) return '';
+  const cv=a.comentarioVendedor;
+  if(cv.paraId && cv.paraId!==vendedorEvaluado(a)) return '';
+  const txt=comentarioVendedorTexto(a).trim();
+  const caps=(cv.capturas&&cv.capturas.length)?cv.capturas:(cv.captura?[cv.captura]:[]);
+  const repetido = txt && (motivo||'').trim()===txt;
+  if(repetido && !caps.length) return '';
+  return `<div class="ev-dest-txt">
+      ${motivo?'<div class="tiny" style="font-weight:700;color:var(--muted);margin-bottom:3px">Comentario</div>':''}
+      ${txt && !repetido ? escapeHtml(txt).replace(/\n/g,'<br>') : ''}
+      ${caps.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:${txt&&!repetido?'8px':'0'}">${caps.map(c=>`<img src="${c}" style="max-height:90px;max-width:140px;border-radius:6px;border:1px solid var(--line);cursor:pointer" onclick="event.stopPropagation();window.open(this.src,'_blank')">`).join('')}</div>`:''}
+    </div>`;
+}
 async function marcarEjemploLeidoVendedor(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a||!a.ejemploDelMes) return;
   if(vendedorEvaluado(a)!==YO) return;         // solo el vendedor evaluado marca la suya
   a.ejemploDelMes.leidoVend=true;
   a.ejemploDelMes.leidoVendTs=new Date().toISOString();
+  // El comentario ahora se lee en la misma tarjeta: el "Leído" lo da por leído también,
+  // así no le queda pendiente en la bandeja algo que ya vio.
+  if(a.comentarioVendedor && a.comentarioVendedor.paraId===YO) a.comentarioVendedor.leido=true;
   await saveAtenciones();
   renderSolapasVendedor();
   renderPanelGestion(construirListaFiltrada());
