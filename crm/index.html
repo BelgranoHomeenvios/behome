@@ -12065,12 +12065,14 @@ function htmlEjemploItem(a, opts){
   const texto = opts.paraDireccion ? (e.motivoDir||e.motivo) : e.motivo;
   return '<div class="solic-item ejem-item'+(sinLeer?' sin-leer':'')+'">'
     + '<div class="ejem-cuerpo">'
-    +   '<div class="pend-name">'+((c&&c.nombre)?'⭐ '+nomCli:nomCli)+' · '+nombreDe(vendedorEvaluado(a))+'</div>'
+    // Tres filas: nombre (con el teléfono a la derecha) · estado y fecha · todas las etiquetas.
+    +   '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
+    +     '<div class="pend-name">'+((c&&c.nombre)?'⭐ '+nomCli:nomCli)+' · '+nombreDe(vendedorEvaluado(a))+'</div>'
+    +     htmlContactoCopiable(a).replace('class="copy-chips"','class="copy-chips" style="margin-top:0"')
+    +   '</div>'
     +   '<div class="pend-sub">'+est+' · '+estCanalDe(a)+' · '+new Date(a.ts).toLocaleDateString('es-AR')+(sinLeer?' · <b style="color:var(--amber)">Sin leer</b>':'')+'</div>'
-    +   htmlContactoCopiable(a)
-    +   ((a.evalAtencion||a.evalConsulta||a.evalCliente)
-        ? '<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">'+evChip('atencion',a.evalAtencion)+evChip('consulta',a.evalConsulta)+evChip('cliente',a.evalCliente)+'</div>' : '')
-    +   '<div class="tiny" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'
+    +   '<div class="tiny" style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">'
+    +     evChip('atencion',a.evalAtencion)+evChip('consulta',a.evalConsulta)+evChip('cliente',a.evalCliente)
     +     '<span class="ev-chip '+(e.tipo==='malo'?'r':'g')+'" style="font-size:10px;padding:2px 7px">'+(e.tipo==='malo'?'👎 Así no':'👍 Así sí')+'</span>'
     +     '<span class="ev-chip a" style="font-size:10px;padding:2px 7px">'+destino+'</span>'+visto
     +   '</div>'
