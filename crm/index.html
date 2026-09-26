@@ -288,6 +288,10 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .ev-hd .copy-chip{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.25);color:#fff}
 .ev-hd .copy-chip:hover{background:rgba(255,255,255,.24)}
 .ev-hd h3.nom-copiable{cursor:pointer}
+.copy-chips.plano .copy-chip{background:none;border:none;padding:0;border-radius:0;font-size:13px;font-weight:700}
+.copy-chips.plano .copy-chip:hover{text-decoration:underline}
+.ejem-acc-fila{display:flex;flex-direction:row!important;align-items:center;gap:14px;justify-content:flex-end}
+.ejem-acc-fila .btn{width:auto!important}
 .ev-hd .monto .n{font-size:18.5px;font-weight:800;white-space:nowrap}
 .ev-hd .monto .l{font-size:10px;text-transform:uppercase;letter-spacing:.07em;opacity:.55}
 .ev-cols{display:grid;grid-template-columns:1.3fr 1fr;gap:0;margin:0 -21px -21px}
@@ -2609,7 +2613,7 @@ function copiarCampoTelefono(){
 /* Teléfono y @usuario de IG de una consulta como botoncitos que copian al tocarlos
    (para pegar en LiveConnect). Se usa en el encabezado de Evaluar y en las fichas de
    ejemplos. Si el "teléfono" guardado es en realidad un @usuario, sale una sola vez. */
-function htmlContactoCopiable(a){
+function htmlContactoCopiable(a, plano){
   if(!a) return '';
   const tel = (!a.noTomoTelefono && a.clienteTelefono) ? String(a.clienteTelefono).trim() : '';
   const ig = valorDato(a,'instagram');
@@ -2617,7 +2621,7 @@ function htmlContactoCopiable(a){
   if(tel && tel[0]!=='@') items.push({v:tel, ic:'📞', l:'Teléfono copiado'});
   if(ig) items.push({v:ig, ic:'IG', l:'Usuario de Instagram copiado'});
   if(!items.length) return '';
-  return '<div class="copy-chips">'+items.map(it=>
+  return '<div class="copy-chips'+(plano?' plano':'')+'">'+items.map(it=>
     '<span class="copy-chip" data-v="'+escAttr(it.v)+'" data-l="'+escAttr(it.l)+'" title="Tocá para copiar"'
     +' onclick="event.stopPropagation();copiarTexto(this.dataset.v,this.dataset.l)">'
     +'<span class="ci">'+it.ic+'</span>'+escapeHtml(it.v)+'</span>').join('')+'</div>';
@@ -12065,12 +12069,12 @@ function htmlEjemploItem(a, opts){
   const texto = opts.paraDireccion ? (e.motivoDir||e.motivo) : e.motivo;
   return '<div class="solic-item ejem-item'+(sinLeer?' sin-leer':'')+'">'
     + '<div class="ejem-cuerpo">'
-    // Tres filas: nombre (con el teléfono a la derecha) · estado y fecha · todas las etiquetas.
-    +   '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
-    +     '<div class="pend-name">'+((c&&c.nombre)?'⭐ '+nomCli:nomCli)+' · '+nombreDe(vendedorEvaluado(a))+'</div>'
-    +     htmlContactoCopiable(a).replace('class="copy-chips"','class="copy-chips" style="margin-top:0"')
+    // Dos filas: nombre + estado y fecha en un renglón · todas las etiquetas en el otro.
+    // El nombre abre la consulta (reemplaza al botón "Ver la consulta", que dejó su lugar al teléfono).
+    +   '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
+    +     '<div class="pend-name" style="cursor:pointer" title="Abrir la consulta" onclick="editarDesdeHistorial(\''+a.id+'\',0)">'+((c&&c.nombre)?'⭐ '+nomCli:nomCli)+' · '+nombreDe(vendedorEvaluado(a))+'</div>'
+    +     '<div class="pend-sub" style="margin:0">'+est+' · '+estCanalDe(a)+' · '+new Date(a.ts).toLocaleDateString('es-AR')+(sinLeer?' · <b style="color:var(--amber)">Sin leer</b>':'')+'</div>'
     +   '</div>'
-    +   '<div class="pend-sub">'+est+' · '+estCanalDe(a)+' · '+new Date(a.ts).toLocaleDateString('es-AR')+(sinLeer?' · <b style="color:var(--amber)">Sin leer</b>':'')+'</div>'
     +   '<div class="tiny" style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">'
     +     evChip('atencion',a.evalAtencion)+evChip('consulta',a.evalConsulta)+evChip('cliente',a.evalCliente)
     +     '<span class="ev-chip '+(e.tipo==='malo'?'r':'g')+'" style="font-size:10px;padding:2px 7px">'+(e.tipo==='malo'?'👎 Así no':'👍 Así sí')+'</span>'
@@ -12079,8 +12083,9 @@ function htmlEjemploItem(a, opts){
     +   (texto?'<div class="tiny" style="margin-top:6px;padding:8px 10px;background:var(--line2);border-radius:7px">'+escapeHtml(texto)+'</div>':'')
     +   (e.captura?'<div class="ev-caps"><div class="ev-cap"><img src="'+e.captura+'" onclick="verImagen(\''+e.captura+'\')" title="Tocá para verla en grande"></div></div>':'')
     + '</div>'
-    + '<div class="ejem-acc">'
-    +   '<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorial(\''+a.id+'\',0)">Ver la consulta</button>'
+    + '<div class="ejem-acc ejem-acc-fila" style="width:auto">'
+    +   (htmlContactoCopiable(a,true).replace('class="copy-chips plano"','class="copy-chips plano" style="margin-top:0;justify-content:flex-end"')
+         || '<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorial(\''+a.id+'\',0)">Ver la consulta</button>')
     +   (sinLeer ? '<button class="btn btn-navy btn-sm" onclick="'+(opts.paraDireccion?'evDirMarcarLeido':'marcarEjemploLeido')+'(\''+a.id+'\')">Leído</button>'
                : '<span class="ejem-leido">✓ Leído</span>')
     + '</div>'
