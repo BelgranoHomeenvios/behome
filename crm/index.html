@@ -281,6 +281,13 @@ body{margin:0;font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe 
 .ev-hd h3{margin:0;font-size:17px;color:#fff}
 .ev-hd .meta{font-size:12.5px;opacity:.7;margin-top:2px}
 .ev-hd .monto{text-align:right;flex-shrink:0}
+.copy-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.copy-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface-1,#f4f6f8);color:var(--text,#0f1a2a);cursor:pointer;line-height:1.3;white-space:nowrap}
+.copy-chip:hover{border-color:var(--sec)}
+.copy-chip .ci{font-size:11px;opacity:.75}
+.ev-hd .copy-chip{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.25);color:#fff}
+.ev-hd .copy-chip:hover{background:rgba(255,255,255,.24)}
+.ev-hd h3.nom-copiable{cursor:pointer}
 .ev-hd .monto .n{font-size:18.5px;font-weight:800;white-space:nowrap}
 .ev-hd .monto .l{font-size:10px;text-transform:uppercase;letter-spacing:.07em;opacity:.55}
 .ev-cols{display:grid;grid-template-columns:1.3fr 1fr;gap:0;margin:0 -21px -21px}
@@ -2598,6 +2605,22 @@ function copiarCampoTelefono(){
   if(!v){ toast('No hay nada para copiar'); return; }
   const esIG = $('lblTelefono').textContent.indexOf('Instagram')>-1;
   copiarTexto(v, esIG?'Usuario copiado':'Teléfono copiado');
+}
+/* Teléfono y @usuario de IG de una consulta como botoncitos que copian al tocarlos
+   (para pegar en LiveConnect). Se usa en el encabezado de Evaluar y en las fichas de
+   ejemplos. Si el "teléfono" guardado es en realidad un @usuario, sale una sola vez. */
+function htmlContactoCopiable(a){
+  if(!a) return '';
+  const tel = (!a.noTomoTelefono && a.clienteTelefono) ? String(a.clienteTelefono).trim() : '';
+  const ig = valorDato(a,'instagram');
+  const items=[];
+  if(tel && tel[0]!=='@') items.push({v:tel, ic:'📞', l:'Teléfono copiado'});
+  if(ig) items.push({v:ig, ic:'IG', l:'Usuario de Instagram copiado'});
+  if(!items.length) return '';
+  return '<div class="copy-chips">'+items.map(it=>
+    '<span class="copy-chip" data-v="'+escAttr(it.v)+'" data-l="'+escAttr(it.l)+'" title="Tocá para copiar"'
+    +' onclick="event.stopPropagation();copiarTexto(this.dataset.v,this.dataset.l)">'
+    +'<span class="ci">'+it.ic+'</span>'+escapeHtml(it.v)+'</span>').join('')+'</div>';
 }
 function copiarNombreCons(id){
   const a=atenciones.find(x=>x.id===id);
@@ -8595,6 +8618,7 @@ function svEvaluacionesHtml(){
           <div class="ev-dest-chips">${chip(a.evalAtencion,'atencion')}${chip(a.evalConsulta,'consulta')}${chip(a.evalCliente,'cliente')}
             <span class="ev-chip ${malo?'r':'g'}">${malo?'Así no':'Así sí'}</span></div>
           ${e.motivo?`<div class="ev-dest-txt">${escapeHtml(e.motivo)}</div>`:''}
+          ${evComentarioEnTarjeta(a, e.motivo)}
         </div>`;
       }).join('')}
       ${paginador}
@@ -12041,8 +12065,9 @@ function htmlEjemploItem(a, opts){
   const texto = opts.paraDireccion ? (e.motivoDir||e.motivo) : e.motivo;
   return '<div class="solic-item ejem-item'+(sinLeer?' sin-leer':'')+'">'
     + '<div class="ejem-cuerpo">'
-    +   '<div class="pend-name">'+((c&&c.nombre)?'⭐ '+nomCli:nomCli)+' · '+nombreDe(a.vendedorId)+'</div>'
+    +   '<div class="pend-name">'+((c&&c.nombre)?'⭐ '+nomCli:nomCli)+' · '+nombreDe(vendedorEvaluado(a))+'</div>'
     +   '<div class="pend-sub">'+est+' · '+estCanalDe(a)+' · '+new Date(a.ts).toLocaleDateString('es-AR')+(sinLeer?' · <b style="color:var(--amber)">Sin leer</b>':'')+'</div>'
+    +   htmlContactoCopiable(a)
     +   ((a.evalAtencion||a.evalConsulta||a.evalCliente)
         ? '<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">'+evChip('atencion',a.evalAtencion)+evChip('consulta',a.evalConsulta)+evChip('cliente',a.evalCliente)+'</div>' : '')
     +   '<div class="tiny" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'
@@ -12214,12 +12239,33 @@ async function marcarEjemploLeido(id){
    y `leidoDir` la de dirección, y si el vendedor escribiera en cualquiera de esas dos les
    estaría marcando como visto algo que ellos no vieron. Guarda también la fecha, que es
    lo que le permite a Cintia saber si el caso llegó o quedó sin abrir. */
+/* La devolución al vendedor puede estar en DOS campos: la observación del ejemplo
+   (ejemploDelMes.motivo) o el comentario al vendedor (comentarioVendedor). Iara escribe en
+   el segundo, así que la tarjeta mostraba el ejemplo sin texto. Se muestran los dos, sin
+   nombre de quién lo escribió; si el comentario repite la observación, no se duplica. */
+function evComentarioEnTarjeta(a, motivo){
+  if(!hayComentarioVendedor(a)) return '';
+  const cv=a.comentarioVendedor;
+  if(cv.paraId && cv.paraId!==vendedorEvaluado(a)) return '';
+  const txt=comentarioVendedorTexto(a).trim();
+  const caps=(cv.capturas&&cv.capturas.length)?cv.capturas:(cv.captura?[cv.captura]:[]);
+  const repetido = txt && (motivo||'').trim()===txt;
+  if(repetido && !caps.length) return '';
+  return `<div class="ev-dest-txt">
+      ${motivo?'<div class="tiny" style="font-weight:700;color:var(--muted);margin-bottom:3px">Comentario</div>':''}
+      ${txt && !repetido ? escapeHtml(txt).replace(/\n/g,'<br>') : ''}
+      ${caps.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:${txt&&!repetido?'8px':'0'}">${caps.map(c=>`<img src="${c}" style="max-height:90px;max-width:140px;border-radius:6px;border:1px solid var(--line);cursor:pointer" onclick="event.stopPropagation();window.open(this.src,'_blank')">`).join('')}</div>`:''}
+    </div>`;
+}
 async function marcarEjemploLeidoVendedor(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a||!a.ejemploDelMes) return;
   if(vendedorEvaluado(a)!==YO) return;         // solo el vendedor evaluado marca la suya
   a.ejemploDelMes.leidoVend=true;
   a.ejemploDelMes.leidoVendTs=new Date().toISOString();
+  // El comentario ahora se lee en la misma tarjeta: el "Leído" lo da por leído también,
+  // así no le queda pendiente en la bandeja algo que ya vio.
+  if(a.comentarioVendedor && a.comentarioVendedor.paraId===YO) a.comentarioVendedor.leido=true;
   await saveAtenciones();
   renderSolapasVendedor();
   renderPanelGestion(construirListaFiltrada());
@@ -12437,7 +12483,8 @@ function renderEvaluar(){
   const e=estadoDe(a);
   const esConcretada = e==='Concretado';
   const esRechazada  = e==='Rechazado';
-  const vNom=nombreDe(a.vendedorId);
+  // Se evalúa al vendedor que atendió, aunque la consulta haya pasado a otro por 2da oportunidad.
+  const vNom=nombreDe(vendedorEvaluado(a));
   const vendedores=Object.keys(USUARIOS).filter(uid=>rolDe(uid)==='vendedor');
   const completa = ev.nuncaRespondio || (ev.atencion&&ev.consulta&&ev.cliente);
 
@@ -12559,8 +12606,9 @@ function renderEvaluar(){
   $('evaluarCaja').innerHTML=`
     <div class="ev-hd">
       <div>
-        <h3>${escapeHtml(a.clienteNombre||'Sin nombre')}</h3>
+        <h3 class="nom-copiable" onclick="copiarNombreCons('${a.id}')" title="Tocá para copiar el nombre">${escapeHtml(a.clienteNombre||'Sin nombre')}</h3>
         <div class="meta">${escapeHtml(vNom)} · ${e?e.toLowerCase():'estancada'}${a.ts?' hace '+diasDesdeISO(a.ts)+'d':''}${a.evaluada?' · <b>editando una evaluación del '+new Date(a.evaluadoTs||a.ts).toLocaleDateString('es-AR')+'</b>':''}</div>
+        ${htmlContactoCopiable(a)}
       </div>
       ${monto?`<div class="monto"><div class="n">$ ${miles(monto)}</div><div class="l">en juego</div></div>`:''}
       <button class="btn-close" onclick="cerrarEvaluar()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Cerrar">×</button>
@@ -12847,7 +12895,7 @@ async function guardarEvaluacionCintia(){if(esSoloLectura())return avisoLectura(
   }else if(ev.fbAbierto && ((ev.fbTexto||'').trim() || (ev.capturas||[]).length)){
     a.comentarioVendedor={
       texto:(ev.fbTexto||'').trim(), captura:(ev.capturas||[])[0]||null, capturas:(ev.capturas||[]).slice(),
-      paraId:a.vendedorId, deId:YO, ts:new Date().toISOString(), leido:false
+      paraId:vendedorEvaluado(a), deId:YO, ts:new Date().toISOString(), leido:false
     };
   }else{
     a.comentarioVendedor=null;
