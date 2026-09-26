@@ -2703,6 +2703,13 @@ function avisoLectura(){
   return false;
 }
 function nombreDe(uid){return (USUARIOS[uid]||{n:uid}).n;}
+/* A quién le corresponde la EVALUACIÓN de una consulta: al vendedor que la atendió. Si la
+   auditora tomó la 2da oportunidad, la consulta pasa a su nombre (vendedorId cambia), pero
+   la nota, el comentario y el ejemplo son sobre la atención del vendedor original — y es él
+   quien los tiene que ver. Sin esto quedaban colgados en la consulta de Iara (bug 26/9/2026). */
+function vendedorEvaluado(a){
+  return (a && a.segundaOportunidad && a.segundaOportunidad.vendedorOriginalId) || (a && a.vendedorId);
+}
 /* El "Vino de la publicidad: X" es info interna de Cintia — al vendedor no le
    sirve. Consultas viejas lo tienen guardado como comentario; lo filtramos en
    la vista para que no lo vean, sin tocar el dato guardado. */
@@ -4952,7 +4959,7 @@ function renderBandejaVendedor_LEGACY(){
       .forEach(a=>items.push({tipo:'segunda', a, monto:montoRepresentativo(a.muebles)||0}));
 
   // 2) Comentario de coaching de Cintia sin leer. Este es el que estaba invisible.
-  mias.filter(a=>a.comentarioVendedor && !a.comentarioVendedor.leido && a.comentarioVendedor.paraId===YO && hayComentarioVendedor(a))
+  atenciones.filter(a=>a.comentarioVendedor && !a.comentarioVendedor.leido && a.comentarioVendedor.paraId===YO && hayComentarioVendedor(a))
       .forEach(a=>items.push({tipo:'comentario', a, monto:0}));
 
   if(!items.length){ box.classList.add('hidden'); box.innerHTML=''; return; }
@@ -7716,7 +7723,7 @@ function renderPanelGestion(listaVisible){
     {label:'Estadísticas',   ico:'estadisticas',cnt:undefined,   activo:(seccionVendedor==='estadisticas'),            act:`abrirSeccionVendedor('estadisticas')`},
     // Contador: casos que Cintia le marcó y todavía no abrió. Sin esto, el vendedor no
     // tiene forma de enterarse de que le dejaron algo ahí.
-    {label:'Evaluación',     ico:'evaluacion',  cnt:mias.filter(a=>a.ejemploDelMes && (a.ejemploDelMes.target==='vendedor'||a.ejemploDelMes.target==='ambos') && !a.ejemploDelMes.leidoVend).length, activo:(seccionVendedor==='evaluacion'), act:`abrirSeccionVendedor('evaluacion')`},
+    {label:'Evaluación',     ico:'evaluacion',  cnt:atenciones.filter(a=>vendedorEvaluado(a)===YO && a.ejemploDelMes && (a.ejemploDelMes.target==='vendedor'||a.ejemploDelMes.target==='ambos') && !a.ejemploDelMes.leidoVend).length, activo:(seccionVendedor==='evaluacion'), act:`abrirSeccionVendedor('evaluacion')`},
     {label:'Oportunidad',    ico:'oportunidad', cnt:mias.filter(a=>esOportunidadCaliente(a)).length, activo:(seccionVendedor==='oportunidad'), act:`abrirSeccionVendedor('oportunidad')`}
   ];
   const btn=(it)=>`
@@ -7935,7 +7942,7 @@ function recordatoriosDeVendedor(){
       .forEach(a=>items.push({tipo:'segunda', a, monto:montoRepresentativo(a.muebles)||0,
         texto:a.segundaOportunidad.nota, porId:a.segundaOportunidad.porId, ts:a.segundaOportunidad.ts}));
   // 2) Comentario de coaching de Cintia sin leer.
-  mias.filter(a=>a.comentarioVendedor && !a.comentarioVendedor.leido && a.comentarioVendedor.paraId===YO && hayComentarioVendedor(a))
+  atenciones.filter(a=>a.comentarioVendedor && !a.comentarioVendedor.leido && a.comentarioVendedor.paraId===YO && hayComentarioVendedor(a))
       .forEach(a=>items.push({tipo:'eval', a, monto:0,
         texto:comentarioVendedorTexto(a), porId:a.comentarioVendedor.deId, ts:a.comentarioVendedor.ts}));
   // 3) Revisión de evaluación respondida por Cintia, sin ver.
@@ -8479,7 +8486,7 @@ function evFmtRango(r){
 }
 
 function svEvaluacionesHtml(){
-  const todas = atenciones.filter(a=>a.vendedorId===YO && a.evaluada)
+  const todas = atenciones.filter(a=>vendedorEvaluado(a)===YO && a.evaluada)
     .sort((a,b)=>new Date(b.evaluadoTs||b.ts)-new Date(a.evaluadoTs||a.ts));
   const rango=evRango('per'), rangoCmp=evCmp==='no'?null:evRango('cmp');
   const lista = todas.filter(a=>evEnRango(a,rango) && evPasaFiltros(a));
@@ -8529,7 +8536,7 @@ function svEvaluacionesHtml(){
      Va sobre la fecha de la CONSULTA (a.ts), no sobre la de evaluación: la pregunta es
      "de lo que me entró, cuánto se auditó". Quedan afuera las consultas de gestión, que
      no son evaluables y bajarían el % sin que nadie pueda hacer nada al respecto. */
-  const evaluables = atenciones.filter(a=>a.vendedorId===YO && !esConsultaGestion(a) && evPasaFiltros(a)
+  const evaluables = atenciones.filter(a=>vendedorEvaluado(a)===YO && !esConsultaGestion(a) && evPasaFiltros(a)
     && (!rango || (new Date(a.ts).getTime()>=rango.d1.getTime() && new Date(a.ts).getTime()<=rango.d2.getTime())));
   const evaluadasN = evaluables.filter(a=>a.evaluada).length;
   const cobertura = evaluables.length ? Math.round(evaluadasN/evaluables.length*100) : null;
@@ -8537,12 +8544,12 @@ function svEvaluacionesHtml(){
   /* ===== LO QUE CINTIA QUIERE MOSTRARTE =====
      Va PRIMERO y es el motivo de entrar acá. Son los casos que ella marcó como ejemplo
      con destino al vendedor; 'direccion' es solo para Brian y no se muestra. */
-  const ejemplos = atenciones.filter(a=>a.vendedorId===YO && a.ejemploDelMes
+  const ejemplos = atenciones.filter(a=>vendedorEvaluado(a)===YO && a.ejemploDelMes
       && (a.ejemploDelMes.target==='vendedor' || a.ejemploDelMes.target==='ambos')
       && evEnRango(a,rango) && evPasaFiltros(a))
     .sort((x,y)=>new Date(y.ejemploDelMes.ts||y.ts)-new Date(x.ejemploDelMes.ts||x.ts));
 
-  if(!todas.length && !ejemplos.length) return controles+`<p class="cin-empty">Cintia todavía no evaluó ninguna de tus consultas.</p>`;
+  if(!todas.length && !ejemplos.length) return controles+`<p class="cin-empty">Todavía no hay consultas tuyas evaluadas.</p>`;
 
   const ESC={atencion:EV_ATENCION, consulta:EV_CONSULTA, cliente:EV_CLIENTE};
   const chip=(v,esc)=>{
@@ -8568,7 +8575,7 @@ function svEvaluacionesHtml(){
 
   const cardsEjemplos = ejemplos.length ? `
     <div class="ev-dest">
-      <div class="ev-dest-hd">★ Lo que Cintia marcó para mostrarte <span class="ev-dest-n">${ejemplos.length}</span></div>
+      <div class="ev-dest-hd">★ Lo que se marcó para mostrarte <span class="ev-dest-n">${ejemplos.length}</span></div>
       <p class="tiny" style="margin:0 0 10px;color:var(--muted)">Casos elegidos a mano, para bien o para mal. Son los que valen la pena mirar.</p>
       ${paginaEj.map(a=>{
         const e=a.ejemploDelMes, malo = e.tipo==='malo', sinLeer = !e.leidoVend;
@@ -8591,7 +8598,7 @@ function svEvaluacionesHtml(){
         </div>`;
       }).join('')}
       ${paginador}
-    </div>` : `<div class="ev-dest"><div class="ev-dest-hd">★ Lo que Cintia marcó para mostrarte</div>
+    </div>` : `<div class="ev-dest"><div class="ev-dest-hd">★ Lo que se marcó para mostrarte</div>
       <p class="tiny" style="margin:6px 0 0;color:var(--muted)">Todavía no marcó ningún caso tuyo en este período. Los gráficos de abajo igual muestran cómo viene tu trabajo.</p></div>`;
 
   if(!lista.length) return controles + `<p class="cin-empty">No hay evaluaciones en el período elegido.</p>` + cardsEjemplos;
@@ -8658,7 +8665,7 @@ function svEvaluacionesHtml(){
   // Orden final (pedido de Brian): controles → KPIs → tortas → lo que Cintia marcó.
   return controles + notaCmp + kpis + `
     <div class="ev-donuts">
-      ${donut('evalAtencion',EV_ATENCION,'Tu calidad de atención','Cómo te evaluó Cintia a vos.')}
+      ${donut('evalAtencion',EV_ATENCION,'Tu calidad de atención','Cómo se evaluó tu atención.')}
       ${donut('evalConsulta',EV_CONSULTA,'Calidad de las consultas que recibiste','No depende de vos: dice si la publicidad trae gente bien orientada.')}
       ${donut('evalCliente',EV_CLIENTE,'Calidad de los clientes','Cuán decididos venían. Marca cuánta oportunidad real tuviste.')}
     </div>
@@ -12210,7 +12217,7 @@ async function marcarEjemploLeido(id){
 async function marcarEjemploLeidoVendedor(id){
   const a=atenciones.find(x=>x.id===id);
   if(!a||!a.ejemploDelMes) return;
-  if(a.vendedorId!==YO) return;               // solo el dueño de la consulta marca la suya
+  if(vendedorEvaluado(a)!==YO) return;         // solo el vendedor evaluado marca la suya
   a.ejemploDelMes.leidoVend=true;
   a.ejemploDelMes.leidoVendTs=new Date().toISOString();
   await saveAtenciones();
@@ -12609,7 +12616,7 @@ function abrirVistaEvaluacion(id){
   const rev=a.revisionEval;
   // Si es el vendedor abriendo una revisión ya resuelta, la marco vista para que
   // el badge "Revisión respondida" desaparezca.
-  if(rev && rev.estado==='resuelta' && !rev.vistoVendedor && YO===a.vendedorId){
+  if(rev && rev.estado==='resuelta' && !rev.vistoVendedor && YO===vendedorEvaluado(a)){
     rev.vistoVendedor=true; saveAtenciones();
   }
 
@@ -12645,7 +12652,7 @@ function abrirVistaEvaluacion(id){
 
   // Solo el vendedor evaluado pide revisión de SU evaluación. Antes no había chequeo de
   // rol, así que Cintia abría esta vista y se podía pedir una revisión a sí misma.
-  const puedePedir = a.evaluada && YO===a.vendedorId && (!rev || rev.estado==='resuelta');
+  const puedePedir = a.evaluada && YO===vendedorEvaluado(a) && (!rev || rev.estado==='resuelta');
 
   $('evaluarCaja').innerHTML=`
     <div class="ev-hd"><div><h3>Tu evaluación</h3><div class="meta">${escapeHtml(a.clienteNombre||'Sin nombre')}${a.clienteTelefono?' · '+escapeHtml(a.clienteTelefono):''}${a.evaluadoTs?' · '+new Date(a.evaluadoTs).toLocaleDateString('es-AR'):''}</div></div></div>
