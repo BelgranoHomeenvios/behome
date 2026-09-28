@@ -618,6 +618,9 @@ const CATS = [
   { id:"mesa",        k:/mesa/, n:"Mesa de comedor",         alto:80,  max:90,  prof:80 },
   { id:"botinero90",  k:/botinero.*\b90\b/, n:"Botinero (90 cm)",        alto:90,  max:210, prof:30 },
   { id:"botinero135", k:/botinero.*135/, n:"Botinero (135 cm)",       alto:135, max:210, prof:30 },
+  /* Estante flotante: sin cambio de alto; profundidades estándar sin recargo; largo siempre desde la medida de lista superior */
+  { id:"estanteflotante", k:/estante flotante/, n:"Estante flotante", alto:null, max:null, prof:25,
+    profStd:[20,25,30], largos:[40,60,80,100,120,150,160,180,200] },
 ];
 el("mCat").innerHTML = `<option value="">Elegí la categoría</option>` + CATS.map(c => `<option value="${c.id}">${c.n}</option>`).join("");
 const cat = () => CATS.find(c => c.id === el("mCat").value) || null;
@@ -633,6 +636,12 @@ function aplicarCategoria(){
   const sinProf = c && c.prof === null;
   el("item-p").classList.toggle("hide", !!sinProf);
   if (sinProf) { el("pP").value = ""; cerrarAcc("p"); }
+  const sinAlto = c && c.alto === null;
+  el("item-a").classList.toggle("hide", !!sinAlto);
+  if (sinAlto) { el("aP").value = ""; cerrarAcc("a"); }
+  el("lE").readOnly = !!(c && c.largos);
+  if (!(c && c.largos) && catPrevia && catPrevia.largos) el("lE").value = "";
+  catPrevia = c;
   calcM();
 }
 el("mCat").addEventListener("change", aplicarCategoria);
@@ -647,6 +656,18 @@ function calcM(){
     for (const [k, n] of [["a","Alto"],["l","Largo"],["p","Profundidad"]]) {
       if (!accOpen(k)) continue;
       let E = num(k + "E"); const P = num(k + "P");
+      if (k === "l" && c.largos) {
+        if (!P) { el("lE").value = ""; continue; }
+        const L = c.largos.find(x => x >= P);
+        if (!L) { el("lE").value = ""; warn.push(`El largo máximo de ${c.n.toLowerCase()} es ${c.largos[c.largos.length - 1]} cm.`); bloqueo = true; continue; }
+        E = L; el("lE").value = L;
+        info.push(`Cargá como valor estándar el precio del ${c.n.toLowerCase()} de ${L} cm.`);
+        if (P === L) { pasos.push(`Largo ${P} cm: medida de lista`); continue; }
+      }
+      if (k === "p" && c.profStd && P) {
+        if (c.profStd.includes(P)) { pasos.push(`Profundidad ${P} cm: estándar, mismo precio`); continue; }
+        E = c.profStd.find(x => x >= P) || c.profStd[c.profStd.length - 1];
+      }
       if (!E || !P || E === P) continue;
       const fin = P % 10 === 0 ? "0" : P % 5 === 0 ? "5" : "x";
       if (k === "a" && c.desde70 && P > c.max) {
@@ -806,9 +827,9 @@ function renderL(){
       <tr><td><span class="nm">Recargo único</span><span class="cd">Reglas de tres en cadena + un solo recargo</span></td><td class="pct">+15%</td><td class="pct">+20%</td><td class="pct">+25%</td></tr>
       </tbody></table></div>
       <div class="scroll"><table class="grid" style="border-top:1px solid var(--line)"><thead><tr><th>Categoría</th><th>Alto estándar</th><th>Alto máximo</th><th>Profundidad</th></tr></thead><tbody>
-      ${CATS.map(c => `<tr><td class="nm">${c.n}</td><td>${c.alto} cm</td><td>${c.max} cm</td><td>${c.prof ? c.prof + " cm" : "—"}</td></tr>`).join("")}
+      ${CATS.map(c => `<tr><td class="nm">${c.n}</td><td>${c.alto ? c.alto + " cm" : "—"}</td><td>${c.max ? c.max + " cm" : "—"}</td><td>${c.profStd ? c.profStd.join(", ") + " cm" : c.prof ? c.prof + " cm" : "—"}</td></tr>`).join("")}
       </tbody></table></div>
-      <div class="foot">Largo: siempre se parte del precio de la medida de lista superior. Rack bajo de 61 a 65 cm: desde el precio del rack de 70. Bibliotecas, aparadores y cristaleros de más de 180 cm: confirmar ascensor. Profundidad sin máximo.<br><button class="go" id="goMueble">Cotizar un mueble</button></div>`;
+      <div class="foot">Largo: siempre se parte del precio de la medida de lista superior. Rack bajo de 61 a 65 cm: desde el precio del rack de 70. Bibliotecas, aparadores y cristaleros de más de 180 cm: confirmar ascensor. Profundidad sin máximo. Estante flotante: profundidad de 20, 25 o 30 cm sin recargo; largos de lista 40, 60, 80, 100, 120, 150, 160, 180 y 200 cm (se parte del superior).<br><button class="go" id="goMueble">Cotizar un mueble</button></div>`;
   } else {
     const items = ADIC.filter(a => a.grupo === curL), conMat = items.filter(a => a.mat || a.tramos), sinMat = items.filter(a => !(a.mat || a.tramos));
     h = head(curL, (conMat[0] && conMat[0].unidad) || "");
@@ -1003,7 +1024,7 @@ document.querySelectorAll(".acc-btn").forEach(btn => btn.onclick = () => {
     if (k === "l") el("lE").value = "";
   } else {
     btn.setAttribute("aria-expanded", "true"); el("acc-" + k).classList.remove("hide"); btn.querySelector(".acc-plus").textContent = "−";
-    (k === "l" ? el("lE") : el(k + "P")).focus();
+    (k === "l" && !el("lE").readOnly ? el("lE") : el(k + "P")).focus();
   }
   calcM();
 });
