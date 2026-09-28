@@ -534,13 +534,13 @@ const ADIC = [
   { id:"calada", grupo:"Puerta Vidrio", nombre:"Puerta calada con vidrio", tipo:"m2", dims:["Ancho","Alto"], cantLabel:"Puertas",
     mat:{mel:120000,laq:100000,ench:120000}, minM2:1, maxD1:60, maxMsg:"La puerta calada con vidrio no puede superar los 60 cm de ancho. Revisá la medida.",
     cond:"Por m², mínimo 1 m² por puerta, ancho máximo 60 cm. En melamina es más cara porque lleva más trabajo.", unidad:"Por m², mínimo 1 m² por puerta, ancho máximo 60 cm. En melamina es más cara porque lleva más trabajo." },
-  { id:"cerradura", grupo:"Herrajes", nombre:"Cerradura tipo tambor", tipo:"unidad", precio:50000, cantLabel:"Cerraduras", cond:"Por cerradura." },
-  { id:"guias", grupo:"Herrajes", nombre:"Guías de cierre suave", tipo:"unidad", precio:30000, cantLabel:"Cajones", cond:"Por cajón (incluye el par)." },
-  { id:"bisagras", grupo:"Herrajes", nombre:"Bisagras de cierre suave", tipo:"unidad", precio:25000, cantLabel:"Puertas", cond:"Por puerta." },
-  { id:"piston", grupo:"Herrajes", nombre:"Pistón a gas adicional", tipo:"unidad", precio:20000, cantLabel:"Pistones", cond:"Por pistón." },
-  { id:"herrajecristal", grupo:"Herrajes", nombre:"Herraje de cristal", tipo:"unidad", precio:13000, cantLabel:"Herrajes", cond:"Por herraje." },
-  { id:"telescopica", grupo:"Herrajes", nombre:"Guía telescópica", tipo:"unidad", precio:19000, cantLabel:"Cajones", cond:"Por cajón." },
-  { id:"push", grupo:"Herrajes", nombre:"Sistema push", tipo:"unidad", precio:25000, cantLabel:"Unidades", cond:"Por unidad." },
+  { id:"cerradura", grupo:"Adicionales", nombre:"Cerradura tipo tambor", tipo:"unidad", precio:50000, cantLabel:"Cerraduras", cond:"Por cerradura." },
+  { id:"guias", grupo:"Adicionales", nombre:"Guías de cierre suave", tipo:"unidad", precio:30000, cantLabel:"Cajones", cond:"Por cajón (incluye el par)." },
+  { id:"bisagras", grupo:"Adicionales", nombre:"Bisagras de cierre suave", tipo:"unidad", precio:25000, cantLabel:"Puertas", cond:"Por puerta." },
+  { id:"piston", grupo:"Adicionales", nombre:"Pistón a gas adicional", tipo:"unidad", precio:20000, cantLabel:"Pistones", cond:"Por pistón." },
+  { id:"herrajecristal", grupo:"Adicionales", nombre:"Herraje de cristal", tipo:"unidad", precio:13000, cantLabel:"Herrajes", cond:"Por herraje." },
+  { id:"telescopica", grupo:"Adicionales", nombre:"Guía telescópica", tipo:"unidad", precio:19000, cantLabel:"Cajones", cond:"Por cajón." },
+  { id:"push", grupo:"Adicionales", nombre:"Sistema push", tipo:"unidad", precio:25000, cantLabel:"Unidades", cond:"Por unidad." },
   { id:"colocacion", grupo:"Servicios", nombre:"Colocación de manijas o guías que trae el cliente", tipo:"unidad", precio:15000, cantLabel:"Unidades", cond:"Por unidad colocada." },
   { id:"hueco", grupo:"Huecos", nombre:"Sacar un cajón y dejar el hueco", tipo:"unidad", cantLabel:"Huecos", permiteCero:true,
     mat:{mel:0,laq:40000,ench:40000}, cond:"En melamina no modifica el valor. En laqueado o enchapado el hueco se entrega laqueado o lustrado.", unidad:"Por hueco. En melamina no modifica el valor." },
@@ -713,7 +713,7 @@ function renderA(){
   el("matPills").innerHTML = ""; el("matPills").classList.add("hide");
   const inp = (id, l, extra = "") => `<div><label class="f" for="${id}">${l}</label><input id="${id}" type="number" inputmode="decimal" min="0" ${extra}></div>`;
   let h = "";
-  if (items.length > 1) h += `<div class="fm"><label class="f" for="fItem">${curG === "Herrajes" ? "Herraje" : "Adicional"}</label><select id="fItem" class="sel">${items.map(x => `<option value="${x.id}"${x.id === curI ? " selected" : ""}>${x.nombre}</option>`).join("")}</select></div>`;
+  if (items.length > 1) h += `<div class="fm"><label class="f" for="fItem">Adicional</label><select id="fItem" class="sel">${items.map(x => `<option value="${x.id}"${x.id === curI ? " selected" : ""}>${x.nombre}</option>`).join("")}</select></div>`;
   if (conMat) h += `<div class="fm"><label class="f" for="fMat">Material</label><select id="fMat" class="sel">${Object.entries(MATS).map(([k, v]) => `<option value="${k}"${k === curMat ? " selected" : ""}>${v}</option>`).join("")}</select></div>`;
   if (a.tipo === "m2") h += inp("fD1", `${a.dims[0]} (cm)`) + inp("fD2", `${a.dims[1]} (cm)`);
   if (a.tipo === "tramo") h += inp("fD1", "Ancho (cm)");
@@ -941,10 +941,10 @@ const ARREGLOS = [
     { id:"puerta",  n:"Puerta",        tipo:"m2",     precio:50000, dims:["Ancho","Alto"],        cantLabel:"Puertas",  minM2:1, txt:"Por m², mínimo 1 m² por puerta." },
     { id:"estante", n:"Estante",       tipo:"m2",     precio:50000, dims:["Ancho","Profundidad"], cantLabel:"Estantes", minM2:1, txt:"Por m², mínimo 1 m² por estante." },
   ]},
-  /* Herrajes: los mismos de la píldora Herrajes de Adicionales (se leen de ADIC, así un
+  /* Herrajes: los mismos de la píldora Adicionales (se leen de ADIC, así un
      cambio de precio allá se refleja acá) + la corredera Z, que es solo de arreglos. */
   { id:"herrajes", n:"Herrajes", titulo:"Arreglo de herrajes", items:[
-    ...ADIC.filter(a => a.grupo === "Herrajes" && a.tipo === "unidad" && a.precio).map(a => ({ id:"h_" + a.id, n:a.nombre, tipo:"unidad", precio:a.precio, cantLabel:a.cantLabel, txt:a.cond })),
+    ...ADIC.filter(a => a.grupo === "Adicionales" && a.tipo === "unidad" && a.precio).map(a => ({ id:"h_" + a.id, n:a.nombre, tipo:"unidad", precio:a.precio, cantLabel:a.cantLabel, txt:a.cond })),
     { id:"correderaz", n:"Corredera Z", tipo:"unidad", precio:15000, cantLabel:"Cajones", txt:"Por cajón." },
   ]},
 ];
