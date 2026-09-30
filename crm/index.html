@@ -19682,7 +19682,7 @@ function mktCardsResultadoTiempo(rbase){
     ${lineas.length?`<div class="mkt-kpirow"><div class="mkt-kpi g"><div class="n">${mktPct(conc,tot)}% <small>· ${conc} de ${tot}</small></div><div class="l">Cierre del período<small>virtual, sobre reales</small></div></div></div>
       ${mktGraficoCierre('res_cierre',serie2,lineas)}${leyC}`
       :'<p class="mkt-note">Con los filtros actuales no queda ninguna consulta real de canales virtuales.</p>'}
-    <div class="mkt-foot"><b>Qué medimos:</b> concretadas / consultas reales (afuera las que Cintia descartó), por tramo de llegada. Siempre sobre reales, aunque arriba esté \"Todas las consultas\". <b>Excluye Belgrano 2020 y 2299</b> aunque estén elegidos en el filtro: el local no se carga completo y la tasa sale inflada. Los tramos abiertos van punteados: su % todavía va a subir.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> concretadas / consultas reales (afuera las descartadas en la evaluación), por tramo de llegada. Siempre sobre reales, aunque arriba esté \"Todas las consultas\". <b>Excluye Belgrano 2020 y 2299</b> aunque estén elegidos en el filtro: el local no se carga completo y la tasa sale inflada. Los tramos abiertos van punteados: su % todavía va a subir.</div></div>`;
   return card1+card2;
 }
 function renderMarketing(boxId){
@@ -19895,7 +19895,7 @@ function mktBucketVolumen(base){
     ${drillHead}
     ${graficoHtml}
     ${(hayParc&&!demasiadas)?`<div class="mkt-leg"><span><i class="hueco"></i>Tramo incompleto — no cubre todos sus días${mktVistaEfectiva()!=='total'?' (mirá el tooltip)':''}</span>${mktVistaEfectiva()==='canal'?`<span><i class="punteado"></i>Publicidad (pauta)</span>`:''}</div>`:(mktVistaEfectiva()==='canal'?`<div class="mkt-leg"><span><i class="punteado"></i>Publicidad (pauta)</span></div>`:'')}
-    <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = Cintia marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado</b>: ${covEvbl?`${covPct}% (${covEv} de ${covEvbl}) — lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado`:'sin consultas evaluables en el período'}.</div>
+    <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = en la evaluación se marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado</b>: ${covEvbl?`${covPct}% (${covEv} de ${covEvbl}) — lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado`:'sin consultas evaluables en el período'}.</div>
   </div>`;
 
   /* 2 · por canal (orden fijo, locales separados) */
@@ -20227,7 +20227,7 @@ function mktBucketResultado(base){
   const card4=`<div class="mkt-card wide"><h3>3 · Estado por canal</h3>
     <p class="cap">En qué termina lo que trae cada canal. Pasá el mouse por la barra para ver la cantidad y el % de cada estado.</p>
     ${mktEstadoBarras('estCanal', mktEstadoRows(rbase, a=>mktCanalMostrar(a), MKT_CANALES))}
-    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal${mktSoloReales?', <b>solo sobre las reales</b> (afuera las que Cintia descartó: nunca respondió, fuera de target, o genérica + fuera de alcance)':', sobre <b>todas</b> las recibidas — descartadas incluidas'}. Entran <b>todas</b> las del período elegido, incluidas las de hoy — ojo que esas todavía no terminaron en nada y arrastran el % de concretadas para abajo. <b>Evaluado</b> = sobre ese mismo total, cuántas evaluó; si el % es bajo, lo descartado está incompleto y la tabla hay que leerla con pinzas.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal${mktSoloReales?', <b>solo sobre las reales</b> (afuera las descartadas en la evaluación: nunca respondió, fuera de target, o genérica + fuera de alcance)':', sobre <b>todas</b> las recibidas — descartadas incluidas'}. Entran <b>todas</b> las del período elegido, incluidas las de hoy — ojo que esas todavía no terminaron en nada y arrastran el % de concretadas para abajo. <b>Evaluado</b> = sobre ese mismo total, cuántas evaluó; si el % es bajo, lo descartado está incompleto y la tabla hay que leerla con pinzas.</div></div>`;
   const card5=`<div class="mkt-card wide"><h3>4 · Estado por vendedor</h3>
     <p class="cap">El mismo corte, por persona. Pasá el mouse por la barra para ver la cantidad y el % de cada estado.</p>
     ${mktEstadoBarras('estVend', mktEstadoRows(rbase, a=>a.vendedorId?nombreDe(a.vendedorId):'', MKT_VEND_ORDEN.map(nombreDe)))}
@@ -20290,7 +20290,7 @@ function mktBucketResultado(base){
   pubBase.forEach(a=>{const k=((a.campanaPublicidad||'').trim())||'Sin campaña'; (camp[k]=camp[k]||{n:0,nr:0,val:0}); camp[k].n++; if(mktNoResp(a))camp[k].nr++; camp[k].val+=mktValor(a);});
   const rowsCamp=Object.entries(camp).map(([k,o])=>({k,...o})).sort((a,b)=>b.n-a.n);
   const cardPauta=`<div class="mkt-card wide"><h3>7 · Publicidad — de qué pauta</h3>
-    <p class="cap">Consultas que entran por pauta, abiertas por la campaña que carga Cintia ("¿de qué es la campaña?"). Muestra qué campaña trae volumen y cuál trae gente que no contesta.</p>
+    <p class="cap">Consultas que entran por pauta, abiertas por la campaña que se carga en la consulta ("¿de qué es la campaña?"). Muestra qué campaña trae volumen y cuál trae gente que no contesta.</p>
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${pubBase.length}</div><div class="l">Consultas de publicidad</div></div>
       <div class="mkt-kpi r"><div class="n">${pubNoResp.length} <small>· ${mktPct(pubNoResp.length,pubBase.length)}%</small></div><div class="l">No respondieron</div></div>
@@ -20298,7 +20298,7 @@ function mktBucketResultado(base){
     ${rowsCamp.length?`<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>Campaña (pauta)</th><th>Consultas</th><th>No responde</th><th>% no resp.</th><th>Valor cotizado</th></tr></thead><tbody>
       ${rowsCamp.map(r=>`<tr><td>${escapeHtml(r.k)}</td><td>${r.n}</td><td class="mkt-cr">${r.nr}</td><td><b class="pn">${mktPct(r.nr,r.n)}%</b></td><td>${mktPesos(r.val)}</td></tr>`).join('')}
     </tbody></table>`:'<p class="mkt-note">Sin consultas de publicidad con campaña cargada en el período.</p>'}
-    <div class="mkt-foot"><b>Qué medimos:</b> la pauta (campo "¿de qué es la campaña?" que carga Cintia) vs. volumen y no-respuesta. "Publicidad" = Publicidad Mensajería + Publicidad Instagram.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> la pauta (campo "¿de qué es la campaña?" de la consulta) vs. volumen y no-respuesta. "Publicidad" = Publicidad Mensajería + Publicidad Instagram.</div></div>`;
 
   // card5 compara a TODOS los vendedores entre sí: es justo lo que el vendedor no
   // tiene que ver. Con el candado puesto no se arma.
@@ -20461,7 +20461,7 @@ function htmlMarketing(){
         ${paso(baseMedida.length,'midiendo abajo')}
         <div class="tiny" style="color:var(--sec);margin-top:6px">
           ${enCurso?`De las ${base.length}, <b>${enCurso}</b> entraron hace menos de ${DIAS_MADUREZ_ANALISIS} días y todavía se están trabajando: entran en la tabla igual, pero arrastran el % de concretadas para abajo. Si querés el corte limpio, cortá el período hasta hace ${DIAS_MADUREZ_ANALISIS} días.`:`Todas tienen más de ${DIAS_MADUREZ_ANALISIS} días: el período está maduro.`}
-          ${faltanEval?` Las ${faltanEval} sin evaluar cuentan hoy como reales; cuando Cintia las mire, parte puede pasar a descartadas.`:''}
+          ${faltanEval?` Las ${faltanEval} sin evaluar cuentan hoy como reales; cuando se evalúen, parte puede pasar a descartadas.`:''}
         </div>
       </div>`
     : '';
