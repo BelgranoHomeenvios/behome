@@ -3370,7 +3370,7 @@ async function loadContactos(){
   if(Date.now() < _contactosProtegidoHasta) return;
   try{
     const r=await window.storage.get('contactos',true);
-    if(r&&r.value) CONTACTOS=JSON.parse(r.value);
+    if(r&&r.value){ CONTACTOS=JSON.parse(r.value); invalidarIndiceContactos(); }
     // Si no hubo value (error de red o clave inexistente) NO se pisa lo que ya está en
     // memoria: antes se ponía CONTACTOS={} y el próximo guardado persistía ese vacío,
     // borrando contactos reales.
@@ -3579,6 +3579,7 @@ async function vincularContacto({nombre, telefono, instagram, email, noTomoTelef
       ultimaActividad:ahora,
       canales: canal?[canal]:[]
     };
+    invalidarIndiceContactos();
   }else{
     const c=CONTACTOS[key];
     if(nombre && nombre!=='Sin nombre') c.nombre=nombre;
@@ -3593,9 +3594,28 @@ async function vincularContacto({nombre, telefono, instagram, email, noTomoTelef
   await saveContactos();
   return CONTACTOS[key].id;
 }
+/* Índice id → clave de CONTACTOS (30/9). Antes cada búsqueda armaba la lista de los
+   ~1.000 contactos y la recorría entera; como se llama por cada consulta (y miles de
+   veces dentro del orden por urgencia), un solo repintado tardaba varios segundos.
+   El índice se rearma solo: si cambia el objeto CONTACTOS (recarga), al terminar cada
+   tarea del navegador, si un acierto ya no coincide, o si alguien lo invalida al dar
+   de alta/baja un contacto. Devuelve exactamente lo mismo que la búsqueda anterior
+   (el primer contacto con ese id, en el mismo orden). */
+let _ctIdx=null, _ctIdxRef=null;
+function invalidarIndiceContactos(){ _ctIdx=null; }
 function contactoPorId(id){
   if(!id) return null;
-  return Object.values(CONTACTOS).find(c=>c.id===id) || null;
+  if(!_ctIdx || _ctIdxRef!==CONTACTOS){
+    _ctIdx=new Map(); _ctIdxRef=CONTACTOS;
+    for(const k in CONTACTOS){ const c=CONTACTOS[k]; if(c && c.id!=null && !_ctIdx.has(c.id)) _ctIdx.set(c.id,k); }
+    setTimeout(invalidarIndiceContactos,0);
+  }
+  const k=_ctIdx.get(id);
+  if(k===undefined) return null;
+  const c=CONTACTOS[k];
+  if(c && c.id===id) return c;
+  _ctIdx=null;               // quedó viejo: se rearma y se busca de nuevo (una sola vez)
+  return contactoPorId(id);
 }
 // Consultas cargadas por un vendedor por atención en el local, que nunca quedaron
 // vinculadas a la base de CONTACTOS (no se tomó teléfono en el momento). Solo Cintia
@@ -4684,7 +4704,7 @@ async function recargarEjemplos(){
   if(hayDatosReales()){ toast('No se pueden cargar ejemplos: ya hay consultas reales'); return; }
   if(!confirm('Esto borra todo lo cargado y genera 50 consultas de ejemplo. ¿Seguir?'))return;
   atenciones=[];
-  CONTACTOS={};
+  CONTACTOS={}; invalidarIndiceContactos();
   await generarEjemplosDemo();
   render();
   toast('50 consultas de ejemplo cargadas');
@@ -5403,6 +5423,9 @@ const DIAS_PARA_URGENTE = 15;
    contacto reinicia el reloj. */
 const DIAS_PARA_ARCHIVAR = 25;
 
+/* Formateador de hora reutilizable (30/9): toLocaleTimeString arma uno nuevo en cada
+   llamada y es de lo más lento del repintado. Da exactamente el mismo texto. */
+const FMT_HORA_PLAZO=new Intl.DateTimeFormat('es-AR',{hour:'2-digit',minute:'2-digit'});
 function infoPlazo(a){
   // Una consulta ya cerrada (Concretada o Rechazada) no tiene ninguna acción pendiente:
   // aunque le haya quedado una próxima acción vieja, no debe gritar "Urgente".
@@ -5421,7 +5444,7 @@ function infoPlazo(a){
   const manana0=new Date(hoy0.getTime()+86400000);
   const pasado0=new Date(hoy0.getTime()+2*86400000);
   const en7=new Date(hoy0.getTime()+7*86400000);
-  const hora=prox.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  const hora=FMT_HORA_PLAZO.format(prox);   // mismo texto que toLocaleTimeString, sin crear un formateador por llamada
   const fechaCorta=`${prox.getDate()}/${prox.getMonth()+1}`;
 
   if(prox<hoy0){
@@ -6357,7 +6380,7 @@ async function restaurarBaja(id){if(esSoloLectura())return avisoLectura();
   }
   if(s.snapshotContacto){
     const yaExiste=Object.values(CONTACTOS).some(c=>c.id===s.snapshotContacto.id);
-    if(!yaExiste){ CONTACTOS[s.snapshotContacto.telefono]={...s.snapshotContacto}; await saveContactos(); }
+    if(!yaExiste){ CONTACTOS[s.snapshotContacto.telefono]={...s.snapshotContacto}; invalidarIndiceContactos(); await saveContactos(); }
   }
   s.estado='restaurada';
   s.restauradaPorId=YO;
@@ -7200,13 +7223,14 @@ function setFiltroHeader(campo,valor){
   else if(campo==='evaluacion') filtroEvaluacion=valor;
   else if(campo==='canalGrupo') filtroCanalGrupo=valor;
   else if(campo==='postventa') filtroPostventa=valor;
-  else if(campo==='ordenFecha') ordenFecha = (valor==='urgencia') ? null : valor;
+  else if(campo==='ordenFecha'){ ordenFecha = (valor==='urgencia') ? null : valor; evLista.todo=1; }
   else if(campo==='recordatorio') filtroRecordatorio=valor;
   document.querySelectorAll('.ebtn.open').forEach(x=>x.classList.remove('open'));
   renderHistorial();
   // Si Cintia está en una sección propia (Atrasadas, etc.), también se repinta para que
-  // los filtros de columna se apliquen ahí.
-  if(esAuditora() && typeof renderCintiaMain==='function') renderCintiaMain();
+  // los filtros de columna se apliquen ahí. Dirección: solo Evaluación usa el orden de
+  // Fecha fuera de la tabla principal, así que solo esa se repinta.
+  if(typeof renderCintiaMain==='function' && (esAuditora() || (esAdmin() && cintiaSeccion==='evaluacion'))) renderCintiaMain();
 }
 /* ===== Filtros activos visibles =====
    El problema: al filtrar desde el tablero o desde un encabezado, el filtro queda puesto
@@ -7426,20 +7450,27 @@ function filtrosColumna(l){
    desde el encabezado Fecha se puede pasar a orden cronológico puro. */
 let ordenFecha=null; // null = por urgencia | 'nuevas' | 'viejas'
 const ORDEN_FECHA_OPCIONES=[['urgencia','Por urgencia (por defecto)'],['nuevas','Más nuevas primero'],['viejas','Más viejas primero']];
+/* Ordenar calculando la clave de cada consulta UNA sola vez (30/9). Antes se recalculaba
+   en cada comparación: con ~9.500 consultas son ~120.000 comparaciones y el orden por
+   urgencia tardaba ~9 s. El resultado es idéntico; solo cambia cuántas veces se calcula. */
+function ordenarPorFechaConsulta(l, masNuevasPrimero){
+  const t=new Map(l.map(a=>[a,new Date(a.ts).getTime()]));
+  return [...l].sort(masNuevasPrimero ? (a,b)=>t.get(b)-t.get(a) : (a,b)=>t.get(a)-t.get(b));
+}
 function ordenarLista(l){
-  if(ordenFecha==='nuevas') return [...l].sort((a,b)=>new Date(b.ts)-new Date(a.ts));
-  if(ordenFecha==='viejas') return [...l].sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+  if(ordenFecha==='nuevas') return ordenarPorFechaConsulta(l,true);
+  if(ordenFecha==='viejas') return ordenarPorFechaConsulta(l,false);
   return ordenarPorUrgencia(l);
 }
 function ordenarPorUrgencia(l){
   // Primero lo que hay que hacer ya (urgente → hoy → mañana → esta semana),
   // y las nuevas sin completar arriba de todo, que son las que ni miró.
+  const k=new Map(l.map(a=>[a,{p:a.status==='pendiente'?0:1, r:infoPlazo(a).rank, t:new Date(a.ts).getTime()}]));
   return [...l].sort((a,b)=>{
-    const pa=a.status==='pendiente'?0:1, pb=b.status==='pendiente'?0:1;
-    if(pa!==pb) return pa-pb;
-    const ra=infoPlazo(a).rank, rb=infoPlazo(b).rank;
-    if(ra!==rb) return ra-rb;
-    return new Date(b.ts)-new Date(a.ts);
+    const ka=k.get(a), kb=k.get(b);
+    if(ka.p!==kb.p) return ka.p-kb.p;
+    if(ka.r!==kb.r) return ka.r-kb.r;
+    return kb.t-ka.t;
   });
 }
 function renderChead(){ $('cheadBox').innerHTML=cheadHtml(); }
@@ -11591,6 +11622,7 @@ async function fusionarClientes(telPrincipal, telSecundario, vendedorElegido){
     cP=CONTACTOS[kP]={ id:'ct_'+kP, telefono:kP, nombre:cs.find(a=>a.clienteNombre)?.clienteNombre||'', telefonosAlt:[],
       calificacion:null, estadoGeneral:'En seguimiento', proximaAccionTs:null, proximaAccionNota:'',
       primeraActividad:(cs[0]?.ts)||new Date().toISOString(), ultimaActividad:new Date().toISOString(), canales:[] };
+    invalidarIndiceContactos();
   }
   if(!cP.telefonosAlt) cP.telefonosAlt=[];
   if(kS!==kP && !cP.telefonosAlt.map(t=>normContacto(t)).includes(kS)) cP.telefonosAlt.push(kS);
@@ -11602,7 +11634,7 @@ async function fusionarClientes(telPrincipal, telSecundario, vendedorElegido){
     (cS.canales||[]).forEach(x=>{ if(!cP.canales.includes(x)) cP.canales.push(x); });
     (cS.telefonosAlt||[]).forEach(t=>{ const k=normContacto(t); if(k && k!==kP && !cP.telefonosAlt.map(y=>normContacto(y)).includes(k)) cP.telefonosAlt.push(k); });
     const keyS=Object.keys(CONTACTOS).find(k=>CONTACTOS[k].id===cS.id);
-    if(keyS) delete CONTACTOS[keyS];
+    if(keyS){ delete CONTACTOS[keyS]; invalidarIndiceContactos(); }
   }
   atenciones.forEach(a=>{
     const t=normContacto(a.clienteTelefono);
@@ -12152,7 +12184,10 @@ function htmlEvaluacionDireccion(){
       ? htmlEjemplosPorMes(paraMi, {paraDireccion:true})
       : '<p class="cin-empty">Cintia todavía no te dejó ningún comentario acá.</p>';
   }else{
-    const l=evaluadas.slice().sort((x,y)=>new Date(y.evaluadoTs||y.ts)-new Date(x.evaluadoTs||x.ts));
+    // Si se eligió un orden desde el encabezado Fecha, manda ese (por la fecha de la
+    // consulta, que es la que muestra la columna). Si no, por fecha de evaluación.
+    const l = ordenFecha ? ordenarPorFechaConsulta(evaluadas, ordenFecha==='nuevas')
+                         : evaluadas.slice().sort((x,y)=>new Date(y.evaluadoTs||y.ts)-new Date(x.evaluadoTs||x.ts));
     const pg = evListaPaginar(l,'todo','evListaIrTodo');
     _ctxLista='evaluar';
     cuerpo = l.length ? cheadHtml()+pg.items.map(logItemHtml).join('')+pg.pag : '<p class="cin-empty">No hay evaluaciones en este período.</p>';
@@ -13660,7 +13695,7 @@ async function fusionarContactos(idIG, idTel){
   if(!dest.canales) dest.canales=[];
   (orig.canales||[]).forEach(c=>{ if(!dest.canales.includes(c)) dest.canales.push(c); });
   const key=Object.keys(CONTACTOS).find(k=>CONTACTOS[k].id===orig.id);
-  if(key) delete CONTACTOS[key];
+  if(key){ delete CONTACTOS[key]; invalidarIndiceContactos(); }
   notasSinAccion.push({id:'fus_'+Date.now(), tipo:'fusion', clienteNombre:dest.nombre||null, clienteTelefono:dest.telefono, instagram:dest.instagram||null, mensaje:`Se fusionó ${orig.telefono||'IG'} con ${dest.telefono}`, ts:new Date().toISOString(), registradoPor:YO, visto:false});
   await saveContactos(); await saveAtenciones(); await saveNotasSinAccion();
   toast('Contactos fusionados: '+(dest.nombre||dest.telefono));
@@ -14056,7 +14091,7 @@ async function agregarTelefonoAlt(contactoId, tel2){
     if(!c.instagram && cSec.instagram) c.instagram=cSec.instagram;
     (cSec.telefonosAlt||[]).forEach(t=>{ const k=normContacto(t); if(k && k!==kP && !c.telefonosAlt.map(y=>normContacto(y)).includes(k)) c.telefonosAlt.push(k); });
     const keyS=Object.keys(CONTACTOS).find(kk=>CONTACTOS[kk].id===cSec.id);
-    if(keyS) delete CONTACTOS[keyS];
+    if(keyS){ delete CONTACTOS[keyS]; invalidarIndiceContactos(); }
     atenciones.forEach(a=>{ if(normContacto(a.clienteTelefono)===k2) a.contactoId=c.id; });
     await saveAtenciones();
   }
