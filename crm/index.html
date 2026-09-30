@@ -19919,7 +19919,10 @@ function mktBucketVolumen(base){
   // card3 se llama "Consultas por vendedor": con el candado puesto la base ya es de una
   // sola persona, así que mostraría una única fila con el mismo total de arriba. No filtra
   // datos ajenos —no los tiene— pero no aporta nada, así que se saca.
-  return card1 + `<div class="mkt-grid">${card2}${mktLockVend?'':card3}</div>`;
+  // 4 · Motivos de rechazo y 5 · Tiempo hasta cerrar (30/9, pedido de Brian: viven en Volumen).
+  // Motivos siempre mide sobre reales (lo filtra adentro). Tiempos respeta "Medir sobre".
+  return card1 + `<div class="mkt-grid">${card2}${mktLockVend?'':card3}</div>`
+    + mktCardMotivos(base) + mktCardTiempos(mktSoloReales ? base.filter(mktReal) : base);
 }
 
 /* helpers compartidos para baldes 2-4 */
@@ -20060,7 +20063,7 @@ function mktCardMotivos(rbase){
     .sort((a,b)=>(fin.has(a.k)-fin.has(b.k)) || (b.n-a.n));
   const selector=`<div class="mkt-subtabs">${[['eval','Según la evaluación'],['vend','Según el vendedor']].map(([v,t])=>
     `<span class="mkt-chip sm ${mktMotFuente===v?'on':''}" onclick="mktSetMotFuente('${v}')">${t}</span>`).join('')}</div>`;
-  if(!n) return `<div class="mkt-card wide"><h3>8 · Motivos de rechazo</h3>${selector}<p class="mkt-note">Sin rechazos reales en este corte.</p></div>`;
+  if(!n) return `<div class="mkt-card wide"><h3>4 · Motivos de rechazo</h3>${selector}<p class="mkt-note">Sin rechazos reales en este corte.</p></div>`;
 
   // Torta: SVG puro, mismo recurso que las tortas de Evaluación.
   const R=80, C=2*Math.PI*R; let off=0;
@@ -20098,7 +20101,7 @@ function mktCardMotivos(rbase){
       + (errE>errV?` La evaluación marcó <b>${errE}</b> como error nuestro; los vendedores, <b>${errV}</b>.`:'');
   }
 
-  return `<div class="mkt-card wide"><h3>8 · Motivos de rechazo</h3>
+  return `<div class="mkt-card wide"><h3>4 · Motivos de rechazo</h3>
     <p class="cap">Por qué se pierden las consultas reales. Tocá un fundamento para ver los motivos que lo componen.</p>
     ${selector}
     <div class="mkt-mot-wrap">${torta}<div class="mkt-mot-leg">${leyenda}</div></div>
@@ -20141,7 +20144,7 @@ function mktCardTiempos(base){
   const dC=conDias.filter(x=>x.c).map(x=>x.d), dR=conDias.filter(x=>!x.c).map(x=>x.d);
   const hace14=Date.now()-14*86400000;
   const abiertas14=a=>{ const e=estadoDe(a); return e!=='Concretado' && e!=='Rechazado' && new Date(a.ts).getTime()<hace14; };
-  if(!conDias.length) return `<div class="mkt-card wide"><h3>9 · Tiempo hasta cerrar</h3><p class="mkt-note">Sin consultas cerradas con fecha de cierre en este corte.</p></div>`;
+  if(!conDias.length) return `<div class="mkt-card wide"><h3>5 · Tiempo hasta cerrar</h3><p class="mkt-note">Sin consultas cerradas con fecha de cierre en este corte.</p></div>`;
 
   const medC=mktMediana(dC), medR=mktMediana(dR), p80C=mktPercentil(dC,0.8), p80R=mktPercentil(dR,0.8);
   // Tramos, partidos en concretadas / rechazadas.
@@ -20194,7 +20197,7 @@ function mktCardTiempos(base){
   const tVend = mktLockVend ? '' : tabla('Vendedor', MKT_VEND_ORDEN.filter(u=>USUARIOS[u]), a=>a.vendedorId, u=>nombreDe(u));
   const tCanal = tabla('Canal', MKT_CANALES, a=>mktCanalMostrar(a), c=>c);
 
-  return `<div class="mkt-card wide"><h3>9 · Tiempo hasta cerrar</h3>
+  return `<div class="mkt-card wide"><h3>5 · Tiempo hasta cerrar</h3>
     <p class="cap">Cuántos días pasan desde que la consulta entra hasta que se concreta o se rechaza. Pasá el mouse por cada tramo para ver el detalle.</p>
     <div class="mkt-kpirow">
       <div class="mkt-kpi g"><div class="n">${mktFmtDias(medC)}</div><div class="l">Mediana hasta concretar<small>${dC.length} ventas</small></div></div>
@@ -20332,8 +20335,7 @@ function mktBucketResultado(base){
       <div class="mkt-foot"><b>Qué medimos:</b> el eje <b>Atención</b> de la evaluación, sobre ${T.tot} consultas evaluadas. <b>% bien</b> = "Muy bien" + "Bien". Ordenado de mejor a peor. <b>Solo compará entre vendedores con cobertura parecida</b>: la cola de evaluación prioriza rechazadas y estancadas, así que con poca cobertura lo evaluado se inclina hacia lo que salió mal. Cobertura en verde 80%+, ámbar 50-79%, rojo abajo — en rojo, el % bien no es comparable.</div></div>`;
   })() : '';
 
-  return cabeza + card4 + (mktLockVend?'':card5) + card8 + (mktLockVend?'':card9) + cardNR + cardPauta
-    + mktCardMotivos(rbase) + mktCardTiempos(rbase);
+  return cabeza + card4 + (mktLockVend?'':card5) + card8 + (mktLockVend?'':card9) + cardNR + cardPauta;
 }
 
 function mktBucketProd(base){
