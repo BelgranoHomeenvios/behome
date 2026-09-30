@@ -7223,7 +7223,7 @@ function setFiltroHeader(campo,valor){
   else if(campo==='evaluacion') filtroEvaluacion=valor;
   else if(campo==='canalGrupo') filtroCanalGrupo=valor;
   else if(campo==='postventa') filtroPostventa=valor;
-  else if(campo==='ordenFecha'){ ordenFecha = (valor==='urgencia') ? null : valor; evLista.todo=1; }
+  else if(campo==='ordenFecha'){ ordenFecha = (valor==='urgencia') ? null : valor; evLista.todo=1; evLista.cola=1; }
   else if(campo==='recordatorio') filtroRecordatorio=valor;
   document.querySelectorAll('.ebtn.open').forEach(x=>x.classList.remove('open'));
   renderHistorial();
@@ -9196,8 +9196,9 @@ function estancadasSinEvaluar(){
 /* Las rechazadas dentro de los primeros 5 días van PRIMERO: son las que el vendedor
    puede haber cerrado apurado y las que más chance tienen de merecer una 2da opinión. */
 function colaEvaluarCintia(){
-  return [...cerradasSinEvaluar(), ...estancadasSinEvaluar()]
-    .sort((x,y)=>(rechazadaEnInicial(y)?1:0)-(rechazadaEnInicial(x)?1:0));
+  // 30/9 (Brian): sin prioridad para las rechazadas en consulta inicial. El orden lo pone
+  // htmlColaEvaluarLista: cronológico puro por fecha de la consulta.
+  return [...cerradasSinEvaluar(), ...estancadasSinEvaluar()];
 }
 
 const CIN_ICONS={
@@ -10464,9 +10465,10 @@ function colaEvaluarVisible(pasa){
   return filtrosColumna(colaEvaluarCintia().filter(a=>dentroDePeriodoCintia(fechaUltimoMovimiento(a)) && (!pasa || pasa(a))));
 }
 function htmlColaEvaluarLista(pasa){
-  let cola=colaEvaluarVisible(pasa)
-    .sort((a,b)=>(rechazadaEnInicial(b)?1:0)-(rechazadaEnInicial(a)?1:0)
-              || diasDesdeISO(fechaUltimoMovimiento(b))-diasDesdeISO(fechaUltimoMovimiento(a)));
+  // 30/9 (Brian): orden cronológico puro por fecha de la consulta (la que muestra la
+  // columna Fecha). Por defecto, de la más vieja a la más nueva; el encabezado Fecha
+  // ("Más nuevas primero") lo invierte.
+  let cola=ordenarPorFechaConsulta(colaEvaluarVisible(pasa), ordenFecha==='nuevas');
   const total=cola.length;
   if(evalBusqueda){
     const q=evalBusqueda, qTel=q.replace(/\D/g,'');
@@ -10480,7 +10482,7 @@ function htmlColaEvaluarLista(pasa){
   return {
     total,
     pill: evalBusqueda?`${cola.length} de ${total}`:`${total} en cola`,
-    ayuda: `<p class="tiny" style="margin-top:-8px;padding-bottom:6px">Cerradas sin evaluar, y en seguimiento a partir de los ${DIAS_EVALUAR_SEGUIMIENTO} días desde que entró el lead. Las de 0-${DIAS_CONSULTA_INICIAL} días no entran: todavía son respuesta inmediata. <b>Arriba van las rechazadas dentro de los primeros ${DIAS_CONSULTA_INICIAL} días</b> — son las que conviene mirar dos veces.</p>`,
+    ayuda: `<p class="tiny" style="margin-top:-8px;padding-bottom:6px">Cerradas sin evaluar, y en seguimiento a partir de los ${DIAS_EVALUAR_SEGUIMIENTO} días desde que entró el lead. Las de 0-${DIAS_CONSULTA_INICIAL} días no entran: todavía son respuesta inmediata. Ordenadas por fecha de la consulta, <b>de la más vieja a la más nueva</b> (se cambia desde el encabezado Fecha).</p>`,
     cuerpo: `<input type="text" class="cli-buscar eval-buscar" placeholder="Buscar contacto por nombre o teléfono…" value="${escAttr(evalBusqueda)}" oninput="filtrarEval(this.value)">
     ${head}
     ${filas}`
