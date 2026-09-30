@@ -19069,8 +19069,8 @@ table.mkt-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .mkt-mot-seg{cursor:pointer;transition:opacity .12s}
 .mkt-mot-svg:hover .mkt-mot-seg{opacity:.5}
 .mkt-mot-svg .mkt-mot-seg:hover{opacity:1}
-.mkt-mot-n{font-size:34px;font-weight:800;fill:var(--ink)}
-.mkt-mot-l{font-size:11px;font-weight:700;fill:var(--muted,#8a94a3)}
+.mkt-mot-n{font-size:34px;font-weight:800;fill:var(--ink);pointer-events:none}
+.mkt-mot-l{font-size:11px;font-weight:700;fill:var(--muted,#8a94a3);pointer-events:none}
 .mkt-mot-leg{flex:0 1 auto;min-width:0}
 /* Compacta (30/9): número y % pegados al nombre, no en la otra punta de la tarjeta. */
 .mkt-mot-row{display:grid;grid-template-columns:10px 152px 26px 34px 10px;gap:8px;align-items:center;padding:3px 6px;border-radius:6px;cursor:pointer;font-size:13px;line-height:1.25}
@@ -19087,6 +19087,8 @@ table.mkt-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .mkt-cg{color:var(--green)}.mkt-ca{color:var(--amber)}.mkt-cr{color:var(--red)}
 .mkt-vrow{margin:12px 0}
 .mkt-vhead{flex-wrap:wrap}
+.mkt-kpirow-sm{gap:18px}
+.mkt-kpirow-sm .mkt-kpi .n{font-size:22px}
 .mkt-subtit{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:22px 0 4px}
 .mkt-vrow.tot{border-top:1px solid var(--line);padding-top:12px;margin-top:16px}
 .mkt-stack i{transition:filter .1s}
@@ -19902,7 +19904,7 @@ function mktBucketVolumen(base){
   /* 2 · por canal (orden fijo, locales separados) */
   const porCanal={}; base.forEach(a=>{const c=mktCanalMostrar(a); porCanal[c]=(porCanal[c]||0)+1;});
   const rowsCanal=MKT_CANALES.filter(c=>porCanal[c]).map(c=>({k:c,v:porCanal[c]}));
-  const card2=`<div class="mkt-card"><h3>4 · Consultas por canal</h3>
+  const card2=`<div class="mkt-card"><h3>6 · Consultas por canal</h3>
     <p class="cap">De dónde llegan. Solo canales de venta; los dos locales van separados.</p>
     ${mktBarras(rowsCanal, mktColorCanal, r=>`${r.v} <small>· ${mktPct(r.v,tot)}%</small>`)}
     <div class="mkt-foot"><b>Qué medimos:</b> total de consultas por canal de origen. El número es la cantidad; el % es sobre el total del período (<b>${tot}</b>).</div></div>`;
@@ -19914,7 +19916,7 @@ function mktBucketVolumen(base){
   const filasV=mktStackHtml('volVend', MKT_VEND_ORDEN.filter(u=>cntV[u].tot).map(u=>{ const c=cntV[u];
     return {k:nombreDe(u), vals:[c.conc,c.seg,c.rech,c.sin], extra:`<span class="vt">total <b>${c.tot}</b> · ${mktPct(c.tot,tot)}%</span>`}; }),
     [['Concretados','var(--green)'],['En seguimiento','#eab308'],['Rechazados','var(--red)'],['Sin clasificar','#c7ced6']]);
-  const card3=`<div class="mkt-card"><h3>5 · Consultas por vendedor</h3>
+  const card3=`<div class="mkt-card"><h3>7 · Consultas por vendedor</h3>
     <p class="cap">Cuántas tomó cada uno y en qué terminaron. Pasá el mouse por la barra para ver el % de cada estado.</p>
     ${filasV}
     <div class="mkt-foot"><b>Qué medimos:</b> consultas asignadas a cada vendedor. El % del título es la parte del total (${tot}); la barra muestra cómo se reparten sus estados.</div></div>`;
@@ -19924,7 +19926,10 @@ function mktBucketVolumen(base){
   // datos ajenos —no los tiene— pero no aporta nada, así que se saca.
   // 4 · Motivos de rechazo y 5 · Tiempo hasta cerrar (30/9, pedido de Brian: viven en Volumen).
   // Motivos siempre mide sobre reales (lo filtra adentro). Tiempos respeta "Medir sobre".
-  return card1 + `<div class="mkt-grid">${mktCardMotivos(base)}</div>` + mktCardTiempos(mktSoloReales ? base.filter(mktReal) : base)
+  const tiempos = mktCardTiempos(mktSoloReales ? base.filter(mktReal) : base);
+  return card1
+    + `<div class="mkt-grid">${mktCardMotivos(base)}${tiempos.main}</div>`
+    + ((tiempos.canal||tiempos.vend) ? `<div class="mkt-grid">${tiempos.canal}${tiempos.vend}</div>` : '')
     + `<div class="mkt-grid">${card2}${mktLockVend?'':card3}</div>`;
 }
 
@@ -20064,8 +20069,8 @@ function mktCardMotivos(rbase){
   const fin=new Set(['sindato','falta']);
   const tramos=MKT_FUND.filter(f=>cont[f[0]]).map(f=>({k:f[0],lbl:f[1],col:f[2],lee:f[3],n:cont[f[0]]}))
     .sort((a,b)=>(fin.has(a.k)-fin.has(b.k)) || (b.n-a.n));
-  const selector=`<div class="mkt-subtabs">${[['eval','Según la evaluación'],['vend','Según el vendedor']].map(([v,t])=>
-    `<span class="mkt-chip sm ${mktMotFuente===v?'on':''}" onclick="mktSetMotFuente('${v}')">${t}</span>`).join('')}</div>`;
+  // 30/9: se quitó el selector "Según el vendedor" (Brian: no vale la pena). Solo evaluación.
+  const selector='';
   if(!n) return `<div class="mkt-card mkt-mot-card"><h3>2 · Motivos de rechazo</h3>${selector}<p class="mkt-note">Sin rechazos reales en este corte.</p></div>`;
 
   // Torta: SVG puro, mismo recurso que las tortas de Evaluación.
@@ -20093,23 +20098,11 @@ function mktCardMotivos(rbase){
       + (abierto?`<div class="mkt-mot-det">${lista.map(([m,c])=>`<div><span>${escapeHtml(m)}</span><b>${c}</b></div>`).join('')}</div>`:'');
   }).join('');
 
-  // Coincidencia evaluación vs vendedor, sobre las evaluadas.
-  const ev=rech.filter(a=>a.evaluada);
-  let coinc='';
-  if(ev.length){
-    const igual=ev.filter(a=>mktMotivoRechazo(a,'eval').k===mktMotivoRechazo(a,'vend').k).length;
-    const errE=ev.filter(a=>mktMotivoRechazo(a,'eval').k==='error').length;
-    const errV=ev.filter(a=>mktMotivoRechazo(a,'vend').k==='error').length;
-    coinc=`En las ${ev.length} evaluadas, la evaluación coincide con el fundamento del vendedor en el <b>${mktPct(igual,ev.length)}%</b>.`
-      + (errE>errV?` La evaluación marcó <b>${errE}</b> como error nuestro; los vendedores, <b>${errV}</b>.`:'');
-  }
-
   return `<div class="mkt-card mkt-mot-card"><h3>2 · Motivos de rechazo</h3>
     <p class="cap">Por qué se pierden las consultas reales. Tocá un fundamento para ver los motivos que lo componen.</p>
     ${selector}
     <div class="mkt-mot-wrap">${torta}<div class="mkt-mot-leg">${leyenda}</div></div>
-    ${coinc?`<p class="mkt-note">${coinc}</p>`:''}
-    <div class="mkt-foot"><b>Qué medimos:</b> rechazos <b>reales</b> del período (afuera las descartadas en la evaluación), siempre, aunque arriba esté "Todas las consultas". <b>Según la evaluación</b>: el motivo que dejó la evaluadora; si confirmó el del vendedor, cuenta ese; si la consulta todavía no se evaluó, va a <b>Falta motivo</b>. <b>Según el vendedor</b>: el que cargó al cerrar. Los nombres viejos y nuevos del mismo motivo se agrupan en un solo fundamento.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> rechazos <b>reales</b> del período (afuera las descartadas en la evaluación), siempre, aunque arriba esté "Todas las consultas". Cuenta el motivo que dejó la evaluación; si confirmó el del vendedor, cuenta ese; si la consulta todavía no se evaluó, va a <b>Falta motivo</b>. Los nombres viejos y nuevos del mismo motivo se agrupan en un solo fundamento.</div></div>`;
 }
 
 /* ===== 9 · TIEMPO HASTA CERRAR (30/9, definido por Brian) =====
@@ -20147,31 +20140,29 @@ function mktCardTiempos(base){
   const dC=conDias.filter(x=>x.c).map(x=>x.d), dR=conDias.filter(x=>!x.c).map(x=>x.d);
   const hace14=Date.now()-14*86400000;
   const abiertas14=a=>{ const e=estadoDe(a); return e!=='Concretado' && e!=='Rechazado' && new Date(a.ts).getTime()<hace14; };
-  if(!conDias.length) return `<div class="mkt-card wide"><h3>3 · Tiempo hasta cerrar</h3><p class="mkt-note">Sin consultas cerradas con fecha de cierre en este corte.</p></div>`;
+  if(!conDias.length) return {main:`<div class="mkt-card"><h3>3 · Tiempo hasta cerrar</h3><p class="mkt-note">Sin consultas cerradas con fecha de cierre en este corte.</p></div>`, canal:'', vend:''};
 
   const medC=mktMediana(dC), medR=mktMediana(dR), p80C=mktPercentil(dC,0.8), p80R=mktPercentil(dR,0.8);
-  // Tramos, partidos en concretadas / rechazadas.
-  const filas=MKT_TRAMOS_DIAS.map(([lo,hi])=>{
-    const en=conDias.filter(x=>x.d>=lo && x.d<hi);
-    return [en.filter(x=>x.c).length, en.filter(x=>!x.c).length];
-  });
-  const maxY=Math.max(4,...filas.map(f=>f[0]+f[1]));
-  const W=680,H=230,P={l:38,r:14,t:18,b:26}, nT=filas.length, bw=(W-P.l-P.r)/nT, ancho=Math.min(bw*0.55,70);
-  const cx=i=>P.l+bw*(i+0.5), alto=v=>(H-P.t-P.b)*v/maxY;
-  const ejes=ejesSVG(W,H,P,maxY,MKT_TRAMOS_DIAS.map((t,i)=>({x:cx(i),lbl:t[2]})));
-  let barras=''; mktTipRes.tiempo=[];
-  filas.forEach((f,i)=>{
-    const tot=f[0]+f[1]; let yb=H-P.b; const x=cx(i)-ancho/2;
-    [[f[0],MKT_EST_COL[0]],[f[1],MKT_EST_COL[2]]].forEach(([v,col])=>{ if(!v) return; const h=alto(v); yb-=h;
-      barras+=`<rect x="${x.toFixed(1)}" y="${yb.toFixed(1)}" width="${ancho.toFixed(1)}" height="${Math.max(h-1,0.5).toFixed(1)}" fill="${col}"/>`; });
-    if(tot) barras+=`<text x="${cx(i).toFixed(1)}" y="${(yb-5).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--sec,#5b6675)">${tot}</text>`;
-    barras+=`<rect x="${(P.l+bw*i).toFixed(1)}" y="${P.t}" width="${bw.toFixed(1)}" height="${H-P.t-P.b}" fill="transparent"
-      onmouseenter="mktResHover(event,'tiempo',${i})" onmouseleave="mktResOut()"></rect>`;
-    mktTipRes.tiempo.push({lbl:MKT_TRAMOS_DIAS[i][2],
-      html:tot?`<span style="color:${MKT_EST_COL[0]}">●</span> Concretadas: <b>${f[0]}</b> (${mktPct(f[0],tot)}%)<br><span style="color:${MKT_EST_COL[2]}">●</span> Rechazadas: <b>${f[1]}</b> (${mktPct(f[1],tot)}%)<br>Total: <b>${tot}</b>`:'sin cierres'});
-  });
-  const graf=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${ejes}${barras}</svg>
-    <div class="mkt-mot-lg"><span><i style="background:${MKT_EST_COL[0]}"></i>Concretadas</span><span><i style="background:${MKT_EST_COL[2]}"></i>Rechazadas</span></div>`;
+  // Torta por tramo de cierre (30/9: reemplaza al gráfico de columnas). Al pasar el mouse,
+  // cuántas de ese tramo se concretaron y cuántas se rechazaron.
+  const COL_TR=['#15803d','#65a30d','#eab308','#f08c00','#dc2626','#991b1b'];
+  const lblTr=t=>/d[ií]a/.test(t[2])?t[2]:t[2]+' días';
+  const nT=conDias.length;
+  const trs=MKT_TRAMOS_DIAS.map(([lo,hi],i)=>{ const en=conDias.filter(x=>x.d>=lo && x.d<hi);
+    return {lbl:lblTr(MKT_TRAMOS_DIAS[i]), col:COL_TR[i], n:en.length, c:en.filter(x=>x.c).length, r:en.filter(x=>!x.c).length}; }).filter(t=>t.n);
+  const R=80, C=2*Math.PI*R; let off=0; mktTipRes.tiempo=[];
+  const segsT=trs.map((t,i)=>{ const len=t.n/nT*C;
+    mktTipRes.tiempo.push({lbl:`${t.lbl} · ${t.n} (${mktPct(t.n,nT)}%)`,
+      html:`<span style="color:${MKT_EST_COL[0]}">●</span> Concretadas: <b>${t.c}</b> (${mktPct(t.c,t.n)}%)<br><span style="color:${MKT_EST_COL[2]}">●</span> Rechazadas: <b>${t.r}</b> (${mktPct(t.r,t.n)}%)`});
+    const el=`<circle class="mkt-mot-seg" cx="110" cy="110" r="${R}" fill="none" stroke="${t.col}" stroke-width="44"
+      stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 110 110)"
+      onmousemove="mktResHover(event,'tiempo',${i})" onmouseleave="mktResOut()"></circle>`;
+    off+=len; return el; }).join('');
+  const graf=`<div class="mkt-mot-wrap"><svg viewBox="0 0 220 220" class="mkt-mot-svg">${segsT}
+      <text x="110" y="108" text-anchor="middle" class="mkt-mot-n">${nT}</text>
+      <text x="110" y="128" text-anchor="middle" class="mkt-mot-l">cerradas</text></svg>
+    <div class="mkt-mot-leg">${trs.map((t,i)=>`<div class="mkt-mot-row" style="cursor:default" onmousemove="mktResHover(event,'tiempo',${i})" onmouseleave="mktResOut()">
+      <i style="background:${t.col}"></i><span class="mkt-mot-lbl">${t.lbl}</span><b>${t.n}</b><span class="mkt-mot-pct">${mktPct(t.n,nT)}%</span><span></span></div>`).join('')}</div></div>`;
 
   // Lectura automática.
   let lectura='';
@@ -20187,7 +20178,6 @@ function mktCardTiempos(base){
 
   // Por vendedor y por canal, en barras (30/9): cada barra se parte por tramo de cierre,
   // de verde (rápido) a rojo (lento). Junto al nombre: cerradas, medianas y abiertas +14 días.
-  const COL_TR=['#15803d','#65a30d','#eab308','#f08c00','#dc2626','#991b1b'];
   const segsTr=MKT_TRAMOS_DIAS.map((t,i)=>[/d[ií]a/.test(t[2])?t[2]:t[2]+' días', COL_TR[i]]);
   const filaBar=(lbl,lista,todas,esTot)=>{
     const c=lista.filter(x=>x.c).map(x=>x.d), r=lista.filter(x=>!x.c).map(x=>x.d);
@@ -20200,22 +20190,27 @@ function mktCardTiempos(base){
       return (lista.length||todas.some(abiertas14)) ? filaBar(etiq(k),lista,todas,false) : null; }).filter(Boolean);
     if(!filas.length) return '';
     filas.push(filaBar('Total', conDias.filter(x=>claves.includes(claveFn(x.a))), base.filter(a=>claves.includes(claveFn(a))), true));
-    return `<div class="mkt-subtit">${titulo}</div>`+mktStackHtml(id, filas, segsTr);
+    return (titulo?`<div class="mkt-subtit">${titulo}</div>`:'')+mktStackHtml(id, filas, segsTr);
   };
-  const tVend = mktLockVend ? '' : tabla('tiempoVend','Por vendedor', MKT_VEND_ORDEN.filter(u=>USUARIOS[u]), a=>a.vendedorId, u=>nombreDe(u));
-  const tCanal = tabla('tiempoCanal','Por canal', MKT_CANALES, a=>mktCanalMostrar(a), c=>c);
+  const tVend = mktLockVend ? '' : tabla('tiempoVend','', MKT_VEND_ORDEN.filter(u=>USUARIOS[u]), a=>a.vendedorId, u=>nombreDe(u));
+  const tCanal = tabla('tiempoCanal','', MKT_CANALES, a=>mktCanalMostrar(a), c=>c);
+  const pieBarras=`<div class="mkt-foot"><b>Qué medimos:</b> cerradas del período por tramo de días hasta cerrar, de verde (rápido) a rojo (lento). Junto al nombre: medianas hasta concretar y hasta rechazar, y cuántas siguen abiertas hace más de 14 días.</div>`;
+  const cardCanal = tCanal ? `<div class="mkt-card"><h3>4 · Tiempo hasta cerrar por canal</h3>
+    <p class="cap">Pasá el mouse por la barra para ver cantidad y % de cada tramo.</p>${tCanal}${pieBarras}</div>` : '';
+  const cardVend = tVend ? `<div class="mkt-card"><h3>5 · Tiempo hasta cerrar por vendedor</h3>
+    <p class="cap">Pasá el mouse por la barra para ver cantidad y % de cada tramo.</p>${tVend}${pieBarras}</div>` : '';
 
-  return `<div class="mkt-card wide"><h3>3 · Tiempo hasta cerrar</h3>
-    <p class="cap">Cuántos días pasan desde que la consulta entra hasta que se concreta o se rechaza. Pasá el mouse por cada tramo o barra para ver cantidad y %.</p>
-    <div class="mkt-kpirow">
-      <div class="mkt-kpi g"><div class="n">${mktFmtDias(medC)}</div><div class="l">Mediana hasta concretar<small>${dC.length} ventas</small></div></div>
-      <div class="mkt-kpi r"><div class="n">${mktFmtDias(medR)}</div><div class="l">Mediana hasta rechazar<small>${dR.length} rechazos</small></div></div>
-      <div class="mkt-kpi"><div class="n">${mktFmtDias(p80C)}</div><div class="l">El 80% de las ventas<small>cierra antes de este plazo</small></div></div>
+  const main=`<div class="mkt-card"><h3>3 · Tiempo hasta cerrar</h3>
+    <p class="cap">Días desde que la consulta entra hasta que se concreta o se rechaza. Pasá el mouse por la torta para ver concretadas y rechazadas de cada tramo.</p>
+    <div class="mkt-kpirow mkt-kpirow-sm">
+      <div class="mkt-kpi g"><div class="n">${mktFmtDias(medC)}</div><div class="l">Hasta concretar<small>mediana · ${dC.length} ventas</small></div></div>
+      <div class="mkt-kpi r"><div class="n">${mktFmtDias(medR)}</div><div class="l">Hasta rechazar<small>mediana · ${dR.length} rechazos</small></div></div>
+      <div class="mkt-kpi"><div class="n">${mktFmtDias(p80C)}</div><div class="l">80% de las ventas<small>cierra antes</small></div></div>
     </div>
-    <p class="mkt-mot-lee">${lectura}</p>
     ${graf}
-    ${tVend}${tCanal}
-    <div class="mkt-foot"><b>Qué medimos:</b> días entre la <b>entrada</b> de la consulta al CRM y el <b>último cambio de estado</b> a concretado o rechazado, sobre las cerradas del período${mktSoloReales?' (solo reales)':''}. Usamos la <b>mediana</b> (el caso del medio), no el promedio, para que unas pocas consultas eternas no deformen el número. Las abiertas no entran: <b>Abiertas hace +14 días</b> las muestra aparte.${sinFecha.length?` <b>${sinFecha.length}</b> cerradas del período no tienen fecha de cierre registrada (histórico previo a que se guardara) y quedaron afuera.`:''}</div></div>`;
+    ${lectura?`<p class="mkt-note">${lectura}</p>`:''}
+    <div class="mkt-foot"><b>Qué medimos:</b> días entre la <b>entrada</b> de la consulta al CRM y el <b>último cambio de estado</b> a concretado o rechazado${mktSoloReales?' (solo reales)':''}. <b>Mediana</b> = el caso del medio, para que unas pocas consultas eternas no deformen el número. Las abiertas no entran.${sinFecha.length?` <b>${sinFecha.length}</b> cerradas sin fecha de cierre registrada (histórico viejo) quedaron afuera.`:''}</div></div>`;
+  return {main, canal:cardCanal, vend:cardVend};
 }
 
 function mktBucketResultado(base){
