@@ -9484,7 +9484,7 @@ function renderCintiaMain(){
     else if(cintiaSeccion==='reclamos') box.innerHTML=htmlReclamos();
     else if(cintiaSeccion==='evaluacion') box.innerHTML=htmlEvaluacionDireccion();
     else if(cintiaSeccion==='direccion'){ box.innerHTML='<div id="direccionBox"></div>'; renderDireccion(); }
-    else if(cintiaSeccion==='marketing'){ mktBox='cintiaMain'; box.innerHTML=htmlMarketing(); }
+    else if(cintiaSeccion==='marketing'){ mktBox='cintiaMain'; box.innerHTML=htmlMarketing(); mktAplicarColapso(box); }
     else if(cintiaSeccion==='configuracion'){ box.innerHTML=htmlAdminConfig(); pintarConfigLocales(); pintarObjetivoDistrib(); renderEliminacionesAdmin(); renderConfigCanalesDestinos(); }
     else box.innerHTML='';
     return;
@@ -9504,7 +9504,7 @@ function renderCintiaMain(){
   else if(cintiaSeccion==='mispendientes') box.innerHTML=htmlCintiaMisPendientes();
   else if(cintiaSeccion==='clientes') box.innerHTML=htmlCintiaClientes();
   else if(cintiaSeccion==='reclamos') box.innerHTML=htmlReclamos();
-  else if(cintiaSeccion==='marketing'){ mktBox='cintiaMain'; box.innerHTML=htmlMarketing(); }
+  else if(cintiaSeccion==='marketing'){ mktBox='cintiaMain'; box.innerHTML=htmlMarketing(); mktAplicarColapso(box); }
   else if(cintiaSeccion==='ejemplos') box.innerHTML=htmlEjemplosDelMes();
 }
 
@@ -19670,14 +19670,16 @@ function renderMarketing(boxId){
 /* Acordeón: cada tarjeta se pliega dejando solo el título. La clave es 'balde:índice',
    estable aunque cambie el texto del título (ej. "por mes" ↔ "por día"). */
 function mktAplicarColapso(el){
+  let conTitulo=0;   // cuenta solo tarjetas con título: el recuadro explicativo de arriba no tiene
   el.querySelectorAll('.mkt-card').forEach((card,idx)=>{
     const h=card.querySelector('h3'); if(!h) return;
+    const primera = (conTitulo++===0);
     const key=mktTab+':'+idx;
+    // La PRIMERA tarjeta de cada solapa ("Consultas que llegaron…") queda FIJA abierta:
+    // no se pliega nunca, ni al entrar ni al cambiar fechas o filtros (pedido de Brian,
+    // 30/9). Es la que da el panorama; plegada, la pantalla no dice nada.
+    if(primera) return;
     card.classList.add('mkt-collapsible');
-    // En la vista del vendedor la primera tarjeta del balde arranca ABIERTA: entrar a una
-    // pantalla de títulos plegados no comunica nada. En Marketing (dirección/Ariel) se
-    // mantiene el comportamiento de siempre, todo plegado.
-    if(mktLockVend && idx===0 && ![...mktAbiertas].some(k=>k.startsWith(mktTab+':'))) mktAbiertas.add(key);
     if(!mktAbiertas.has(key)) card.classList.add('collapsed');
     h.addEventListener('click',()=>{
       if(mktAbiertas.has(key)) mktAbiertas.delete(key); else mktAbiertas.add(key);
