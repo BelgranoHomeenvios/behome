@@ -19062,6 +19062,27 @@ table.mkt-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .mkt-dchip i{width:9px;height:9px;border-radius:50%}
 .mkt-dchip b{font-weight:800}
 .mkt-note{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+/* Tarjetas 8 (motivos de rechazo) y 9 (tiempo hasta cerrar) — 30/9 */
+.mkt-mot-lee{font-size:13.5px;color:var(--ink);line-height:1.55;margin:4px 0 14px;background:var(--bg,#f4f6f8);border-radius:10px;padding:10px 14px}
+.mkt-mot-wrap{display:flex;gap:28px;align-items:center;flex-wrap:wrap}
+.mkt-mot-svg{width:240px;height:240px;flex:0 0 auto;display:block}
+.mkt-mot-seg{cursor:pointer;transition:opacity .12s}
+.mkt-mot-svg:hover .mkt-mot-seg{opacity:.5}
+.mkt-mot-svg .mkt-mot-seg:hover{opacity:1}
+.mkt-mot-n{font-size:34px;font-weight:800;fill:var(--ink)}
+.mkt-mot-l{font-size:11px;font-weight:700;fill:var(--muted,#8a94a3)}
+.mkt-mot-leg{flex:1 1 300px;min-width:0}
+.mkt-mot-row{display:grid;grid-template-columns:14px 1fr auto 44px 14px;gap:10px;align-items:center;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:14px}
+.mkt-mot-row:hover,.mkt-mot-row.on{background:var(--bg,#f4f6f8)}
+.mkt-mot-row i{width:12px;height:12px;border-radius:3px;display:block}
+.mkt-mot-row b{font-weight:800;color:var(--ink);text-align:right}
+.mkt-mot-pct{color:var(--sec);font-weight:700;text-align:right}
+.mkt-mot-fl{color:var(--muted);font-size:11px}
+.mkt-mot-det{margin:0 8px 6px 32px;padding:4px 0 6px;border-left:2px solid var(--line);font-size:12.5px;color:var(--sec)}
+.mkt-mot-det>div{display:flex;justify-content:space-between;gap:12px;padding:2px 10px}
+.mkt-mot-lg{display:flex;gap:16px;font-size:12px;color:var(--sec);margin-top:6px}
+.mkt-mot-lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+@media (max-width:600px){.mkt-mot-svg{width:200px;height:200px;margin:0 auto}.mkt-mot-wrap{justify-content:center}}
 .mkt-cg{color:var(--green)}.mkt-ca{color:var(--amber)}.mkt-cr{color:var(--red)}
 .mkt-vrow{margin:12px 0}
 .mkt-vhead{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
@@ -19943,6 +19964,234 @@ function mktEstadoTablaBig(rows, keyLbl){
   </tbody></table>`;
 }
 
+/* ===== 8 · MOTIVOS DE RECHAZO (30/9, definido por Brian) =====
+   Base: SOLO rechazos reales. Dos fuentes, con selector:
+     · Según la evaluación (por defecto): lo que dejó la evaluadora. Si eligió "mismo
+       motivo que el vendedor", en la consulta queda guardado el del vendedor, así que
+       cuenta ese (ella lo confirmó). Rechazo real todavía sin evaluar → "Falta motivo".
+     · Según el vendedor: el motivo que cargó al cerrar.
+   Los sinónimos (lista vieja y nueva conviven en los datos) se unifican SOLO al mostrar:
+   no se toca nada guardado. Todo motivo que no esté en el mapa cae en "Sin dato". */
+const MKT_FUND=[
+  // [clave, etiqueta, color, lectura corta para el texto automático]
+  ['perdio',   'Perdió interés',        '#f08c00', 'el cliente contestó pero se enfrió: es un tema de seguimiento'],
+  ['nunca',    'Nunca se conversó',     '#c92a2a', 'nunca hubo conversación: revisar el primer contacto y la calidad del lead'],
+  ['postergo', 'Lo postergó',           '#1e5fce', 'no es un "no": son clientes para volver a contactar más adelante'],
+  ['demora',   'Demora de producción',  '#7c3aed', 'el plazo de entrega o la falta de stock frenó la compra'],
+  ['precio',   'Precio',                '#0ca678', 'el precio o los costos de envío'],
+  ['producto', 'Producto no disponible','#a61e4d', 'pidieron algo que no tenemos o no hacemos'],
+  ['otra',     'Eligió otra opción',    '#1098ad', 'compró en otro lado o lo resolvió de otra forma'],
+  ['error',    'Error nuestro',         '#d6336c', 'la perdimos por un error propio (descuido, demora, cruce entre vendedores)'],
+  ['carga',    'Error de carga',        '#74b816', 'no es un rechazo real: es un error de carga'],
+  ['sindato',  'Sin dato',              '#adb5bd', ''],
+  ['falta',    'Falta motivo',          '#dde2e8', '']
+];
+const MKT_FUND_IDX=Object.fromEntries(MKT_FUND.map((f,i)=>[f[0],i]));
+function mktNormTxt(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim(); }
+const MKT_MOTIVO_FUND=(()=>{
+  const m={};
+  const pon=(k,l)=>l.forEach(t=>{ m[mktNormTxt(t)]=k; });
+  pon('perdio',  ['Dejó de responderme','Dejó de responder']);
+  pon('nunca',   ['No responde']);
+  pon('postergo',['Pospuso la compra','Pospone la compra','Pospuso compra']);
+  pon('demora',  ['Tiempo de entrega','No teníamos stock']);
+  pon('precio',  ['Fuera de precio','Se le fue el precio','Costo de logística','Costos de envío']);
+  pon('producto',['Producto no disponible','Mueble que no hacíamos','Mueble que no hacemos']);
+  pon('otra',    ['Compró en otro lado','Lo resolvió de otra manera','Ya lo resolvió','Ya resolvió']);
+  pon('error',   ['Descuidó la consulta','Demora en la respuesta','Cerró con otro vendedor','Falta de seguimiento','Falto seguimiento','Mala interpretacion de la consulta','El vendedor nunca le escribio']);
+  pon('carga',   ['Baja de contacto solicitada','Nro equivocado']);
+  pon('sindato', ['Otros','No sé el motivo','No sé']);
+  return m;
+})();
+function mktFundDeMotivo(txt){ const t=mktNormTxt(txt); return t ? (MKT_MOTIVO_FUND[t]||'sindato') : 'sindato'; }
+/* Devuelve {k: clave de fundamento, m: texto del motivo tal cual (para el detalle)}. */
+function mktMotivoRechazo(a, fuente){
+  if(fuente==='vend'){ const m=(a.resultadoMotivo||'').trim(); return {k:mktFundDeMotivo(m), m:m||'(vacío)'}; }
+  if(!a.evaluada) return {k:'falta', m:'Sin evaluar'};
+  const m=(a.motivoCintia||a.resultadoMotivo||'').trim();
+  return {k:mktFundDeMotivo(m), m:m||'(vacío)'};
+}
+let mktMotFuente='eval';          // 'eval' | 'vend'
+let mktMotAbierto=null;           // fundamento desplegado en la leyenda
+function mktSetMotFuente(v){ mktMotFuente=v; mktMotAbierto=null; renderMarketing(); }
+function mktTogMotivo(k){ mktMotAbierto = mktMotAbierto===k ? null : k; renderMarketing(); }
+
+function mktCardMotivos(rbase){
+  const rech = rbase.filter(a=>estadoDe(a)==='Rechazado' && mktReal(a));
+  const n=rech.length;
+  const cont={}, det={};
+  rech.forEach(a=>{ const r=mktMotivoRechazo(a, mktMotFuente);
+    cont[r.k]=(cont[r.k]||0)+1; (det[r.k]=det[r.k]||{}); det[r.k][r.m]=(det[r.k][r.m]||0)+1; });
+  // Orden: de mayor a menor, pero "Sin dato" y "Falta motivo" siempre al final.
+  const fin=new Set(['sindato','falta']);
+  const tramos=MKT_FUND.filter(f=>cont[f[0]]).map(f=>({k:f[0],lbl:f[1],col:f[2],lee:f[3],n:cont[f[0]]}))
+    .sort((a,b)=>(fin.has(a.k)-fin.has(b.k)) || (b.n-a.n));
+  const selector=`<div class="mkt-subtabs">${[['eval','Según la evaluación'],['vend','Según el vendedor']].map(([v,t])=>
+    `<span class="mkt-chip sm ${mktMotFuente===v?'on':''}" onclick="mktSetMotFuente('${v}')">${t}</span>`).join('')}</div>`;
+  if(!n) return `<div class="mkt-card wide"><h3>8 · Motivos de rechazo</h3>${selector}<p class="mkt-note">Sin rechazos reales en este corte.</p></div>`;
+
+  // Torta: SVG puro, mismo recurso que las tortas de Evaluación.
+  const R=80, C=2*Math.PI*R; let off=0;
+  mktTipRes.mot=[];
+  const segs=tramos.map((t,i)=>{
+    const len=t.n/n*C;
+    const lista=Object.entries(det[t.k]).sort((a,b)=>b[1]-a[1]);
+    mktTipRes.mot.push({lbl:`${t.lbl} · ${t.n} (${mktPct(t.n,n)}%)`,
+      html:lista.map(([m,c])=>`${escapeHtml(m)}: <b>${c}</b>`).join('<br>')});
+    const el=`<circle class="mkt-mot-seg" cx="110" cy="110" r="${R}" fill="none" stroke="${t.col}" stroke-width="44"
+      stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 110 110)"
+      onmousemove="mktResHover(event,'mot',${i})" onmouseleave="mktResOut()" onclick="mktTogMotivo('${t.k}')"></circle>`;
+    off+=len; return el;
+  }).join('');
+  const torta=`<svg viewBox="0 0 220 220" class="mkt-mot-svg">${segs}
+    <text x="110" y="108" text-anchor="middle" class="mkt-mot-n">${n}</text>
+    <text x="110" y="128" text-anchor="middle" class="mkt-mot-l">rechazos reales</text></svg>`;
+  const leyenda=tramos.map(t=>{
+    const abierto=mktMotAbierto===t.k;
+    const lista=Object.entries(det[t.k]).sort((a,b)=>b[1]-a[1]);
+    return `<div class="mkt-mot-row ${abierto?'on':''}" onclick="mktTogMotivo('${t.k}')">
+        <i style="background:${t.col}"></i><span class="mkt-mot-lbl">${t.lbl}</span>
+        <b>${t.n}</b><span class="mkt-mot-pct">${mktPct(t.n,n)}%</span><span class="mkt-mot-fl">${abierto?'▾':'▸'}</span></div>`
+      + (abierto?`<div class="mkt-mot-det">${lista.map(([m,c])=>`<div><span>${escapeHtml(m)}</span><b>${c}</b></div>`).join('')}</div>`:'');
+  }).join('');
+
+  // Lectura automática: los fundamentos con dato, de mayor a menor.
+  const conDato=tramos.filter(t=>!fin.has(t.k));
+  const nDato=conDato.reduce((s,t)=>s+t.n,0);
+  const sinMot=(cont.sindato||0)+(cont.falta||0);
+  let lectura='';
+  if(conDato.length){
+    const [p1,p2,p3]=conDato;
+    lectura=`El principal fundamento es <b>${p1.lbl.toLowerCase()}</b>: ${mktPct(p1.n,n)}% de los rechazos reales (${p1.n}) — ${p1.lee}.`;
+    if(p2) lectura+=` Le sigue <b>${p2.lbl.toLowerCase()}</b> con ${mktPct(p2.n,n)}%${p3?` y <b>${p3.lbl.toLowerCase()}</b> con ${mktPct(p3.n,n)}%`:''}.`;
+    const top3=[p1,p2,p3].filter(Boolean).reduce((s,t)=>s+t.n,0);
+    if(nDato && conDato.length>3) lectura+=` Entre los tres explican el ${mktPct(top3,nDato)}% de los rechazos con motivo.`;
+  }
+  if(sinMot){
+    const pS=mktPct(sinMot,n);
+    lectura+=`${lectura?' ':''}<span style="color:${pS>=25?'#b42318':'var(--sec)'}">${pS}% (${sinMot}) no tiene un motivo claro${cont.falta?` — ${cont.falta} todavía sin evaluar`:''}${pS>=25?': la lectura está incompleta':''}.</span>`;
+  }
+  // Coincidencia evaluación vs vendedor, sobre las evaluadas.
+  const ev=rech.filter(a=>a.evaluada);
+  let coinc='';
+  if(ev.length){
+    const igual=ev.filter(a=>mktMotivoRechazo(a,'eval').k===mktMotivoRechazo(a,'vend').k).length;
+    const errE=ev.filter(a=>mktMotivoRechazo(a,'eval').k==='error').length;
+    const errV=ev.filter(a=>mktMotivoRechazo(a,'vend').k==='error').length;
+    coinc=`En las ${ev.length} evaluadas, la evaluación coincide con el fundamento del vendedor en el <b>${mktPct(igual,ev.length)}%</b>.`
+      + (errE>errV?` La evaluación marcó <b>${errE}</b> como error nuestro; los vendedores, <b>${errV}</b>.`:'');
+  }
+
+  return `<div class="mkt-card wide"><h3>8 · Motivos de rechazo</h3>
+    <p class="cap">Por qué se pierden las consultas reales. Tocá un fundamento para ver los motivos que lo componen.</p>
+    ${selector}
+    <p class="mkt-mot-lee">${lectura}</p>
+    <div class="mkt-mot-wrap">${torta}<div class="mkt-mot-leg">${leyenda}</div></div>
+    ${coinc?`<p class="mkt-note">${coinc}</p>`:''}
+    <div class="mkt-foot"><b>Qué medimos:</b> rechazos <b>reales</b> del período (afuera las descartadas en la evaluación), siempre, aunque arriba esté "Todas las consultas". <b>Según la evaluación</b>: el motivo que dejó la evaluadora; si confirmó el del vendedor, cuenta ese; si la consulta todavía no se evaluó, va a <b>Falta motivo</b>. <b>Según el vendedor</b>: el que cargó al cerrar. Los nombres viejos y nuevos del mismo motivo se agrupan en un solo fundamento.</div></div>`;
+}
+
+/* ===== 9 · TIEMPO HASTA CERRAR (30/9, definido por Brian) =====
+   Inicio: la fecha en que la consulta entró al CRM (a.ts).
+   Fin: el último cambio de estado a Concretado o Rechazado. Se toma el más reciente entre
+   estadoTs (lo sella el guardado en cada cambio de estado, por cualquier camino) y
+   cerradoTs (lo usaban algunos caminos antes de que existiera estadoTs).
+   Mediana y no promedio: tres consultas de 60 días arruinan un promedio.
+   Las abiertas no entran (todavía no terminaron); se informan aparte. */
+const MKT_TRAMOS_DIAS=[[0,1,'Mismo día'],[1,3,'1–2 días'],[3,8,'3–7'],[8,15,'8–14'],[15,31,'15–30'],[31,Infinity,'Más de 30']];
+function mktFinCierre(a){
+  let m=0;
+  [a.estadoTs,a.cerradoTs].forEach(x=>{ if(!x) return; const t=new Date(x).getTime(); if(!isNaN(t)&&t>m) m=t; });
+  return m||null;
+}
+function mktDiasHastaCierre(a){
+  const ini=new Date(a.ts).getTime(), fin=mktFinCierre(a);
+  if(!fin || isNaN(ini)) return null;
+  const d=(fin-ini)/86400000;
+  if(d < -1/24) return null;           // cierre anterior a la entrada: dato roto, afuera
+  return Math.max(0,d);
+}
+function mktMediana(v){ if(!v.length) return null; const s=[...v].sort((a,b)=>a-b), h=Math.floor(s.length/2); return s.length%2?s[h]:(s[h-1]+s[h])/2; }
+function mktPercentil(v,p){ if(!v.length) return null; const s=[...v].sort((a,b)=>a-b); return s[Math.min(s.length-1,Math.ceil(p*s.length)-1)]; }
+function mktFmtDias(d){
+  if(d===null||d===undefined) return '—';
+  if(d<1) return 'mismo día';
+  const r = d<10 ? Math.round(d*10)/10 : Math.round(d);
+  return String(r).replace('.',',')+(r===1?' día':' días');
+}
+function mktCardTiempos(base){
+  const cerr=base.filter(a=>{ const e=estadoDe(a); return e==='Concretado'||e==='Rechazado'; });
+  const conDias=[], sinFecha=[];
+  cerr.forEach(a=>{ const d=mktDiasHastaCierre(a); if(d===null) sinFecha.push(a); else conDias.push({a,d,c:estadoDe(a)==='Concretado'}); });
+  const dC=conDias.filter(x=>x.c).map(x=>x.d), dR=conDias.filter(x=>!x.c).map(x=>x.d);
+  const hace14=Date.now()-14*86400000;
+  const abiertas14=a=>{ const e=estadoDe(a); return e!=='Concretado' && e!=='Rechazado' && new Date(a.ts).getTime()<hace14; };
+  if(!conDias.length) return `<div class="mkt-card wide"><h3>9 · Tiempo hasta cerrar</h3><p class="mkt-note">Sin consultas cerradas con fecha de cierre en este corte.</p></div>`;
+
+  const medC=mktMediana(dC), medR=mktMediana(dR), p80C=mktPercentil(dC,0.8), p80R=mktPercentil(dR,0.8);
+  // Tramos, partidos en concretadas / rechazadas.
+  const filas=MKT_TRAMOS_DIAS.map(([lo,hi])=>{
+    const en=conDias.filter(x=>x.d>=lo && x.d<hi);
+    return [en.filter(x=>x.c).length, en.filter(x=>!x.c).length];
+  });
+  const maxY=Math.max(4,...filas.map(f=>f[0]+f[1]));
+  const W=680,H=230,P={l:38,r:14,t:18,b:26}, nT=filas.length, bw=(W-P.l-P.r)/nT, ancho=Math.min(bw*0.55,70);
+  const cx=i=>P.l+bw*(i+0.5), alto=v=>(H-P.t-P.b)*v/maxY;
+  const ejes=ejesSVG(W,H,P,maxY,MKT_TRAMOS_DIAS.map((t,i)=>({x:cx(i),lbl:t[2]})));
+  let barras=''; mktTipRes.tiempo=[];
+  filas.forEach((f,i)=>{
+    const tot=f[0]+f[1]; let yb=H-P.b; const x=cx(i)-ancho/2;
+    [[f[0],MKT_EST_COL[0]],[f[1],MKT_EST_COL[2]]].forEach(([v,col])=>{ if(!v) return; const h=alto(v); yb-=h;
+      barras+=`<rect x="${x.toFixed(1)}" y="${yb.toFixed(1)}" width="${ancho.toFixed(1)}" height="${Math.max(h-1,0.5).toFixed(1)}" fill="${col}"/>`; });
+    if(tot) barras+=`<text x="${cx(i).toFixed(1)}" y="${(yb-5).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--sec,#5b6675)">${tot}</text>`;
+    barras+=`<rect x="${(P.l+bw*i).toFixed(1)}" y="${P.t}" width="${bw.toFixed(1)}" height="${H-P.t-P.b}" fill="transparent"
+      onmouseenter="mktResHover(event,'tiempo',${i})" onmouseleave="mktResOut()"></rect>`;
+    mktTipRes.tiempo.push({lbl:MKT_TRAMOS_DIAS[i][2],
+      html:tot?`<span style="color:${MKT_EST_COL[0]}">●</span> Concretadas: <b>${f[0]}</b> (${mktPct(f[0],tot)}%)<br><span style="color:${MKT_EST_COL[2]}">●</span> Rechazadas: <b>${f[1]}</b> (${mktPct(f[1],tot)}%)<br>Total: <b>${tot}</b>`:'sin cierres'});
+  });
+  const graf=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${ejes}${barras}</svg>
+    <div class="mkt-mot-lg"><span><i style="background:${MKT_EST_COL[0]}"></i>Concretadas</span><span><i style="background:${MKT_EST_COL[2]}"></i>Rechazadas</span></div>`;
+
+  // Lectura automática.
+  let lectura='';
+  if(medC!==null) lectura+=`Lo que se vende, se vende rápido: la mitad de las ventas se cierra en <b>${mktFmtDias(medC)}</b> y el 80% antes de <b>${mktFmtDias(p80C)}</b>.`;
+  if(medR!==null) lectura+=` Lo que se pierde tarda ${medC!==null&&medR>medC?'más':'parecido'}: los rechazos se definen en <b>${mktFmtDias(medR)}</b> de mediana (80% antes de ${mktFmtDias(p80R)}).`;
+  if(p80C!==null){
+    const despues=conDias.filter(x=>x.d>p80C);
+    if(despues.length>=5){
+      const pc=mktPct(despues.filter(x=>x.c).length,despues.length);
+      lectura+=` De las que siguen abiertas después de ${mktFmtDias(p80C)}, solo el <b>${pc}%</b> termina en venta.`;
+    }
+  }
+
+  // Tablas por vendedor y por canal.
+  const fila=(lbl,lista,todas)=>{
+    const c=lista.filter(x=>x.c).map(x=>x.d), r=lista.filter(x=>!x.c).map(x=>x.d);
+    const ab=todas.filter(abiertas14).length;
+    return `<tr><td>${escapeHtml(lbl)}</td><td>${lista.length}</td><td class="mkt-cg"><b>${mktFmtDias(mktMediana(c))}</b></td><td class="mkt-cr"><b>${mktFmtDias(mktMediana(r))}</b></td><td>${ab?`<span class="mkt-cr">${ab}</span>`:'0'}</td></tr>`;
+  };
+  const tabla=(titulo,claves,claveFn,etiq)=>{
+    const rows=claves.map(k=>{ const lista=conDias.filter(x=>claveFn(x.a)===k); const todas=base.filter(a=>claveFn(a)===k);
+      return (lista.length||todas.some(abiertas14)) ? fila(etiq(k),lista,todas) : ''; }).join('');
+    return rows?`<table class="mkt-tbl mkt-tbl-big" style="margin-top:12px"><thead><tr><th>${titulo}</th><th>Cerradas</th><th>Mediana hasta concretar</th><th>Mediana hasta rechazar</th><th>Abiertas hace +14 días</th></tr></thead><tbody>
+      ${rows}${fila('Total',conDias.filter(x=>claves.includes(claveFn(x.a))),base.filter(a=>claves.includes(claveFn(a)))).replace('<tr>','<tr class="tot">')}</tbody></table>`:'';
+  };
+  const tVend = mktLockVend ? '' : tabla('Vendedor', MKT_VEND_ORDEN.filter(u=>USUARIOS[u]), a=>a.vendedorId, u=>nombreDe(u));
+  const tCanal = tabla('Canal', MKT_CANALES, a=>mktCanalMostrar(a), c=>c);
+
+  return `<div class="mkt-card wide"><h3>9 · Tiempo hasta cerrar</h3>
+    <p class="cap">Cuántos días pasan desde que la consulta entra hasta que se concreta o se rechaza. Pasá el mouse por cada tramo para ver el detalle.</p>
+    <div class="mkt-kpirow">
+      <div class="mkt-kpi g"><div class="n">${mktFmtDias(medC)}</div><div class="l">Mediana hasta concretar<small>${dC.length} ventas</small></div></div>
+      <div class="mkt-kpi r"><div class="n">${mktFmtDias(medR)}</div><div class="l">Mediana hasta rechazar<small>${dR.length} rechazos</small></div></div>
+      <div class="mkt-kpi"><div class="n">${mktFmtDias(p80C)}</div><div class="l">El 80% de las ventas<small>cierra antes de este plazo</small></div></div>
+    </div>
+    <p class="mkt-mot-lee">${lectura}</p>
+    ${graf}
+    ${tVend}${tCanal}
+    <div class="mkt-foot"><b>Qué medimos:</b> días entre la <b>entrada</b> de la consulta al CRM y el <b>último cambio de estado</b> a concretado o rechazado, sobre las cerradas del período${mktSoloReales?' (solo reales)':''}. Usamos la <b>mediana</b> (el caso del medio), no el promedio, para que unas pocas consultas eternas no deformen el número. Las abiertas no entran: <b>Abiertas hace +14 días</b> las muestra aparte.${sinFecha.length?` <b>${sinFecha.length}</b> cerradas del período no tienen fecha de cierre registrada (histórico previo a que se guardara) y quedaron afuera.`:''}</div></div>`;
+}
+
 function mktBucketResultado(base){
   // Los chips de calidad (panel 5) filtran los paneles de estado y rechazos de este balde.
   const rbase = mktCalSel.length ? base.filter(a=>mktCalSel.includes(a.evalConsulta)) : base;
@@ -20063,7 +20312,11 @@ function mktBucketResultado(base){
       <div class="mkt-foot"><b>Qué medimos:</b> el eje <b>Atención</b> de la evaluación de Cintia, sobre ${T.tot} consultas evaluadas. <b>% bien</b> = "Muy bien" + "Bien". Ordenado de mejor a peor. <b>Solo compará entre vendedores con cobertura parecida</b>: la cola de Cintia prioriza rechazadas y estancadas, así que con poca cobertura lo evaluado se inclina hacia lo que salió mal. En verde 80%+, ámbar 50-79%, rojo abajo — en rojo, el % de al lado no es comparable.</div></div>`;
   })() : '';
 
-  return mktCardsResultadoTiempo(rbase) + card4 + (mktLockVend?'':card5) + card8 + (mktLockVend?'':card9) + cardNR + cardPauta;
+  // mktCardsResultadoTiempo reinicia los tooltips (mktTipRes): va primero, y las tarjetas
+  // que registran tooltips propios (8 y 9) se arman después.
+  const cabeza = mktCardsResultadoTiempo(rbase);
+  return cabeza + card4 + (mktLockVend?'':card5) + card8 + (mktLockVend?'':card9) + cardNR + cardPauta
+    + mktCardMotivos(rbase) + mktCardTiempos(rbase);
 }
 
 function mktBucketProd(base){
