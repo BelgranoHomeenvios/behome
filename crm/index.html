@@ -18986,7 +18986,7 @@ function htmlFichaReclamo(){
 .mkt-card.collapsed>h3::after{content:'▸'}
 .mkt-card.collapsed{padding-top:14px;padding-bottom:14px}
 .mkt-card.collapsed>h3{margin-bottom:0}
-.mkt-card.collapsed>*:not(h3){display:none}
+.mkt-card.collapsed>*:not(h3){display:none!important}   /* !important: los gráficos traen display:block en línea y si no, se veían con la tarjeta plegada */
 .mkt-pag{display:flex;align-items:center;gap:6px;margin-top:14px;flex-wrap:wrap}
 .mkt-pagbtn{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 11px;font-size:13px;font-weight:700;color:var(--sec)}
 .mkt-pagbtn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
