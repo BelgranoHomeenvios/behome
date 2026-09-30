@@ -19064,25 +19064,26 @@ table.mkt-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .mkt-note{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5}
 /* Tarjetas 8 (motivos de rechazo) y 9 (tiempo hasta cerrar) — 30/9 */
 .mkt-mot-lee{font-size:13.5px;color:var(--ink);line-height:1.55;margin:4px 0 14px;background:var(--bg,#f4f6f8);border-radius:10px;padding:10px 14px}
-.mkt-mot-wrap{display:flex;gap:28px;align-items:center;flex-wrap:wrap}
-.mkt-mot-svg{width:240px;height:240px;flex:0 0 auto;display:block}
+.mkt-mot-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.mkt-mot-svg{width:180px;height:180px;flex:0 0 auto;display:block}
 .mkt-mot-seg{cursor:pointer;transition:opacity .12s}
 .mkt-mot-svg:hover .mkt-mot-seg{opacity:.5}
 .mkt-mot-svg .mkt-mot-seg:hover{opacity:1}
 .mkt-mot-n{font-size:34px;font-weight:800;fill:var(--ink)}
 .mkt-mot-l{font-size:11px;font-weight:700;fill:var(--muted,#8a94a3)}
-.mkt-mot-leg{flex:1 1 300px;min-width:0}
-.mkt-mot-row{display:grid;grid-template-columns:14px 1fr auto 44px 14px;gap:10px;align-items:center;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:14px}
+.mkt-mot-leg{flex:0 1 auto;min-width:0}
+/* Compacta (30/9): número y % pegados al nombre, no en la otra punta de la tarjeta. */
+.mkt-mot-row{display:grid;grid-template-columns:10px 152px 26px 34px 10px;gap:8px;align-items:center;padding:3px 6px;border-radius:6px;cursor:pointer;font-size:13px;line-height:1.25}
 .mkt-mot-row:hover,.mkt-mot-row.on{background:var(--bg,#f4f6f8)}
-.mkt-mot-row i{width:12px;height:12px;border-radius:3px;display:block}
+.mkt-mot-row i{width:10px;height:10px;border-radius:3px;display:block}
 .mkt-mot-row b{font-weight:800;color:var(--ink);text-align:right}
-.mkt-mot-pct{color:var(--sec);font-weight:700;text-align:right}
-.mkt-mot-fl{color:var(--muted);font-size:11px}
-.mkt-mot-det{margin:0 8px 6px 32px;padding:4px 0 6px;border-left:2px solid var(--line);font-size:12.5px;color:var(--sec)}
-.mkt-mot-det>div{display:flex;justify-content:space-between;gap:12px;padding:2px 10px}
+.mkt-mot-pct{color:var(--sec);font-weight:700;text-align:right;font-size:12px}
+.mkt-mot-fl{color:var(--muted);font-size:10px}
+.mkt-mot-det{margin:0 6px 4px 24px;padding:2px 0 4px;border-left:2px solid var(--line);font-size:12px;color:var(--sec)}
+.mkt-mot-det>div{display:flex;justify-content:space-between;gap:12px;padding:1px 8px}
 .mkt-mot-lg{display:flex;gap:16px;font-size:12px;color:var(--sec);margin-top:6px}
 .mkt-mot-lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
-@media (max-width:600px){.mkt-mot-svg{width:200px;height:200px;margin:0 auto}.mkt-mot-wrap{justify-content:center}}
+@media (max-width:600px){.mkt-mot-svg{width:170px;height:170px;margin:0 auto}.mkt-mot-wrap{justify-content:center}}
 .mkt-cg{color:var(--green)}.mkt-ca{color:var(--amber)}.mkt-cr{color:var(--red)}
 .mkt-vrow{margin:12px 0}
 .mkt-vhead{flex-wrap:wrap}
@@ -19923,7 +19924,7 @@ function mktBucketVolumen(base){
   // datos ajenos —no los tiene— pero no aporta nada, así que se saca.
   // 4 · Motivos de rechazo y 5 · Tiempo hasta cerrar (30/9, pedido de Brian: viven en Volumen).
   // Motivos siempre mide sobre reales (lo filtra adentro). Tiempos respeta "Medir sobre".
-  return card1 + mktCardMotivos(base) + mktCardTiempos(mktSoloReales ? base.filter(mktReal) : base)
+  return card1 + `<div class="mkt-grid">${mktCardMotivos(base)}</div>` + mktCardTiempos(mktSoloReales ? base.filter(mktReal) : base)
     + `<div class="mkt-grid">${card2}${mktLockVend?'':card3}</div>`;
 }
 
@@ -20065,7 +20066,7 @@ function mktCardMotivos(rbase){
     .sort((a,b)=>(fin.has(a.k)-fin.has(b.k)) || (b.n-a.n));
   const selector=`<div class="mkt-subtabs">${[['eval','Según la evaluación'],['vend','Según el vendedor']].map(([v,t])=>
     `<span class="mkt-chip sm ${mktMotFuente===v?'on':''}" onclick="mktSetMotFuente('${v}')">${t}</span>`).join('')}</div>`;
-  if(!n) return `<div class="mkt-card wide"><h3>2 · Motivos de rechazo</h3>${selector}<p class="mkt-note">Sin rechazos reales en este corte.</p></div>`;
+  if(!n) return `<div class="mkt-card mkt-mot-card"><h3>2 · Motivos de rechazo</h3>${selector}<p class="mkt-note">Sin rechazos reales en este corte.</p></div>`;
 
   // Torta: SVG puro, mismo recurso que las tortas de Evaluación.
   const R=80, C=2*Math.PI*R; let off=0;
@@ -20103,7 +20104,7 @@ function mktCardMotivos(rbase){
       + (errE>errV?` La evaluación marcó <b>${errE}</b> como error nuestro; los vendedores, <b>${errV}</b>.`:'');
   }
 
-  return `<div class="mkt-card wide"><h3>2 · Motivos de rechazo</h3>
+  return `<div class="mkt-card mkt-mot-card"><h3>2 · Motivos de rechazo</h3>
     <p class="cap">Por qué se pierden las consultas reales. Tocá un fundamento para ver los motivos que lo componen.</p>
     ${selector}
     <div class="mkt-mot-wrap">${torta}<div class="mkt-mot-leg">${leyenda}</div></div>
