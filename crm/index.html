@@ -8414,7 +8414,7 @@ function _svEstadisticasPropiasHtml_LEGACY(){
     }).join('')}
     </tbody></table>`:''}
 
-    <h4 class="sv-h">Tu calidad de atención <span class="sv-sub">${act.evaluadas} de ${act.total} evaluadas por Cintia · ${cob}%</span></h4>
+    <h4 class="sv-h">Tu calidad de atención <span class="sv-sub">${act.evaluadas} de ${act.total} evaluadas · ${cob}%</span></h4>
     ${barra(act.atencion, EV_ATENCION)}
 
     <h4 class="sv-h">Calidad de las consultas que recibiste</h4>
@@ -19864,12 +19864,12 @@ function mktBucketVolumen(base){
            <div class="mkt-kpi"><div class="n">${rAbie} <small>· ${mktPct(rAbie,reales)}%</small></div><div class="l">Todavía abiertas<small>sin cerrar</small></div></div>`
         : `<div class="mkt-kpi r"><div class="n">${descart} <small>· ${mktPct(descart,tot)}%</small></div><div class="l">Descartadas<small>nunca respondió ${noResp} · fuera de target ${fuera} · genérica + fuera de alcance ${otros}</small></div></div>
            <div class="mkt-kpi"><div class="n">${prom.toFixed(1)}</div><div class="l">Promedio ${ejeUnit}</div></div>`}
-      <div class="mkt-kpi"><div class="n" style="color:${covEvbl?covCol:'var(--muted)'}">${covEvbl?covPct+'%':'—'}</div><div class="l">Evaluado x Cintia<small>${covEvbl?`${covEv} de ${covEvbl} del período`:'sin consultas evaluables en el período'}</small></div></div>
+      <div class="mkt-kpi"><div class="n" style="color:${covEvbl?covCol:'var(--muted)'}">${covEvbl?covPct+'%':'—'}</div><div class="l">Evaluado<small>${covEvbl?`${covEv} de ${covEvbl} del período`:'sin consultas evaluables en el período'}</small></div></div>
     </div>
     ${drillHead}
     ${graficoHtml}
     ${(hayParc&&!demasiadas)?`<div class="mkt-leg"><span><i class="hueco"></i>Tramo incompleto — no cubre todos sus días${mktVistaEfectiva()!=='total'?' (mirá el tooltip)':''}</span>${mktVistaEfectiva()==='canal'?`<span><i class="punteado"></i>Publicidad (pauta)</span>`:''}</div>`:(mktVistaEfectiva()==='canal'?`<div class="mkt-leg"><span><i class="punteado"></i>Publicidad (pauta)</span></div>`:'')}
-    <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = Cintia marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado x Cintia</b>: ${covEvbl?`${covPct}% (${covEv} de ${covEvbl}) — lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado`:'sin consultas evaluables en el período'}.</div>
+    <div class="mkt-foot"><b>Qué medimos:</b> consultas recibidas por fecha de ingreso, en los canales de venta. <b>Descartada</b> = Cintia marcó "nunca respondió", o la consulta quedó "fuera de target", o fue "genérica" con el cliente "fuera de alcance". El resto son <b>reales</b> — incluida la consulta bien orientada cuyo cliente resultó fuera de alcance. Total: <b>${tot}</b> — ${reales} reales, ${descart} descartadas (nunca respondió ${noResp}, fuera de target ${fuera}, genérica + fuera de alcance ${otros}). <b>Evaluado</b>: ${covEvbl?`${covPct}% (${covEv} de ${covEvbl}) — lo que falta evaluar puede sumar descartes más adelante, así que con cobertura baja el corte todavía no está cerrado`:'sin consultas evaluables en el período'}.</div>
   </div>`;
 
   /* 2 · por canal (orden fijo, locales separados) */
@@ -19937,7 +19937,7 @@ function mktEstadoTablaBig(rows, keyLbl){
     const col = !e ? 'var(--muted)' : (p>=80?'#15803d':(p>=50?'#b45309':'#b42318'));
     return `<td>${e?`<span style="color:${col}">${v}/${e}</span> <b class="pn" style="color:${col}">${p}%</b>`:'<span style="color:var(--muted)">—</span>'}</td>`; };
   const fila=r=>`<tr><td>${escapeHtml(r.k)}</td>${cel(r.conc,r.tot,'mkt-cg')}${cel(r.seg,r.tot,'mkt-cy')}${cel(r.rech,r.tot,'mkt-cr')}${cel(r.sin||0,r.tot,'mkt-cs')}${celTot(r.tot)}${celEv(r)}</tr>`;
-  return `<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>${keyLbl}</th><th>Concretadas</th><th>Seguimiento</th><th>Rechazados</th><th>Sin clasificar</th><th>Total (% s/total)</th><th>Evaluado x Cintia</th></tr></thead><tbody>
+  return `<table class="mkt-tbl mkt-tbl-big"><thead><tr><th>${keyLbl}</th><th>Concretadas</th><th>Seguimiento</th><th>Rechazados</th><th>Sin clasificar</th><th>Total (% s/total)</th><th>Evaluado</th></tr></thead><tbody>
     ${rows.map(fila).join('')}
     <tr class="tot"><td>Total</td>${cel(T.conc,T.tot,'mkt-cg')}${cel(T.seg,T.tot,'mkt-cy')}${cel(T.rech,T.tot,'mkt-cr')}${cel(T.sin,T.tot,'mkt-cs')}${celTot(T.tot)}${celEv(T)}</tr>
   </tbody></table>`;
@@ -19950,7 +19950,7 @@ function mktBucketResultado(base){
   const card4=`<div class="mkt-card wide"><h3>3 · Estado por canal</h3>
     <p class="cap">En qué termina lo que trae cada canal. Cada estado muestra la cantidad y, en negrita, su % sobre el total del canal.</p>
     ${mktEstadoTablaBig(mktEstadoRows(rbase, a=>mktCanalMostrar(a), MKT_CANALES), 'Canal')}
-    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal${mktSoloReales?', <b>solo sobre las reales</b> (afuera las que Cintia descartó: nunca respondió, fuera de target, o genérica + fuera de alcance)':', sobre <b>todas</b> las recibidas — descartadas incluidas'}. Entran <b>todas</b> las del período elegido, incluidas las de hoy — ojo que esas todavía no terminaron en nada y arrastran el % de concretadas para abajo. <b>Evaluado x Cintia</b> = sobre ese mismo total, cuántas evaluó; si el % es bajo, lo descartado está incompleto y la tabla hay que leerla con pinzas.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> resultado final de las consultas por canal${mktSoloReales?', <b>solo sobre las reales</b> (afuera las que Cintia descartó: nunca respondió, fuera de target, o genérica + fuera de alcance)':', sobre <b>todas</b> las recibidas — descartadas incluidas'}. Entran <b>todas</b> las del período elegido, incluidas las de hoy — ojo que esas todavía no terminaron en nada y arrastran el % de concretadas para abajo. <b>Evaluado</b> = sobre ese mismo total, cuántas evaluó; si el % es bajo, lo descartado está incompleto y la tabla hay que leerla con pinzas.</div></div>`;
   const card5=`<div class="mkt-card wide"><h3>4 · Estado por vendedor</h3>
     <p class="cap">El mismo corte, por persona.</p>
     ${mktEstadoTablaBig(mktEstadoRows(rbase, a=>a.vendedorId?nombreDe(a.vendedorId):'', MKT_VEND_ORDEN.map(nombreDe)), 'Vendedor')}
@@ -20055,7 +20055,7 @@ function mktBucketResultado(base){
         ${mktSoloReales?'Estás midiendo <b>solo sobre las reales</b>, que es como corresponde leer esta tabla.':'Ojo: estás midiendo sobre <b>todas</b>. Pasá a <b>Solo las reales</b> para no penalizar a quien le tocó más basura.'}</p>
       <table class="mkt-tbl mkt-tbl-big"><thead><tr><th>Vendedor</th>
         ${EV_ATENCION.map(([,l])=>`<th>${l}</th>`).join('')}
-        <th>Evaluado x Cintia</th><th>% bien</th></tr></thead><tbody>
+        <th>Evaluado</th><th>% bien</th></tr></thead><tbody>
         ${evalRows.sort((a,b)=>(b.bien/b.tot)-(a.bien/a.tot)).map(fila).join('')}
         <tr class="tot"><td>Total</td>${EV_ATENCION.map(([v,,cls])=>cel(T['v'+v],T.tot,COL_AT[cls])).join('')}
           ${celCob(T)}<td><b>${mktPct(T.bien,T.tot)}%</b></td></tr>
@@ -20164,7 +20164,7 @@ function htmlMarketing(){
   const explica = (mktTab==='resultado'||mktTab==='calidad'||mktTab==='prod')
     ? `<div class="mkt-card wide" style="padding:12px 16px;margin-bottom:12px">
         ${paso(base.length,'recibidas en el período')}
-        ${paso(evaluadasN,'evaluadas por Cintia','#15803d')}
+        ${paso(evaluadasN,'evaluadas','#15803d')}
         ${paso(faltanEval,'sin evaluar', faltanEval?'#b42318':'#15803d')}
         ${mktSoloReales?paso(descartadasN,'descartadas'):''}
         ${paso(baseMedida.length,'midiendo abajo')}
