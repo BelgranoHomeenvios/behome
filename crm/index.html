@@ -20026,6 +20026,7 @@ const MKT_FUND=[
   ['otra',     'Eligió otra opción',    '#1098ad', 'compró en otro lado o lo resolvió de otra forma'],
   ['error',    'Error nuestro',         '#d6336c', 'la perdimos por un error propio (descuido, demora, cruce entre vendedores)'],
   ['carga',    'Error de carga',        '#74b816', 'no es un rechazo real: es un error de carga'],
+  ['sininfo',  'Sin información',       '#868e96', ''],
   ['sindato',  'Sin dato',              '#adb5bd', ''],
   ['falta',    'Falta motivo',          '#dde2e8', '']
 ];
@@ -20043,6 +20044,7 @@ const MKT_MOTIVO_FUND=(()=>{
   pon('otra',    ['Compró en otro lado','Lo resolvió de otra manera','Ya lo resolvió','Ya resolvió']);
   pon('error',   ['Descuidó la consulta','Demora en la respuesta','Cerró con otro vendedor','Falta de seguimiento','Falto seguimiento','Mala interpretacion de la consulta','El vendedor nunca le escribio']);
   pon('carga',   ['Baja de contacto solicitada','Nro equivocado']);
+  pon('sininfo', ['Sin información']);   // 30/9: histórico migrado 2/5–14/7 sin motivo de nadie
   pon('sindato', ['Otros','No sé el motivo','No sé']);
   return m;
 })();
@@ -20050,6 +20052,7 @@ function mktFundDeMotivo(txt){ const t=mktNormTxt(txt); return t ? (MKT_MOTIVO_F
 /* Devuelve {k: clave de fundamento, m: texto del motivo tal cual (para el detalle)}. */
 function mktMotivoRechazo(a, fuente){
   if(fuente==='vend'){ const m=(a.resultadoMotivo||'').trim(); return {k:mktFundDeMotivo(m), m:m||'(vacío)'}; }
+  if(a.motivoSinInfoAuto) return {k:'sininfo', m:'Sin información (histórico)'};
   if(!a.evaluada) return {k:'falta', m:'Sin evaluar'};
   const m=(a.motivoCintia||a.resultadoMotivo||'').trim();
   return {k:mktFundDeMotivo(m), m:m||'(vacío)'};
@@ -20065,8 +20068,8 @@ function mktCardMotivos(rbase){
   const cont={}, det={};
   rech.forEach(a=>{ const r=mktMotivoRechazo(a, mktMotFuente);
     cont[r.k]=(cont[r.k]||0)+1; (det[r.k]=det[r.k]||{}); det[r.k][r.m]=(det[r.k][r.m]||0)+1; });
-  // Orden: de mayor a menor, pero "Sin dato" y "Falta motivo" siempre al final.
-  const fin=new Set(['sindato','falta']);
+  // Orden: de mayor a menor, pero "Sin información", "Sin dato" y "Falta motivo" siempre al final.
+  const fin=new Set(['sininfo','sindato','falta']);
   const tramos=MKT_FUND.filter(f=>cont[f[0]]).map(f=>({k:f[0],lbl:f[1],col:f[2],lee:f[3],n:cont[f[0]]}))
     .sort((a,b)=>(fin.has(a.k)-fin.has(b.k)) || (b.n-a.n));
   // 30/9: se quitó el selector "Según el vendedor" (Brian: no vale la pena). Solo evaluación.
@@ -20102,7 +20105,7 @@ function mktCardMotivos(rbase){
     <p class="cap">Por qué se pierden las consultas reales. Tocá un fundamento para ver los motivos que lo componen.</p>
     ${selector}
     <div class="mkt-mot-wrap">${torta}<div class="mkt-mot-leg">${leyenda}</div></div>
-    <div class="mkt-foot"><b>Qué medimos:</b> rechazos <b>reales</b> del período (afuera las descartadas en la evaluación), siempre, aunque arriba esté "Todas las consultas". Cuenta el motivo que dejó la evaluación; si confirmó el del vendedor, cuenta ese; si la consulta todavía no se evaluó, va a <b>Falta motivo</b>. Los nombres viejos y nuevos del mismo motivo se agrupan en un solo fundamento.</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> rechazos <b>reales</b> del período (afuera las descartadas en la evaluación), siempre, aunque arriba esté "Todas las consultas". Cuenta el motivo que dejó la evaluación; si confirmó el del vendedor, cuenta ese; si la consulta todavía no se evaluó, va a <b>Falta motivo</b>. Las rechazadas del histórico migrado (2/5 al 14/7) que no tenían motivo de nadie van a <b>Sin información</b>. Los nombres viejos y nuevos del mismo motivo se agrupan en un solo fundamento.</div></div>`;
 }
 
 /* ===== 9 · TIEMPO HASTA CERRAR (30/9, definido por Brian) =====
