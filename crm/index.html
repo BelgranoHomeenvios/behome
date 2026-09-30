@@ -19813,7 +19813,7 @@ function mktFiltrosHtml(){
       <div class="mkt-chips oneline">
         <span class="mkt-chip ${!mktSoloReales?'on':''}" onclick="mktSetSoloReales(false)">Todas las consultas</span>
         <span class="mkt-chip ${mktSoloReales?'on':''}" onclick="mktSetSoloReales(true)">Solo las reales</span>
-        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktTab==='volumen'?(mktSoloReales?'El gráfico separa por resultado: concretada / rechazada / abierta.':'El gráfico separa reales de descartadas.'):'Saca las que Cintia descartó.'}</span>
+        <span class="tiny" style="color:var(--muted);margin-left:6px">${mktTab==='volumen'?(mktSoloReales?'El gráfico separa por resultado: concretada / rechazada / abierta.':'El gráfico separa reales de descartadas.'):'Saca las que se descartaron en la evaluación.'}</span>
       </div></div>
   </div>`;
 }
@@ -20423,7 +20423,19 @@ function mktBucketProd(base){
   return cardEsp + card6 + (mktLockVend?'':card7);
 }
 
+/* Filtros por defecto de Marketing (30/9, pedido de Brian): canales virtuales
+   (WhatsApp, Instagram y las dos de publicidad) y "Solo las reales". Se ponen UNA vez
+   por sesión, al entrar; después manda lo que se elija. No aplica a las estadísticas del
+   vendedor (candado puesto): ahí tienen que entrar también sus ventas del local. */
+let mktDefaultsPuestos=false;
+function mktAplicarDefaults(){
+  if(mktDefaultsPuestos || mktLockVend) return;
+  mktDefaultsPuestos=true;
+  mktCanalSel=['WhatsApp','Instagram','Publicidad Mensajería','Publicidad Instagram'];
+  mktSoloReales=true;
+}
 function htmlMarketing(){
+  mktAplicarDefaults();
   const base=mktBaseAll();
   const BUCKETS=[['volumen','Volumen'],['resultado','Resultados'],['prod','Muebles']];
   const nav=`<div class="mkt-nav">${BUCKETS.map(([v,t])=>`<button class="mkt-navbtn ${mktTab===v?'on':''}" onclick="mktSetTab('${v}')">${t}</button>`).join('')}</div>`;
