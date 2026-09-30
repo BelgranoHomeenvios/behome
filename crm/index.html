@@ -20221,8 +20221,8 @@ function mktBucketResultado(base){
     ${rowsPC.map(c=>{const o=pc[c];return `<tr><td>${escapeHtml(c)}</td>${celc(o[1],o.n,'mkt-cg')}${celc(o[2],o.n,'mkt-cy')}${celc(o[3],o.n,'mkt-cr')}${celTotEv(o.n)}</tr>`;}).join('')}
     <tr class="tot"><td>Total</td>${celc(TC[1],TC.n,'mkt-cg')}${celc(TC[2],TC.n,'mkt-cy')}${celc(TC[3],TC.n,'mkt-cr')}${celTotEv(TC.n)}</tr>
   </tbody></table>`:'<p class="mkt-note">Sin consultas evaluadas en el período.</p>';
-  const card8=`<div class="mkt-card wide"><h3>5 · Calidad de la consulta — evaluación de Cintia</h3>
-    <p class="cap">Cintia clasifica cada consulta. Tocá una categoría para filtrar los paneles 1 a 4 y 6 por esa calidad. La tabla separa por canal.</p>
+  const card8=`<div class="mkt-card wide"><h3>5 · Calidad de la consulta — evaluación</h3>
+    <p class="cap">En la evaluación se clasifica cada consulta. Tocá una categoría para filtrar los paneles 1 a 4 y 6 por esa calidad. La tabla separa por canal.</p>
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${evN}</div><div class="l">Consultas evaluadas</div></div>
       <div class="mkt-kpi g"><div class="n">${mktPct(distC[1],evN)}%</div><div class="l">Bien orientadas</div></div>
@@ -20230,7 +20230,7 @@ function mktBucketResultado(base){
     <div class="mkt-dist">${chips}</div>
     ${mktCalSel.length?`<p class="mkt-note" style="margin-top:8px">Filtrando por <b>${mktCalSel.map(v=>({1:'Bien orientada',2:'Genérica',3:'Fuera de target'}[v])).join(', ')}</b> · <span style="color:var(--blue);cursor:pointer" onclick="mktCalSel=[];renderMarketing()">quitar filtro</span></p>`:''}
     ${tablaCal}
-    <div class="mkt-foot"><b>Qué medimos:</b> calidad de la consulta según Cintia, sobre las evaluadas (${evN}).</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> calidad de la consulta según la evaluación, sobre las evaluadas (${evN}).</div></div>`;
 
   // 4 · Rechazos por "no responde", por canal + filtro pub/otros
   const PUB=new Set(['Publicidad Mensajería','Publicidad Instagram']);
