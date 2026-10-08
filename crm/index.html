@@ -19803,10 +19803,19 @@ function mktAplicarColapso(el){
     // 30/9). Es la que da el panorama; plegada, la pantalla no dice nada.
     if(primera) return;
     card.classList.add('mkt-collapsible');
+    card.dataset.mktKey=key;
     if(!mktAbiertas.has(key)) card.classList.add('collapsed');
+    /* Las tarjetas de una misma fila (mismo .mkt-grid) se abren y cierran JUNTAS (pedido
+       de Brian, 8/10): abrir una sola dejaba al lado una tarjeta vacía del mismo alto. */
     h.addEventListener('click',()=>{
-      if(mktAbiertas.has(key)) mktAbiertas.delete(key); else mktAbiertas.add(key);
-      card.classList.toggle('collapsed');
+      const abre=card.classList.contains('collapsed');
+      const fila=card.parentElement && card.parentElement.classList.contains('mkt-grid')
+        ? [...card.parentElement.children].filter(c=>c.classList.contains('mkt-collapsible'))
+        : [card];
+      fila.forEach(c=>{
+        c.classList.toggle('collapsed',!abre);
+        if(abre) mktAbiertas.add(c.dataset.mktKey); else mktAbiertas.delete(c.dataset.mktKey);
+      });
     });
   });
 }
