@@ -19032,6 +19032,25 @@ function htmlFichaReclamo(){
 .mkt-bar .bt>i{display:block;height:100%;border-radius:8px;min-width:2px}
 .mkt-bar .bv{width:100px;font-size:12.5px;font-weight:700;color:var(--ink);flex:0 0 auto}
 .mkt-bar .bv small{color:var(--muted);font-weight:600}
+/* Desplegable de "6 · Consultas por canal" */
+.mkt-canales .bv{width:210px}
+.mkt-cgrp>.mkt-csub{display:none;margin:0 0 6px}
+.mkt-cgrp.open>.mkt-csub{display:block}
+.mkt-cdesp{cursor:pointer;border-radius:6px}
+.mkt-cdesp:hover{background:var(--line2)}
+.mkt-car{display:inline-block;font-size:10px;margin-right:5px;color:var(--muted);transition:transform .15s}
+.mkt-cgrp.open>.mkt-cdesp .mkt-car{transform:rotate(90deg)}
+.mkt-bar.mkt-cs1{margin:4px 0}
+.mkt-bar.mkt-cs1 .bl{font-weight:500;font-size:12px}
+.mkt-bar.mkt-cs1 .bt{height:11px}
+.mkt-bar.mkt-cs1 .bt>i{opacity:.6}
+.mkt-bar.mkt-cs2{margin:3px 0}
+.mkt-bar.mkt-cs2 .bl{font-weight:400;font-size:11.5px;color:var(--muted)}
+.mkt-bar.mkt-cs2 .bt{height:8px}
+.mkt-bar.mkt-cs2 .bt>i{opacity:.35}
+.mkt-bar.mkt-cs1 .bv,.mkt-bar.mkt-cs2 .bv{font-weight:600;font-size:12px}
+.mkt-sd{color:var(--muted)}
+@media(max-width:820px){.mkt-canales .bv{width:96px;white-space:normal}.mkt-canales .bv small{display:block}}
 /* Tramo incompleto: mismo color, rayado. El background-image va con !important porque el
    color de cada segmento se escribe inline con el shorthand `background`, que lo pisaría. */
 .mkt-vista{display:flex;gap:6px;margin:2px 0 10px}
@@ -19194,6 +19213,7 @@ let mktCalSel=[];               // filtro por calidad de consulta: 1 bien · 2 g
 let mktNoRespScope='todos';     // panel de no-responde: 'todos' | 'pub' | 'otros'
 let mktMesAbierto=null;         // drill del gráfico de volumen: 'YYYY-M' del mes abierto, o null
 let mktAbiertas=new Set();      // tarjetas ABIERTAS (acordeón). Default: todas cerradas → Ari ve los títulos y abre lo que necesita.
+let mktCanalAbierto=new Set();  // desplegables de "Consultas por canal": 'WhatsApp', 'WhatsApp|Web Catálogo', etc.
 let mktProdPag=1;               // página de la tabla de productos cotizados (20 por página)
 /* Medir sobre todas las consultas o solo sobre las reales (15/8). Aplica a Resultados y
    Muebles. NO aplica a Volumen: ese balde existe para mostrar el corte real/descartada,
@@ -19333,6 +19353,78 @@ function mktBarras(rows, colorFn, fmt){
     <span class="bl" title="${escAttr(r.k)}">${escapeHtml(r.k)}</span>
     <span class="bt"><i style="width:${Math.round(r.v/max*100)}%;background:${colorFn?colorFn(r.k,r):'var(--blue)'}"></i></span>
     <span class="bv">${fmt?fmt(r):r.v}</span></div>`).join('');
+}
+/* ===== "6 · Consultas por canal" con desplegable (pedido de Brian, 8/10/2026) =====
+   WhatsApp se abre por "¿de dónde vino?" (origenWeb) y, dentro, Catálogo y Producto
+   específico se abren un nivel más por su detalle (categoría / mueble). Las dos
+   Publicidad se abren por "¿de qué es la campaña?". Instagram y los locales no tienen
+   segundo dato: quedan como barra simple.
+   Las barras de adentro se miden contra SU canal (barra llena = todo el canal), así se
+   lee de un vistazo cómo se reparte cada uno; los números dan el % del canal y del total.
+   Lo que no tiene el dato cargado va como "Sin dato", al final, nunca escondido. */
+const MKT_SIN_DATO='Sin dato';
+const MKT_DESPLIEGA={
+  'WhatsApp':             {sub:a=>(a.origenWeb||'').trim(),
+                           det:a=>((a.origenWeb===CR_ORIGEN_CATALOGO||a.origenWeb===CR_ORIGEN_PRODUCTO)?mktTitulo(a.origenWebDetalle):null)},
+  'Publicidad Mensajería':{sub:a=>(a.campanaPublicidad||'').trim()},
+  'Publicidad Instagram': {sub:a=>(a.campanaPublicidad||'').trim()},
+};
+const MKT_DET_MAX=12;   // tope de filas en el tercer nivel (muebles); el resto va a "Otros"
+/* El mueble se escribe a mano ("CHIFONIER RENO", "banqueta kahn"): se lleva a un mismo
+   formato para que las variantes de mayúsculas se sumen juntas. Parche de vista, no toca datos. */
+function mktTitulo(s){
+  const t=String(s||'').trim().replace(/\s+/g,' ').toLowerCase()
+    .replace(/(^|\s)\S/g,c=>c.toUpperCase())
+    .replace(/ (De|Del|La|El|Y|Con|Para) /g,m=>m.toLowerCase());   // "Mesa de Luz Detroit"
+  return t;
+}
+function mktAgrupar(arr, fn){
+  const m={}; arr.forEach(a=>{ const k=fn(a)||MKT_SIN_DATO; (m[k]=m[k]||[]).push(a); });
+  return Object.keys(m).map(k=>({k, arr:m[k], v:m[k].length}))
+    .sort((x,y)=> (x.k===MKT_SIN_DATO)-(y.k===MKT_SIN_DATO) || y.v-x.v || x.k.localeCompare(y.k));
+}
+function mktCanalesDesplegables(base, rowsCanal, tot){
+  if(!rowsCanal.length) return '<p class="mkt-note">Sin datos en este período.</p>';
+  const max=Math.max(1,...rowsCanal.map(r=>r.v));
+  const fila=(cls,lbl,titulo,ancho,color,valor,clic)=>`<div class="mkt-bar ${cls}"${clic?' onclick="mktTogCanal(this)"':''}>
+      <span class="bl" title="${escAttr(titulo)}">${lbl}</span>
+      <span class="bt"><i style="width:${ancho}%;background:${color}"></i></span>
+      <span class="bv">${valor}</span></div>`;
+  const grupo=(clave,cabeza,cuerpo)=>`<div class="mkt-cgrp${mktCanalAbierto.has(clave)?' open':''}" data-k="${escAttr(clave)}">${cabeza}<div class="mkt-csub">${cuerpo}</div></div>`;
+  return '<div class="mkt-canales">'+rowsCanal.map(r=>{
+    const col=mktColorCanal(r.k);
+    const valCanal=`${r.v} <small>· ${mktPct(r.v,tot)}%</small>`;
+    const cfg=MKT_DESPLIEGA[r.k];
+    if(!cfg) return fila('', escapeHtml(r.k), r.k, Math.round(r.v/max*100), col, valCanal, false);
+    const arrCanal=base.filter(a=>mktCanalMostrar(a)===r.k);
+    const subs=mktAgrupar(arrCanal, cfg.sub).map(s=>{
+      const valSub=`${s.v} <small>· ${mktPct(s.v,r.v)}% del canal · ${mktPct(s.v,tot)}% del total</small>`;
+      const tituloSub=s.k===MKT_SIN_DATO?`${r.k}: consultas sin este dato cargado`:`${r.k} · ${s.k}`;
+      const lblSub=(s.k===MKT_SIN_DATO?'<i class="mkt-sd">':'')+escapeHtml(s.k)+(s.k===MKT_SIN_DATO?'</i>':'');
+      const dets=(cfg.det && s.k!==MKT_SIN_DATO && s.arr.some(a=>cfg.det(a)!==null)) ? mktAgrupar(s.arr, cfg.det) : null;
+      if(!dets) return fila('mkt-cs1', lblSub, tituloSub, Math.round(s.v/r.v*100), col, valSub, false);
+      // Tercer nivel: categoría del catálogo o mueble. Tope de filas; el resto se suma en "Otros".
+      let lista=dets;
+      if(dets.length>MKT_DET_MAX){
+        const resto=dets.slice(MKT_DET_MAX-1);
+        lista=dets.slice(0,MKT_DET_MAX-1).concat([{k:`Otros (${resto.length})`, v:resto.reduce((n,d)=>n+d.v,0), otros:true}]);
+      }
+      const filasDet=lista.map(d=>fila('mkt-cs2',
+        (d.k===MKT_SIN_DATO?'<i class="mkt-sd">':'')+escapeHtml(d.k)+(d.k===MKT_SIN_DATO?'</i>':''),
+        (d.otros?'Resto de los detalles, sumados':`${s.k} · ${d.k}`)+` — ${d.v} consultas, ${mktPct(d.v,s.v)}% de ${s.k}`,
+        Math.round(d.v/s.v*100), col, `${d.v} <small>· ${mktPct(d.v,s.v)}%</small>`, false)).join('');
+      return grupo(r.k+'|'+s.k, fila('mkt-cs1 mkt-cdesp', `<b class="mkt-car">▸</b>${lblSub}`, tituloSub, Math.round(s.v/r.v*100), col, valSub, true), filasDet);
+    }).join('');
+    return grupo(r.k, fila('mkt-cdesp', `<b class="mkt-car">▸</b>${escapeHtml(r.k)}`, r.k+' — tocá para desplegar', Math.round(r.v/max*100), col, valCanal, true), subs);
+  }).join('')+'</div>';
+}
+/* Abre/cierra sin repintar el panel (no salta el scroll). Queda recordado en
+   mktCanalAbierto para que un cambio de filtro lo vuelva a dibujar abierto. */
+function mktTogCanal(el){
+  const g=el.parentElement; if(!g) return;
+  const k=g.getAttribute('data-k'); const abre=!g.classList.contains('open');
+  g.classList.toggle('open',abre);
+  if(abre) mktCanalAbierto.add(k); else mktCanalAbierto.delete(k);
 }
 function mktFechaCorta(t,unit){
   const x=new Date(t); const MS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -19907,9 +19999,9 @@ function mktBucketVolumen(base){
   const porCanal={}; base.forEach(a=>{const c=mktCanalMostrar(a); porCanal[c]=(porCanal[c]||0)+1;});
   const rowsCanal=MKT_CANALES.filter(c=>porCanal[c]).map(c=>({k:c,v:porCanal[c]}));
   const card2=`<div class="mkt-card"><h3>6 · Consultas por canal</h3>
-    <p class="cap">De dónde llegan. Solo canales de venta; los dos locales van separados.</p>
-    ${mktBarras(rowsCanal, mktColorCanal, r=>`${r.v} <small>· ${mktPct(r.v,tot)}%</small>`)}
-    <div class="mkt-foot"><b>Qué medimos:</b> total de consultas por canal de origen. El número es la cantidad; el % es sobre el total del período (<b>${tot}</b>).</div></div>`;
+    <p class="cap">De dónde llegan. Solo canales de venta; los dos locales van separados. Tocá WhatsApp o una Publicidad para desplegar de dónde vino cada consulta.</p>
+    ${mktCanalesDesplegables(base, rowsCanal, tot)}
+    <div class="mkt-foot"><b>Qué medimos:</b> total de consultas por canal de origen. El número es la cantidad; el % es sobre el total del período (<b>${tot}</b>). Al desplegar, cada alternativa muestra su % <b>dentro del canal</b> y su % <b>del total</b>. WhatsApp se abre por "¿de dónde vino?" (y Catálogo / Producto específico, por categoría o mueble — ahí el % es sobre esa fuente); las Publicidades, por "¿de qué es la campaña?". <b>Sin dato</b> = la consulta no tiene cargado ese segundo dato — en WhatsApp se pide recién desde el 31/8/2026.</div></div>`;
 
   /* 3 · por vendedor: total + % y barra apilada de estados */
   const cntV={}; MKT_VEND_ORDEN.forEach(u=>cntV[u]={conc:0,seg:0,rech:0,sin:0,tot:0});
