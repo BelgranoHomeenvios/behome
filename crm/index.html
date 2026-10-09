@@ -20319,7 +20319,7 @@ function mktCardTiempos(base){
   return {main, canal:cardCanal, vend:cardVend};
 }
 
-function mktBucketResultado(base){
+function mktBucketResultado(base, baseCobertura){
   // Los chips de calidad (panel 5) filtran los paneles de estado y rechazos de este balde.
   const rbase = mktCalSel.length ? base.filter(a=>mktCalSel.includes(a.evalConsulta)) : base;
   // mktCardsResultadoTiempo reinicia los tooltips (mktTipRes): va primero, antes de
@@ -20341,6 +20341,19 @@ function mktBucketResultado(base){
   const evN=evb.length;
   const EVC=[[1,'Bien orientada','#15803d'],[2,'Genérica','#a16207'],[3,'Fuera de target','#b42318']];
   const chips=EVC.map(([v,t,c])=>`<span class="mkt-dchip click ${mktCalSel.includes(v)?'on':''}" onclick="mktToggleCal(${v})"><i style="background:${c}"></i>${t} <b>${distC[v]}</b> · ${mktPct(distC[v],evN)}%</span>`).join('');
+  /* Cobertura (9/10, pedido de Brian): "144 evaluadas" no dice nada si no sabés de cuántas.
+     Denominador = mismo criterio que el KPI "Evaluado" de la tarjeta 1 (mktEvaluable: todo
+     lo del período menos las de gestión), así los dos números coinciden. */
+  const covCol=p=>p>=80?'#15803d':(p>=50?'#b45309':'#b42318');
+  /* La cobertura se mide SIEMPRE sobre todo lo que entró en el período (baseCobertura), no
+     sobre la base medida: con "Solo las reales" la base medida ya sacó las descartadas, que
+     son justamente evaluadas, y el % saldría deformado. */
+  const bCob=baseCobertura||base;
+  const evblC={}, evC={}; let evblN=0, evCob=0;
+  bCob.forEach(a=>{ if(!mktEvaluable(a))return; const c=mktCanalMostrar(a);
+    evblN++; evblC[c]=(evblC[c]||0)+1;
+    if(a.evaluada){ evCob++; evC[c]=(evC[c]||0)+1; } });
+  const covPctTot=mktPct(evCob,evblN);
   const pc={};
   base.forEach(a=>{ if(!(a.evaluada&&a.evalConsulta))return; const c=mktCanalMostrar(a); (pc[c]=pc[c]||{1:0,2:0,3:0,n:0}); pc[c][a.evalConsulta]++; pc[c].n++;});
   const rowsPC=MKT_CANALES.filter(c=>pc[c]);
@@ -20350,7 +20363,8 @@ function mktBucketResultado(base){
   // Por canal, en barras (30/9): mismo formato que "Consultas por vendedor".
   const tablaCal=rowsPC.length ? '<div style="margin-top:12px">'+mktStackHtml('calCanal',
       [...rowsPC.map(c=>({k:c,o:pc[c]})), {k:'Total',o:TC,tot:true}].map(r=>({k:r.k, tot:!!r.tot, vals:[r.o[1],r.o[2],r.o[3]],
-        extra:`<span class="vt">evaluadas <b>${r.o.n}</b> · ${mktPct(r.o.n,TC.n)}%</span>`})),
+        extra:(()=>{ const den=r.tot?evblN:(evblC[r.k]||0); const num=r.tot?evCob:(evC[r.k]||0); const pp=mktPct(num,den);
+          return `<span class="vt">evaluadas <b>${num}</b> de ${den} · <b style="color:${covCol(pp)}">${pp}%</b></span>`; })()})),
       EVC.map(([,t,c])=>[t,c]))+'</div>'
     : '<p class="mkt-note">Sin consultas evaluadas en el período.</p>';
   const card8=`<div class="mkt-card wide"><h3>5 · Calidad de la consulta — evaluación</h3>
@@ -20358,11 +20372,13 @@ function mktBucketResultado(base){
     <div class="mkt-kpirow">
       <div class="mkt-kpi"><div class="n">${evN}</div><div class="l">Consultas evaluadas</div></div>
       <div class="mkt-kpi g"><div class="n">${mktPct(distC[1],evN)}%</div><div class="l">Bien orientadas</div></div>
+      <div class="mkt-kpi"><div class="n" style="color:${evblN?covCol(covPctTot):'var(--muted)'}">${evblN?covPctTot+'%':'—'}</div><div class="l">Evaluado<small>${evblN?`${evCob} de ${evblN} del período`:'sin consultas evaluables'}</small></div></div>
     </div>
+    ${(evblN && covPctTot<50)?`<p class="mkt-note" style="color:#b42318;margin:0 0 8px"><b>Ojo:</b> se evaluó menos de la mitad de lo que entró en el período (${evCob} de ${evblN}). Los % de calidad todavía no son representativos.</p>`:''}
     <div class="mkt-dist">${chips}</div>
     ${mktCalSel.length?`<p class="mkt-note" style="margin-top:8px">Filtrando por <b>${mktCalSel.map(v=>({1:'Bien orientada',2:'Genérica',3:'Fuera de target'}[v])).join(', ')}</b> · <span style="color:var(--blue);cursor:pointer" onclick="mktCalSel=[];renderMarketing()">quitar filtro</span></p>`:''}
     ${tablaCal}
-    <div class="mkt-foot"><b>Qué medimos:</b> calidad de la consulta según la evaluación, sobre las evaluadas (${evN}).</div></div>`;
+    <div class="mkt-foot"><b>Qué medimos:</b> calidad de la consulta según la evaluación; los % de calidad son sobre las evaluadas (${evN}). <b>Evaluado</b> = cuántas se evaluaron (${evCob}) sobre todo lo que entró en el período (${evblN}), aunque arriba esté "Solo las reales", sin contar las de gestión, que no se evalúan nunca — es el mismo número que la tarjeta 1. En cada canal, "evaluadas X de Y" es la cobertura de ese canal: verde desde 80%, ámbar desde 50%, rojo debajo.</div></div>`;
 
   // 4 · Rechazos por "no responde", por canal + filtro pub/otros
   const PUB=new Set(['Publicidad Mensajería','Publicidad Instagram']);
@@ -20568,7 +20584,7 @@ function htmlMarketing(){
       </div>`
     : '';
   if(mktTab==='prod')                              cuerpo=mktBucketProd(baseMedida);
-  else if(mktTab==='resultado'||mktTab==='calidad')cuerpo=mktBucketResultado(baseMedida);
+  else if(mktTab==='resultado'||mktTab==='calidad')cuerpo=mktBucketResultado(baseMedida, base);
   else                                             cuerpo=mktBucketVolumen(base);
   return `<div class="mkt-wrap">
     <div class="mkt-head"><h2>${mktLockVend?'📊 Mis estadísticas':'📈 Marketing — Estadísticas'}</h2></div>
