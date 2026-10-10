@@ -13858,7 +13858,10 @@ function abrirCargaRapidaCintia(){
     </div>`;
   setFechaCr();
   renderSelectNumerado($('crCanal'), CANALES);
-  renderSelectNumerado($('crDerivar'), destinosListaCintia());
+  /* El que está en su tope se ve marcado también en el desplegable (pedido de Brian, 10/10):
+     solo cambia el texto, el valor (uid) es el mismo y el guardado no se entera. */
+  renderSelectNumerado($('crDerivar'), destinosListaCintia().map(d=>
+    estaTopeado(d.uid) ? Object.assign({}, d, {label: d.label+'  ⛔ TOPE '+abiertasParaTope(d.uid)+'/'+topeDe(d.uid)}) : d));
   registrarBloqueosTope();
   preseleccionarSugerido();
   onCanalChangeCr();
