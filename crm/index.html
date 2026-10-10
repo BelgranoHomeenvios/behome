@@ -3492,8 +3492,9 @@ const DIAS_DISTRIB=20;   // ventana fija de medición: con menos, los % saltan d
 /* ===== TOPE DE SEGUIMIENTO (pedido de Brian, 10/10/2026) =====
    Además del %, cada vendedor tiene un tope de consultas DERIVADAS VIRTUALES ABIERTAS
    (sin límite de días; nada del local). Con MÁS del tope no se le sugieren consultas
-   nuevas: van al DESBORDE (Claudia 2 · Brian 1 · Iara 1) hasta que baje. Es sugerencia,
-   no traba: quien carga puede elegir a otro y ve un aviso. */
+   nuevas: la toma el siguiente vendedor por %; solo si TODOS están topeados van al
+   DESBORDE (Claudia 2 · Brian 1 · Iara 1). Es sugerencia, no traba: quien carga puede
+   elegir a otro y ve un aviso. */
 let TOPE_SEGUIM={ale:45, nati:35, sergio:25, cristian:25, claudia:25};
 const POOL_DESBORDE=[['claudia',2],['brian',1],['iara',1]];
 /* Cuándo entró y salió cada uno del tope, para contar días bloqueado.
@@ -9551,7 +9552,7 @@ function pintarObjetivoDistrib(){
       <input type="number" min="0" id="tope-${u}" value="${+TOPE_SEGUIM[u]||0}" style="width:80px" title="Máximo de consultas derivadas virtuales abiertas. Con más, no se le sugieren y van al desborde. 0 = sin tope.">
       <span class="tiny" style="color:${estaTopeado(u)?'#b42318':'var(--muted)'}">abiertas hoy ${abiertasParaTope(u)}${estaTopeado(u)?' · en tope':''} · ${diasConTope(u,30)} días con tope (30 d)</span>
     </div>`).join('')
-    + `<p class="tiny" style="margin:4px 0 0;color:var(--muted)"><b>Tope:</b> consultas derivadas virtuales abiertas, sin límite de días (nada del local). Con más del tope no se le sugieren consultas nuevas: van al desborde — Claudia 2 · Brian 1 · Iara 1. 0 = sin tope.</p>`
+    + `<p class="tiny" style="margin:4px 0 0;color:var(--muted)"><b>Tope:</b> consultas derivadas virtuales abiertas, sin límite de días (nada del local). Con más del tope no se le sugieren consultas nuevas: la toma el siguiente vendedor por %; solo si todos están en su tope van al desborde — Claudia 2 · Brian 1 · Iara 1. 0 = sin tope.</p>`
     + `<p class="tiny" id="objSuma" style="margin:6px 0 12px;${suma===100?'':'color:var(--amber);font-weight:700'}">Suman ${suma}%${suma===100?'':' — tiene que dar 100'}</p>`;
 }
 function recalcSumaObj(){
@@ -13943,17 +13944,20 @@ function filasDistribucion(){
     const mias=base.filter(a=>a.vendedorId===uid);
     /* Lo que fue al desborde "en su nombre" le cuenta como recibido para el %: así, mientras
        está topeado no acumula deuda y al liberarse no le llueven varias seguidas. */
-    const desv=base.filter(a=>a.desbordeDe===uid).length;
+    const desv=base.filter(a=>a.desbordeDe===uid).length;          // cedidas: le tocaban y las tomó otro
+    const absorb=mias.filter(a=>a.desbordeDe && a.desbordeDe!==uid).length; // absorbidas: tomó de un topeado
     const obj=+(OBJETIVO_DISTRIB[uid]||0);
     return {
-      uid, obj, desv,
+      uid, obj, desv, absorb,
       tope: topeDe(uid), abiertas: abiertasParaTope(uid), topeado: estaTopeado(uid),
       distrib: mias.length,
       seguim: mias.filter(a=>{const e=estadoDe(a); return e!=='Concretado' && e!=='Rechazado';}).length,
       concret: mias.filter(a=>estadoDe(a)==='Concretado').length,
       /* Proyectado sobre T+1: "si la próxima fuera para vos, ¿cuánto te falta todavía
          para estar en tu objetivo?". Sobre T solo daría cero cuando ya está justo. */
-      deuda: obj/100*(T+1) - (mias.length+desv),
+      /* Para el %: lo propio (sin lo absorbido) + lo cedido. Lo que absorbe de un topeado
+         no le descuenta su turno; lo que cede le cuenta igual, así no acumula deuda. */
+      deuda: obj/100*(T+1) - (mias.length-absorb+desv),
       pausado: estaPausado(uid)
     };
   }).sort((a,b)=>b.obj-a.obj || a.distrib-b.distrib);
@@ -13965,23 +13969,26 @@ function sugeridoDistribucion(){
   const s=sugerenciaDistribucion(); return s?s.uid:null;
 }
 /* La sugerencia completa: { uid: a quién derivar, desbordeDe: vendedor al que le tocaba
-   por % pero está topeado (o null) }.
-   1) Por %: al de mayor deuda, como siempre.
-   2) Si ese está topeado → desborde: Claudia/Brian/Iara en proporción 2·1·1 (se saltea a
-      quien también esté en su tope). Se autocorrige igual que el %: dentro de la ventana,
-      el que menos recibió de desborde respecto de su peso es el próximo. */
+   por % pero está topeado (o null), alDesborde: true si fue a Claudia/Brian/Iara }.
+   (Regla de Brian, 10/10.) La prioridad la tienen SIEMPRE los vendedores con objetivo:
+   1) Por %: al de mayor deuda.
+   2) Si está topeado → al siguiente en el orden del %, y así, hasta uno que pueda absorberla.
+   3) Solo si TODOS están topeados → desborde: Claudia/Brian/Iara en 2·1·1 (se saltea a
+      quien también esté en su tope). */
 function sugerenciaDistribucion(){
-  const f=filasDistribucion().filter(x=>x.obj>0);
+  const f=filasDistribucion().filter(x=>x.obj>0).sort((a,b)=>b.deuda-a.deuda);
   if(!f.length) return null;
-  const ganador=f.slice().sort((a,b)=>b.deuda-a.deuda)[0];
-  if(!ganador.topeado) return {uid:ganador.uid, desbordeDe:null};
+  const ganador=f[0];
+  const libre=f.find(x=>!x.topeado);
+  if(libre) return {uid:libre.uid, desbordeDe: libre.uid===ganador.uid?null:ganador.uid, alDesborde:false};
   const dest=destinoDesborde();
-  return dest ? {uid:dest, desbordeDe:ganador.uid} : {uid:ganador.uid, desbordeDe:null};
+  return dest ? {uid:dest, desbordeDe:ganador.uid, alDesborde:true} : {uid:ganador.uid, desbordeDe:null, alDesborde:false};
 }
 function destinoDesborde(){
   const pool=POOL_DESBORDE.filter(([u])=>!estaTopeado(u));
   if(!pool.length) return null;
-  const desb=consultasDistribuidas().filter(a=>a.desbordeDe);
+  const poolIds=POOL_DESBORDE.map(([u])=>u);
+  const desb=consultasDistribuidas().filter(a=>a.desbordeDe && poolIds.includes(a.vendedorId));
   const P=desb.length, W=pool.reduce((s,[,w])=>s+w,0);
   return pool.map(([u,w])=>({u, deuda:w/W*(P+1)-desb.filter(a=>a.vendedorId===u).length}))
     .sort((a,b)=>b.deuda-a.deuda)[0].u;
@@ -14010,9 +14017,12 @@ function preseleccionarSugerido(){
   if(!uid){ if(avi) avi.textContent=''; return; }
   const op=[].slice.call(sel.options).find(o=>plainValueCr(o.value)===uid);
   if(op){ sel.value=op.value; onDerivarChangeCr(); }
-  if(avi) avi.innerHTML = _crSug.desbordeDe
-    ? `Le tocaba a <b>${escapeHtml(nombreDe(_crSug.desbordeDe))}</b>, pero está en su tope (${abiertasParaTope(_crSug.desbordeDe)}/${topeDe(_crSug.desbordeDe)}): va a <b>${escapeHtml(nombreDe(uid))}</b> (desborde) — podés cambiarlo.`
-    : `Por objetivo le toca a <b>${escapeHtml(nombreDe(uid))}</b> — podés cambiarlo.`;
+  const nomU=USUARIOS[uid]?nombreDe(uid):(CR_NOMBRES_EXTRA[uid]||uid);
+  if(avi) avi.innerHTML = !_crSug.desbordeDe
+    ? `Por objetivo le toca a <b>${escapeHtml(nomU)}</b> — podés cambiarlo.`
+    : _crSug.alDesborde
+      ? `Los vendedores están todos en su tope: va a <b>${escapeHtml(nomU)}</b> (desborde) — podés cambiarlo.`
+      : `Le tocaba a <b>${escapeHtml(nombreDe(_crSug.desbordeDe))}</b>, pero está en su tope (${abiertasParaTope(_crSug.desbordeDe)}/${topeDe(_crSug.desbordeDe)}): la absorbe <b>${escapeHtml(nomU)}</b> — podés cambiarlo.`;
 }
 
 function tablaDistribucionCr(){
@@ -14032,13 +14042,13 @@ function tablaDistribucionCr(){
   const avisoObj = sumaObj!==100
     ? `<p class="tiny" style="color:var(--amber);margin:0 0 8px">⚠ Los objetivos suman ${sumaObj}%, no 100. Corregilo en Configuración.</p>` : '';
   return `<div class="cr-lado-t">¿A quién le toca?</div>
-  <p class="tiny" style="margin:0 0 8px">Solo consultas virtuales derivadas. No cuenta el local ni lo que carga cada vendedor. <b>Distrib.</b> y <b>Concret.</b>: últimos ${DIAS_DISTRIB} días, % sobre el total distribuido. <b>Seguim.</b>: TODO lo que tiene abierto (sin límite de días) contra su tope — con más del tope no se le sugieren consultas y van al desborde.</p>
+  <p class="tiny" style="margin:0 0 8px">Solo consultas virtuales derivadas. No cuenta el local ni lo que carga cada vendedor. <b>Distrib.</b> y <b>Concret.</b>: últimos ${DIAS_DISTRIB} días, % sobre el total distribuido. <b>Seguim.</b>: TODO lo que tiene abierto (sin límite de días) contra su tope — con más del tope no se le sugieren: la toma el siguiente por %, y solo si todos están en su tope va al desborde.</p>
   ${avisoObj}
   <table class="est-tabla cr-tabla">
     <tr><th>Vendedor</th><th class="r">Distrib.</th><th class="r">Seguim.</th><th class="r">Concret.</th></tr>
     ${filas.map(f=>`<tr class="${f.uid===sug?'cr-toca':''}">
       <td><b>${nombreDe(f.uid)}</b>${f.obj?` <span class="cr-obj">${f.obj}%</span>`:''}${f.uid===sug?' <span class="cr-letoca">le toca</span>':''}${f.topeado?` <span class="cr-tope" title="Tiene ${f.abiertas} abiertas y su tope es ${f.tope}. Días con tope en los últimos 30: ${diasConTope(f.uid,30)}">tope${diasEnTopeActual(f.uid)?' · '+diasEnTopeActual(f.uid)+' d':''}</span>`:''}${f.pausado?' <span class="cr-pausa">en pausa</span>':''}</td>
-      <td class="r ecell">${cel(f.distrib)}${f.desv?`<div class="tiny" title="Consultas que le tocaban por % y fueron al desborde porque estaba en su tope. Le cuentan para el %.">+${f.desv} al desborde</div>`:''}</td>
+      <td class="r ecell">${cel(f.distrib)}${f.desv?`<div class="tiny" title="Le tocaban por % y las tomó otro porque estaba en su tope. Le cuentan igual para su %.">${f.desv} cedidas</div>`:''}${f.absorb?`<div class="tiny" title="Le tocaban a un vendedor topeado y las tomó. No le descuentan su turno propio.">+${f.absorb} absorbidas</div>`:''}</td>
       <td class="r ecell">${f.abiertas||f.tope?`<span class="celpc"><b class="big"${f.topeado?' style="color:var(--red)"':''}>${f.abiertas}</b>${f.tope?`<span class="cr-obj"${f.topeado?' style="background:#fde2e1;color:#b42318"':''}>/${f.tope}</span>`:''}</span>`:'—'}</td>
       <td class="r ecell">${cel(f.concret,'var(--green)')}</td>
     </tr>`).join('')}
@@ -14054,18 +14064,20 @@ function tablaDistribucionCr(){
 /* Debajo de la tabla: el desborde (Claudia 2 · Brian 1 · Iara 1). Solo aparece si hay
    alguien topeado o si en la ventana ya fueron consultas al desborde. */
 function htmlDesbordeCr(sugObj){
-  const desb=consultasDistribuidas().filter(a=>a.desbordeDe);
-  const hayTope=Object.keys(TOPE_SEGUIM).some(u=>USUARIOS[u]&&rolDe(u)==='vendedor'&&estaTopeado(u));
-  if(!hayTope && !desb.length) return '';
+  const poolIds=POOL_DESBORDE.map(([u])=>u);
+  const desb=consultasDistribuidas().filter(a=>a.desbordeDe && poolIds.includes(a.vendedorId));
+  const conObj=filasDistribucion().filter(x=>x.obj>0);
+  const todosTope=conObj.length && conObj.every(x=>x.topeado);
+  if(!todosTope && !desb.length) return '';
   const W=POOL_DESBORDE.reduce((s,[,w])=>s+w,0);
   const filas=POOL_DESBORDE.map(([u,w])=>{
     const n=desb.filter(a=>a.vendedorId===u).length;
-    const top=estaTopeado(u), toca=sugObj&&sugObj.desbordeDe&&sugObj.uid===u;
+    const top=estaTopeado(u), toca=sugObj&&sugObj.alDesborde&&sugObj.uid===u;
     const nom=USUARIOS[u]?nombreDe(u):(CR_NOMBRES_EXTRA[u]||u);
     return `<tr class="${toca?'cr-toca':''}"><td><b>${escapeHtml(nom)}</b> <span class="cr-obj">${Math.round(w/W*100)}%</span>${toca?' <span class="cr-letoca">le toca</span>':''}${top?' <span class="cr-tope">tope</span>':''}</td><td class="r ecell"><b class="big">${n||'—'}</b></td></tr>`;
   }).join('');
   return `<div class="cr-lado-t" style="margin-top:14px">Desborde por tope</div>
-  <p class="tiny" style="margin:0 0 8px">${sugObj&&sugObj.desbordeDe?`Le tocaba a <b>${escapeHtml(nombreDe(sugObj.desbordeDe))}</b>, que está en su tope → va a <b>${escapeHtml(USUARIOS[sugObj.uid]?nombreDe(sugObj.uid):(CR_NOMBRES_EXTRA[sugObj.uid]||sugObj.uid))}</b>.`:'Lo que le toca por % a un vendedor topeado va acá, repartido 2 · 1 · 1.'} Cantidad: consultas recibidas de desborde, últimos ${DIAS_DISTRIB} días.</p>
+  <p class="tiny" style="margin:0 0 8px">${todosTope?'<b>Los vendedores están todos en su tope</b>: las consultas nuevas van acá, repartidas 2 · 1 · 1, hasta que alguno se libere.':'Se usa solo cuando todos los vendedores están en su tope.'} Cantidad: consultas recibidas de desborde, últimos ${DIAS_DISTRIB} días.</p>
   <table class="est-tabla cr-tabla"><tr><th>Desborde</th><th class="r">Recibidas</th></tr>${filas}</table>`;
 }
 
@@ -14381,7 +14393,7 @@ async function guardarCargaRapida(){
     };
     /* Desborde por tope: si la sugerencia era desborde en nombre de un vendedor topeado y se
        derivó a alguien del desborde, queda marcado. Le cuenta a ese vendedor para su %. */
-    if(canalAmplio==='virtual' && _crSug && _crSug.desbordeDe && POOL_DESBORDE.some(([u])=>u===derivar))
+    if(canalAmplio==='virtual' && _crSug && _crSug.desbordeDe && derivar===_crSug.uid && derivar!==_crSug.desbordeDe)
       record.desbordeDe=_crSug.desbordeDe;
     record.contactoId=await vincularContacto({nombre:record.clienteNombre, telefono:record.clienteTelefono, instagram:(igUser||igExtra), email:record.clienteEmail, noTomoTelefono:false, percepcion:null, resultado:'En seguimiento', canal:canalAmplio});
     const tel2=$('crTel2')?$('crTel2').value.trim():'';
